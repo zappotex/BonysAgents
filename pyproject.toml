@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bonys-agents"
+dynamic = ["version"]
+description = "Virtuelle Agent-PCs mit Brave, Telegram und Hermes Agent – für Linux, macOS und Windows"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "THIRD-PARTY-LICENSES"]
+authors = [{ name = "Bony" }]
+requires-python = ">=3.10"
+keywords = ["qemu", "debian", "cinnamon", "virtual-machine", "ai-agent", "hermes-agent", "telegram", "brave"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Environment :: X11 Applications :: Qt",
+  "Intended Audience :: End Users/Desktop",
+  "Natural Language :: German",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Emulators",
+]
+dependencies = [
+  # PySide6 6.12.0 bricht unter Python 3.10/3.11 mit „Fatal Python error: deallocating None“ ab (zählt die
+  # Referenzen auf None falsch – ab Python 3.12 ist None unsterblich und es fällt nicht auf).
+  "PySide6-Essentials>=6.6,<6.12; python_version < '3.12'",
+  "PySide6-Essentials>=6.6; python_version >= '3.12'",
+  "psutil>=5.9",
+  "platformdirs>=4.0",
+  "pycdlib>=1.14",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5", "pyinstaller>=6.6"]
+
+[project.scripts]
+bonys-agents = "bonys_agents.cli:main"
+
+[project.gui-scripts]
+bonys-agents-gui = "bonys_agents.gui.app:main"
+
+[tool.hatch.version]
+path = "src/bonys_agents/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bonys_agents"]
+
+# Lizenztexte ins Paket – das „Über“-Fenster öffnet sie auch im installierten Programm (.deb, Windows, macOS).
+[tool.hatch.build.targets.wheel.force-include]
+"LICENSE" = "bonys_agents/licenses/LICENSE"
+"THIRD-PARTY-LICENSES" = "bonys_agents/licenses/THIRD-PARTY-LICENSES"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/bonys_agents/apps.py" = ["E501"]

@@ -1,0 +1,3 @@
+# Bony's Agents: Wer am Rechner angemeldet ist, darf KVM (Hardware-Virtualisierung) nutzen.
+# Das spart das Hinzufügen zur Gruppe "kvm" und das anschließende Ab- und Anmelden.
+KERNEL=="kvm", TAG+="uaccess"

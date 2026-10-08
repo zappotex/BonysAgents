@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Bony's Agents
+GenericName=Agent-PCs
+Comment=Virtuelle Agent-PCs mit Brave, Telegram und Hermes Agent
+Exec=/opt/bonys-agents/BonysAgents
+Icon=bonys-agents
+Terminal=false
+Categories=System;Emulator;Utility;
+Keywords=VM;QEMU;KI;AI;Agent;Hermes;Telegram;Brave;
+StartupWMClass=BonysAgents

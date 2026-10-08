@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+*.qcow2
+*.iso
+dist-win/
+
+# Fremde Installer, die nicht ins Repository gehören
+Software/
+.claude/settings.local.json

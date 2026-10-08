@@ -1,0 +1,35 @@
+Bony's Agents – erster Start auf dem Mac
+=========================================
+
+1. „Bony's Agents“ in den Ordner „Programme“ ziehen (in diesem Fenster einfach auf die Verknüpfung
+   „Programme“ ziehen).
+
+2. Bony's Agents ist (noch) nicht von Apple notarisiert. Darum fragt macOS beim ersten Start nach:
+
+   macOS 15 (Sequoia) und neuer:
+     a) Bony's Agents im Ordner „Programme“ doppelklicken.
+        Es erscheint: „Bony's Agents“ nicht geöffnet → „Fertig“ klicken
+        (nicht „In den Papierkorb legen“).
+     b) Apple-Menü  → Systemeinstellungen → Datenschutz & Sicherheit.
+        Ganz nach unten scrollen bis „Sicherheit“. Unter „Apps erlauben von“ steht:
+        „Bony's Agents“ wurde blockiert, um deinen Mac zu schützen.
+        → „Dennoch öffnen“ klicken und mit dem Mac-Passwort (oder Touch ID) bestätigen.
+     c) Bony's Agents noch einmal öffnen → „Dennoch öffnen“.
+
+   macOS 14 (Sonoma):
+     Im Ordner „Programme“ mit der rechten Maustaste (oder ctrl-Klick) auf Bony's Agents
+     → „Öffnen“ → im Dialog noch einmal „Öffnen“.
+
+   Das ist nur beim allerersten Start nötig.
+
+3. Klappt beides nicht (z. B. Meldung „ist beschädigt“): Programm „Terminal“ öffnen und eingeben:
+
+     xattr -cr "/Applications/Bony's Agents.app"
+
+   Danach startet die App normal.
+
+Für die Agent-PCs braucht der Mac QEMU. Bony's Agents richtet es beim ersten Start über Homebrew
+ein (Knopf „Automatisch einrichten“) – fehlt Homebrew, öffnet sich dafür dessen offizieller
+Installer im Terminal.
+
+Mehr: https://github.com/zappotex/BonysAgents#macos

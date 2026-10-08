@@ -1,0 +1,373 @@
+name: Release
+
+# Ein Tag wie "v0.8.0" baut automatisch:
+#   - bonys-agents_<version>_amd64.deb / _arm64.deb   (Debian, Ubuntu, Mint …)
+#   - BonysAgents-Setup-<version>.exe                  (Windows-Installer)
+#   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64)
+#   - BonysAgents-<version>-macos-intel.dmg            (macOS, Intel – x86_64)
+#   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen, signiert – die App prüft sie vor jedem Update)
+# hängt alles an eine GitHub-Release-Seite und veröffentlicht die signierte APT-Paketquelle
+# auf GitHub Pages (https://<besitzer>.github.io/<repository>/apt/).
+# Ohne Tag (manuell über "Run workflow") entstehen die Dateien nur als Artefakte zum Testen.
+#
+# Benötigte GitHub-Secrets (Settings → Secrets and variables → Actions) – Anleitung: docs/RELEASE.md
+#   MINISIGN_SECRET_KEY   Inhalt der minisign-Schlüsseldatei (ohne Passwort erzeugt: minisign -G -W)
+#   APT_GPG_PRIVATE_KEY   GPG-Schlüssel für die Paketquelle (gpg --armor --export-secret-keys …)
+#   APT_GPG_PASSPHRASE    dessen Passphrase (leer lassen, wenn der Schlüssel keine hat)
+#   optional für macOS (Signierung mit Apple-Developer-ID + Notarisierung, sonst ad-hoc):
+#   APPLE_CERT_P12, APPLE_CERT_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+# Fehlt ein Secret, läuft das Release trotzdem durch, aber ohne Signatur bzw. ohne Paketquelle
+# (mit Warnung) – die App installiert unsignierte Updates nie.
+# Außerdem: Settings → Pages → Source „GitHub Actions“ und unter Settings → Environments →
+# github-pages die Tags „v*“ als Deployment-Regel erlauben.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    strategy:
+      matrix:
+        # Ubuntu 22.04 als Bau-Basis: das Paket läuft dann ab glibc 2.35
+        # (Debian 12/13, Ubuntu 22.04+, Linux Mint 21+).
+        runner: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: .deb bauen
+        run: packaging/linux/build-deb.sh
+      - name: Paket testweise installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dist/*.deb
+          bonys-agents --version
+          bonys-agents selftest
+          QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
+      # Neuere Systeme als die Bau-Basis: dort fielen mitgelieferte Bibliotheken zuerst auf
+      # (QEMU: „libmount.so.1: version `MOUNT_2_40' not found“).
+      - name: In Debian 13 und Ubuntu 24.04 installieren und Selbsttest
+        run: |
+          for image in debian:trixie ubuntu:24.04; do
+            echo "::group::$image"
+            docker run --rm -v "$PWD/dist:/dist:ro" "$image" bash -euxc '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq /dist/*.deb > /dev/null
+              bonys-agents --version
+              bonys-agents selftest
+              QT_QPA_PLATFORM=offscreen timeout 10 bonys-agents-gui || [ $? -eq 124 ]
+            '
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.runner }}
+          path: dist/*.deb
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Programm bündeln
+        run: |
+          pip install . pyinstaller
+          pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec
+          dist/bonys-agents/bonys-agents.exe --version
+      - name: Installer bauen
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          $v = python -c "import bonys_agents; print(bonys_agents.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=$v" packaging\windows\bonys-agents.iss
+      - name: Installer testweise still installieren
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\BonysAgents-Setup-*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS="desktopicon"' -Wait
+          & "${env:ProgramFiles}\Bony's Agents\bonys-agents.exe" --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: dist/BonysAgents-Setup-*.exe
+
+  macos:
+    # Zwei getrennte Builds statt universal2: PyInstaller schneidet dann jede Bibliothek auf den Chip zu
+    # (halb so groß), und jede Variante wird auf echter Hardware ihrer Art getestet.
+    # macos-15-intel ist der letzte Intel-Runner von GitHub (unterstützt bis August 2027).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+            flavor: applesilicon
+          - runner: macos-15-intel
+            arch: x86_64
+            flavor: intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      # Optional (siehe docs/RELEASE.md): Signierung mit Apple-Developer-ID und Notarisierung.
+      # Fehlen sie, wird ad-hoc signiert – der Build läuft trotzdem durch.
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: App bauen
+        run: |
+          sw_vers; uname -m
+          pip install . pyinstaller
+          pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec
+          v=$(python -c "import bonys_agents; print(bonys_agents.__version__)")
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "DMG=dist/BonysAgents-$v-macos-${{ matrix.flavor }}.dmg" >> "$GITHUB_ENV"
+          plutil -p "dist/Bony's Agents.app/Contents/Info.plist"
+          # Sonst ist die App ein unsichtbarer Hintergrunddienst (bis 0.12.0 der Fall)
+          [ "$(plutil -extract LSBackgroundOnly raw "dist/Bony's Agents.app/Contents/Info.plist")" = "false" ]
+      - name: Architektur und Mindest-macOS jeder Programmdatei prüfen
+        run: packaging/macos/check-min-macos.sh "dist/Bony's Agents.app" "${{ matrix.arch }}"
+      - name: Signieren (Developer-ID, sonst ad-hoc)
+        run: |
+          identity=$(packaging/macos/sign.sh "dist/Bony's Agents.app")
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          codesign -dv --verbose=2 "dist/Bony's Agents.app" 2>&1 | grep -E "^(Identifier|Format|Signature|Authority|TeamIdentifier)"
+      - name: .dmg bauen
+        run: |
+          packaging/macos/build-dmg.sh "dist/Bony's Agents.app" "$DMG"
+          if [ "$SIGN_IDENTITY" != "-" ]; then codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"; fi
+          ls -la dist/*.dmg
+      - name: Notarisieren (nur mit Apple-Secrets)
+        if: env.APPLE_CERT_P12 != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
+        run: |
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait --timeout 30m
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+      - name: Test – .dmg einhängen, App in „Programme“ kopieren, starten
+        run: |
+          t() { perl -e 'alarm shift; exec {$ARGV[0]} @ARGV' "$@"; }  # macOS hat kein „timeout“
+          MNT="$RUNNER_TEMP/dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG"
+          ls -la "$MNT"
+          [ "$(readlink "$MNT/Programme")" = "/Applications" ]
+          ditto "$MNT/Bony's Agents.app" "/Applications/Bony's Agents.app"
+          hdiutil detach "$MNT"
+          APP="/Applications/Bony's Agents.app"
+          echo "CLI=$APP/Contents/MacOS/bonys-agents" >> "$GITHUB_ENV"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --type execute -vv "$APP" || echo "Gatekeeper: nicht notarisiert – beim ersten Start fragt macOS nach (siehe README)."
+          file "$APP/Contents/MacOS/"*
+          "$APP/Contents/MacOS/bonys-agents" --version | tee version.txt
+          grep -qx "bonys-agents $VERSION" version.txt
+          # Desktop-App ohne Bildschirm: muss nach 5 s noch laufen (Alarm-Code 142) und ohne Stylesheet-Fehler
+          set +e
+          QT_QPA_PLATFORM=offscreen t 5 "$APP/Contents/MacOS/BonysAgents" > gui.log 2>&1; rc=$?
+          set -e
+          cat gui.log
+          [ "$rc" -eq 142 ] || { echo "::error::Desktop-App ist nach $rc beendet"; exit 1; }
+          ! grep -q "Could not parse" gui.log
+      - name: Test – echter Start im Finder (Dock, Vordergrund)
+        run: |
+          APP="/Applications/Bony's Agents.app"
+          open "$APP"
+          for i in $(seq 1 30); do pgrep -x BonysAgents >/dev/null && break; sleep 1; done
+          sleep 8
+          mkdir -p shots && screencapture -x "shots/app-${{ matrix.flavor }}.png" || true
+          bg=$(perl -e 'alarm 20; exec {$ARGV[0]} @ARGV' osascript -e \
+            'tell application "System Events" to get background only of first process whose name is "BonysAgents"' || echo "?")
+          echo "background only: $bg"
+          [ "$bg" != "true" ] || { echo "::error::App läuft als Hintergrunddienst (LSBackgroundOnly)"; exit 1; }
+          pgrep -x BonysAgents
+          osascript -e 'quit app "Bony'"'"'s Agents"' || pkill -x BonysAgents || true
+      - name: Test – doctor vor QEMU
+        run: '"$CLI" doctor || true'
+      - name: Test – QEMU über Homebrew, doctor und Bootversuch eines Agent-PCs
+        run: |
+          brew install qemu
+          "$CLI" doctor || true    # HVF fehlt auf den (virtualisierten) Runnern – das ist hier erwartet
+          "$CLI" doctor | grep -E "^(Mac|Homebrew|HVF|qemu-system|UEFI)"
+          "$CLI" selftest --boot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.flavor }}
+          path: dist/BonysAgents-*-macos-*.dmg
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot-macos-${{ matrix.flavor }}
+          path: shots
+
+  macos-compat:
+    # Die fertige .dmg auf dem ältesten unterstützten macOS (LSMinimumSystemVersion, siehe Spec) starten –
+    # die mitgelieferten Bibliotheken dürfen dort keine fehlenden Systemfunktionen brauchen.
+    needs: macos
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, macos-15]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-applesilicon
+      - name: Installieren und starten
+        run: |
+          sw_vers; uname -m
+          t() { perl -e 'alarm shift; exec {$ARGV[0]} @ARGV' "$@"; }
+          MNT="$RUNNER_TEMP/dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" BonysAgents-*-macos-applesilicon.dmg
+          ditto "$MNT/Bony's Agents.app" "/Applications/Bony's Agents.app"
+          hdiutil detach "$MNT"
+          APP="/Applications/Bony's Agents.app"
+          plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist"
+          "$APP/Contents/MacOS/bonys-agents" --version
+          "$APP/Contents/MacOS/bonys-agents" doctor || true
+          "$APP/Contents/MacOS/bonys-agents" selftest || true
+          set +e
+          QT_QPA_PLATFORM=offscreen t 5 "$APP/Contents/MacOS/BonysAgents" > gui.log 2>&1; rc=$?
+          set -e
+          cat gui.log
+          [ "$rc" -eq 142 ] || { echo "::error::Desktop-App ist auf $(sw_vers -productVersion) nach $rc beendet"; exit 1; }
+          open "$APP"; sleep 10
+          pgrep -x BonysAgents || { echo "::error::Desktop-App läuft nach dem Öffnen nicht"; exit 1; }
+          mkdir -p shots && screencapture -x "shots/${{ matrix.runner }}.png" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot-compat-${{ matrix.runner }}
+          path: shots
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, windows, macos, macos-compat]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Prüfsummen (SHA256SUMS) erzeugen und signieren
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          cd out
+          sha256sum -- *.deb *.exe *.dmg > SHA256SUMS
+          cat SHA256SUMS
+          if [ -z "$MINISIGN_SECRET_KEY" ]; then
+            echo "::warning::Secret MINISIGN_SECRET_KEY fehlt – SHA256SUMS bleibt unsigniert, die App installiert dieses Update nicht automatisch (siehe docs/RELEASE.md)."
+            exit 0
+          fi
+          sudo apt-get install -y -qq minisign
+          KEY="$RUNNER_TEMP/minisign.key"
+          (umask 077; printf '%s\n' "$MINISIGN_SECRET_KEY" > "$KEY")
+          # Die App prüft, dass der vertrauenswürdige Kommentar genau diese Version nennt.
+          minisign -S -s "$KEY" -m SHA256SUMS -t "Bony's Agents ${GITHUB_REF_NAME}"
+          rm -f "$KEY"
+          # Gegenprobe mit dem öffentlichen Schlüssel, der fest in der App steckt
+          PUB="$(sed -n 's/^UPDATE_PUBLIC_KEY = "\(.*\)"/\1/p' ../src/bonys_agents/__init__.py)"
+          if [ -n "$PUB" ]; then
+            minisign -V -m SHA256SUMS -P "$PUB"
+          else
+            echo "::warning::UPDATE_PUBLIC_KEY in src/bonys_agents/__init__.py ist leer – die App kann die Signatur nicht prüfen."
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.deb
+            out/*.exe
+            out/*.dmg
+            out/SHA256SUMS
+            out/SHA256SUMS.minisig
+          body: |
+            **Installieren – ganz ohne Terminal:**
+            - **Windows:** `BonysAgents-Setup-….exe` herunterladen und doppelklicken.
+            - **Debian / Ubuntu / Linux Mint:** die passende `.deb`-Datei herunterladen und doppelklicken
+              (öffnet die Softwareverwaltung) → „Installieren“. Für die meisten PCs: `amd64`.
+              Spätere Updates kommen dann über die Aktualisierungsverwaltung.
+            - **macOS 14 oder neuer:** Mac mit Apple-Chip (M1, M2 …): `…-macos-applesilicon.dmg`,
+              Mac mit Intel-Prozessor: `…-macos-intel.dmg` (Apple-Menü  → „Über diesen Mac“ zeigt den Chip).
+              Öffnen und „Bony's Agents“ auf „Programme“ ziehen.
+
+            **Erster Start auf dem Mac** (nur einmal nötig – die App ist nicht von Apple notarisiert):
+            1. Bony's Agents im Ordner „Programme“ doppelklicken → Meldung *„Bony's Agents“ nicht geöffnet* → **„Fertig“**.
+            2. Apple-Menü  → **Systemeinstellungen → Datenschutz & Sicherheit** → ganz unten bei „Sicherheit“ **„Dennoch öffnen“** → mit Passwort/Touch ID bestätigen.
+            3. Noch einmal öffnen → **„Dennoch öffnen“**.
+
+            macOS 14 (Sonoma): stattdessen Rechtsklick auf die App → **„Öffnen“** → **„Öffnen“**.
+            Klappt beides nicht, im Terminal: `xattr -cr "/Applications/Bony's Agents.app"`.
+            Mit Bildern: [Anleitung in der README](https://github.com/${{ github.repository }}#erster-start)
+
+            <img src="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docs/images/macos/1-nicht-geoeffnet.png" alt="Schritt 1: „Fertig“" height="260"> <img src="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docs/images/macos/2-datenschutz-sicherheit.png" alt="Schritt 2: Datenschutz & Sicherheit → Dennoch öffnen" height="260">
+
+            Prüfsummen: `SHA256SUMS`, signiert mit minisign (`SHA256SUMS.minisig`).
+
+  apt-repo:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          path: debs
+          merge-multiple: true
+      - name: Signierte APT-Paketquelle bauen
+        id: repo
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "::warning::Secret APT_GPG_PRIVATE_KEY fehlt – die APT-Paketquelle wird nicht veröffentlicht (siehe docs/RELEASE.md)."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 -p "$GNUPGHOME"
+          printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          export APT_GPG_KEY_ID="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          packaging/linux/build-apt-repo.sh debs site/apt
+          # Gegenprobe: passt der Schlüssel zu dem, der im Paket steckt?
+          if [ -s packaging/linux/bonys-agents-archive-keyring.asc ]; then
+            gpg --batch --dearmor < packaging/linux/bonys-agents-archive-keyring.asc > "$RUNNER_TEMP/keyring.gpg"
+            gpgv --keyring "$RUNNER_TEMP/keyring.gpg" site/apt/dists/stable/InRelease
+          else
+            echo "::warning::packaging/linux/bonys-agents-archive-keyring.asc fehlt – das .deb richtet die Paketquelle nicht ein."
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+      - if: steps.repo.outputs.publish == 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.repo.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - if: steps.repo.outputs.publish == 'true'
+        id: deploy
+        uses: actions/deploy-pages@v4
