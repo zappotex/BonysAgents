@@ -422,6 +422,9 @@ PERSONAL_DATA: tuple[PersonalItem, ...] = (
     PersonalItem("OpenClaw: Konfiguration, Zugangsdaten, Agenten, Sitzungen, Arbeitsordner – "
                  "das Programm (bin, tools, lib) bleibt", (".openclaw",), keep=("bin", "tools", "lib")),
     PersonalItem("Claude Code: Anmeldung, Einstellungen, Verlauf", (".claude", ".claude.json", ".claude.json.backup")),
+    PersonalItem("Obsidian: Anmeldung, Einstellungen und Zwischenspeicher – die Liste der Tresore bleibt",
+                 (".config/obsidian",), keep=("obsidian.json",)),
+    PersonalItem("Notizen im Tresor „Agent-Notizen“ (Obsidian)", ("Agent-Notizen",), contents=True),
     PersonalItem("SSH-Schlüssel und bekannte Rechner", (".ssh",)),
     PersonalItem("Git: Zugangsdaten, Name und E-Mail, GitHub-CLI-Anmeldung",
                  (".git-credentials", ".config/git/credentials", ".gitconfig", ".config/gh")),

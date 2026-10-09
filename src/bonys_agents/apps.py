@@ -122,6 +122,99 @@ systemctl disable --now xrdp xrdp-sesman || true
 """,
 )
 
+OBSIDIAN = AppSpec(
+    id="obsidian",
+    name="Obsidian (Notizen)",
+    description="Markdown-Notizen (offizielles GitHub-Release) – kostenlos, aber kein Open Source",
+    default=False,
+    weight=8.0,
+    check="test -x /opt/Obsidian/obsidian",
+    launcher="md.obsidian.Obsidian.desktop",
+    # Neueste Version aus dem offiziellen GitHub-Release, SHA-256 aus der GitHub-API.
+    # amd64: offizielle .deb. arm64: keine .deb vorhanden → offizielles tar.gz nach /opt/Obsidian
+    # mit denselben Abhängigkeiten und demselben Sandbox-Vorgehen wie die .deb.
+    # Programm-Updates holt Obsidian selbst; leerer Tresor ohne Anmeldung/Sync.
+    install=r"""
+apt-get install -y curl ca-certificates python3
+ARCH="$(dpkg --print-architecture)"
+TMP="$(mktemp -d)"
+python3 - "$ARCH" > "$TMP/asset" <<'EOF'
+import json, sys, urllib.request
+arch = sys.argv[1]
+req = urllib.request.Request(
+    "https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest",
+    headers={"Accept": "application/vnd.github+json", "User-Agent": "bonys-agents"})
+rel = json.load(urllib.request.urlopen(req, timeout=60))
+ver = rel["tag_name"].lstrip("v")
+want = {"amd64": f"obsidian_{ver}_amd64.deb", "arm64": f"obsidian-{ver}-arm64.tar.gz"}.get(arch)
+if not want:
+    sys.exit(f"Obsidian gibt es nicht für {arch}.")
+prefix = "https://github.com/obsidianmd/obsidian-releases/releases/download/"
+for a in rel["assets"]:
+    if a["name"] == want and a["browser_download_url"].startswith(prefix):
+        digest = a.get("digest") or ""
+        print(ver, a["name"], a["browser_download_url"], digest.removeprefix("sha256:") if digest.startswith("sha256:") else "-")
+        break
+else:
+    sys.exit(f"{want} fehlt im Obsidian-Release {ver}.")
+EOF
+read -r VER FILE URL SHA < "$TMP/asset"
+echo "Lade Obsidian $VER ($FILE) …"
+curl -fSL --retry 3 -o "$TMP/$FILE" "$URL"
+if [ "$SHA" != "-" ]; then
+  echo "$SHA  $TMP/$FILE" | sha256sum -c -
+else
+  echo "WARNUNG: Für $FILE ist keine Prüfsumme angegeben."
+fi
+if [ "$ARCH" = amd64 ]; then
+  apt-get install -y "$TMP/$FILE"
+else
+  apt-get install -y libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0
+  rm -rf /opt/Obsidian
+  mkdir -p /opt/Obsidian
+  tar -xzf "$TMP/$FILE" -C /opt/Obsidian --strip-components=1 --no-same-owner
+  if { [ -L /proc/self/ns/user ] && unshare --user true; }; then
+    chmod 0755 /opt/Obsidian/chrome-sandbox
+  else
+    chmod 4755 /opt/Obsidian/chrome-sandbox
+  fi
+  ln -sf /opt/Obsidian/obsidian /usr/bin/obsidian
+  # gleicher Eintrag wie in der offiziellen .deb, nur mit dem Symbol aus dem Archiv
+  cat > /usr/share/applications/md.obsidian.Obsidian.desktop <<'EOF'
+[Desktop Entry]
+Name=Obsidian
+Exec=/opt/Obsidian/obsidian %U
+Terminal=false
+Type=Application
+Icon=/opt/Obsidian/resources/icon.png
+StartupWMClass=md.obsidian.Obsidian
+Comment=Obsidian
+MimeType=application/pdf;text/markdown;application/x-obsidian-canvas;application/x-obsidian-base;x-scheme-handler/obsidian;
+Categories=Office;
+EOF
+fi
+rm -rf "$TMP"
+# Ohne Schlüsselbund-Abfrage beim ersten Start (automatische Anmeldung hat keinen entsperrten
+# Schlüsselbund): offizieller Electron-Schalter --password-store=basic. Der Eintrag in
+# /usr/local/share hat Vorrang vor dem der .deb und bleibt bei deren Updates erhalten.
+mkdir -p /usr/local/share/applications
+sed 's|^Exec=/opt/Obsidian/obsidian |Exec=/opt/Obsidian/obsidian --password-store=basic |' \
+  /usr/share/applications/md.obsidian.Obsidian.desktop > /usr/local/share/applications/md.obsidian.Obsidian.desktop
+grep -q -- '--password-store=basic' /usr/local/share/applications/md.obsidian.Obsidian.desktop
+cp /usr/local/share/applications/md.obsidian.Obsidian.desktop "$DESKTOP_DIR/"
+# Leerer Tresor „Agent-Notizen“, beim ersten Start schon geöffnet (keine Anmeldung, kein Sync)
+VAULT="$AGENT_HOME/Agent-Notizen"
+mkdir -p "$VAULT/.obsidian" "$AGENT_HOME/.config/obsidian"
+CONF="$AGENT_HOME/.config/obsidian/obsidian.json"
+if [ ! -s "$CONF" ]; then
+  printf '{"vaults":{"%s":{"path":"%s","ts":%s,"open":true}}}\n' \
+    "$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" "$VAULT" "$(date +%s%3N)" > "$CONF"
+fi
+chown "$AGENT_USER:$AGENT_USER" "$AGENT_HOME/.config"
+chown -R "$AGENT_USER:$AGENT_USER" "$VAULT" "$AGENT_HOME/.config/obsidian"
+""",
+)
+
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
@@ -211,7 +304,8 @@ cp /usr/share/applications/openclaw.desktop "$DESKTOP_DIR/"
 CLAUDE_CODE = AppSpec(
     id="claude-code",
     name="Claude Code",
-    description="KI-Programmierhilfe von Anthropic im Terminal – Anmeldung mit eigenem Claude-Konto",
+    description="KI-Programmierhilfe von Anthropic im Terminal – Anmeldung mit eigenem Claude-Konto; "
+                "kein Open Source, Nutzung braucht ein kostenpflichtiges Claude-Abo oder API-Guthaben",
     category=AGENT,
     weight=8.0,
     default=False,
@@ -252,7 +346,7 @@ cp /usr/share/applications/claude-code.desktop "$DESKTOP_DIR/"
 """,
 )
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, HERMES, OPENCLAW, CLAUDE_CODE)}
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, HERMES, OPENCLAW, CLAUDE_CODE)}
 
 
 def default_app_ids() -> list[str]:

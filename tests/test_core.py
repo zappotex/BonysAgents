@@ -673,8 +673,93 @@ def test_ai_tool_specs():
     for app_id, name in (("openclaw", "OpenClaw"), ("claude-code", "Claude Code"), ("hermes", "Hermes Agent")):
         spec = apps.APPS[app_id]
         assert spec.name == name and spec.category == apps.AGENT
-    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp"]
+    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian"]
     assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "hermes"]  # KI-Werkzeuge außer Hermes nur auf Wunsch
+
+
+def test_closed_source_apps_say_so():
+    for app_id in ("obsidian", "claude-code"):
+        assert "kein Open Source" in apps.APPS[app_id].description
+    assert "kostenlos" in apps.OBSIDIAN.description
+
+
+def test_obsidian_spec():
+    spec = apps.APPS["obsidian"]
+    assert spec.name == "Obsidian (Notizen)" and spec.category == apps.PROGRAM and not spec.default
+    assert spec.launcher == "md.obsidian.Obsidian.desktop" and "/opt/Obsidian/obsidian" in spec.check
+    run = "\n".join(_outside_heredocs(spec.install))
+    # neueste Version aus der GitHub-API, nichts fest eingetragen; Prüfsumme wird geprüft
+    assert not re.search(r"\d+\.\d+\.\d+", spec.install)
+    assert 'sha256sum -c -' in run and 'curl -fSL' in run
+    assert 'apt-get install -y "$TMP/$FILE"' in run and "/opt/Obsidian --strip-components=1" in run
+    # Name des Desktop-Eintrags wie in der offiziellen .deb – für arm64 legen wir ihn genauso an
+    assert "cat > /usr/share/applications/md.obsidian.Obsidian.desktop" in spec.install
+    assert 'cp /usr/local/share/applications/md.obsidian.Obsidian.desktop "$DESKTOP_DIR/"' in run
+    assert "--password-store=basic" in run  # keine Schlüsselbund-Abfrage beim ersten Start
+    assert '"$AGENT_HOME/Agent-Notizen"' in run and '"open":true' in run
+    for word in ("token", "password=", "passwort", "sync.json", "@"):  # keine Zugangsdaten, kein Sync
+        assert word not in spec.install.lower(), word
+
+
+def _obsidian_picker() -> str:
+    """Python-Teil des Obsidian-Snippets, der Version, Datei und Prüfsumme auswählt."""
+    return apps.OBSIDIAN.install.split("<<'EOF'\n", 1)[1].split("\nEOF\n", 1)[0]
+
+
+RELEASE = {
+    "tag_name": "v9.8.7",
+    "assets": [
+        {"name": n, "browser_download_url": f"https://github.com/obsidianmd/obsidian-releases/releases/download/v9.8.7/{n}",
+         "digest": f"sha256:{'ab' * 32}"}
+        for n in ("Obsidian-9.8.7-arm64.AppImage", "obsidian-9.8.7-arm64.tar.gz", "Obsidian-9.8.7.AppImage",
+                  "obsidian_9.8.7_amd64.deb", "obsidian-9.8.7.tar.gz")
+    ],
+}
+
+
+@pytest.mark.parametrize("arch,expect", [
+    ("amd64", "obsidian_9.8.7_amd64.deb"), ("arm64", "obsidian-9.8.7-arm64.tar.gz")])
+def test_obsidian_picks_official_asset(arch, expect, monkeypatch, capsys):
+    import io
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(RELEASE).encode()))
+    monkeypatch.setattr(sys, "argv", ["-", arch])
+    exec(compile(_obsidian_picker(), "obsidian-picker", "exec"), {"__name__": "__main__"})
+    ver, name, url, sha = capsys.readouterr().out.split()
+    assert (ver, name, sha) == ("9.8.7", expect, "ab" * 32)
+    assert url.startswith("https://github.com/obsidianmd/obsidian-releases/releases/download/")
+
+
+def test_obsidian_rejects_foreign_url_and_unknown_arch(monkeypatch):
+    import io
+    import urllib.request
+    bad = json.loads(json.dumps(RELEASE))
+    for a in bad["assets"]:
+        a["browser_download_url"] = "https://example.com/" + a["name"]
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(bad).encode()))
+    for arch in ("amd64", "riscv64"):
+        monkeypatch.setattr(sys, "argv", ["-", arch])
+        with pytest.raises(SystemExit) as e:
+            exec(compile(_obsidian_picker(), "obsidian-picker", "exec"), {"__name__": "__main__"})
+        assert e.value.code
+
+
+def test_obsidian_without_digest_warns(monkeypatch, capsys):
+    import io
+    import urllib.request
+    rel = json.loads(json.dumps(RELEASE))
+    for a in rel["assets"]:
+        a.pop("digest")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(rel).encode()))
+    monkeypatch.setattr(sys, "argv", ["-", "amd64"])
+    exec(compile(_obsidian_picker(), "obsidian-picker", "exec"), {"__name__": "__main__"})
+    assert capsys.readouterr().out.split()[-1] == "-"
+    assert "WARNUNG: Für $FILE ist keine Prüfsumme angegeben." in apps.OBSIDIAN.install
+
+
+def test_obsidian_install_later_script():
+    script = cloudinit.app_install_script(apps.APPS["obsidian"], "agent")
+    assert "md.obsidian.Obsidian.desktop" in script and "test -x /opt/Obsidian/obsidian" in script
 
 
 @pytest.mark.parametrize("app_id,installer", [

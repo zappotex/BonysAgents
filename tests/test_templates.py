@@ -39,7 +39,8 @@ def test_personal_data_list_covers_required_paths():
     joined = "\n".join(paths)
     for p in ("/home/agent/.var/app/org.telegram.desktop", "/home/agent/.config/BraveSoftware",
               "/home/agent/.hermes", "/home/agent/.openclaw", "/home/agent/.claude", "/home/agent/.claude.json",
-              "/home/agent/.ssh", "/home/agent/.git-credentials", "/home/agent/.local/share/keyrings"):
+              "/home/agent/.ssh", "/home/agent/.git-credentials", "/home/agent/.local/share/keyrings",
+              "/home/agent/.config/obsidian", "/home/agent/Agent-Notizen"):
         assert p in joined, p
     # Programme bleiben: Hermes und OpenClaw nur mit Ausnahmen
     hermes = next(i for i in cloudinit.PERSONAL_DATA if ".hermes" in i.paths)
@@ -69,7 +70,8 @@ def test_generalize_personal_part_runs(tmp_path, dry):
         ".openclaw/bin/openclaw": "programm", ".openclaw/tools/node/lib/x": "programm",
         ".claude/.credentials.json": "x", ".claude.json": "x", ".ssh/id_ed25519": "x",
         ".git-credentials": "x", ".gitconfig": "x", "Downloads/rechnung.pdf": "x", "Schreibtisch/brave.desktop": "x",
-        ".bashrc": "bleibt",
+        ".bashrc": "bleibt", ".config/obsidian/obsidian.json": "tresore", ".config/obsidian/Local Storage/x": "x",
+        "Agent-Notizen/Geheim.md": "x", "Agent-Notizen/.obsidian/app.json": "x",
     }
     for rel, content in files.items():
         f = home / rel
@@ -87,10 +89,11 @@ def test_generalize_personal_part_runs(tmp_path, dry):
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env, check=True).stdout
     gone = [".var/app/org.telegram.desktop", ".config/BraveSoftware", ".hermes/.env", ".hermes/config.yaml",
             ".hermes/memories", ".openclaw/openclaw.json", ".openclaw/credentials", ".openclaw/.bonys-eingerichtet",
-            ".claude", ".claude.json", ".ssh", ".git-credentials", ".gitconfig", "Downloads/rechnung.pdf"]
+            ".claude", ".claude.json", ".ssh", ".git-credentials", ".gitconfig", "Downloads/rechnung.pdf",
+            ".config/obsidian/Local Storage", "Agent-Notizen/Geheim.md", "Agent-Notizen/.obsidian"]
     kept = [".hermes/hermes-agent/hermes", ".hermes/tools/node/bin/node", ".hermes/installs/a/b",
             ".hermes/skills/x/SKILL.md", ".openclaw/bin/openclaw", ".openclaw/tools/node/lib/x",
-            "Schreibtisch/brave.desktop", ".bashrc", "Downloads"]
+            "Schreibtisch/brave.desktop", ".bashrc", "Downloads", ".config/obsidian/obsidian.json", "Agent-Notizen"]
     for rel in kept:
         assert (home / rel).exists(), rel
     for rel in gone:
