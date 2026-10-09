@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Bony's VPN im Agent-PC: Der Benutzer @USER@ darf den Helfer ohne Passwort aufrufen.
+// (Er hat dort ohnehin sudo ohne Passwort – die Regel erspart nur die Abfrage.)
+polkit.addRule(function(action, subject) {
+    if (action.id == "io.github.bonys-agents.vpn" && subject.user == "@USER@") {
+        return polkit.Result.YES;
+    }
+});

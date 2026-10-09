@@ -112,7 +112,23 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 
 ### Sitzung 2 – Root-Helfer, CLI, Sicherheitskonzept
 
-- [ ] offen
+- [x] `src/bonys_agents/vpn/`: `conf.py` (Prüfung, Namen, Schlüssel verbergen), `killswitch.py` (nft-Regelwerk), `helper.py` (`bonys-vpn-helper`), `cli.py` (`bonys-vpn`), `install.py` (eigenständig), `data/` (polkit-Aktion, Regeln agent/host, systemd-Unit). Nur Standardbibliothek, nur relative Importe.
+- [x] Helfer bekommt keine Pfade: .conf kommt über stdin (die CLI liest sie als Benutzer). Fehlermeldungen ohne Werte, Ausgaben fremder Programme werden von schlüsselähnlichem Text bereinigt, Status nie über `wg show … dump`.
+- [x] Eigene Tunnel tragen die Kopfzeile `# Verwaltet von Bony's VPN`. Nur sie lassen sich löschen, umbenennen und exportieren.
+- [x] Kill-Switch `inet bonys_vpn` (nur output): lo, Tunnel-Geräte, `ct direction reply`, DHCP, IPv6-ND, Endpunkte, DNS nur root/systemd-resolve, Ausnahmen; Rest `reject`. Unit `bonys-vpn-killswitch.service` vor `network-pre.target`, ohne ExecStop.
+- [x] polkit: eine Aktion `io.github.bonys-agents.vpn`, `agent.rules` (Benutzer ohne Passwort), `host.rules` (`auth_admin_keep`)
+- [x] Installation an feste Orte: `/usr/local/lib/bonys-vpn/bonys_vpn/`, `/usr/local/sbin/bonys-vpn-helper` (`python3 -I`), `/usr/local/bin/bonys-vpn`, `/etc/bonys-vpn/`
+- [x] `docs/vpn.md` (Sicherheitskonzept)
+- [x] 75 Tests in `tests/test_vpn.py` (Attrappen für wg/wg-quick/nft/systemctl/pkexec, nur unter Linux). Regelwerk zusätzlich mit echtem `nft` 1.0.9 im eigenen Namensraum geladen. pytest 293 grün, ruff sauber.
+- [x] Praxistest (2026-10-10, Agent-PC „obsidian-test“, Debian 13): Pakete `wireguard-tools nftables` per apt, Dateien per Gast-Agent übertragen, `install.py --variant agent`. Eigene Server-.conf (Pfad vom Nutzer, Inhalt nie gelesen) über den Gast-Agent in einen 700-Ordner gelegt, als `agent` importiert, Kopie gelöscht. Ergebnisse:
+  - Kill-Switch ohne Tunnel: Internet sofort gesperrt, SSH vom Host und Gast-Agent gehen
+  - `up`: öffentliche IP = VPN-Server, Status/JSON mit Handshake und Daten, SSH bei aktivem Tunnel geht
+  - `down`: wieder gesperrt; Autostart an → Neustart: Kill-Switch lädt vor NetworkManager, Tunnel verbindet sich selbst
+  - `bonys-agents stop` bei aktivem Tunnel + Kill-Switch: sauber in 2,4 s
+- Erkenntnis: Der Agent-PC nutzt systemd-resolved, `resolvconf` kommt von dort. **openresolv nicht installieren.** Sitzung 4: `wireguard-tools nftables` in die Paketliste der Agent-PCs, Helfer beim Erstellen installieren.
+- Hinweis: Der Benutzer `agent` hat sudo ohne Passwort. Im Agent-PC ist der Helfer also Bequemlichkeit, keine Sicherheitsgrenze (steht in `docs/vpn.md`).
+- Offen für Sitzung 5 (Host): Pfade für das .deb (statt `/usr/local`), `bonys-vpn` als Skript im Paket.
+- Achtung: In „obsidian-test“ liegt der Tunnel „bonysagents“ (echter Schlüssel), Autostart und Kill-Switch sind an. Für Sitzung 3/4 nutzbar, sonst mit `bonys-vpn delete bonysagents --ja` und `bonys-vpn killswitch aus` aufräumen.
 
 ### Sitzung 3 – Oberfläche im Agent-PC
 

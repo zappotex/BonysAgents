@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Bony's VPN – lädt den Kill-Switch beim Start, bevor das Netz hochkommt.
+# Kein ExecStop: Der Schutz soll bis zum Ausschalten bleiben. Abschalten macht der Helfer (killswitch off).
+[Unit]
+Description=Bony's VPN Kill-Switch (nftables)
+DefaultDependencies=no
+Before=network-pre.target
+Wants=network-pre.target
+After=nftables.service local-fs.target
+ConditionPathExists=/etc/bonys-vpn/killswitch.nft
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/bonys-vpn/killswitch.nft
+
+[Install]
+WantedBy=sysinit.target

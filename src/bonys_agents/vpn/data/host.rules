@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Bony's VPN auf dem eigenen Rechner: Administrator-Passwort, danach einige Minuten gemerkt.
+polkit.addRule(function(action, subject) {
+    if (action.id == "io.github.bonys-agents.vpn") {
+        return subject.local && subject.active ? polkit.Result.AUTH_ADMIN_KEEP : polkit.Result.AUTH_ADMIN;
+    }
+});
