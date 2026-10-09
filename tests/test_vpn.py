@@ -542,7 +542,9 @@ def test_vpn_package_has_no_project_imports():
             else:
                 continue
             for m in mods:
-                assert m in stdlib or m == "__future__", f"{py.name} importiert {m}"
+                # Die Oberfläche braucht zusätzlich python3-gi (Debian-Paket)
+                assert m in stdlib or m == "__future__" or (py.name == "gui.py" and m == "gi"), \
+                    f"{py.name} importiert {m}"
 
 
 def test_helper_never_uses_shell():

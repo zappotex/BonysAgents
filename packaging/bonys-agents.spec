@@ -21,6 +21,8 @@ VERSION = next(
     if line.startswith("__version__")
 )
 datas = collect_data_files("bonys_agents")
+# Bony's VPN wird als Quelltext in den Agent-PC übertragen (apps.vpn_payload) – also auch die .py-Dateien.
+datas += collect_data_files("bonys_agents.vpn", include_py_files=True)
 
 # Nicht benötigte Qt-Teile weglassen – spart ~100 MB.
 EXCLUDES = [

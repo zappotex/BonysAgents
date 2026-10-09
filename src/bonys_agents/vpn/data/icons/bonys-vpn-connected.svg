@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later – Tray-Symbol von Bony's VPN (connected) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path d="M32 3 L56 12 V30 C56 45 46 55 32 61 C18 55 8 45 8 30 V12 Z" fill="#4cc38a" stroke="#f5a623" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="21" y="29" width="22" height="17" rx="3" fill="#0d141d"/>
+  <path d="M25 29 V24 A7 7 0 0 1 39 24 V29" fill="none" stroke="#0d141d" stroke-width="4"/>
+  <circle cx="32" cy="37" r="2.6" fill="#4cc38a"/>
+</svg>

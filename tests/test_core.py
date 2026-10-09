@@ -673,7 +673,7 @@ def test_ai_tool_specs():
     for app_id, name in (("openclaw", "OpenClaw"), ("claude-code", "Claude Code"), ("hermes", "Hermes Agent")):
         spec = apps.APPS[app_id]
         assert spec.name == name and spec.category == apps.AGENT
-    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian"]
+    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "vpn"]
     assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "hermes"]  # KI-Werkzeuge außer Hermes nur auf Wunsch
 
 

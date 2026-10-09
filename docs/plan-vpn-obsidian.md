@@ -132,7 +132,51 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 
 ### Sitzung 3 – Oberfläche im Agent-PC
 
-- [ ] offen
+- [x] Toolkit: **GTK 3 über python3-gi** (Begründung in `docs/vpn.md`, Abschnitt „Oberfläche“): etwa 2 MB
+  zusätzlich gegenüber rund 74 MB für PySide6, Tray über Ayatana-AppIndicator (SNI), sonst XEmbed, sonst ohne
+- [x] `vpn/model.py` (Logik ohne GTK: Sprache, Formatierung, Statusmodell, Live-Werte aus `/sys`,
+  Abbruch-Erkennung, Namensvorschlag, Editor-Prüfung mit `(verborgen)`, öffentliche IP, Export 600)
+- [x] `vpn/gui.py` (`bonys-vpn-gui`, `--tray`): Tunnelliste mit Status, Ein-Klick verbinden/trennen,
+  Live-Details, öffentliche IP auf Knopfdruck (nennt api.ipify.org), Import per Dateiauswahl,
+  Drag&Drop, mehrere Dateien, ZIP, Namenskonflikt (ersetzen, anderer Name, überspringen), Umbenennen,
+  Löschen mit Rückfrage, Export, Editor (Schlüssel verborgen, „Schlüssel anzeigen“, Live-Prüfung),
+  Hook-Warnung, Schalter Autostart und Kill-Switch mit Erklärtext, Tray mit Status und Schnellwahl,
+  Benachrichtigung bei Abbruch und Wiederkehr. Deutsch, sonst Englisch. Farben und Logo von Bony's Agents,
+  Startgröße passt sich an den Bildschirm an (800×600 geht)
+- [x] `install.py`: Oberfläche, Symbole, Desktop-Eintrag, `--autostart-tray` (`/etc/xdg/autostart`)
+- [x] App-Option „WireGuard VPN (Bony's VPN)“ (`apps.VPN`, id `vpn`, standardmäßig aus): Debian-Pakete
+  `wireguard-tools nftables pkexec polkitd python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1`,
+  Code als tar.gz/base64 im Installationsschritt (`apps.vpn_payload()`), also beim Erstellen über das
+  Seed-ISO und beim Nachinstallieren per SSH. Schreibtisch-Verknüpfung. PyInstaller-Spec nimmt die
+  `.py` von `vpn/` als Daten mit
+- [x] Tests `tests/test_vpn_gui.py` (42): Modell, Abbrüche, Editor/Maskierung, Installation, Nutzlast
+  (Inhalt, reproduzierbar, Bash-Teil mit Attrappen, im user-data), Offscreen-Smoke-Test der echten
+  GTK-Oberfläche über Broadway (de/en; Schalter lösen genau einen Aufruf aus, Auswahl nach Umbenennen).
+  Läuft nur, wenn System-Python mit python3-gi und `broadwayd` da sind, sonst übersprungen
+- [x] Echter Test (2026-10-10, aus dem Quellstand erstellt): „vpn-cinnamon“ und „vpn-xfce“ mit `--apps vpn`.
+  Test-.conf `~/vpn-test/bonysagents.conf` (Inhalt nie gelesen, Kopie im Gast nach dem Import gelöscht).
+  Per Mausklick über QMP bedient, Screenshots per QMP screendump in
+  `/media/zappotex/bonysagent/BonysAgents/screenshots-vpn-gui/` (außerhalb des Repos):
+  - Cinnamon: Tray (SNI) grau/grün/rot, Schnellwahl im Tray-Menü, verbinden/trennen, Handshake und Daten live,
+    öffentliche IP = VPN-Server, Kill-Switch an/aus per Schalter (ohne Tunnel kein Internet), Autostart,
+    Benachrichtigung bei Abbruch (Tunnel von außen getrennt), Neustart: Kill-Switch vor NetworkManager,
+    Tunnel und Tray kommen von selbst. Mit Dummy-Konfigurationen (Wegwerf-Schlüssel): Import über den
+    Dateidialog, Hook-Warnung, Editor mit Prüfung und „Schlüssel anzeigen“, Umbenennen, Export (600), Löschen
+  - Xfce: Tray (SNI) mit Menü, verbinden/trennen, IP, Kill-Switch sperrt, Autostart nach Neustart
+- Beim echten Test gefunden und behoben: Schalter-Klick löste zusätzlich den Gegenbefehl aus (Schalter wurde
+  im eigenen Ereignis zurückgesetzt), Fehlalarm „Server antwortet nicht“ bei untätigem Tunnel, alte
+  öffentliche IP nach dem Verbinden, Auswahl sprang nach dem Umbenennen auf den aktiven Tunnel (dadurch
+  wurde einmal der falsche Tunnel exportiert, die Datei im Gast sofort mit `shred` gelöscht),
+  Dateidialoge im Arbeitsordner `/`, Fenster breiter als 800 px, lange Statuszeile verbreiterte die Liste
+- Nicht real getestet: Drag&Drop und ZIP-Import (nur Logik über `cli.confs_from`), KDE/GNOME/MATE/LXQt,
+  englische Oberfläche im Agent-PC (nur im Smoke-Test)
+- Achtung: In „vpn-cinnamon“, „vpn-xfce“ und „obsidian-test“ liegt der Tunnel „bonysagents“ mit
+  **demselben echten Schlüssel**, jeweils mit Autostart (Kill-Switch an in vpn-xfce und obsidian-test,
+  aus in vpn-cinnamon). Nie zwei davon gleichzeitig starten. Alle drei sind ausgeschaltet. Nach Sitzung 4
+  löschen oder `bonys-vpn delete bonysagents --ja`
+- Für Sitzung 5 (Host): Der Helfer-Status braucht auf dem Host bei jeder Abfrage pkexec (`auth_admin_keep`).
+  Die Oberfläche fragt ihn nur bei offenem Fenster alle 10 s. Für den Host eine eigene polkit-Aktion nur
+  für `status` (Annotation `org.freedesktop.policykit.exec.argv1`) ohne Passwort prüfen
 
 ### Sitzung 4 – Einbindung in Bony's Agents
 

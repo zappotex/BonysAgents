@@ -11,7 +11,7 @@ einzeln in den Agent-PC kopiert.
 
 | Teil | Läuft als | Aufgabe |
 |---|---|---|
-| `bonys-vpn` (`cli.py`), später die Oberfläche | Benutzer | Bedienung. Liest .conf-Dateien mit den Rechten des Benutzers |
+| `bonys-vpn` (`cli.py`), `bonys-vpn-gui` (`gui.py`, `model.py`) | Benutzer | Bedienung. Liest .conf-Dateien mit den Rechten des Benutzers |
 | `bonys-vpn-helper` (`helper.py`) | root, über `pkexec` | Die wenigen Aktionen, für die root nötig ist |
 | `conf.py` | – | Prüft .conf-Dateien und Tunnelnamen, verbirgt Schlüssel |
 | `killswitch.py` | – | Baut das nftables-Regelwerk als Text |
@@ -145,13 +145,16 @@ Warnhinweis: Zwei PCs mit demselben Schlüssel werfen sich gegenseitig aus dem T
 | `/usr/local/lib/bonys-vpn/bonys_vpn/` | Das Paket (`conf`, `killswitch`, `helper`, `cli`, `install`) |
 | `/usr/local/sbin/bonys-vpn-helper` | Startet den Helfer mit `#!/usr/bin/python3 -I` |
 | `/usr/local/bin/bonys-vpn` | Kommandozeile |
+| `/usr/local/bin/bonys-vpn-gui` | Oberfläche (GTK 3) |
+| `/usr/local/share/applications/io.github.bonys_agents.vpn.desktop` | Desktop-Eintrag |
+| `/etc/xdg/autostart/bonys-vpn-tray.desktop` | Tray-Symbol nach der Anmeldung (nur mit `--autostart-tray`, im Agent-PC) |
 | `/usr/share/polkit-1/actions/io.github.bonys-agents.vpn.policy` | polkit-Aktion `io.github.bonys-agents.vpn`, gilt nur für genau den Helfer-Pfad |
 | `/etc/polkit-1/rules.d/50-bonys-vpn.rules` | Regel für den Agent-PC oder den Host |
 | `/etc/systemd/system/bonys-vpn-killswitch.service` | Kill-Switch nach dem Neustart |
 | `/etc/bonys-vpn/killswitch.json` | an/aus, Ausnahmen, zuletzt aufgelöste Endpunkte (keine Schlüssel) |
 
 ```sh
-sudo python3 -I install.py --variant agent --user agent   # Agent-PC
+sudo python3 -I install.py --variant agent --user agent --autostart-tray   # Agent-PC
 sudo python3 -I install.py --variant host                 # eigener Rechner
 sudo python3 -I install.py --uninstall                    # Tunnel in /etc/wireguard bleiben
 ```
@@ -170,3 +173,40 @@ bonys-vpn delete NAME [--ja] | rename ALT NEU | export NAME [DATEI]
 bonys-vpn autostart NAME an|aus
 bonys-vpn killswitch an|aus|status [--ausnahme NETZ …]
 ```
+
+## Oberfläche
+
+`bonys-vpn-gui` (GTK 3 über `python3-gi`, Tray über Ayatana-AppIndicator) läuft als Benutzer und
+ruft für alles, was root braucht, denselben Helfer auf wie die Kommandozeile.
+
+**Warum GTK 3 und nicht PySide6:** Cinnamon, Xfce, GNOME und MATE bauen auf GTK 3 auf, `python3-gi`
+gehört schon zur Grundausstattung der Agent-PCs. Dazu kommen nur `gir1.2-gtk-3.0` und
+`gir1.2-ayatanaappindicator3-0.1`, zusammen etwa 2 MB. PySide6 aus Debian bräuchte zusätzlich rund
+74 MB, selbst wenn die Qt6-Bibliotheken schon da sind (gemessen mit apt in Debian 13, Xfce). Nur unter
+KDE Plasma und LXQt (Qt) holt `gir1.2-gtk-3.0` die GTK-3-Bibliotheken nach. Tray-Symbole funktionieren
+mit beiden Toolkits gleich (StatusNotifierItem). Keine pip-Pakete.
+
+- **Tray:** StatusNotifierItem (Cinnamon, Xfce, KDE, MATE, LXQt), sonst das klassische Infobereich-Symbol
+  (XEmbed). Zeigt der Desktop keine Statussymbole (GNOME ohne Erweiterung), läuft der Hintergrund ohne
+  Symbol weiter und meldet nur Abbrüche. Eine Instanz (D-Bus): Ein zweiter Aufruf öffnet das Fenster der
+  laufenden.
+- **Status ohne ständiges pkexec:** Ob ein Tunnel verbunden ist und wie viele Daten fließen, liest die
+  Oberfläche ohne root aus `/sys/class/net`. Den Helfer (`status`) fragt sie nur nach Aktionen, bei
+  offenem Fenster alle 10 s (Handshake) und im Hintergrund, wenn 150 s nichts mehr hereinkommt, obwohl
+  gesendet wird.
+- **Abbruch-Meldung:** Der Tunnel verschwindet ohne eigene Aktion, oder der Server antwortet nicht mehr:
+  Handshake älter als 3 Minuten, obwohl mehr als 135 s nach dem letzten gesendet wurde. Ein untätiger
+  Tunnel hat nur einen alten Handshake und gilt nicht als abgebrochen.
+- **Öffentliche IP:** nur auf Knopfdruck, über `https://api.ipify.org`. Die Oberfläche nennt den Dienst.
+- **Editor:** zeigt die Konfiguration mit `(verborgen)` statt Schlüssel (`show`). „Schlüssel anzeigen“ holt
+  sie über `export`, nur bei eigenen Tunneln. Vor dem Speichern wird geprüft. Unverändert gelassenes
+  `(verborgen)` setzt der Helfer wieder ein. Hook-Zeilen brauchen beim Import und beim Speichern eine
+  ausdrückliche Bestätigung.
+- **Export** schreibt mit Rechten `600` (atomar). Dateidialoge starten im persönlichen Ordner.
+- **Sprache:** Deutsch, auf nicht deutschen Systemen Englisch (`LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`).
+
+Im Agent-PC installiert die App-Option „WireGuard VPN (Bony's VPN)“ (`apps.VPN`, standardmäßig aus)
+alles: Debian-Pakete, dann `install.py --variant agent --autostart-tray`. Der Code steht als tar.gz
+(base64) im Installationsschritt. Beim Erstellen kommt er so über das Seed-ISO in den Agent-PC, beim
+Nachinstallieren über den SSH-Weg („Programme hinzufügen“). Im PyInstaller-Paket liegen die
+`.py`-Dateien von `vpn/` deshalb zusätzlich als Daten.

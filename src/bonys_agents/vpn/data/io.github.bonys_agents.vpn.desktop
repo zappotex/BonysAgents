@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Bony's VPN
+GenericName=WireGuard VPN
+Comment=Manage WireGuard tunnels
+Comment[de]=WireGuard-Tunnel verwalten
+Exec=@GUI@
+Icon=@ICON@
+Terminal=false
+Categories=Network;Security;
+Keywords=VPN;WireGuard;Tunnel;
+StartupNotify=true
+StartupWMClass=bonys-vpn

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Bony's VPN (tray)
+Name[de]=Bony's VPN (Leiste)
+Comment=Status icon of Bony's VPN
+Comment[de]=Statussymbol von Bony's VPN
+Exec=@GUI@ --tray
+Icon=@ICON@
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3

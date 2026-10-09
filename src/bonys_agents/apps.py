@@ -12,7 +12,12 @@ Die Reihenfolge in ``APPS`` ist auch die Reihenfolge der Einrichtungsschritte.
 
 from __future__ import annotations
 
+import base64
+import gzip
+import io
+import tarfile
 from dataclasses import dataclass
+from importlib import resources
 
 from bonys_agents import screen
 
@@ -215,6 +220,66 @@ chown -R "$AGENT_USER:$AGENT_USER" "$VAULT" "$AGENT_HOME/.config/obsidian"
 """,
 )
 
+# Debian-Pakete für Bony's VPN: Werkzeuge + Oberfläche (GTK 3 über python3-gi, Tray über Ayatana-AppIndicator).
+# Kein openresolv: Der Agent-PC nutzt systemd-resolved, das resolvconf schon mitbringt.
+VPN_PACKAGES = ("wireguard-tools nftables pkexec polkitd python3-gi gir1.2-gtk-3.0 "
+                "gir1.2-ayatanaappindicator3-0.1")
+
+
+def vpn_payload() -> str:
+    """Quelltext von Bony's VPN (src/bonys_agents/vpn, ohne __pycache__) als tar.gz in base64.
+
+    Steht direkt im Installationsschritt – kommt so beim Erstellen über das Seed-ISO und beim
+    Nachinstallieren über den SSH-Weg in den Agent-PC. Reproduzierbar (feste Zeiten und Rechte).
+    """
+    root = resources.files("bonys_agents") / "vpn"
+    files: list[tuple[str, bytes]] = []
+
+    def walk(node, prefix: str) -> None:
+        for child in sorted(node.iterdir(), key=lambda c: c.name):
+            if child.name == "__pycache__" or child.name.endswith(".pyc"):
+                continue
+            if child.is_dir():
+                walk(child, f"{prefix}{child.name}/")
+            else:
+                files.append((f"{prefix}{child.name}", child.read_bytes()))
+
+    walk(root, "bonys_vpn/")
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0) as gz, tarfile.open(fileobj=gz, mode="w") as tar:
+        for name, data in files:
+            info = tarfile.TarInfo(name)
+            info.size, info.mode, info.mtime = len(data), 0o644, 0
+            tar.addfile(info, io.BytesIO(data))
+    return base64.encodebytes(buf.getvalue()).decode("ascii")
+
+
+def _vpn_install() -> str:
+    return r"""
+apt-get install -y """ + VPN_PACKAGES + r"""
+VPN_TMP="$(mktemp -d)"
+base64 -d > "$VPN_TMP/bonys-vpn.tar.gz" <<'BONYS_VPN_PAYLOAD'
+""" + vpn_payload() + r"""BONYS_VPN_PAYLOAD
+tar -xzf "$VPN_TMP/bonys-vpn.tar.gz" -C "$VPN_TMP" --no-same-owner
+# Helfer, Kommandozeile, Oberfläche, polkit (Benutzer ohne Passwort), Kill-Switch-Unit, Autostart des Tray-Symbols
+python3 -I "$VPN_TMP/bonys_vpn/install.py" --variant agent --user "$AGENT_USER" --autostart-tray
+rm -rf "$VPN_TMP"
+systemctl daemon-reload
+cp /usr/local/share/applications/io.github.bonys_agents.vpn.desktop "$DESKTOP_DIR/"
+"""
+
+
+VPN = AppSpec(
+    id="vpn",
+    name="WireGuard VPN (Bony's VPN)",
+    description="Eigene WireGuard-Tunnel mit Kill-Switch und Tray-Symbol – Konfiguration bringst du selbst mit",
+    default=False,
+    weight=3.0,
+    check="test -x /usr/local/bin/bonys-vpn-gui && test -x /usr/local/sbin/bonys-vpn-helper",
+    launcher="io.github.bonys_agents.vpn.desktop",
+    install=_vpn_install(),
+)
+
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
@@ -346,7 +411,8 @@ cp /usr/share/applications/claude-code.desktop "$DESKTOP_DIR/"
 """,
 )
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, HERMES, OPENCLAW, CLAUDE_CODE)}
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, VPN, HERMES, OPENCLAW,
+                                               CLAUDE_CODE)}
 
 
 def default_app_ids() -> list[str]:
