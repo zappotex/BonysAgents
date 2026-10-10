@@ -466,6 +466,8 @@ bonys_apt_wait() {  # höchstens 20 Minuten
 
 UPGRADE_DONE = "BONYS-UPGRADE-DONE"
 REBOOT_MARKER = "BONYS-REBOOT-REQUIRED"
+VPN_BLOCKED_HINT = ("HINWEIS: Der Kill-Switch von Bony's VPN ist an, aber kein Tunnel verbunden – ohne VPN hat der "
+                    "Agent-PC kein Internet. Erst den Tunnel verbinden, dann aktualisieren.")
 
 
 def _sq(s: str) -> str:
@@ -490,6 +492,11 @@ def upgrade_script(app_ids: list[str], username: str) -> str:
         "RC=0",
         'echo "== Bony\'s Agents: Agent-PC wird aktualisiert ($(date)) =="',
         APT_WAIT,
+        # Bony's VPN: Kill-Switch an, aber kein Tunnel → kein Internet, apt scheitert gleich
+        "if nft list table inet bonys_vpn >/dev/null 2>&1 && [ -z \"$(wg show interfaces 2>/dev/null)\" ]; then",
+        f'  echo "{VPN_BLOCKED_HINT}"',
+        "  RC=1",
+        "fi",
         "bonys_apt_wait",
         "dpkg --configure -a || true",
         'echo "== Systempakete (apt) =="',

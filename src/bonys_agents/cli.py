@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import sys
 import time
 from pathlib import Path
 
-from bonys_agents import APP_NAME, __version__, apps, deps, desktops, host, procutil, qemu, remote, screen, storage, vm
+from bonys_agents import (
+    APP_NAME, __version__, apps, deps, desktops, host, procutil, qemu, remote, screen, storage, vm, vpnlink,
+)
 from bonys_agents import progress as pct
 
 
@@ -172,6 +175,24 @@ def _ensure_ready(assume_yes: bool) -> bool:
     return report.can_run
 
 
+def vpn_setup(args) -> vpnlink.VpnSetup | None:
+    """--vpn-config & Co. → geprüfte Konfiguration (nur im Speicher). Ohne Datei keine Schalter."""
+    if not args.vpn_config:
+        if args.vpn_autoconnect or args.killswitch or args.vpn_name:
+            raise ValueError("--vpn-autoconnect, --killswitch und --vpn-name gehen nur zusammen mit --vpn-config.")
+        return None
+    setup = vpnlink.load_conf(args.vpn_config, name=args.vpn_name, autoconnect=args.vpn_autoconnect,
+                              killswitch=args.killswitch)
+    extra = [x for x, on in (("verbindet sich automatisch", setup.autoconnect), ("Kill-Switch an", setup.killswitch))
+             if on]
+    print(f"WireGuard: Tunnel „{setup.name}“" + (f" ({', '.join(extra)})" if extra else "")
+          + " – die Konfiguration geht nur über das Seed-ISO in den Agent-PC.")
+    if setup.killswitch and not setup.autoconnect:
+        print("⚠ Kill-Switch ohne automatisches Verbinden: Nach dem Start hat der Agent-PC kein Internet, "
+              f"bis du verbindest (bonys-agents vpn {args.name} up).")
+    return setup
+
+
 def cmd_create(args) -> int:
     if args.template:
         return _create_from_template(args)
@@ -179,6 +200,7 @@ def cmd_create(args) -> int:
         print("--linked und --full gibt es nur zusammen mit --template.", file=sys.stderr)
         return 2
     app_ids = app_selection(args.apps, args.agents)  # Tippfehler melden, bevor nach dem Passwort gefragt wird
+    vpn = vpn_setup(args)
     desk = desktops.get(args.desktop)
     _warn_ram(desk.id, args.ram)
     if not _ensure_ready(args.yes):
@@ -210,7 +232,7 @@ def cmd_create(args) -> int:
         cpus=args.cpus, ram_mb=args.ram, disk_gb=args.disk or vm.DEFAULT_DISK_GB, username=args.user,
         app_ids=app_ids,
         keyboard=args.keyboard, timezone_name=args.timezone, progress=progress,
-        location=Path(args.location) if args.location else None, desktop=desk.id,
+        location=Path(args.location) if args.location else None, desktop=desk.id, vpn=vpn,
     )
     c = machine.config
     print(f"\nAgent-PC '{c.name}': {desktops.name(c.desktop)}, {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB, "
@@ -254,6 +276,7 @@ def _create_from_template(args) -> int:
               "(nachrüsten mit: bonys-agents install).", file=sys.stderr)
         return 2
     tpl = templates.get(args.template)
+    vpn = vpn_setup(args)
     if not _ensure_ready(args.yes):
         print("Agent-PC kann noch nicht erstellt werden – siehe oben.")
         return 1
@@ -273,7 +296,7 @@ def _create_from_template(args) -> int:
 
     machine = vm.create(args.name, password, cpus=args.cpus, ram_mb=args.ram, disk_gb=args.disk,
                         location=Path(args.location) if args.location else None, progress=progress,
-                        template=tpl.name, linked=linked)
+                        template=tpl.name, linked=linked, vpn=vpn)
     c = machine.config
     kind = "verknüpft mit" if machine.is_linked() else "unabhängige Kopie von"
     print(f"Agent-PC '{c.name}' ({kind} „{tpl.name}“): {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB, "
@@ -594,6 +617,69 @@ def cmd_install(args) -> int:
     return 0
 
 
+def _print_vpn(st: dict) -> None:
+    print(vpnlink.summary(st))
+    for t in st.get("tunnels") or []:
+        flags = [x for x, on in (("verbunden", t.get("active")), ("automatisch", t.get("autostart"))) if on]
+        line = f"  {t['name']}" + (f"  [{', '.join(flags)}]" if flags else "")
+        if t.get("active"):
+            line += (f"  · Handshake {vpnlink.human_age(t.get('handshake'))}"
+                     f"  · empfangen {vpnlink.human_bytes(t.get('rx'))}, gesendet {vpnlink.human_bytes(t.get('tx'))}")
+        print(line)
+    ks = st.get("killswitch") or {}
+    if ks.get("exceptions"):
+        print(f"  Kill-Switch-Ausnahmen: {', '.join(ks['exceptions'])}")
+
+
+def cmd_vpn(args) -> int:
+    m = vm.get(args.name)
+    kw = {"ssh_prompt": True}  # ohne Gast-Agent: ssh fragt im Terminal nach dem Passwort
+    value = args.value
+    if args.action == "import":
+        if not value:
+            raise ValueError("Datei fehlt: bonys-agents vpn NAME import DATEI.conf")
+        setup = vpnlink.load_conf(value, name=args.tunnel)
+        vpnlink.import_conf(m, setup, replace=args.replace, **kw)
+        print(f"„{setup.name}“ ist in „{m.name}“ importiert. Verbinden mit: bonys-agents vpn {m.name} up")
+        return 0
+    if value and args.action in ("status", "ip"):
+        raise ValueError(f"„{args.action}“ erwartet keine weitere Angabe.")
+    tunnel = args.tunnel or (value if args.action in ("up", "down") else None)
+    state = {"an": "on", "aus": "off"}.get(value or "", value)
+    if args.action == "status":
+        st = vpnlink.status(m, **kw)
+        if args.json:
+            print(json.dumps(st, ensure_ascii=False, indent=2))
+        else:
+            _print_vpn(st)
+        return 0 if st.get("installed", True) else 1
+    if args.action == "ip":
+        print(vpnlink.public_ip(m, **kw))
+        return 0
+    if args.action == "up":
+        tunnel = tunnel or vpnlink.default_tunnel(vpnlink.status(m, **kw))
+        if not tunnel:
+            raise ValueError("Welcher Tunnel? bonys-agents vpn NAME up TUNNEL (siehe: vpn NAME status)")
+        vpnlink.up(m, tunnel, **kw)
+        print(f"„{tunnel}“ ist verbunden.")
+    elif args.action == "down":
+        vpnlink.down(m, tunnel, **kw)
+        print("Getrennt.")
+    elif args.action == "killswitch":
+        if state not in ("on", "off"):
+            raise ValueError("bonys-agents vpn NAME killswitch on|off")
+        vpnlink.set_killswitch(m, state == "on", **kw)
+        print("Kill-Switch: " + ("an – ohne Tunnel kein Internet (Steuerung des Agent-PCs geht weiter)"
+                                 if state == "on" else "aus"))
+    elif args.action == "autostart":
+        tunnel = tunnel or vpnlink.default_tunnel(vpnlink.status(m, **kw))
+        if state not in ("on", "off") or not tunnel:
+            raise ValueError("bonys-agents vpn NAME autostart on|off [--tunnel TUNNEL]")
+        vpnlink.set_autostart(m, tunnel, state == "on", **kw)
+        print(f"„{tunnel}“ verbindet sich {'beim Start automatisch' if state == 'on' else 'nicht automatisch'}.")
+    return 0
+
+
 def _yes(question: str, assume_yes: bool = False) -> bool:
     return assume_yes or input(f"{question} (ja/nein) ").strip().lower() in ("j", "ja", "y", "yes")
 
@@ -691,12 +777,15 @@ def cmd_template_create(args) -> int:
           "Kopie seiner Festplatte (ohne Netz).\n")
     print("In der Vorlage wird gelöscht bzw. zurückgesetzt:")
     if remove:
+        print(f"  • {vpnlink.FRESH_CLEANUP}")
         for item in cloudinit.PERSONAL_DATA:
             print(f"  • {item.title}")
             for path in item.paths:
                 print(f"      /home/{m.config.username}/{path}{item.note()}")
     else:
         print("  • Persönliche Daten bleiben ERHALTEN (--keep-personal-data) – Vorlage nicht weitergeben!")
+        if vpnlink.APP_ID in m.config.apps:
+            print(f"  ⚠ {vpnlink.CLONE_WARNING}")
     for line in cloudinit.SYSTEM_CLEANUP:
         print(f"  • {line}")
     print()
@@ -884,6 +973,13 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--headless", action="store_true", help="Ohne Fenster starten (auch nach der Einrichtung)")
     c.add_argument("--wait", action="store_true", help="Warten, bis die Einrichtung fertig ist")
     c.add_argument("-y", "--yes", action="store_true", help="Fehlende Software ohne Rückfrage installieren")
+    c.add_argument("--vpn-config", metavar="DATEI",
+                   help="WireGuard-Konfiguration (.conf) mitgeben – installiert Bony's VPN, die Datei geht nur in "
+                        "den Agent-PC")
+    c.add_argument("--vpn-name", metavar="TUNNEL", help="Name des Tunnels (Standard: Dateiname)")
+    c.add_argument("--vpn-autoconnect", action="store_true", help="Tunnel bei jedem Start automatisch verbinden")
+    c.add_argument("--killswitch", action="store_true",
+                   help="Kill-Switch: ohne Tunnel kein Internet (Steuerung des Agent-PCs geht weiter)")
     c.set_defaults(func=cmd_create)
 
     tp = sub.add_parser("template", help="Vorlagen: aus einem fertigen Agent-PC neue in Sekunden erstellen")
@@ -940,6 +1036,17 @@ def build_parser() -> argparse.ArgumentParser:
     ins.add_argument("name")
     ins.add_argument("app", help=f"z. B. {', '.join(apps.APPS)}")
     ins.set_defaults(func=cmd_install)
+    vp = sub.add_parser("vpn", help="Bony's VPN im laufenden Agent-PC: Status, verbinden, trennen, importieren",
+                        description="status [--json] | up [TUNNEL] | down [TUNNEL] | import DATEI | "
+                                    "killswitch on|off | autostart on|off | ip")
+    vp.add_argument("name")
+    vp.add_argument("action", choices=["status", "up", "down", "import", "killswitch", "autostart", "ip"])
+    vp.add_argument("value", nargs="?", metavar="WERT",
+                    help="import: die .conf-Datei · up/down: der Tunnel · killswitch/autostart: on oder off")
+    vp.add_argument("--tunnel", metavar="TUNNEL", help="Tunnelname (bei import: statt des Dateinamens)")
+    vp.add_argument("--replace", action="store_true", help="bei import: vorhandenen Tunnel ersetzen")
+    vp.add_argument("--json", action="store_true", help="bei status: maschinenlesbar")
+    vp.set_defaults(func=cmd_vpn)
     rm = sub.add_parser("remote", help="Fernzugriff (RDP aus dem Heimnetz) an/aus – wirkt sofort")
     rm.add_argument("name")
     rm.add_argument("state", choices=["on", "off"])

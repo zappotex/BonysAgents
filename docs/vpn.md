@@ -210,3 +210,62 @@ alles: Debian-Pakete, dann `install.py --variant agent --autostart-tray`. Der Co
 (base64) im Installationsschritt. Beim Erstellen kommt er so über das Seed-ISO in den Agent-PC, beim
 Nachinstallieren über den SSH-Weg („Programme hinzufügen“). Im PyInstaller-Paket liegen die
 `.py`-Dateien von `vpn/` deshalb zusätzlich als Daten.
+
+## Anbindung an Bony's Agents
+
+Die Seite von Bony's Agents liegt in `src/bonys_agents/vpnlink.py`. Sie liest eine .conf nur, prüft sie
+mit derselben Prüfung wie der Helfer (`conf.decode` + `conf.parse`) und reicht sie direkt in den
+Agent-PC. Auf dem Host bleibt nichts: kein Feld in `vm.json`, keine Zeile in Protokollen oder
+Fortschrittstexten, nichts in Vorlagen-Metadaten. `VpnSetup` zeigt die Daten auch in `repr` nicht.
+Konfigurationen mit Hook-Zeilen lehnt Bony's Agents ab. Sie lassen sich nur im Agent-PC über
+Bony's VPN mit der Warnung importieren.
+
+### Beim Erstellen
+
+- Dialog „Neuer Agent-PC“, Abschnitt **VPN**: Haken „WireGuard VPN (Bony's VPN)“, optional
+  „Konfiguration wählen …“, dann „Automatisch verbinden“ und „Kill-Switch“.
+  Kommandozeile: `bonys-agents create NAME --vpn-config DATEI [--vpn-name TUNNEL] [--vpn-autoconnect] [--killswitch]`.
+  Mit einer Konfiguration kommt die App „vpn“ automatisch dazu.
+- Die Datei kommt als eigene Datei `bonys-vpn.conf` ins Seed-ISO (nicht in user-data, das cloud-init
+  im Gast unter `/var/lib/cloud` aufhebt). Das Seed-ISO hat die Rechte `600`.
+- Ganz am Ende der Einrichtung, nach allen Downloads, hängt der Gast das ISO nur lesend ein und gibt
+  die Datei über die Standardeingabe an `bonys-vpn-helper import NAME`. Danach Autostart und
+  Kill-Switch, falls gewählt. Der Kill-Switch kommt zuletzt, damit er keinen Einrichtungsschritt
+  vom Internet trennt. Ausgaben des Helfers gehen nach `/dev/null`. Ein Merker
+  (`/var/lib/bonys-agents/vpn-config.done`) verhindert einen zweiten Import nach einem Abbruch.
+- Sobald die Einrichtung fertig ist, löscht Bony's Agents das Seed-ISO (wie bisher wegen des Passworts).
+  Danach liegt die Konfiguration nur noch in `/etc/wireguard` im Agent-PC.
+- Aus einer Vorlage geht das genauso (Erststart-Skript des Klons), wenn die Vorlage Bony's VPN enthält.
+
+### Im laufenden Agent-PC
+
+- Detailansicht, Reiter **VPN**: Status (verbunden/getrennt, Tunnel, Adresse, Server, Handshake, Daten),
+  „Verbinden“, „Trennen“, „Öffentliche IP prüfen“ (als Benutzer des Agent-PCs über api.ipify.org),
+  „Konfiguration importieren …“, Schalter für Autostart und Kill-Switch. Ohne Bony's VPN steht dort
+  „VPN-App installieren“ (öffnet „Programme hinzufügen“ mit der VPN-App).
+- Weg: Gast-Agent (`guest-exec` als root, `bonys-vpn status --json`, Import über `input-data`, also
+  über die Standardeingabe des Helfers). Antwortet der Gast-Agent nicht, per SSH mit `sudo` und dem
+  Passwort des Agent-PCs. Fehlermeldungen laufen auf dem Host noch einmal durch den Schlüsselfilter.
+- Kommandozeile: `bonys-agents vpn NAME status [--json] | up [TUNNEL] | down [TUNNEL] | import DATEI
+  [--tunnel NAME] [--replace] | killswitch on|off | autostart on|off [--tunnel NAME] | ip`.
+
+### Vorlagen
+
+- **Frisch** („Persönliche Daten entfernen“): Autostart aller `wg-quick@`-Dienste aus, alles in
+  `/etc/wireguard` gelöscht, Kill-Switch aus (Unit, Tabelle, Regeldatei), in `killswitch.json`
+  `enabled: false` und keine aufgelösten Server-Adressen mehr. Die Ausnahmen bleiben.
+- **Klon** („Persönliche Daten behalten“): alles bleibt. Dialog und Kommandozeile warnen: Zwei
+  Agent-PCs mit demselben Schlüssel werfen sich gegenseitig aus dem Tunnel.
+- Freier Platz wird beim Verallgemeinern **immer** mit Nullen überschrieben. `fstrim` allein reicht
+  nicht: Es gibt nur ganze 64-KiB-Cluster der qcow2-Datei frei, ein freier 4-KiB-Block in einem sonst
+  belegten Cluster behielte seinen Inhalt. Im echten Test stand der Wegwerf-Schlüssel einer
+  gelöschten .conf so noch in der Vorlage. Die Arbeitskopie läuft deshalb mit `detect-zeroes=unmap`,
+  die Nullen kosten dort keinen Platz.
+
+### Verträglichkeit mit dem Kill-Switch
+
+Geprüft im echten Test (Kill-Switch an, Tunnel getrennt): Gast-Agent, QMP, SSH-Weiterleitung,
+Herunterfahren (2,3 s), Fortschrittsanzeige (serielle Konsole), RDP (xrdp über die Weiterleitung),
+dynamische Auflösung (spice-vdagent über virtio-serial). „Agent-PC aktualisieren“ geht über den
+Tunnel. Ohne Tunnel meldet es: „Kill-Switch an und kein Tunnel verbunden – erst verbinden“ (vorher
+hätte apt die Netzfehler als Erfolg gemeldet).

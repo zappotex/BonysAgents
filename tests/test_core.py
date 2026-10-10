@@ -46,6 +46,8 @@ def test_command_x86_kvm_has_fallback_and_resources():
     assert "file=/tmp/d,,isk.qcow2" in joined  # Komma maskiert
     assert "hostfwd=tcp:127.0.0.1:2222-:22" in joined
     assert "-display" not in cmd
+    assert "detect-zeroes" not in joined
+    assert "discard=unmap,detect-zeroes=unmap" in " ".join(qemu.build_command(_spec(zero_unmap=True)))
 
 
 def test_command_whpx_and_headless():

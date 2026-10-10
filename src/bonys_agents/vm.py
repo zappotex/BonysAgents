@@ -25,7 +25,7 @@ from pathlib import Path
 
 import psutil
 
-from bonys_agents import apps, cloudinit, desktops, diagnose, host, images, qemu, remote, screen, storage
+from bonys_agents import apps, cloudinit, desktops, diagnose, host, images, qemu, remote, screen, storage, vpnlink
 from bonys_agents import progress as pct
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
 
@@ -151,8 +151,9 @@ class Progress:
 
 
 class VM:
-    # Netz abschotten (nur für die Arbeitskopie beim Erstellen einer Vorlage)
+    # Netz abschotten und Nullen ohne Platzbedarf (nur für die Arbeitskopie beim Erstellen einer Vorlage)
     restrict_net = False
+    zero_unmap = False
 
     def __init__(self, path: Path):
         self.path = path
@@ -722,7 +723,7 @@ class VM:
             firmware=firmware, headless=qemu_headless, qga_port=qga_port,
             display=qemu.window_display(info.os, caps.get("displays", []), screen_mode),
             screen=screen.start_size(screen_mode, screen_size), screen_setting=screen_setting,
-            restrict_net=self.restrict_net,
+            restrict_net=self.restrict_net, zero_unmap=self.zero_unmap,
             rdp_addr=REMOTE_ADDR if remote_on else None, rdp_port=c.rdp_port,
             spice_addr=REMOTE_ADDR if spice_lan else "127.0.0.1",
             spice_port=c.spice_port if spice_ok else None, spice_password_file=pw_file, audio=audio,
@@ -995,7 +996,8 @@ class VM:
             if rc == 255:
                 raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
             out = "\n".join(lines)
-        return UpgradeResult(ok=rc == 0, reboot_required=apps.REBOOT_MARKER in out, exit_code=rc)
+        return UpgradeResult(ok=rc == 0, reboot_required=apps.REBOOT_MARKER in out, exit_code=rc,
+                             vpn_blocked=apps.VPN_BLOCKED_HINT in out)
 
     def _guest_exec_follow(self, port: int, pid: int, pos: int, emit: Callable[[str], None],
                            timeout: float) -> tuple[int, str]:
@@ -1105,10 +1107,13 @@ class UpgradeResult:
     ok: bool
     reboot_required: bool
     exit_code: int = 0
+    vpn_blocked: bool = False   # Kill-Switch von Bony's VPN an, kein Tunnel verbunden
 
     def message(self, name: str) -> str:
         text = f"„{name}“ ist aktualisiert." if self.ok else \
             f"„{name}“: Aktualisierung mit Fehlern beendet (Code {self.exit_code}) – siehe Ausgabe."
+        if self.vpn_blocked and not self.ok:
+            text += " Grund: Der Kill-Switch von Bony's VPN ist an und kein Tunnel verbunden – erst verbinden."
         if self.reboot_required:
             text += " Ein Neustart des Agent-PCs ist nötig."
         return text
@@ -1403,12 +1408,16 @@ def create(
     template: str | None = None,
     desktop: str = desktops.DEFAULT,
     linked: bool | None = None,
+    vpn: vpnlink.VpnSetup | None = None,
 ) -> VM:
     """Neuen Agent-PC anlegen – neu installiert (Debian-Image + Einrichtung) oder aus einer Vorlage.
 
     Aus einer Vorlage: ``linked`` True = verknüpft (Festplatte baut auf der Vorlage auf, nur auf
     demselben Laufwerk), False = unabhängige Kopie, None = verknüpft, wenn möglich. Benutzer und
     Apps kommen dann aus der Vorlage.
+
+    ``vpn``: mitgebrachte WireGuard-Konfiguration. Sie geht nur über das Seed-ISO in den Agent-PC
+    (dort per Helfer importiert) – nicht in vm.json und in keine Meldung. Installiert Bony's VPN mit.
     """
     def report(phase: str, frac: float, msg: str) -> None:
         if progress:
@@ -1418,7 +1427,8 @@ def create(
         raise ValueError("Name: 1–40 Zeichen, nur Buchstaben, Ziffern, - und _")
     if template is not None:
         return _create_from_template(name, password, template, linked=linked, cpus=cpus, ram_mb=ram_mb,
-                                     disk_gb=disk_gb, keyboard=keyboard, location=location, report=report)
+                                     disk_gb=disk_gb, keyboard=keyboard, location=location, report=report,
+                                     vpn=vpn)
     disk_gb = DEFAULT_DISK_GB if disk_gb is None else disk_gb
     desktops.get(desktop)
     if not re.match(r"^[a-z_][a-z0-9_-]{0,31}$", username):
@@ -1434,7 +1444,10 @@ def create(
         raise FileExistsError(f"Ordner {path} existiert bereits")
 
     info = host.detect()
-    app_specs = apps.resolve(app_ids if app_ids is not None else apps.default_app_ids())
+    app_ids = list(app_ids if app_ids is not None else apps.default_app_ids())
+    if vpn and vpnlink.APP_ID not in app_ids:
+        app_ids.append(vpnlink.APP_ID)  # die Konfiguration braucht Bony's VPN im Agent-PC
+    app_specs = apps.resolve(app_ids)
     qemu_img = qemu.find_binary("qemu-img", info.os)
     qemu.find_binary(qemu.ARCH_BINARY[info.arch], info.os)  # früh prüfen
 
@@ -1469,7 +1482,7 @@ def create(
         report("seed", 0.0, "Schreibe Einrichtungsdaten …")
         guest = cloudinit.GuestConfig(
             hostname=name.lower().replace("_", "-"), username=username, password=password,
-            apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop,
+            apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop, vpn=vpn,
         )
         cloudinit.write_seed_iso(path / "seed.iso", guest, instance_id=f"bonys-{uuid.uuid4()}")
         (path / "vm.json").write_text(json.dumps(asdict(cfg), indent=2), "utf-8")
@@ -1488,7 +1501,7 @@ def create(
 
 def _create_from_template(name: str, password: str, template_name: str, *, linked: bool | None,
                           cpus: int | None, ram_mb: int | None, disk_gb: int | None, keyboard: str,
-                          location: Path | None, report: ProgressFn) -> VM:
+                          location: Path | None, report: ProgressFn, vpn: vpnlink.VpnSetup | None = None) -> VM:
     """Agent-PC aus einer Vorlage: nur Festplatte (verknüpft oder kopiert) und ein kleines Seed."""
     from bonys_agents import templates
 
@@ -1496,6 +1509,9 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     if len(password) < 4:
         raise ValueError("Passwort: mindestens 4 Zeichen")
     tpl = templates.get(template_name)
+    if vpn and vpnlink.APP_ID not in tpl.apps:
+        raise ValueError(f"In der Vorlage „{tpl.name}“ ist Bony's VPN nicht installiert – die WireGuard-Konfiguration "
+                         "geht erst, wenn die VPN-App im Agent-PC nachinstalliert ist (Detailansicht → VPN).")
     info = host.detect()
     if tpl.arch != info.arch:
         raise ValueError(f"Die Vorlage „{tpl.name}“ ist für {tpl.arch}, dieser Rechner ist {info.arch}.")
@@ -1549,7 +1565,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         report("seed", 0.0, "Schreibe Rechnername und Passwort …")
         cloudinit.write_clone_seed_iso(path / "seed.iso", hostname=name.lower().replace("_", "-"),
                                        username=tpl.username, password=password,
-                                       instance_id=f"bonys-{uuid.uuid4()}")
+                                       instance_id=f"bonys-{uuid.uuid4()}", vpn=vpn)
         (path / "vm.json").write_text(json.dumps(asdict(cfg), indent=2), "utf-8")
     except Exception:
         shutil.rmtree(path, ignore_errors=True)

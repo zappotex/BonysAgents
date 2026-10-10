@@ -26,6 +26,7 @@ from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
 from .install_dialog import InstallAppsDialog
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
+from .vpn_panel import VpnPanel
 from .move_dialog import MoveDialog
 from .resize_dialog import ResizeDialog
 from .setup_dialog import SetupDialog
@@ -582,7 +583,9 @@ class MainWindow(QMainWindow):
         tabs.setSpacing(6)
         self.tab_console = QPushButton("Konsole")
         self.tab_remote = QPushButton("Fernzugriff")
-        for b in (self.tab_console, self.tab_remote):
+        self.tab_vpn = QPushButton("VPN")
+        self.tab_vpn.setToolTip("Bony's VPN im Agent-PC: Status, verbinden, trennen, Konfiguration importieren")
+        for b in (self.tab_console, self.tab_remote, self.tab_vpn):
             b.setObjectName("Tab")
             b.setCheckable(True)
             tabs.addWidget(b)
@@ -606,12 +609,22 @@ class MainWindow(QMainWindow):
         remote_scroll.setFrameShape(QFrame.NoFrame)
         remote_scroll.setWidget(self.remote_panel)
         remote_scroll.setMinimumHeight(style.px(200))
+        self.vpn_panel = VpnPanel()
+        vpn_scroll = QScrollArea()
+        vpn_scroll.setObjectName("Glass")
+        vpn_scroll.setWidgetResizable(True)
+        vpn_scroll.setFrameShape(QFrame.NoFrame)
+        vpn_scroll.setWidget(self.vpn_panel)
+        vpn_scroll.setMinimumHeight(style.px(200))
         self.lower.addWidget(self.console)
         self.lower.addWidget(remote_scroll)
+        self.lower.addWidget(vpn_scroll)
         lay.addWidget(self.lower, 1)
         self.tab_console.clicked.connect(lambda: self._show_tab(0))
         self.tab_remote.clicked.connect(lambda: self._show_tab(1))
+        self.tab_vpn.clicked.connect(lambda: self._show_tab(2))
         self.remote_panel.changed.connect(self.refresh_detail)
+        self.vpn_panel.install_requested.connect(lambda: self.add_apps(preselect=["vpn"]))
 
         self.start_btn.clicked.connect(self.start_vm)
         self.stop_btn.clicked.connect(self.stop_vm)
@@ -625,7 +638,7 @@ class MainWindow(QMainWindow):
         self.driver_btn.clicked.connect(lambda: self._update_driver())
         self.move_btn.clicked.connect(self.move_vm)
         self.resize_btn.clicked.connect(self.resize_vm)
-        self.add_apps_btn.clicked.connect(self.add_apps)
+        self.add_apps_btn.clicked.connect(lambda: self.add_apps())
         self.add_desktop_btn.clicked.connect(self.add_desktop)
         self.template_btn.clicked.connect(self.save_template)
         self.independent_btn.clicked.connect(self.make_independent)
@@ -644,6 +657,7 @@ class MainWindow(QMainWindow):
         self.d_info.setVisible(index == 0 and not self._console_big)
         self.tab_console.setChecked(index == 0)
         self.tab_remote.setChecked(index == 1)
+        self.tab_vpn.setChecked(index == 2)
         self.refresh_detail()
 
     def _peek(self) -> None:
@@ -993,6 +1007,8 @@ class MainWindow(QMainWindow):
 
         if self.lower.currentIndex() == 1:
             self.remote_panel.update_for(m, status)
+        elif self.lower.currentIndex() == 2:
+            self.vpn_panel.update_for(m, status)
         text = m.console_tail(400)
         if text != self.console.toPlainText():
             bar = self.console.verticalScrollBar()
@@ -1131,11 +1147,11 @@ class MainWindow(QMainWindow):
             self.refresh()
             self.statusBar().showMessage(f"„{m.name}“ wurde verschoben.", 5000)
 
-    def add_apps(self) -> None:
+    def add_apps(self, preselect: list[str] | None = None) -> None:
         m = self.current()
         if not m or not m.missing_apps():
             return
-        InstallAppsDialog(m, self).exec()
+        InstallAppsDialog(m, self, preselect=preselect or []).exec()
         self.refresh()
 
     def save_template(self) -> None:

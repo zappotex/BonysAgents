@@ -4,14 +4,15 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
+    QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, storage, templates, vm
+from bonys_agents import apps, desktops, host, storage, templates, vm, vpnlink
 from bonys_agents import progress as pct
 
 from . import style
@@ -172,7 +173,7 @@ class CreateDialog(QDialog):
         self.app_boxes: dict[str, QCheckBox] = {}
         app_row = QHBoxLayout()
         for a in apps.APPS.values():
-            if a.category != apps.PROGRAM:
+            if a.category != apps.PROGRAM or a.id == vpnlink.APP_ID:  # VPN hat einen eigenen Abschnitt
                 continue
             cb = QCheckBox(a.name)
             cb.setChecked(a.default)
@@ -181,6 +182,8 @@ class CreateDialog(QDialog):
             app_row.addWidget(cb)
         app_row.addStretch(1)
         root.addLayout(app_row)
+
+        root.addWidget(self._vpn_section())
 
         # KI-Werkzeuge: frei kombinierbar, auch keins – je mit kurzer Erklärung
         sec_ai = QLabel("KI-WERKZEUGE")
@@ -257,6 +260,108 @@ class CreateDialog(QDialog):
         self._base_changed()
         self._update_ok()
 
+    def _vpn_section(self) -> QWidget:
+        """VPN: Bony's VPN installieren, optional mit eigener .conf, automatisch verbinden, Kill-Switch.
+
+        Die Datei wird beim Auswählen gelesen und geprüft und bleibt nur im Speicher.
+        """
+        self.vpn_setup: vpnlink.VpnSetup | None = None
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        sec = QLabel("VPN")
+        sec.setObjectName("Section")
+        lay.addWidget(sec)
+        spec = apps.APPS[vpnlink.APP_ID]
+        self.vpn_box = QCheckBox("WireGuard VPN (Bony's VPN)")
+        self.vpn_box.setChecked(spec.default)
+        self.vpn_box.setToolTip(spec.description)
+        self.app_boxes[vpnlink.APP_ID] = self.vpn_box
+        lay.addWidget(self.vpn_box)
+        desc = QLabel(spec.description)
+        desc.setObjectName("Muted")
+        desc.setWordWrap(True)
+        desc.setContentsMargins(26, 0, 0, 2)
+        lay.addWidget(desc)
+        self.vpn_opts = QWidget()
+        ol = QVBoxLayout(self.vpn_opts)
+        ol.setContentsMargins(26, 0, 0, 0)
+        ol.setSpacing(4)
+        row = QHBoxLayout()
+        self.vpn_file_btn = QPushButton("Konfiguration wählen …")
+        self.vpn_file_btn.setObjectName("Small")
+        self.vpn_file_btn.setToolTip("Optional: WireGuard-Konfiguration (.conf), z. B. aus der FRITZ!Box. Sie wird nur "
+                                     "in diesen Agent-PC übertragen und auf diesem Rechner nirgends gespeichert.")
+        self.vpn_clear_btn = QPushButton("Entfernen")
+        self.vpn_clear_btn.setObjectName("Small")
+        row.addWidget(self.vpn_file_btn)
+        row.addWidget(self.vpn_clear_btn)
+        row.addStretch(1)
+        ol.addLayout(row)
+        self.vpn_info = QLabel()
+        self.vpn_info.setWordWrap(True)
+        self.vpn_info.setObjectName("Muted")
+        ol.addWidget(self.vpn_info)
+        self.vpn_auto = QCheckBox("Automatisch verbinden (bei jedem Start)")
+        self.vpn_kill = QCheckBox("Kill-Switch: ohne VPN kein Internet")
+        self.vpn_kill.setToolTip("Sperrt jeden Internetverkehr, solange der Tunnel nicht verbunden ist. Die Steuerung "
+                                 "durch Bony's Agents (Herunterfahren, Fortschritt, Fernzugriff) geht weiter.")
+        ol.addWidget(self.vpn_auto)
+        ol.addWidget(self.vpn_kill)
+        lay.addWidget(self.vpn_opts)
+        self.vpn_box.toggled.connect(self._update_vpn)
+        self.vpn_file_btn.clicked.connect(self._choose_vpn_conf)
+        self.vpn_clear_btn.clicked.connect(lambda: self._set_vpn_conf(None))
+        self.vpn_kill.toggled.connect(self._update_vpn)
+        self.vpn_auto.toggled.connect(self._update_vpn)
+        self._update_vpn()
+        return box
+
+    def _choose_vpn_conf(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "WireGuard-Konfiguration wählen", str(Path.home()),
+                                              "WireGuard-Konfiguration (*.conf);;Alle Dateien (*)")
+        if not path:
+            return
+        try:
+            setup = vpnlink.load_conf(path)
+        except ValueError as e:
+            self._set_vpn_conf(None)
+            self.vpn_info.setText(f"⚠ {e}")
+            self.vpn_info.setStyleSheet(f"color: {style.DANGER};")
+            return
+        self._set_vpn_conf(setup)
+
+    def _set_vpn_conf(self, setup: vpnlink.VpnSetup | None) -> None:
+        self.vpn_setup = setup
+        if setup is not None:
+            self.vpn_box.setChecked(True)
+            self.vpn_auto.setChecked(True)
+        self._update_vpn()
+
+    def _update_vpn(self, *_) -> None:
+        self.vpn_opts.setVisible(self.vpn_box.isChecked())
+        has = self.vpn_setup is not None
+        self.vpn_clear_btn.setVisible(has)
+        self.vpn_file_btn.setText("Andere Konfiguration …" if has else "Konfiguration wählen …")
+        self.vpn_auto.setEnabled(has)
+        self.vpn_kill.setEnabled(has)
+        if not has:
+            self.vpn_auto.setChecked(False)
+            self.vpn_kill.setChecked(False)
+        self.vpn_info.setStyleSheet("")
+        if has:
+            s = self.vpn_setup
+            text = f"✓ Gültige Konfiguration: Tunnel „{s.name}“" + (f", Server {s.endpoint}" if s.endpoint else "")
+            text += ". Sie geht nur in den Agent-PC und wird dort nach dem Import aus den Einrichtungsdaten entfernt."
+            if self.vpn_kill.isChecked() and not self.vpn_auto.isChecked():
+                text += "\n⚠ Kill-Switch ohne automatisches Verbinden: Nach dem Start gibt es kein Internet, bis du " \
+                        "in Bony's VPN verbindest."
+            self.vpn_info.setText(text)
+        else:
+            self.vpn_info.setText("Optional – ohne Konfiguration importierst du sie später im Agent-PC oder in der "
+                                  "Detailansicht.")
+
     def template(self) -> templates.Template | None:
         return self.templates.get(self.base.currentData() or "")
 
@@ -272,7 +377,11 @@ class CreateDialog(QDialog):
             self.desktop.setCurrentIndex(idx)
         for a, cb in self.app_boxes.items():
             cb.setEnabled(t is None)
-            cb.setChecked(a in t.apps if t else apps.APPS[a].default)
+            cb.setChecked(a in t.apps if t else apps.APPS[a].default or (a == vpnlink.APP_ID and
+                                                                         self.vpn_setup is not None))
+        if t is not None and vpnlink.APP_ID not in t.apps:
+            self.vpn_setup = None
+        self._update_vpn()
         if t is None:
             self.user.setText("agent")
             self.disk.setValue(vm.DEFAULT_DISK_GB)
@@ -322,7 +431,7 @@ class CreateDialog(QDialog):
     def _set_busy(self, busy: bool) -> None:
         for w in (self.name, self.user, self.pw1, self.pw2, self.cpu, self.ram, self.disk,
                   self.keyboard, self.desktop, self.ok_btn, self.location, self.remember_loc, *self.app_boxes.values(),
-                  self.base, self.linked, self.full):
+                  self.base, self.linked, self.full, self.vpn_opts):
             w.setEnabled(not busy)
         self.cancel_btn.setEnabled(not busy)
         self.progress.setVisible(busy)
@@ -345,6 +454,10 @@ class CreateDialog(QDialog):
             location=self.location.path(),
             desktop=self.desktop.currentData(),
         )
+        if self.vpn_setup is not None and self.vpn_box.isChecked():
+            params["vpn"] = vpnlink.VpnSetup(
+                name=self.vpn_setup.name, data=self.vpn_setup.data, endpoint=self.vpn_setup.endpoint,
+                autoconnect=self.vpn_auto.isChecked(), killswitch=self.vpn_kill.isChecked())
         t = self.template()
         if t is not None:
             if params["disk_gb"] < t.disk_gb:

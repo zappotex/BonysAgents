@@ -170,6 +170,7 @@ class _WorkVM(vm.VM):
     """Überlagerung eines Agent-PCs zum Verallgemeinern: ohne Internet, ohne Remmina-Profile."""
 
     restrict_net = True
+    zero_unmap = True
 
     def sync_remmina(self) -> None:
         pass

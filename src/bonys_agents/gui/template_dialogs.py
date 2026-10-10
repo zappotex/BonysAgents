@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, apps, cloudinit, storage, templates, vm
+from bonys_agents import APP_NAME, apps, cloudinit, storage, templates, vm, vpnlink
 
 from . import style
 from .widgets import FlowLayout, PathLabel, PercentBar, make_scrollable
@@ -37,10 +37,12 @@ class FnWorker(QThread):
             self.failed.emit(str(e))
 
 
-def deletion_text(username: str, remove_personal: bool) -> str:
+def deletion_text(username: str, remove_personal: bool, vpn: bool = False) -> str:
+    """``vpn``: Bony's VPN ist im Agent-PC installiert (Hinweis beim Klon)."""
     lines = []
     if remove_personal:
         lines.append("PERSÖNLICHE DATEN (die Programme selbst bleiben installiert):")
+        lines.append(f"• {vpnlink.FRESH_CLEANUP}")
         for item in cloudinit.PERSONAL_DATA:
             lines.append(f"• {item.title}")
             for p in item.paths:
@@ -48,6 +50,8 @@ def deletion_text(username: str, remove_personal: bool) -> str:
     else:
         lines.append("PERSÖNLICHE DATEN BLEIBEN ERHALTEN – Anmeldungen und API-Schlüssel stecken dann in der "
                      "Vorlage. Nicht weitergeben!")
+        if vpn:
+            lines.append(f"⚠ {vpnlink.CLONE_WARNING}")
     lines.append("")
     lines.append("SYSTEM (immer):")
     lines += [f"• {line}" for line in cloudinit.SYSTEM_CLEANUP]
@@ -129,7 +133,11 @@ class SaveTemplateDialog(QDialog):
             self.status.setText(f"„{machine.name}“ läuft – er wird vorher heruntergefahren.")
 
     def _update_listing(self) -> None:
-        self.listing.setPlainText(deletion_text(self.machine.config.username, self.personal.isChecked()))
+        self.listing.setPlainText(deletion_text(self.machine.config.username, self.personal.isChecked(),
+                                                self._has_vpn()))
+
+    def _has_vpn(self) -> bool:
+        return vpnlink.APP_ID in self.machine.config.apps
 
     def _set_busy(self, busy: bool) -> None:
         for w in (self.name, self.description, self.personal, self.preview_btn, self.ok_btn, self.cancel_btn):
@@ -190,7 +198,7 @@ class SaveTemplateDialog(QDialog):
         def show(out: str) -> None:
             self._set_busy(False)
             self.status.setText("Probelauf fertig – nichts wurde gelöscht.")
-            self.listing.setPlainText(deletion_text(self.machine.config.username, remove)
+            self.listing.setPlainText(deletion_text(self.machine.config.username, remove, self._has_vpn())
                                       + "\n\nGEFUNDEN IM AGENT-PC (Probelauf):\n" + out)
 
         self._run(lambda progress: templates.preview(name, remove, password=pw, progress=progress), show)
@@ -203,9 +211,10 @@ class SaveTemplateDialog(QDialog):
             return
         if not self._ensure_stopped():
             return
+        vpn_note = f"\n\n{vpnlink.CLONE_WARNING}" if self._has_vpn() else ""
         if not self.personal.isChecked() and QMessageBox.warning(
                 self, APP_NAME, "Persönliche Daten bleiben in der Vorlage – Anmeldungen, Sitzungen und API-Schlüssel "
-                "stecken dann in jedem Agent-PC, der daraus entsteht.\n\nTrotzdem fortfahren?",
+                f"stecken dann in jedem Agent-PC, der daraus entsteht.{vpn_note}\n\nTrotzdem fortfahren?",
                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
         name, desc = self.name.text().strip(), self.description.text().strip()

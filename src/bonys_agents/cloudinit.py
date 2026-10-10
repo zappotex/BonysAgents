@@ -10,13 +10,14 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, screen
+from bonys_agents import desktops, screen, vpnlink
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -51,6 +52,8 @@ class GuestConfig:
     locale: str = "de_DE.UTF-8"
     ssh_authorized_keys: list[str] = field(default_factory=list)
     desktop: str = desktops.DEFAULT
+    # Mitgebrachte WireGuard-Konfiguration: kommt als eigene Datei ins Seed-ISO, nie in user-data
+    vpn: vpnlink.VpnSetup | None = None
 
 
 def _q(s: str) -> str:
@@ -126,7 +129,9 @@ systemctl enable bonys-growroot.service
     ]
     for app in cfg.apps:
         steps.append((f"{app.name} installieren", app.install + favorite_snippet(app)))
-    return render_provision(steps, cfg.username, cfg.locale)
+    # Ganz am Ende, nach allen Downloads: Ein eingeschalteter Kill-Switch sperrt ohne Tunnel das Internet.
+    finish = vpnlink.guest_import_script(cfg.vpn) if cfg.vpn else ""
+    return render_provision(steps, cfg.username, cfg.locale, finish=finish)
 
 
 def favorite_snippet(app: AppSpec) -> str:
@@ -140,8 +145,11 @@ def favorite_snippet(app: AppSpec) -> str:
 def render_provision(steps: list[tuple[str, str]], username: str, locale: str = "de_DE.UTF-8", *,
                      state_dir: str = STATE_DIR, log_file: str = "/var/log/bonys-agents.log",
                      home_base: str = "/home", apt_lock_conf: str = "/etc/apt/apt.conf.d/90-bonys-agents-lock",
-                     console: str = GUEST_CONSOLE) -> str:
-    """Einrichtungsskript aus (Titel, Bash-Code)-Schritten. Pfade nur für Tests änderbar."""
+                     console: str = GUEST_CONSOLE, finish: str = "") -> str:
+    """Einrichtungsskript aus (Titel, Bash-Code)-Schritten. Pfade nur für Tests änderbar.
+
+    ``finish``: Bash-Code nach allen Schritten, vor „fertig“ (muss selbst wiederholbar sein).
+    """
     total = len(steps)
     parts = [
         "#!/usr/bin/env bash",
@@ -188,6 +196,8 @@ def render_provision(steps: list[tuple[str, str]], username: str, locale: str = 
             f"else echo \"WARNUNG: Schritt '{title}' fehlgeschlagen\"; fi",
             "fi",
         ]
+    if finish:
+        parts.append(finish)
     parts += [
         'chmod +x "$DESKTOP_DIR"/*.desktop 2>/dev/null || true',
         'chown -R "$AGENT_USER:$AGENT_USER" "$DESKTOP_DIR"',
@@ -361,14 +371,18 @@ def meta_data(cfg: GuestConfig, instance_id: str) -> str:
 
 
 def write_seed_iso(path: Path, cfg: GuestConfig, instance_id: str) -> None:
-    _write_iso(path, {
+    files = {
         "user-data": user_data(cfg).encode("utf-8"),
         "meta-data": meta_data(cfg, instance_id).encode("utf-8"),
         # Kein network-config: Debian nutzt dann automatisch DHCP auf der ersten Netzwerkkarte.
-    })
+    }
+    if cfg.vpn:
+        files[vpnlink.SEED_FILE] = cfg.vpn.data
+    _write_iso(path, files)
 
 
 def _write_iso(path: Path, files: dict[str, bytes]) -> None:
+    """ISO nur für den eigenen Benutzer lesbar: Es enthält das Passwort und ggf. einen WireGuard-Schlüssel."""
     iso = pycdlib.PyCdlib()
     iso.new(interchange_level=3, joliet=3, rock_ridge="1.09", vol_ident="cidata")
     for name, data in files.items():
@@ -378,7 +392,10 @@ def _write_iso(path: Path, files: dict[str, bytes]) -> None:
             rr_name=name, joliet_path="/" + name,
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    iso.write(str(path))
+    path.unlink(missing_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    with os.fdopen(fd, "wb") as f:
+        iso.write_fp(f)
     iso.close()
 
 
@@ -447,8 +464,51 @@ SYSTEM_CLEANUP: tuple[str, ...] = (
     "Paket-Cache (apt-get clean), Zwischenspeicher (~/.cache, ~/.npm-Cache) und ~/.xsession-errors",
     "Protokolle (/var/log, systemd-Journal), DHCP-Leases, Zufalls-Startwert",
     "Temporäre Dateien (/tmp, /var/tmp)",
-    "Freien Platz nullen (fstrim, notfalls Nullen schreiben) – macht die Vorlage klein",
+    "Freien Platz mit Nullen überschreiben – entfernt auch Reste gelöschter Dateien (z. B. Schlüssel) und macht "
+    "die Vorlage klein",
 )
+
+
+# Vorlage „frisch“ (persönliche Daten entfernen): Bony's VPN bzw. WireGuard ganz zurücksetzen.
+# Nur Pfade werden ausgegeben, nie Inhalte. Bei einem Klon bleibt alles (mit Warnhinweis).
+VPN_CLEANUP = r"""echo "== Bony's VPN / WireGuard =="
+for f in /etc/wireguard/*.conf; do
+  [ -e "$f" ] || continue
+  n="$(basename "$f" .conf)"
+  if [ "$DRY" = 1 ]; then
+    systemctl is-enabled --quiet "wg-quick@$n" 2>/dev/null && echo "WÜRDE AUSSCHALTEN: automatisches Verbinden von $n"
+  else
+    systemctl disable --now "wg-quick@$n" >/dev/null 2>&1 || true
+  fi
+done
+for f in /etc/wireguard/* /etc/wireguard/.[!.]*; do
+  [ -e "$f" ] || [ -L "$f" ] || continue
+  wipe "$f"
+done
+if [ -e /etc/bonys-vpn/killswitch.nft ] || systemctl is-enabled --quiet bonys-vpn-killswitch.service 2>/dev/null; then
+  if [ "$DRY" = 1 ]; then
+    echo "WÜRDE AUSSCHALTEN: Kill-Switch von Bony's VPN"
+  else
+    systemctl disable bonys-vpn-killswitch.service >/dev/null 2>&1 || true
+    nft delete table inet bonys_vpn >/dev/null 2>&1 || true
+    rm -f /etc/bonys-vpn/killswitch.nft
+    echo "Kill-Switch von Bony's VPN ausgeschaltet"
+  fi
+fi
+# Einstellungen behalten (Ausnahmen), aber aus und ohne die aufgelösten Adressen der Server
+if [ "$DRY" = 0 ] && [ -f /etc/bonys-vpn/killswitch.json ]; then
+  python3 - <<'PY' || true
+import json
+p = "/etc/bonys-vpn/killswitch.json"
+try:
+    d = json.load(open(p, encoding="utf-8"))
+except (OSError, ValueError):
+    raise SystemExit
+d["enabled"], d["resolved"] = False, {}
+with open(p, "w", encoding="utf-8") as f:
+    f.write(json.dumps(d, indent=2) + "\n")
+PY
+fi"""
 
 
 def personal_data_paths(username: str = "agent") -> list[str]:
@@ -513,6 +573,7 @@ if [ "$DRY" = 0 ]; then
 fi""",
     ]
     if remove_personal:
+        lines.append(VPN_CLEANUP)
         lines.append('echo "== Persönliche Daten =="')
         for item in PERSONAL_DATA:
             lines.append(f"# {item.title}")
@@ -524,6 +585,7 @@ fi""",
     lines.append(r"""echo "== System =="
 wipe /root/.bash_history /root/.python_history /root/.lesshst /root/.viminfo /root/.wget-hsts
 wipe "$H/.bash_history" "$H/.python_history" "$H/.lesshst" "$H/.viminfo" "$H/.wget-hsts" "$H/.node_repl_history"
+wipe /var/lib/bonys-agents/vpn-config.done
 wipe "$H/.cache" /root/.cache "$H/.npm/_cacache" "$H/.npm/_logs" "$H/.xsession-errors" "$H/.xsession-errors.old"
 if [ "$DRY" = 1 ]; then
   echo "WÜRDE AUSFÜHREN: cloud-init clean --logs --seed --machine-id"
@@ -531,7 +593,7 @@ if [ "$DRY" = 1 ]; then
   for f in /etc/ssh/ssh_host_*; do [ -e "$f" ] && echo "WÜRDE LÖSCHEN: $f"; done
   echo "WÜRDE AUSFÜHREN: apt-get clean ($(du -sh /var/cache/apt/archives 2>/dev/null | cut -f1))"
   echo "WÜRDE LEEREN: Protokolle in /var/log ($(du -sh /var/log 2>/dev/null | cut -f1)), /tmp, /var/tmp"
-  echo "WÜRDE AUSFÜHREN: fstrim -av (freien Platz nullen)"
+  echo "WÜRDE AUSFÜHREN: freien Platz mit Nullen überschreiben (dd, danach fstrim)"
   exit 0
 fi
 cloud-init clean --logs --seed --machine-id \
@@ -564,21 +626,25 @@ rm -rf /var/log/journal/*
 find /var/log -type f \( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \) -delete
 find /var/log -type f -exec truncate -s 0 {} +
 echo "== Freien Platz nullen =="
+# fstrim allein reicht nicht: Es gibt nur ganze Cluster der Festplattendatei (64 KiB) frei. Ein freier
+# Block in einem sonst belegten Cluster behielte seinen alten Inhalt – etwa eine gelöschte Datei mit
+# einem Schlüssel. Deshalb jeden freien Block mit Nullen überschreiben. Die Arbeitskopie läuft mit
+# detect-zeroes=unmap: Nullen kosten dort keinen Platz und fehlen in der komprimierten Vorlage.
 sync
-if ! fstrim -av; then
-  echo "fstrim geht nicht – schreibe Nullen (dauert etwas) …"
-  dd if=/dev/zero of=/var/tmp/bonys-zero bs=4M status=none || true
-  sync
-  rm -f /var/tmp/bonys-zero
-fi
+dd if=/dev/zero of=/var/tmp/bonys-zero bs=4M status=none 2>/dev/null || true
+sync
+rm -f /var/tmp/bonys-zero
+sync
+fstrim -av || true
 sync
 echo "BONYS-GENERALIZED"
 """)
     return "\n".join(lines) + "\n"
 
 
-def clone_firstboot_script() -> str:
+def clone_firstboot_script(vpn: vpnlink.VpnSetup | None = None) -> str:
     """Läuft beim ersten Start eines Agent-PCs aus einer Vorlage (runcmd, einmal je Instanz)."""
+    vpn_part = vpnlink.guest_import_script(vpn) if vpn else ""
     return f"""#!/bin/sh
 # Von Bony's Agents erzeugt – erster Start eines Agent-PCs aus einer Vorlage.
 ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1 || ssh-keygen -A
@@ -587,12 +653,12 @@ systemctl restart ssh.service >/dev/null 2>&1 || true
 command -v make-ssl-cert >/dev/null && make-ssl-cert generate-default-snakeoil --force-overwrite || true
 [ -x /usr/sbin/xrdp-keygen ] && xrdp-keygen xrdp auto >/dev/null 2>&1 || true
 [ -x {GROWROOT_SCRIPT} ] && {GROWROOT_SCRIPT} >/dev/null 2>&1 || true
-sync
+{vpn_part}sync
 echo "{READY_MARKER}" > {GUEST_CONSOLE}
 """
 
 
-def clone_user_data(hostname: str, username: str, password: str) -> str:
+def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.VpnSetup | None = None) -> str:
     """cloud-config für den ersten Start eines Klons: nur Rechnername, Passwort, Schlüssel, Platz."""
     doc = {
         "hostname": hostname,
@@ -603,14 +669,18 @@ def clone_user_data(hostname: str, username: str, password: str) -> str:
         "chpasswd": {"expire": False, "users": [{"name": username, "password": password, "type": "text"}]},
         "growpart": {"mode": "auto", "devices": ["/"]},
         "resize_rootfs": True,
-        "write_files": [{"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script()}],
+        "write_files": [{"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script(vpn)}],
         "runcmd": [[CLONE_SCRIPT]],
     }
     return "#cloud-config\n" + json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
 
 
-def write_clone_seed_iso(path: Path, hostname: str, username: str, password: str, instance_id: str) -> None:
-    _write_iso(path, {
-        "user-data": clone_user_data(hostname, username, password).encode("utf-8"),
+def write_clone_seed_iso(path: Path, hostname: str, username: str, password: str, instance_id: str,
+                         vpn: vpnlink.VpnSetup | None = None) -> None:
+    files = {
+        "user-data": clone_user_data(hostname, username, password, vpn).encode("utf-8"),
         "meta-data": f"instance-id: {instance_id}\nlocal-hostname: {hostname}\n".encode(),
-    })
+    }
+    if vpn:
+        files[vpnlink.SEED_FILE] = vpn.data
+    _write_iso(path, files)

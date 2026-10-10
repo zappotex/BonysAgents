@@ -180,7 +180,56 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 
 ### Sitzung 4 – Einbindung in Bony's Agents
 
-- [ ] offen
+- [x] `vpnlink.py` (Host-Seite): .conf lesen und mit der Prüfung des Helfers prüfen, Hook-Zeilen ablehnen,
+  `VpnSetup` nur im Speicher (`repr` ohne Daten), Status/Verbinden/Trennen/Import/Kill-Switch/Autostart/IP
+  über den Gast-Agent (`guest-exec`, Import per `input-data` = stdin), sonst SSH mit sudo. `GuestAgent.exec`
+  mit Standardeingabe. Details in `docs/vpn.md`, Abschnitt „Anbindung an Bony's Agents“
+- [x] Dialog „Neuer Agent-PC“: Abschnitt VPN (Haken, „Konfiguration wählen …“ mit sofortiger Prüfung,
+  „Automatisch verbinden“, „Kill-Switch“, Hinweis bei Kill-Switch ohne Autostart). VPN-App kommt mit
+- [x] Übertragung nur über das Seed-ISO (eigene Datei `bonys-vpn.conf`, ISO mit Rechten 600), Import am
+  Ende der Einrichtung nach allen Downloads, dann Autostart, zuletzt Kill-Switch. Seed-ISO wird wie bisher
+  nach der Einrichtung gelöscht. Auch beim Erstellen aus einer Vorlage (wenn sie Bony's VPN enthält)
+- [x] Detailansicht: Reiter „VPN“ (Status, Tunnel, Adresse, Server, Handshake, Daten, Verbinden/Trennen,
+  Öffentliche IP, „Konfiguration importieren …“, Autostart, Kill-Switch, „VPN-App installieren“)
+- [x] CLI: `create --vpn-config/--vpn-name/--vpn-autoconnect/--killswitch`,
+  `vpn NAME status [--json]|up|down|import DATEI|killswitch on|off|autostart on|off|ip`
+- [x] Vorlagen: frisch = alle Tunnel/Schlüssel in /etc/wireguard weg, Autostart und Kill-Switch aus;
+  Klon = alles bleibt, Warnhinweis im Dialog und in der CLI
+- [x] **Gefunden und behoben:** Gelöschte Dateien blieben in Vorlagen lesbar. `fstrim` gibt nur ganze
+  64-KiB-Cluster frei, der Wegwerf-Schlüssel einer gelöschten .conf stand noch auf der Vorlagen-Festplatte.
+  Jetzt wird freier Platz immer mit Nullen überschrieben (Arbeitskopie mit `detect-zeroes=unmap`, kostet
+  keinen Platz). Betrifft alle persönlichen Daten in frischen Vorlagen, nicht nur VPN
+- [x] „Agent-PC aktualisieren“ bei Kill-Switch ohne Tunnel: Hinweis und Fehlercode (vorher meldete
+  apt die Netzfehler als Erfolg)
+- [x] Tests `tests/test_vpnlink.py` (29): Prüfung, Fehlermeldungen ohne Werte, Seed-ISO (Datei, 600, nicht
+  in user-data), Reihenfolge im Einrichtungsskript, Import-Skript mit Attrappen (stdin, Reihenfolge,
+  Fehlerfall, Wiederholung), `vm.create` mit Dummy-Schlüssel und Suche über alle geschriebenen Dateien
+  (vor und nach der Einrichtung, template.json), Vorlagen-Bereinigung mit Attrappen (auch Probelauf),
+  Gast-Agent/SSH-Weg, CLI, Dialog, VPN-Bereich. pytest 364 grün, ruff sauber
+- [x] Echter Test (2026-10-10, aus dem Quellstand): „vpn-agent“ (Cinnamon, RDP, Bony's VPN) mit
+  `~/vpn-test/bonysagents.conf` (Inhalt nie gelesen), Autoconnect und Kill-Switch. Screenshots in
+  `/media/zappotex/bonysagent/BonysAgents/screenshots-vpn-agent/` (außerhalb des Repos):
+  - Einrichtung meldet Import, Autostart, Kill-Switch. Seed-ISO danach weg. Nach dem Neustart verbindet
+    sich der Tunnel selbst, öffentliche IP = VPN-Server (nicht die des Hosts)
+  - Trennen (CLI und App) → kein Internet (curl als Benutzer scheitert, 1.1.1.1 gesperrt; DNS geht über
+    die QEMU-Ausnahme, wie in `docs/vpn.md` beschrieben). Verbinden → Internet über VPN
+  - Bei Kill-Switch ohne Tunnel: Gast-Agent, QMP, SSH-Weiterleitung, Status per SSH, RDP-Antwort von xrdp,
+    Herunterfahren in 2,3 s, dynamische Auflösung (800×600 → 1280×860). „Agent-PC aktualisieren“ über
+    den Tunnel ok, ohne Tunnel mit Hinweis
+  - Import aus der Detailansicht/CLI mit Dummy-Konfiguration: im Gast 600/root, keine Kopie in /tmp
+  - Frische Vorlage: Probelauf listet Tunnel, Autostart, Kill-Switch. Festplatte entpackt und durchsucht:
+    keine Zeile `PrivateKey = …` mehr (vor der Korrektur: Wegwerf-Schlüssel 1×). Agent-PC daraus:
+    /etc/wireguard leer, Kill-Switch aus, Internet direkt
+  - Klon: Warnhinweis, Agent-PC daraus (Original aus) hat alle Tunnel und verbindet sich. Klon-PC und
+    Klon-Vorlage danach gelöscht (enthielten den echten Schlüssel)
+  - Host: Musterbasierte Suche über VM-Ordner, Vorlagen und Einstellungen findet Schlüsselzeilen nur in der
+    Festplatte des Agent-PCs selbst
+- Nicht real getestet: „VPN-App installieren“ in einem echten Agent-PC ohne die Option (Knopf öffnet den
+  bekannten „Programme hinzufügen“-Dialog, Nachinstallieren selbst in Sitzung 3 geprüft), SSH-Weg mit
+  Passwortabfrage in der Oberfläche, arm64
+- Achtung: Auch „vpn-agent“ trägt jetzt den Tunnel „bonysagents“ mit dem **echten Schlüssel** (Autostart und
+  Kill-Switch an, dazu der Dummy-Tunnel „wegwerf“). Damit vier PCs: vpn-agent, vpn-cinnamon, vpn-xfce,
+  obsidian-test – nie zwei gleichzeitig starten. Die Vorlage „vpn-frisch“ enthält keinen Schlüssel
 
 ### Sitzung 5 – Eigener Rechner, Doku, Release
 

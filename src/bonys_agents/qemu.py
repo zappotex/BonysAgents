@@ -109,6 +109,9 @@ class LaunchSpec:
     # Netz abschotten: kein Internet und kein Zugriff auf den Host – nur die SSH-Weiterleitung bleibt
     # (z. B. beim Verallgemeinern für eine Vorlage, damit keine Sitzung des Originals online geht).
     restrict_net: bool = False
+    # Nullen auf der Festplatte als „Null-Cluster“ speichern statt als Daten (Arbeitskopie für Vorlagen:
+    # das Überschreiben des freien Platzes kostet so keinen Platz)
+    zero_unmap: bool = False
 
 
 def _esc(p: Path) -> str:
@@ -144,7 +147,8 @@ def build_command(s: LaunchSpec) -> list[str]:
         "-smp", str(s.cpus),
         "-m", str(s.ram_mb),
         "-boot", "strict=on,menu=off",
-        "-drive", f"if=none,id=disk0,file={_esc(s.disk)},format=qcow2,discard=unmap",
+        "-drive", f"if=none,id=disk0,file={_esc(s.disk)},format=qcow2,discard=unmap"
+                  + (",detect-zeroes=unmap" if s.zero_unmap else ""),
         "-device", "virtio-blk-pci,drive=disk0,bootindex=0",
         "-netdev", _netdev(s),
         "-device", f"virtio-net-pci,netdev={NETDEV},romfile=",
@@ -572,13 +576,26 @@ class GuestAgent:
 
     def run(self, script: str, timeout: float = 120, shell: str = "/bin/sh") -> tuple[int, str]:
         """Shell-Skript im Gast ausführen. Gibt (Exit-Code, Ausgabe) zurück."""
-        pid = self.execute("guest-exec", path=shell, arg=["-c", script], **{"capture-output": True})["pid"]
+        rc, out, err = self.exec(shell, ["-c", script], timeout=timeout)
+        return rc, out + err
+
+    def exec(self, path: str, args: list[str], stdin: bytes | None = None,
+             timeout: float = 120) -> tuple[int, str, str]:
+        """Programm im Gast ausführen, ``stdin`` geht über die Standardeingabe (landet in keiner Datei).
+
+        Gibt (Exit-Code, stdout, stderr) zurück.
+        """
+        extra = {"capture-output": True}
+        if stdin is not None:
+            extra["input-data"] = base64.b64encode(stdin).decode("ascii")
+        pid = self.execute("guest-exec", path=path, arg=args, **extra)["pid"]
         deadline = time.time() + timeout
         while time.time() < deadline:
             st = self.execute("guest-exec-status", pid=pid)
             if st.get("exited"):
-                out = b"".join(base64.b64decode(st.get(k, "")) for k in ("out-data", "err-data"))
-                return int(st.get("exitcode", 0)), out.decode("utf-8", errors="replace")
+                out, err = (base64.b64decode(st.get(k, "")).decode("utf-8", errors="replace")
+                            for k in ("out-data", "err-data"))
+                return int(st.get("exitcode", 0)), out, err
             time.sleep(0.2)
         raise GuestAgentError(f"Befehl im Gast nicht innerhalb von {timeout:.0f} s fertig")
 

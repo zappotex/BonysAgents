@@ -39,7 +39,7 @@ class InstallWorker(QThread):
 
 
 class InstallAppsDialog(QDialog):
-    def __init__(self, machine: vm.VM, parent=None):
+    def __init__(self, machine: vm.VM, parent=None, preselect: list[str] | tuple[str, ...] = ()):
         super().__init__(parent)
         self.machine = machine
         self.worker: InstallWorker | None = None
@@ -68,6 +68,7 @@ class InstallAppsDialog(QDialog):
             choices.addWidget(cb)
             choices.addWidget(desc)
             self.boxes[a.id] = cb
+            cb.setChecked(a.id in preselect)
             cb.toggled.connect(self._update)
 
         pw_label = QLabel(f"Passwort des Benutzers „{machine.config.username}“ im Agent-PC")
