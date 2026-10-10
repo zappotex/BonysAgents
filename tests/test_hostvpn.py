@@ -373,9 +373,9 @@ def test_import_files_names_hooks_and_no_secret(qapp, fake_host, monkeypatch, tm
     panel.start()
     panel.live_timer.stop()
     a = tmp_path / "Mein VPN.conf"
-    a.write_text(CONF)
+    a.write_bytes(CONF.encode())
     hooks = tmp_path / "hooks.conf"
-    hooks.write_text(CONF.replace("DNS = 10.8.0.1\n", "DNS = 10.8.0.1\nPostUp = echo hi\n"))
+    hooks.write_bytes(CONF.replace("DNS = 10.8.0.1\n", "DNS = 10.8.0.1\nPostUp = echo hi\n").encode())
     bad = tmp_path / "bad.conf"
     bad.write_text("[Interface]\n")
     warnings = []
@@ -389,7 +389,7 @@ def test_import_files_names_hooks_and_no_secret(qapp, fake_host, monkeypatch, tm
     # vorhandener Name → „Ersetzen“
     monkeypatch.setattr(host_vpn, "confirm_hooks", lambda parent, name, h: True)
     heim = tmp_path / "heim.conf"
-    heim.write_text(CONF)
+    heim.write_bytes(CONF.encode())
 
     def choose(box):
         box._clicked = next(b for b in box.buttons() if b.text() == "Ersetzen")

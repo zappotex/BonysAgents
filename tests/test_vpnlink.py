@@ -52,7 +52,7 @@ def no_secret(text) -> bool:
 def conf_file(tmp_path):
     p = tmp_path / "eingabe" / "fritz box.conf"
     p.parent.mkdir()
-    p.write_text(CONF)
+    p.write_bytes(CONF.encode())  # write_text schriebe unter Windows CRLF
     p.chmod(0o600)
     return p
 
@@ -85,10 +85,10 @@ def test_load_conf_validates_like_the_helper(conf_file):
     ("x" * (70 * 1024), "zu groß"),
     ("", "keine gültige"),
     (CONF.replace("Endpoint = vpn.example.net:51820", "Endpoint = vpn.example.net:99999"), "keine gültige"),
-])
+], ids=["schluessel", "hooks", "zu-gross", "leer", "port"])  # kurze IDs: Windows begrenzt PYTEST_CURRENT_TEST
 def test_load_conf_errors_never_show_values(tmp_path, content, match):
     p = tmp_path / "x.conf"
-    p.write_text(content)
+    p.write_bytes(content.encode())
     with pytest.raises(ValueError, match=match) as e:
         vpnlink.load_conf(p)
     assert no_secret(str(e.value))
@@ -128,7 +128,8 @@ def test_provision_imports_after_all_steps(conf_file):
     imp = script.index(f"bonys-vpn-helper import {setup.name} --replace")
     assert last_step < imp < script.index('touch "$STATE/ready"')  # nach Hermes & Co., vor „fertig“
     assert imp < script.index("autostart fritz_box on") < script.index("killswitch on")
-    assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0
+    if sys.platform != "win32":  # unter Windows ist „bash“ nur der WSL-Platzhalter
+        assert subprocess.run(["bash", "-n"], input=script.encode()).returncode == 0
     plain = cloudinit.provision_script(_guest(None, ("brave", "vpn")))
     assert "bonys-vpn-helper import" not in plain
 
@@ -246,7 +247,8 @@ def test_generalize_resets_vpn_only_when_fresh():
     assert cloudinit.VPN_CLEANUP in fresh and cloudinit.VPN_CLEANUP not in clone
     assert "/var/lib/bonys-agents/vpn-config.done" in fresh and "/var/lib/bonys-agents/vpn-config.done" in clone
     for s in (fresh, clone, cloudinit.generalize_script("agent", True, dry_run=True)):
-        assert subprocess.run(["bash", "-n"], input=s, text=True).returncode == 0
+        if sys.platform != "win32":
+            assert subprocess.run(["bash", "-n"], input=s.encode()).returncode == 0
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-Shell")
