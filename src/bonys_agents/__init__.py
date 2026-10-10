@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 APP_NAME = "Bony's Agents"
 APP_ID = "bonys-agents"
 TAGLINE = "Mit KI lernen, arbeiten und kreativ sein – aber der Mensch bleibt am Steuer"

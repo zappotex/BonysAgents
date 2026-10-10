@@ -20,7 +20,8 @@ from pathlib import Path
 
 from . import conf as wgconf
 
-HELPER = "/usr/local/sbin/bonys-vpn-helper"
+HELPER = "/usr/local/sbin/bonys-vpn-helper"     # install.py (Agent-PC)
+DEB_HELPER = "/usr/sbin/bonys-vpn-helper"        # .deb von Bony's Agents (eigener Rechner)
 
 
 def clean_env() -> dict[str, str]:
@@ -36,7 +37,10 @@ class CliError(Exception):
 
 
 def helper_path() -> str:
-    return os.environ.get("BONYS_VPN_HELPER") or HELPER
+    """Pfad des Helfers: ``BONYS_VPN_HELPER``, sonst der installierte (install.py vor .deb)."""
+    if os.environ.get("BONYS_VPN_HELPER"):
+        return os.environ["BONYS_VPN_HELPER"]
+    return next((p for p in (HELPER, DEB_HELPER) if Path(p).exists()), HELPER)
 
 
 def call(args: list[str], data: bytes | None = None) -> str:

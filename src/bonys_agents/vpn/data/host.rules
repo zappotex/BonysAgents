@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Bony's VPN auf dem eigenen Rechner: Administrator-Passwort, danach einige Minuten gemerkt.
+// Nur den Status lesen („@HELPER@ status“, ohne weitere Argumente: Tunnelnamen, Adressen, Server,
+// Handshake – keine Schlüssel) darf der angemeldete Benutzer am Rechner ohne Passwort, damit die
+// Oberfläche nicht alle paar Minuten fragt. pkexec gibt die Befehlszeile als „command_line“ mit.
 polkit.addRule(function(action, subject) {
     if (action.id == "io.github.bonys-agents.vpn") {
+        if (subject.local && subject.active && action.lookup("command_line") == "@HELPER@ status") {
+            return polkit.Result.YES;
+        }
         return subject.local && subject.active ? polkit.Result.AUTH_ADMIN_KEEP : polkit.Result.AUTH_ADMIN;
     }
 });

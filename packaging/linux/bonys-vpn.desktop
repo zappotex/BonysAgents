@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Bony's VPN
+GenericName=WireGuard VPN
+Comment=WireGuard-Tunnel für diesen Rechner verwalten
+Comment[en]=Manage WireGuard tunnels for this computer
+Exec=/opt/bonys-agents/BonysAgents --vpn
+Icon=bonys-vpn
+Terminal=false
+Categories=Network;Security;
+Keywords=VPN;WireGuard;Tunnel;Kill-Switch;
+StartupWMClass=BonysAgents

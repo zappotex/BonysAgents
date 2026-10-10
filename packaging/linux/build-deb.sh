@@ -43,6 +43,13 @@ install -m644 src/bonys_agents/resources/icon.png "$STAGE/usr/share/icons/hicolo
 install -m644 src/bonys_agents/resources/logo.png "$STAGE/usr/share/icons/hicolor/512x512/apps/$PKG.png"
 install -m644 packaging/linux/bonys-agents.desktop "$STAGE/usr/share/applications/$PKG.desktop"
 install -m644 packaging/linux/70-bonys-agents-kvm.rules "$STAGE/usr/lib/udev/rules.d/"
+
+# Bony's VPN für diesen Rechner: Root-Helfer und Kommandozeile (System-Python, nicht das Bündel),
+# polkit-Aktion mit auth_admin_keep (Status ohne Passwort), systemd-Unit des Kill-Switch.
+# Die Oberfläche ist der Bereich „VPN“ in Bony's Agents, eigener Desktop-Eintrag „Bony's VPN“.
+python3 -I src/bonys_agents/vpn/install.py --variant host --layout system --root "$STAGE" >/dev/null
+install -m644 packaging/linux/bonys-vpn.desktop "$STAGE/usr/share/applications/bonys-vpn.desktop"
+install -m644 src/bonys_agents/vpn/data/bonys-vpn.png "$STAGE/usr/share/icons/hicolor/256x256/apps/bonys-vpn.png"
 {
   echo "Bony's Agents"
   echo "Copyright (C) 2026 Bony"
@@ -90,7 +97,7 @@ Priority: optional
 Architecture: $ARCH
 Maintainer: Bony <bonys-agents@users.noreply.github.com>
 Installed-Size: $SIZE_KB
-Depends: $QEMU, qemu-utils, acl, libc6 (>= $GLIBC), libegl1, libgl1, libfontconfig1, libfreetype6,
+Depends: $QEMU, qemu-utils, acl, python3, libc6 (>= $GLIBC), libegl1, libgl1, libfontconfig1, libfreetype6,
  libxkbcommon0, libxkbcommon-x11-0, libxcb-cursor0, libxcb-icccm4, libxcb-keysyms1, libxcb-shape0,
  libxcb-randr0, libxcb-render-util0, libxcb-image0, libxcb-xinerama0, libdbus-1-3,
  libglib2.0-0t64 | libglib2.0-0, libgtk-3-0t64 | libgtk-3-0,
@@ -100,7 +107,7 @@ Depends: $QEMU, qemu-utils, acl, libc6 (>= $GLIBC), libegl1, libgl1, libfontconf
  libpng16-16t64 | libpng16-16, libx11-6, libx11-xcb1, libxau6, libxdmcp6, libbsd0, libmd0, libxcb1,
  libxcb-glx0, libxcb-render0, libxcb-shm0, libxcb-sync1, libxcb-xfixes0, libxcomposite1, libxcursor1,
  libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1
-Recommends: qemu-system-gui, qemu-system-modules-spice, pkexec | policykit-1
+Recommends: qemu-system-gui, qemu-system-modules-spice, pkexec | policykit-1, wireguard-tools, nftables
 Suggests: remmina, remmina-plugin-rdp, remmina-plugin-spice, virt-viewer
 Homepage: $HOMEPAGE
 Description: Virtuelle Agent-PCs mit Brave, Telegram und Hermes Agent
@@ -120,6 +127,8 @@ if [ "$1" = "configure" ]; then
     udevadm trigger --name-match=kvm 2>/dev/null || true
   fi
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications || true
+  # Bony's VPN: Unit des Kill-Switch bekannt machen (eingeschaltet wird sie nur über den Helfer)
+  if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || true; fi
   command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t /usr/share/icons/hicolor || true
   # Paketquelle für Updates (Aktualisierungsverwaltung). Hat der Nutzer sie mit „Enabled: no“
   # abgeschaltet, bleibt das so.
@@ -155,9 +164,23 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q
 case "$1" in
   remove|purge) rm -f /etc/apt/sources.list.d/bonys-agents.sources ;;
 esac
+# Vollständig entfernen: Einstellungen von Bony's VPN (Kill-Switch-Zustand, keine Schlüssel)
+if [ "$1" = "purge" ]; then rm -rf /etc/bonys-vpn; fi
+if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || true; fi
 exit 0
 EOF
-chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm"
+cat > "$STAGE/DEBIAN/prerm" <<'EOF'
+#!/bin/sh
+set -e
+# Beim Entfernen (nicht beim Update) den Kill-Switch von Bony's VPN abschalten – sonst bliebe der
+# Rechner ohne Tunnel offline, ohne dass es noch ein Programm zum Abschalten gäbe.
+# WireGuard-Tunnel in /etc/wireguard bleiben.
+if [ "$1" = "remove" ] && [ -x /usr/sbin/bonys-vpn-helper ]; then
+  /usr/sbin/bonys-vpn-helper killswitch off >/dev/null 2>&1 || true
+fi
+exit 0
+EOF
+chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm" "$STAGE/DEBIAN/prerm"
 
 # ---------- 4. Rechte und Paket ----------
 find "$STAGE" -type d -exec chmod 755 {} +

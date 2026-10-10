@@ -41,6 +41,8 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Unterbrochene Einrichtung (QEMU beendet, Neustart, Speichermangel) läuft beim nächsten Start dort weiter, wo sie war
 - Selbsttest `bonys-agents selftest`: prüft, ob QEMU auf diesem Rechner startet
 - Vorlagen: einen fertig eingerichteten Agent-PC als Vorlage speichern – neue Agent-PCs entstehen daraus in Sekunden, ohne Downloads und Einrichtung (siehe „Vorlagen“)
+- **Bony's VPN**: eigene WireGuard-Tunnel im Agent-PC und auf dem eigenen Linux-Rechner, mit Kill-Switch (siehe „VPN“)
+- Optional **Obsidian** für Notizen im Agent-PC (siehe „Obsidian“)
 - Weitere Programme lassen sich als kleines Modul ergänzen (siehe `src/bonys_agents/apps.py`)
 
 ## Installation – ganz ohne Terminal
@@ -49,10 +51,10 @@ Lade auf der **Releases-Seite** die Datei für dein System herunter:
 
 | System | Datei | So geht's |
 |---|---|---|
-| **Windows 10/11** | `BonysAgents-Setup-0.13.0.exe` | Doppelklick → „Weiter“ → „Installieren“. Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
-| **Debian, Ubuntu, Linux Mint** | `bonys-agents_0.13.0_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
-| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-0.13.0-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
-| **Mac mit Intel-Prozessor** | `BonysAgents-0.13.0-macos-intel.dmg` | wie oben |
+| **Windows 10/11** | `BonysAgents-Setup-0.14.0.exe` | Doppelklick → „Weiter“ → „Installieren“. Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
+| **Debian, Ubuntu, Linux Mint** | `bonys-agents_0.14.0_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
+| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-0.14.0-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
+| **Mac mit Intel-Prozessor** | `BonysAgents-0.14.0-macos-intel.dmg` | wie oben |
 
 Danach findest du **„Bony's Agents“** im Startmenü bzw. Anwendungsmenü.
 Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben dabei erhalten.
@@ -73,7 +75,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.13.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.14.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -456,6 +458,102 @@ und RDP bleibt verfügbar.
 nächsten Start. RDP über „Programme hinzufügen …“ → „Fernzugriff (RDP)“ nachrüsten. War bisher
 „Fernzugriff aus dem Heimnetz erlauben“ an, gilt das jetzt als „dauerhaft“.
 
+## VPN (Bony's VPN)
+
+Bony's VPN ist ein eigenes, kleines Werkzeug für **WireGuard**. Die Konfiguration (`.conf`) bringst
+du selbst mit, z. B. aus der WireGuard-Funktion deiner Fritzbox oder von deinem VPN-Anbieter.
+Bony's Agents legt **keine** Zugangsdaten an. Das Sicherheitskonzept steht in [`docs/vpn.md`](docs/vpn.md).
+
+### Agent-PC oder eigener Rechner?
+
+| | Im Agent-PC | Auf deinem eigenen Rechner |
+|---|---|---|
+| Was geht durch den Tunnel | nur der Internetverkehr dieses einen Agent-PCs | **alles** auf deinem Rechner: Browser, Mail, Updates und auch die Agent-PCs |
+| Wo | App-Option „WireGuard VPN (Bony's VPN)“ beim Erstellen oder über „Programme hinzufügen …“; im Agent-PC das Symbol „Bony's VPN“ mit Tray-Symbol | **Linux:** Knopf **„VPN“** oben im Fenster von Bony's Agents oder der eigene Eintrag **„Bony's VPN“** im Startmenü. **Windows/macOS:** offizielle WireGuard-App (siehe unten) |
+| Rechte | ohne Passwort (der Benutzer im Agent-PC hat ohnehin Administratorrechte) | Administrator-Passwort, einige Minuten gemerkt. Nur den Status anzuzeigen geht ohne Passwort |
+| Kommandozeile | `bonys-agents vpn NAME status\|up\|down\|import\|killswitch\|autostart\|ip`, im Agent-PC `bonys-vpn` | `bonys-vpn list\|status\|up\|down\|import\|delete\|rename\|export\|autostart\|killswitch` |
+
+**Im Agent-PC beim Erstellen:** Im Dialog „Neuer Agent-PC“ unter **VPN** „Konfiguration wählen …“,
+optional **„Automatisch verbinden“** und **„Kill-Switch“**. Die Datei wird geprüft und nur in diesen
+Agent-PC übertragen – auf deinem Rechner bleibt nichts davon liegen (nicht in den Einstellungen, nicht
+in Protokollen). Im laufenden Agent-PC zeigt der Reiter **„VPN“** in der Detailansicht Status, Server,
+Handshake und Datenmenge, mit Knöpfen zum Verbinden, Trennen, Importieren und für die öffentliche IP.
+Kommandozeile: `bonys-agents create NAME --vpn-config DATEI [--vpn-autoconnect] [--killswitch]`.
+
+**Auf deinem Linux-Rechner** (ab dem .deb 0.14.0): Knopf **„VPN“** oben im Fenster oder
+**ⓘ → Extras → Bony's VPN für diesen Rechner** oder der Startmenü-Eintrag **„Bony's VPN“** (läuft mit
+Symbol im Infobereich weiter und meldet Verbindungsabbrüche). Dort: Tunnel importieren (Dateiauswahl,
+Hineinziehen, mehrere Dateien oder eine ZIP-Datei), verbinden und trennen mit einem Klick, Details live,
+öffentliche IP prüfen, bearbeiten (private Schlüssel bleiben verborgen), umbenennen, exportieren,
+löschen, automatisch beim Hochfahren verbinden. Vorher erscheint der Hinweis: *„Das VPN gilt dann für
+deinen ganzen Rechner, nicht nur für die Agent-PCs.“* Fehlen `wireguard-tools` oder `nftables`
+(im .deb nur empfohlen), bietet der Bereich an, sie nach Rückfrage über apt nachzuinstallieren.
+WireGuard-Konfigurationen, die schon in `/etc/wireguard` liegen, werden angezeigt und lassen sich
+verbinden, aber nicht verändern.
+
+**Windows:** **ⓘ → Extras → WireGuard für diesen Rechner installieren …** installiert die offizielle
+WireGuard-App per winget (`WireGuard.WireGuard`). Ist sie schon da, öffnet der Menüpunkt sie. In der
+App „Tunnel aus Datei importieren“ und „Aktivieren“ klicken.
+
+**macOS:** Die offizielle WireGuard-App gibt es nur im **App Store** – einen offiziellen Weg, sie
+automatisch zu installieren, gibt es nicht (Homebrew bringt nur die Kommandozeilen-Werkzeuge ohne App).
+**ⓘ → Extras → WireGuard für diesen Rechner (App Store) …** öffnet die App-Store-Seite (oder die App,
+wenn sie schon installiert ist) und erklärt die Schritte.
+
+### Kill-Switch
+
+Mit Kill-Switch kommt **ohne verbundenen Tunnel kein Programm ins Internet** – auch nicht, wenn der
+Tunnel abbricht oder nach einem Neustart (die Sperre lädt, bevor das Netz hochkommt).
+
+- **Im Agent-PC:** Steuerung durch Bony's Agents, Herunterfahren, Fortschritt, RDP/SPICE und SSH gehen
+  weiter (das QEMU-Netz `10.0.2.0/24` ist ausgenommen).
+- **Auf deinem Rechner** nur nach einer zusätzlichen Warnung: Ohne Tunnel ist dann der **ganze Rechner**
+  offline. Agent-PCs starten und laufen weiter (Steuerung, Fernzugriff und Herunterfahren gehen über den
+  Rechner selbst), ihr Internet geht aber ebenfalls nur über den Tunnel – neue Agent-PCs also erst nach
+  dem Verbinden erstellen. Geräte im Heimnetz (Drucker, NAS) bleiben über **„Ausnahmen …“** erreichbar,
+  z. B. `192.168.178.0/24`. Beim Deinstallieren des .deb wird der Kill-Switch abgeschaltet.
+
+### Vorlagen und Klone
+
+- **Frische Vorlage** („Persönliche Daten entfernen“): alle Tunnel und Schlüssel werden gelöscht,
+  automatisches Verbinden und Kill-Switch sind aus. Der freie Platz wird mit Nullen überschrieben, damit
+  auch gelöschte Schlüssel nicht in der Vorlage stehen bleiben.
+- **Klon** („Persönliche Daten behalten“): alle Tunnel samt Schlüssel bleiben – mit Warnhinweis.
+  **Zwei Rechner mit demselben WireGuard-Schlüssel werfen sich gegenseitig aus dem Tunnel.** Für jeden
+  Agent-PC, der gleichzeitig laufen soll, eine eigene Konfiguration (eigenen Peer) anlegen. Das gilt
+  auch für deinen eigenen Rechner: nicht dieselbe .conf auf dem Rechner und im Agent-PC gleichzeitig.
+
+> **Sicherheit:** Konfigurationen mit `PreUp`/`PostUp`/`PreDown`/`PostDown` führen beim Verbinden
+> Befehle als root aus. Bony's VPN übernimmt sie nur nach einer deutlichen Warnung, Bony's Agents
+> beim Erstellen gar nicht.
+
+## Obsidian
+
+Die App-Option **„Obsidian (Notizen)“** (standardmäßig aus) installiert die offizielle Obsidian-App aus
+dem GitHub-Release von Obsidian (neueste Version, SHA-256 geprüft) – auf x86_64 als .deb, auf ARM64 als
+tar.gz nach `/opt/Obsidian`. Auf dem Schreibtisch liegt eine Verknüpfung, der leere Tresor
+`~/Agent-Notizen` ist schon geöffnet. Keine Anmeldung, kein Sync, keine Schlüsselbund-Abfrage beim
+ersten Start. Nachträglich: „Programme hinzufügen …“ oder `bonys-agents install NAME obsidian`.
+In frischen Vorlagen werden Obsidian-Einstellungen und der Inhalt von `~/Agent-Notizen` gelöscht.
+
+Obsidian ist **kostenlos, aber kein Open Source**. Einen geteilten Ordner zwischen deinem Rechner und
+dem Agent-PC gibt es absichtlich (noch) nicht – der KI-Agent hätte sonst Zugriff auf deine Dateien.
+
+## Welche Programme sind Open Source?
+
+| Programm | Open Source? | Lizenz / Bedingungen |
+|---|---|---|
+| Bony's Agents, Bony's VPN | ja | GPL-3.0-or-later |
+| Debian, QEMU | ja | freie Lizenzen (u. a. GPL-2.0) |
+| Brave Browser | ja | MPL-2.0 |
+| Telegram Desktop | ja | GPL-3.0 |
+| Hermes Agent | ja | MIT |
+| OpenClaw | ja | MIT |
+| xrdp (Fernzugriff), Remmina | ja | Apache-2.0, GPL-2.0-or-later |
+| WireGuard (wireguard-tools, Apps für Windows und macOS) | ja | GPL-2.0, MIT |
+| **Claude Code** | **nein** | proprietär (Anthropic). Nutzung braucht ein kostenpflichtiges Claude-Abo oder API-Guthaben |
+| **Obsidian** | **nein** | proprietär, für die private Nutzung kostenlos |
+
 ## Updates
 
 **Bony's Agents selbst**
@@ -526,8 +624,11 @@ src/bonys_agents/
   diagnose.py    Ursache erkennen, wenn QEMU während der Einrichtung endet
   updates.py     Update-Suche, Download, Signatur- und Prüfsummenprüfung
   signing.py     minisign/Ed25519 (ohne zusätzliche Abhängigkeiten)
+  vpn/           Bony's VPN (Root-Helfer, bonys-vpn, Kill-Switch, GTK-Oberfläche im Agent-PC) – nur Standardbibliothek
+  vpnlink.py     Bony's VPN im Agent-PC: .conf übertragen, Status und Steuerung über den Gast-Agent
+  hostvpn.py     WireGuard auf dem eigenen Rechner (Linux: Helfer, Windows: winget, macOS: App Store)
   cli.py         Kommandozeile
-  gui/           Desktop-App (Qt / PySide6) inkl. Einrichtungs-Assistent
+  gui/           Desktop-App (Qt / PySide6) inkl. Einrichtungs-Assistent und Bereich „VPN“
 packaging/
   bonys-agents.spec      PyInstaller-Bauplan (Programm inkl. Python & Qt)
   linux/build-deb.sh     .deb-Paket

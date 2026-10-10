@@ -233,9 +233,59 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 
 ### Sitzung 5 – Eigener Rechner, Doku, Release
 
-- [ ] offen
+- [x] Linux-Host: Bereich **„VPN“** im Fenster von Bony's Agents (Knopf oben, nur Linux, `gui/host_vpn.py`,
+  Qt im Stil der App) und eigenes Fenster **„Bony's VPN“** (Desktop-Eintrag, `BonysAgents --vpn`, Tray-Symbol,
+  schließt in den Infobereich, meldet Abbrüche). Gleiche Funktionen wie im Agent-PC: Tunnelliste, Ein-Klick
+  verbinden/trennen, Live-Werte, öffentliche IP, Import (Dateiauswahl, Drag&Drop, mehrere, ZIP, Namenskonflikt,
+  Hook-Warnung), Bearbeiten mit verborgenen Schlüsseln, Umbenennen, Export (600), Löschen, Autostart,
+  Kill-Switch mit Ausnahmen. Logik ohne Qt in `hostvpn.py`
+- [x] .deb: Helfer `/usr/sbin/bonys-vpn-helper` und `/usr/bin/bonys-vpn` (System-Python), Paket unter
+  `/usr/lib/bonys-agents/vpn/`, polkit-Aktion mit `auth_admin_keep` (**nicht** passwortlos), systemd-Unit unter
+  `/usr/lib/systemd/system`, nichts unter `/etc`. `install.py --layout system` für den Paketbau.
+  `Depends: python3`, `Recommends: wireguard-tools, nftables`, fehlen sie: Nachinstallation per `pkexec apt-get`
+  nach Rückfrage. `prerm remove` schaltet den Kill-Switch ab, `purge` löscht `/etc/bonys-vpn`
+- [x] Hinweis-Dialog „Das VPN gilt dann für deinen ganzen Rechner, nicht nur für die Agent-PCs.“ vor Verbinden und
+  Import (abschaltbar). Kill-Switch auf dem Host nur nach extra Warnung
+- [x] Status ohne Passwort: `host.rules` erlaubt genau `…/bonys-vpn-helper status` (pkexec-Detail
+  `command_line`). **Gefunden im echten Test:** Eine zweite polkit-Aktion mit `exec.argv1` greift nicht, pkexec
+  nimmt die erste Aktion mit passendem Pfad
+- [x] NetworkManager-Tunnel (bei mir „opensense_02“): erkannt über `nmcli`, „Trennen“ gesperrt mit Hinweis,
+  vor dem Verbinden eines anderen Tunnels die Bitte, ihn zu trennen (gleiche Routing-Tabelle 51820)
+- [x] Windows: ⓘ → Extras → „WireGuard für diesen Rechner installieren …“ → `winget install --id
+  WireGuard.WireGuard` mit Hinweis-Dialog, ist die App schon da: öffnen
+- [x] macOS: geprüft auf wireguard.com/install – die App gibt es nur im App Store, kein offizieller automatischer
+  Weg (Homebrew/MacPorts nur `wireguard-tools`). ⓘ → Extras öffnet die App-Store-Seite (ID 1451685025) mit
+  Erklärung, ist die App da: öffnen
+- [x] README: Abschnitte „VPN (Bony's VPN)“ (Agent-PC vs. eigener Rechner, Kill-Switch, Vorlagen/Klon),
+  „Obsidian“, Tabelle „Welche Programme sind Open Source?“ (Lizenzen über die GitHub-API geprüft). Hilfe:
+  ⓘ → „Hilfe (Anleitung)“ und „Hilfe“ im VPN-Bereich öffnen die README. `docs/vpn.md`: Abschnitt „Eigener Rechner“
+- [x] Tests `tests/test_hostvpn.py` (22): Paket-Layout, polkit-Regel, Aufrufe über stdin, Ausnahmen, winget,
+  App Store, Qt-Bereich offscreen (Status, Aktionen, Hinweis, Import mit Konflikt/Hooks ohne Schlüssel in Texten,
+  Editor, NetworkManager, Hauptfenster, eigenes Fenster), Menü „Extras“ je System. pytest 386 grün, ruff sauber
+- [x] Echter Test (2026-10-10, Linux Mint 22.3, .deb 0.14.0 installiert), Test-.conf `~/vpn-test/bonysagents.conf`
+  (Inhalt nie gelesen):
+  - `status` ohne Passwort (1 s), `status NAME` und alles andere mit Passwort
+  - Import, Verbinden: öffentliche IP = VPN-Server, Trennen: wieder die eigene
+  - Kill-Switch auf dem Host ohne Tunnel: Rechner offline. agent-pc-1 startet trotzdem, Gast-Agent nach 18 s,
+    QMP, SSH-Weiterleitung, DNS im Gast gehen, Internet im Gast gesperrt. Mit Tunnel: Rechner und Agent-PC mit der
+    IP des VPN-Servers. Herunterfahren ohne Tunnel 65 s statt 20 s – Ursache: Hermes-Gateway versucht beim Beenden
+    Telegram zu erreichen, bis sein Watchdog nach 60 s abbricht (unter der 90-s-Grenze, steht in `docs/vpn.md`)
+  - Fenster „Bony's VPN“ aus dem Startmenü: Tunnelliste mit den fremden Tunneln, Live-Werte, NetworkManager-Hinweis
+  - Danach aufgeräumt: Test-Tunnel gelöscht, Kill-Switch aus, eigene Tunnel unverändert
+- [x] GitHub Actions: CI-Job `wireguard-host` (Windows: echte Installation per winget, macOS: App-Store-Seite,
+  Tests des Menüs), Release-Workflow prüft im .deb Helfer, polkit, Status und `--vpn` (auch in Debian 13/Ubuntu 24.04)
+- [x] Version 0.14.0, .deb gebaut und installiert
 
 ### Später
 
 - Geteilter Ordner Host ↔ Agent-PC (siehe oben)
 - Obsidian auf einem echten arm64-Agent-PC testen
+- Drag&Drop und ZIP-Import real testen (bisher nur Logik und Offscreen-Test), KDE/GNOME/MATE/LXQt im Agent-PC,
+  englische Oberfläche
+- „VPN-App installieren“ in einem echten Agent-PC ohne die Option, SSH-Weg mit Passwortabfrage in der Oberfläche
+- Host: Tray-Symbol nach der Anmeldung automatisch starten (Autostart-Eintrag, abschaltbar)
+- Host: NetworkManager-Tunnel direkt über NetworkManager trennen/verbinden statt nur Hinweis
+- Host auf echter arm64-Hardware, andere Distributionen (Fedora, Arch: nur Debian/Ubuntu-Pakete geprüft)
+- Herunterfahren ohne Internet beschleunigen (Hermes-Gateway wartet 60 s auf Telegram)
+- Die vier Test-PCs vpn-agent, vpn-cinnamon, vpn-xfce, obsidian-test tragen denselben echten Schlüssel – bleiben
+  auf Wunsch erhalten, nie zwei gleichzeitig starten

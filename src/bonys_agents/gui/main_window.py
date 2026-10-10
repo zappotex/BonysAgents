@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QRect, Qt, QTimer
@@ -14,9 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import (
-    APP_NAME, INTRO_VIDEO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, host, remote, screen,
-    storage,
-    updates, vm,
+    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, host, remote,
+    screen, storage, updates, vm,
 )
 from bonys_agents import progress as pct
 
@@ -24,6 +24,7 @@ from . import style
 from .about_dialog import AboutDialog
 from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
+from .host_vpn import HostVpnPanel, mac_wireguard, state_icon, windows_wireguard
 from .install_dialog import InstallAppsDialog
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
 from .vpn_panel import VpnPanel
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         self._remote_check: TaskWorker | None = None
         self._ticks = 0
         self._console_big = False
+        self.vpn_mode = False                     # Bereich „VPN“ (dieser Rechner) statt der Details
         self.entries: dict[str, vm.VM | vm.MissingVM] = {}
         self.setWindowTitle(APP_NAME)
 
@@ -155,7 +157,14 @@ class MainWindow(QMainWindow):
         self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, exportieren, importieren")
         self.new_btn = QPushButton("+  Neuer Agent-PC")
         self.new_btn.setObjectName("Primary")
-        for b in (self.youtube_btn, self.doctor_btn, self.import_btn, self.templates_btn, self.new_btn):
+        # Bony's VPN für diesen Rechner (nur Linux; Windows/macOS: ⓘ → Extras)
+        self.vpn_btn = QPushButton("VPN")
+        self.vpn_btn.setCheckable(True)
+        self.vpn_btn.setIcon(state_icon("disconnected"))
+        self.vpn_btn.setToolTip("Bony's VPN – WireGuard für diesen ganzen Rechner")
+        self.vpn_btn.setVisible(sys.platform.startswith("linux"))
+        for b in (self.youtube_btn, self.doctor_btn, self.vpn_btn, self.import_btn, self.templates_btn,
+                  self.new_btn):
             top_buttons.addWidget(b)
         outer.addLayout(top)
 
@@ -178,6 +187,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self._empty_page())
         self.stack.addWidget(self._detail_page())
         self.stack.addWidget(self._missing_page())
+        self.stack.addWidget(self._vpn_page())
         # Bei kleinem Fenster wird gescrollt statt abgeschnitten
         self.detail_scroll = QScrollArea()
         self.detail_scroll.setWidgetResizable(True)
@@ -195,7 +205,9 @@ class MainWindow(QMainWindow):
         self.import_btn.clicked.connect(self.import_vm)
         self.templates_btn.clicked.connect(self.show_templates)
         self.youtube_btn.clicked.connect(lambda: open_url(YOUTUBE_CHANNEL_URL))
-        self.list.currentItemChanged.connect(lambda *_: self.refresh_detail())
+        self.list.currentItemChanged.connect(lambda *_: self.show_vpn(False))
+        self.list.itemPressed.connect(lambda *_: self.show_vpn(False))
+        self.vpn_btn.clicked.connect(self.show_vpn)
 
         sysinfo = QLabel(f"v{__version__}  ·  {self.info.os} / {self.info.arch}  ·  Beschleuniger: {self.info.accel}")
         sysinfo.setObjectName("Muted")
@@ -226,6 +238,7 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> QMenu:
         menu = QMenu(self)
         menu.addAction(f"Über {APP_NAME}", lambda: AboutDialog(self).exec())
+        menu.addAction("Hilfe (Anleitung)", lambda: open_url(f"{REPO_URL}#readme"))
         menu.addSeparator()
         menu.addAction("Nach Updates suchen", lambda: self.check_updates(manual=True))
         st = updates.settings()
@@ -237,6 +250,15 @@ class MainWindow(QMainWindow):
         menu.addAction(pre)
         menu.addSeparator()
         menu.addAction("Alle Agent-PCs aktualisieren …", self.upgrade_all)
+        menu.addSeparator()
+        extras = menu.addMenu("Extras")
+        if sys.platform.startswith("linux"):
+            extras.addAction("Bony's VPN für diesen Rechner", lambda: self.show_vpn(True))
+        elif sys.platform == "win32":
+            extras.addAction("WireGuard für diesen Rechner installieren …", lambda: self._keep_worker(
+                windows_wireguard(self)))
+        elif sys.platform == "darwin":
+            extras.addAction("WireGuard für diesen Rechner (App Store) …", lambda: mac_wireguard(self))
         menu.addSeparator()
         view = menu.addMenu("Ansicht: Anzeigegröße")
         self.zoom_group = QActionGroup(view)
@@ -397,6 +419,32 @@ class MainWindow(QMainWindow):
         lay.addLayout(irow)
         lay.addStretch(1)
         return w
+
+    def _vpn_page(self) -> QWidget:
+        w = _card()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.host_vpn = HostVpnPanel()
+        self.host_vpn.state_changed.connect(lambda st: self.vpn_btn.setIcon(state_icon(st)))
+        self.host_vpn.notify.connect(lambda title, body: self.statusBar().showMessage(f"{title}: {body}", 15000))
+        lay.addWidget(self.host_vpn)
+        return w
+
+    def show_vpn(self, on: bool = True) -> None:
+        """Bereich „VPN“ (dieser Rechner) zeigen – oder zurück zu den Details des Agent-PCs."""
+        on = bool(on) and sys.platform.startswith("linux")
+        if on != self.vpn_mode:
+            self.vpn_mode = on
+            if on:
+                self.host_vpn.start()
+            else:
+                self.host_vpn.pause()
+        self.vpn_btn.setChecked(on)
+        self.refresh_detail()
+
+    def _keep_worker(self, w) -> None:
+        if w is not None:
+            self.workers = [x for x in self.workers if x.isRunning()] + [w]
 
     def _detail_page(self) -> QWidget:
         w = QWidget()
@@ -874,6 +922,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"„{m.name}“ ist eingerichtet und startet jetzt mit Desktop.", 8000)
 
     def refresh_detail(self) -> None:
+        if self.vpn_mode:
+            self.stack.setCurrentIndex(3)
+            return
         entry = self.current_entry()
         if entry is None:
             self.stack.setCurrentIndex(0)

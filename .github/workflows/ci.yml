@@ -26,3 +26,33 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: pytest -q
+
+  # WireGuard auf dem eigenen Rechner unter Windows und macOS (Menü „Extras“)
+  wireguard-host:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Menü „Extras“ und Dialoge der Desktop-App
+        run: pytest -q tests/test_hostvpn.py
+      - name: Windows – offizielle WireGuard-App per winget installieren (wie „Extras → WireGuard …“)
+        if: runner.os == 'Windows'
+        run: |
+          winget --version
+          python -c "from bonys_agents import hostvpn; assert hostvpn.windows_app() is None; hostvpn.windows_install(); exe = hostvpn.windows_app(); print('installiert:', exe); assert exe"
+      - name: macOS – App-Store-Seite der offiziellen WireGuard-App erreichbar
+        if: runner.os == 'macOS'
+        run: |
+          URL=$(python -c "from bonys_agents import hostvpn; assert hostvpn.mac_app() is None; print(hostvpn.MAC_APP_STORE_URL)")
+          echo "$URL"
+          curl -fsSL -A "Mozilla/5.0" -o page.html "$URL"
+          grep -qi "wireguard" page.html

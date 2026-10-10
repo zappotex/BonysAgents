@@ -3,7 +3,7 @@
 
   list | status [NAME] | show NAME | up NAME | down [NAME] | import NAME [--allow-hooks] [--replace]
   delete NAME | rename ALT NEU | export NAME | autostart NAME on|off
-  killswitch on [--exception NETZ ...] | killswitch off | killswitch status
+  killswitch on [--exception NETZ ... | --no-exceptions] | killswitch off | killswitch status
 
 Regeln: Tunnelnamen nur ``[a-zA-Z0-9_=+.-]{1,15}``, keine Pfade (Konfigurationen kommen über die
 Standardeingabe), keine Shell (subprocess nur mit Argumentlisten und festem PATH), Dateien in
@@ -432,6 +432,7 @@ def _parser() -> argparse.ArgumentParser:
     ks = sub.add_parser("killswitch")
     ks.add_argument("state", choices=["on", "off", "status"])
     ks.add_argument("--exception", action="append", metavar="NETZ")
+    ks.add_argument("--no-exceptions", action="store_true", help="Ausnahmeliste leeren")
     return p
 
 
@@ -477,7 +478,7 @@ def main(argv: list[str] | None = None, helper: Helper | None = None, stdin=None
             helper.autostart(args.name, args.state == "on")
         elif cmd == "killswitch":
             if args.state == "on":
-                helper.killswitch_on(args.exception)
+                helper.killswitch_on([] if args.no_exceptions else args.exception)
             elif args.state == "off":
                 helper.killswitch_off()
             out(helper.status()["killswitch"])

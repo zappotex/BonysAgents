@@ -153,6 +153,9 @@ Warnhinweis: Zwei PCs mit demselben Schlüssel werfen sich gegenseitig aus dem T
 | `/etc/systemd/system/bonys-vpn-killswitch.service` | Kill-Switch nach dem Neustart |
 | `/etc/bonys-vpn/killswitch.json` | an/aus, Ausnahmen, zuletzt aufgelöste Endpunkte (keine Schlüssel) |
 
+Auf dem eigenen Rechner bringt das .deb von Bony's Agents dieselben Teile an andere Orte mit
+(`install.py --variant host --layout system --root PAKETORDNER` beim Paketbau, siehe unten).
+
 ```sh
 sudo python3 -I install.py --variant agent --user agent --autostart-tray   # Agent-PC
 sudo python3 -I install.py --variant host                 # eigener Rechner
@@ -269,3 +272,102 @@ Herunterfahren (2,3 s), Fortschrittsanzeige (serielle Konsole), RDP (xrdp über 
 dynamische Auflösung (spice-vdagent über virtio-serial). „Agent-PC aktualisieren“ geht über den
 Tunnel. Ohne Tunnel meldet es: „Kill-Switch an und kein Tunnel verbunden – erst verbinden“ (vorher
 hätte apt die Netzfehler als Erfolg gemeldet).
+
+## Eigener Rechner (Host)
+
+### Linux: das .deb von Bony's Agents
+
+| Pfad | Inhalt |
+|---|---|
+| `/usr/lib/bonys-agents/vpn/bonys_vpn/` | Das Paket (ohne GTK-Oberfläche), läuft mit dem System-Python, nicht mit dem PyInstaller-Bündel |
+| `/usr/sbin/bonys-vpn-helper` | Helfer, `#!/usr/bin/python3 -I` |
+| `/usr/bin/bonys-vpn` | Kommandozeile |
+| `/usr/share/polkit-1/actions/io.github.bonys-agents.vpn.policy` | polkit-Aktion, gilt nur für `/usr/sbin/bonys-vpn-helper` |
+| `/usr/share/polkit-1/rules.d/50-bonys-vpn.rules` | `host.rules`: `AUTH_ADMIN_KEEP` für aktive lokale Sitzungen, sonst `AUTH_ADMIN`. Einzige Ausnahme ohne Passwort: genau `bonys-vpn-helper status` (siehe unten) |
+| `/usr/lib/systemd/system/bonys-vpn-killswitch.service` | Kill-Switch nach dem Neustart (eingeschaltet nur über den Helfer) |
+| `/usr/share/applications/bonys-vpn.desktop` | Desktop-Eintrag „Bony's VPN“ → `/opt/bonys-agents/BonysAgents --vpn` |
+
+- Unter `/etc` liefert das Paket nichts aus (keine Conffiles). `/etc/bonys-vpn` und `/etc/wireguard`
+  legt der Helfer bei Bedarf an. `dpkg --purge` löscht `/etc/bonys-vpn`, **nie** `/etc/wireguard`.
+- `Depends: python3`, `Recommends: wireguard-tools, nftables` (neben `pkexec`). Fehlen die beiden,
+  bietet der Bereich „VPN“ an, sie nach Rückfrage mit `pkexec apt-get install` nachzuinstallieren.
+- `prerm remove` schaltet den Kill-Switch ab. Sonst bliebe der Rechner ohne Tunnel offline, ohne dass es
+  noch ein Programm zum Abschalten gäbe. Bei einem Update bleibt er an.
+- `install.py --layout system` geht nur mit `--root` (zum Paketbau). Auf einem Rechner mit dem .deb
+  nicht zusätzlich `install.py --variant host` verwenden: Beide legen dieselbe polkit-Datei an.
+- Die Kommandozeile sucht den Helfer zuerst unter `/usr/local/sbin` (install.py, Agent-PC), dann unter
+  `/usr/sbin` (.deb), oder nimmt `BONYS_VPN_HELPER`.
+
+### Status ohne Passwort
+
+Die Oberfläche fragt bei sichtbarem Bereich alle 10 s den Helfer (`status`) nach dem Handshake. Mit
+`auth_admin_keep` allein käme immer wieder die Passwortabfrage. Deshalb erlaubt `host.rules` der aktiven
+lokalen Sitzung genau die Befehlszeile `/usr/sbin/bonys-vpn-helper status` (ohne weitere Argumente)
+**ohne Passwort**. pkexec gibt sie den Regeln als `command_line` mit. Alles andere fragt weiter nach dem
+Administrator-Passwort.
+
+Zuerst war dafür eine zweite polkit-Aktion mit `org.freedesktop.policykit.exec.argv1 = status` gedacht.
+Das greift nicht: pkexec nimmt die **erste** Aktion, deren `exec.path` passt, und eine Aktion ohne `argv1`
+passt immer (im echten Test auf Mint 22 mit polkit 124 kam deshalb trotzdem die Abfrage).
+
+`status` gibt nur nicht geheime Angaben aus: Tunnelnamen, Adressen, DNS, Endpunkte, Handshake, Datenmenge,
+Kill-Switch-Zustand. Die sieht damit jeder Benutzer, der am Rechner angemeldet ist, Schlüssel nie. Fehlt die
+Regel (ältere Installation), fragt die Oberfläche den Helfer nur auf Knopfdruck und liest Verbunden/Getrennt
+und die Datenmenge aus `/sys`.
+
+**Wie oft fragt polkit?** `auth_admin_keep` merkt sich die Anmeldung einige Minuten **für den aufrufenden
+Prozess**. Im Fenster von Bony's Agents ist das immer derselbe Prozess, also eine Abfrage für mehrere
+Aktionen. Jeder einzelne Aufruf von `bonys-vpn` auf der Kommandozeile ist ein neuer Prozess und fragt neu.
+
+### WireGuard-Verbindungen des NetworkManager
+
+Tunnel, die der NetworkManager verwaltet (z. B. über „Netzwerkverbindungen“ importiert), stehen oft
+zusätzlich in `/etc/wireguard` und erscheinen dann als fremde Tunnel. Trennen kann sie nur der
+NetworkManager (`wg-quick down` kennt sie nicht), und sie benutzen dieselbe Routing-Tabelle und Markierung
+(51820) wie wg-quick. Die Oberfläche erkennt sie über `nmcli` (als Benutzer): Bei ihnen ist „Trennen“ aus,
+mit dem Hinweis auf das Netzwerk-Symbol, und vor dem Verbinden eines anderen Tunnels kommt die Bitte,
+den NetworkManager-Tunnel zuerst zu trennen.
+
+### Oberfläche (Qt)
+
+`gui/host_vpn.py`: Bereich „VPN“ im Hauptfenster (Knopf oben, nur Linux) und eigenes Fenster
+(`BonysAgents --vpn`) mit Tray-Symbol (`QSystemTrayIcon`, schließt in den Infobereich). Dieselbe Logik wie
+im Agent-PC (`vpn/model.py`: Status, Live-Werte, Abbruch-Erkennung, Editor-Prüfung, Namensvorschlag,
+Export mit 600), dieselben Aufrufe des Helfers (`vpn/cli.call`, Konfigurationen über die Standardeingabe).
+
+- Vor dem Verbinden oder Import: Hinweis „Das VPN gilt dann für deinen ganzen Rechner, nicht nur
+  für die Agent-PCs.“ (abschaltbar mit „Nicht mehr anzeigen“).
+- Kill-Switch nur nach einer zusätzlichen Warnung. Ausnahmen (z. B. das Heimnetz) über „Ausnahmen …“
+  (`killswitch on --exception NETZ … | --no-exceptions`).
+- Konfigurationen mit Hook-Zeilen nur nach der Warnung (wie im Agent-PC).
+
+### Kill-Switch auf dem Host und die Agent-PCs
+
+Die Agent-PCs nutzen das QEMU-User-Netz: QEMU ist ein Prozess auf dem Host, ihr Internetverkehr ist also
+Verkehr des Hosts und läuft durch `output`. Mit Kill-Switch und Tunnel geht er durch den Tunnel, ohne Tunnel
+wird er abgewiesen. Alles, womit Bony's Agents die Agent-PCs steuert, braucht kein Internet und bleibt
+erlaubt:
+
+- QMP und Gast-Agent: Unix-Sockets bzw. virtio-serial, kein Netz
+- SSH-, RDP- und SPICE-Weiterleitungen (`hostfwd`, 127.0.0.1): Loopback (`lo`) ist erlaubt
+- Zugriffe aus dem Heimnetz auf eingeschalteten Fernzugriff: Antworten (`ct direction reply`) sind erlaubt
+- DNS im Agent-PC (QEMU-DNS 10.0.2.3 → Resolver des Hosts über `lo` → systemd-resolved): geht, Daten nicht
+
+Geprüft im echten Test (siehe `docs/plan-vpn-obsidian.md`, Sitzung 5). Ohne Tunnel dauert das
+Herunterfahren eines Agent-PCs mit Hermes Agent und Telegram-Anbindung länger (gemessen 65 s statt 20 s):
+Das Hermes-Gateway versucht beim Beenden weiter Telegram zu erreichen, bis sein eigener Watchdog nach 60 s
+abbricht. Das bleibt unter den 90 s, nach denen Bony's Agents hart ausschaltet. Dasselbe passiert bei jedem
+Agent-PC ohne Internet, auch mit dem Kill-Switch im Agent-PC.
+
+### Windows und macOS
+
+- **Windows:** „Extras → WireGuard für diesen Rechner installieren …“ → `winget install --id WireGuard.WireGuard
+  -e --silent --accept-package-agreements --accept-source-agreements` (Windows fragt nach Administratorrechten).
+  Ist `C:\Program Files\WireGuard\wireguard.exe` schon da, öffnet der Menüpunkt die App. Fehlt winget,
+  verweist die Meldung auf https://www.wireguard.com/install/.
+- **macOS:** Laut https://www.wireguard.com/install/ gibt es die App nur im App Store (ID 1451685025).
+  Homebrew und MacPorts liefern nur `wireguard-tools` ohne App, `mas` ist kein offizielles Werkzeug und
+  bräuchte die Apple-ID-Anmeldung. Bony's Agents öffnet deshalb `macappstore://apps.apple.com/app/id1451685025`
+  (ersatzweise die Webseite) und erklärt die Schritte. Ist `/Applications/WireGuard.app` da, wird sie geöffnet.
+- In beiden Fällen verwaltet die offizielle App die Tunnel. Bony's Agents liest oder speichert keine
+  Konfigurationen.
