@@ -275,6 +275,9 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 - [x] GitHub Actions: CI-Job `wireguard-host` (Windows: echte Installation per winget, macOS: App-Store-Seite,
   Tests des Menüs), Release-Workflow prüft im .deb Helfer, polkit, Status und `--vpn` (auch in Debian 13/Ubuntu 24.04)
 - [x] Version 0.14.0, .deb gebaut und installiert
+- [x] Release **v0.14.0** veröffentlicht (10.10.2026): alle Jobs grün – .deb amd64/arm64 (mit VPN-Prüfung, auch in
+  Debian 13/Ubuntu 24.04), Windows-Setup, macOS Apple-Chip/Intel, macOS 14/15, APT-Quelle. Beim ersten CI-Lauf
+  fielen unter Windows nur Testprobleme auf (CRLF in Testdateien, WSL-bash, zu lange Parameter-ID), behoben
 
 ### Später
 
