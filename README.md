@@ -51,10 +51,10 @@ Lade auf der **Releases-Seite** die Datei für dein System herunter:
 
 | System | Datei | So geht's |
 |---|---|---|
-| **Windows 10/11** | `BonysAgents-Setup-0.14.0.exe` | Doppelklick → „Weiter“ → „Installieren“. Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
-| **Debian, Ubuntu, Linux Mint** | `bonys-agents_0.14.0_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
-| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-0.14.0-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
-| **Mac mit Intel-Prozessor** | `BonysAgents-0.14.0-macos-intel.dmg` | wie oben |
+| **Windows 10/11** | `BonysAgents-Setup-0.14.1.exe` | Doppelklick → „Weiter“ → „Installieren“. Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
+| **Debian, Ubuntu, Linux Mint** | `bonys-agents_0.14.1_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
+| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-0.14.1-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
+| **Mac mit Intel-Prozessor** | `BonysAgents-0.14.1-macos-intel.dmg` | wie oben |
 
 Danach findest du **„Bony's Agents“** im Startmenü bzw. Anwendungsmenü.
 Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben dabei erhalten.
@@ -75,7 +75,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.14.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.14.1` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
