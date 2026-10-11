@@ -325,9 +325,21 @@ def test_panel_status_and_actions(qapp, fake_host, monkeypatch, datadir):
 
 
 def test_nm_wireguard_parses_nmcli(monkeypatch):
-    out = "Kabelgebundene Verbindung 1:802-3-ethernet\nheim:wireguard\nmit\\:doppelpunkt:wireguard\nlo:loopback\n"
-    monkeypatch.setattr(hostvpn.shutil, "which", lambda name, **kw: "/usr/bin/nmcli")
-    assert hostvpn.nm_wireguard(lambda *a, **k: SimpleNamespace(stdout=out)) == {"heim", "mit:doppelpunkt"}
+    nm = "/org/freedesktop/NetworkManager/ActiveConnection/"
+    out = (f"Kabelgebundene Verbindung 1:802-3-ethernet:{nm}2\nheim:wireguard:{nm}5\n"
+           f"mit\\:doppelpunkt:wireguard:{nm}6\nopensense:wireguard:{nm}15\nlo:loopback:{nm}1\n")
+    flags = {f"{nm}5": "u 12", f"{nm}6": "u 4", f"{nm}15": "u 220"}   # 15: nur übernommen (EXTERNAL)
+
+    def run(args, **kw):
+        if args[0] == "busctl":
+            return SimpleNamespace(stdout=flags[args[3]] + "\n", returncode=0)
+        return SimpleNamespace(stdout=out, returncode=0)
+
+    monkeypatch.setattr(hostvpn.shutil, "which", lambda name, **kw: "/usr/bin/" + name)
+    assert hostvpn.nm_wireguard(run) == {"heim", "mit:doppelpunkt"}
+    # ohne busctl im Zweifel als NetworkManager-Tunnel behandeln
+    monkeypatch.setattr(hostvpn.shutil, "which", lambda name, **kw: None if name == "busctl" else "/usr/bin/nmcli")
+    assert hostvpn.nm_wireguard(run) == {"heim", "mit:doppelpunkt", "opensense"}
     monkeypatch.setattr(hostvpn.shutil, "which", lambda name, **kw: None)
     assert hostvpn.nm_wireguard() == set()
 

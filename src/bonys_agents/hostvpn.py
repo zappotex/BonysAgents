@@ -128,20 +128,40 @@ def status_needs_password(rules: tuple[Path, ...] = RULES_FILES) -> bool:
     return True
 
 
+NM_ACTIVATION_EXTERNAL = 0x80   # NM_ACTIVATION_STATE_FLAG_EXTERNAL: nur übernommen, nicht selbst verbunden
+
+
+def _nm_external(path: str, run) -> bool:
+    """Hat der NetworkManager die Verbindung nur übernommen? Er meldet jede WireGuard-Schnittstelle als
+    aktive Verbindung – auch die, die wg-quick (also Bony's VPN) angelegt hat. Im Zweifel: nein."""
+    if not path.startswith("/org/freedesktop/NetworkManager/") or not shutil.which("busctl"):
+        return False
+    try:
+        proc = run(["busctl", "get-property", "org.freedesktop.NetworkManager", path,
+                    "org.freedesktop.NetworkManager.Connection.Active", "StateFlags"], capture_output=True,
+                   text=True, timeout=5, env=clean_env({"LC_ALL": "C"}))
+        kind, value = proc.stdout.split()
+        return proc.returncode == 0 and kind == "u" and bool(int(value) & NM_ACTIVATION_EXTERNAL)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+
+
 def nm_wireguard(run=subprocess.run) -> set[str]:
     """Aktive WireGuard-Verbindungen des NetworkManager. Die trennt nur der NetworkManager selbst
-    (wg-quick kennt sie nicht), und sie benutzen dieselbe Routing-Tabelle wie wg-quick (51820)."""
+    (wg-quick kennt sie nicht), und sie benutzen dieselbe Routing-Tabelle wie wg-quick (51820).
+    Tunnel, die der NetworkManager nur übernommen hat (mit wg-quick verbunden), zählen nicht."""
     if not shutil.which("nmcli"):
         return set()
     try:
-        proc = run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"], capture_output=True,
-                   text=True, timeout=5, env=clean_env({"LC_ALL": "C"}))
+        proc = run(["nmcli", "-t", "-f", "NAME,TYPE,ACTIVE-PATH", "connection", "show", "--active"],
+                   capture_output=True, text=True, timeout=5, env=clean_env({"LC_ALL": "C"}))
     except (OSError, subprocess.SubprocessError):
         return set()
     out = set()
     for line in proc.stdout.splitlines():
-        name, _, kind = line.replace("\\:", "\0").rpartition(":")
-        if kind == "wireguard":
+        rest, _, path = line.replace("\\:", "\0").rpartition(":")
+        name, _, kind = rest.rpartition(":")
+        if kind == "wireguard" and not _nm_external(path.replace("\0", ":"), run):
             out.add(name.replace("\0", ":"))
     return out
 
