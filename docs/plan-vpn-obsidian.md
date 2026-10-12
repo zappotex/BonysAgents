@@ -7,6 +7,12 @@ Zwei neue Funktionen für Bony's Agents, gebaut in fünf Sitzungen:
 
 Jede Sitzung liest zuerst diese Datei (und ab Sitzung 2 `docs/vpn.md`) und aktualisiert am Ende den Abschnitt [Stand](#stand).
 
+> **Seit 2026-10-12 geht die Entwicklung von Bony's VPN im eigenen Repository weiter:**
+> https://github.com/zappotex/bonys-vpn (lokal `/media/zappotex/bonysagent/BonysAgents/bonys-vpn`, Version 1.0.0).
+> Code, Sicherheitskonzept (`docs/sicherheit.md`) und die Schnittstelle für Bony's Agents (`docs/cli.md`) liegen dort.
+> `src/bonys_agents/vpn/` und `docs/vpn.md` hier sind ab jetzt eingefroren und werden in der nächsten Sitzung
+> („Sitzung B“) durch die Nutzung der Pakete `bonys-vpn`/`bonys-vpn-agentpc` ersetzt.
+
 ## Regeln (gelten für alle Sitzungen)
 
 - Programme immer von der offiziellen Quelle laden (Debian-Paketquellen, offizielle GitHub-Releases, winget, App Store/Herstellerseite). Nichts Fremdes in unser Repo oder Paket kopieren außer eigenem Code.
@@ -278,6 +284,36 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 - [x] Release **v0.14.0** veröffentlicht (10.10.2026): alle Jobs grün – .deb amd64/arm64 (mit VPN-Prüfung, auch in
   Debian 13/Ubuntu 24.04), Windows-Setup, macOS Apple-Chip/Intel, macOS 14/15, APT-Quelle. Beim ersten CI-Lauf
   fielen unter Windows nur Testprobleme auf (CRLF in Testdateien, WSL-bash, zu lange Parameter-ID), behoben
+
+### Sitzung A (2026-10-12) – Bony's VPN als eigenes Projekt
+
+- [x] Repo **zappotex/bonys-vpn** (öffentlich), Historie mit `git filter-repo` herausgelöst (4 Commits:
+  `src/bonys_agents/vpn/` → `src/bonys_vpn/`, `docs/vpn.md` → `docs/sicherheit.md`, `tests/test_vpn*.py`), GPL-3.0-or-later,
+  README mit Screenshots, CHANGELOG, Version **1.0.0**
+- [x] Pakete `bonys-vpn` und `bonys-vpn-agentpc` (`Architecture: all`, 84 KB/16 KB, GTK 3 aus den Paketquellen, kein Qt).
+  `Replaces: bonys-agents (<< 0.15)`: übernimmt Helfer, polkit-Dateien, Kill-Switch-Unit und Desktop-Eintrag aus dem .deb hier
+- [x] Agent-PC-Variante als eigenes Paket: polkit über die **Gruppe `bonys-vpn`**, Tray-Autostart, Ausnahme 10.0.2.0/24,
+  Markierung `/usr/share/bonys-vpn/agentpc`. Die alte Installation unter `/usr/local` räumt `bonys-vpn` beim Installieren
+  auf (Tunnel und killswitch.json bleiben), die alte Regel „agent ohne Passwort“ wird zur Gruppenmitgliedschaft
+- [x] Gemeinsame APT-Quelle: `.github/workflows/apt-repo.yml` hier baut sie aus den neuesten Releases **beider** Repos
+  (nach jedem Release, stündlich bei Änderungen, von Hand). Suiten `stable` und `bonys-vpn` mit gleichem Inhalt (sonst
+  „Widersprüchliche Werte für Signed-By“, lokal nachgewiesen)
+- [x] Stabile Schnittstelle `bonys-vpn … --json` mit `schema: 1` und `version`, `bonys-vpn version --json`, `import -`
+  von stdin – beschrieben in `bonys-vpn/docs/cli.md`
+- [x] Auf dem Mint-Host installiert (.deb 1.0.0 über 0.14.1): Status ohne Passwort, Tunnelliste, Menü, Dialog
+  „Bony's Agents“ (installiert → „öffnen“ startet `/opt/bonys-agents/BonysAgents`)
+- [x] CI von bonys-vpn grün: Tests auf Ubuntu 22.04/24.04/arm64; Pakete in Debian 12/13 und Ubuntu 22.04/24.04 auf amd64
+  und arm64 installiert (inkl. Umstieg von /usr/local, Agent-PC-Paket, Purge); „Bony's Agents installieren“ mit dem
+  echten Release 0.14.1 (Signatur, SHA-256, apt) in Debian 13/Ubuntu 24.04 auf amd64 und arm64
+- [x] Release **v1.0.0** von bonys-vpn veröffentlicht (12.10.2026): `bonys-vpn_1.0.0_all.deb`, `bonys-vpn-agentpc_1.0.0_all.deb`,
+  `SHA256SUMS` + `.minisig` („Bony's VPN v1.0.0“, derselbe Schlüssel). APT-Quelle danach neu gebaut: beide Suiten mit
+  bonys-agents 0.14.1 und bonys-vpn 1.0.0; mit den Quelldateien des Mint-Hosts geprüft (`apt-get update` ohne Fehler)
+- **Für Sitzung B:** Benutzer im Agent-PC mit `usermod -aG bonys-vpn BENUTZER` aufnehmen; Mindestversion über
+  `bonys-vpn version --json` (`schema == 1`); Schreibtisch-Verknüpfung alter Agent-PCs zeigt noch auf
+  `/usr/local/bin/bonys-vpn-gui` → auf `/usr/share/applications/bonys-vpn.desktop` umstellen; in `postinst` von
+  bonys-agents die Paketquelle `bonys-vpn.sources` nicht anfassen (eigene Suite); `prerm` von bonys-agents 0.14 schaltet
+  beim Entfernen den Kill-Switch von bonys-vpn ab (ab 0.15 entfernen); „Bony's Agents öffnen“ startet bei laufendem
+  Bony's Agents ein zweites Fenster – Bony's Agents sollte nur einmal laufen bzw. das vorhandene Fenster zeigen
 
 ### Später
 
