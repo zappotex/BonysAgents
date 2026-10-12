@@ -262,9 +262,11 @@ def test_linux_button_opens_or_installs(qapp, monkeypatch):
     monkeypatch.setattr(hostvpn, "old_leftovers", lambda: True)
     monkeypatch.setattr(hostvpn, "install", lambda log: "1.0.1")
     assert host_vpn.button_text() == "Bony's VPN installieren"
+    opened.clear()
     w = host_vpn.linux_vpn(None)
-    w.wait(5000)
-    assert w.result == "1.0.1"
+    assert w.wait(5000)
+    qapp.processEvents()  # „finished“ zustellen, solange die Dialog-Attrappe gilt (sonst später echter Dialog)
+    assert w.result == "1.0.1" and opened == [1]  # „Jetzt öffnen?“ → Ja
     assert hostvpn.LINUX_INTRO in FakeBox.shown[0] and hostvpn.OLD_INSTALL_HINT in FakeBox.shown[0]
 
 
