@@ -348,6 +348,9 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
   - „vpn-cinnamon“ (alte Fassung): Hinweis + Knopf „VPN-App aktualisieren“ → umgestellt, Tunnel unverändert
   - Host: Knopf öffnet das installierte Bony's VPN (Einzelinstanz). Installationsweg mit echtem Release-Download und
     Signaturprüfung, nur ohne pkexec-Schritt (bonys-vpn ist auf dem Host schon installiert)
+- [x] .deb 0.15.0 auf dem Mint-Host installiert, CI grün (ein Test-Wettlauf ließ die CI zuerst hängen: ein spät
+  zugestelltes Worker-Signal öffnete einen echten modalen Dialog – behoben, `faulthandler_timeout` in pyproject),
+  **Release v0.15.0** veröffentlicht (13.10.2026): alle Jobs grün, APT-Quelle mit bonys-agents 0.15.0 und bonys-vpn 1.0.1
 - Achtung: „vpn-neu“ trägt jetzt ebenfalls den echten Schlüssel (Autostart + Kill-Switch an) – fünf PCs, nie zwei
   gleichzeitig starten. vpn-agent und obsidian-test haben noch die alte Fassung (werden beim nächsten Start umgestellt)
 
