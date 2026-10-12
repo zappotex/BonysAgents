@@ -116,6 +116,9 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
 if [ "$1" = "configure" ]; then
+  # Reste von Bony's VPN aus 0.14 (vom Helfer als root angelegte __pycache__, gehören keinem Paket)
+  rm -rf /usr/lib/bonys-agents/vpn
+  rmdir /usr/lib/bonys-agents 2>/dev/null || true
   # Angemeldete Benutzer bekommen automatisch Zugriff auf KVM (Regel 70-bonys-agents-kvm.rules)
   if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload-rules 2>/dev/null || true

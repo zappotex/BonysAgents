@@ -31,6 +31,7 @@ def test_build_deb_has_no_vpn_files_only_suggests():
     # Update von 0.14 ohne Paket bonys-vpn: Kill-Switch vorher abschalten
     preinst = script.split('DEBIAN/preinst" <<\'EOF\'', 1)[1].split("\nEOF\n", 1)[0]
     assert "lt 0.15" in preinst and "killswitch off" in preinst and "bonys-vpn" in preinst
+    assert "rm -rf /usr/lib/bonys-agents/vpn" in script
     assert not (ROOT / "src/bonys_agents/vpn").exists()
     assert "bonys_agents.vpn" not in (ROOT / "packaging/bonys-agents.spec").read_text()
 
