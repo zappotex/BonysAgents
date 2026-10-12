@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install platformdirs psutil
+      - run: pip install platformdirs psutil pycdlib
       - name: Agent-PC – App-Option „WireGuard VPN (Bony's VPN)“ in Debian 13 (mit alter Fassung unter /usr/local)
         run: |
           PYTHONPATH=src python -c "from bonys_agents import apps, cloudinit; print(cloudinit.app_install_script(apps.VPN, 'agent'), end='')" > vpn-install.sh
