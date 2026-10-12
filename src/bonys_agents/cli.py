@@ -617,8 +617,12 @@ def cmd_install(args) -> int:
     return 0
 
 
-def _print_vpn(st: dict) -> None:
+def _print_vpn(st: dict, name: str = "NAME") -> None:
     print(vpnlink.summary(st))
+    if st.get("compat") in vpnlink.COMPAT_TEXT:
+        print(f"  ⚠ {vpnlink.COMPAT_TEXT[st['compat']]}")
+        if st["compat"] in ("legacy", "outdated"):
+            print(f"    → bonys-agents vpn {name} update")
     for t in st.get("tunnels") or []:
         flags = [x for x, on in (("verbunden", t.get("active")), ("automatisch", t.get("autostart"))) if on]
         line = f"  {t['name']}" + (f"  [{', '.join(flags)}]" if flags else "")
@@ -642,6 +646,15 @@ def cmd_vpn(args) -> int:
         vpnlink.import_conf(m, setup, replace=args.replace, **kw)
         print(f"„{setup.name}“ ist in „{m.name}“ importiert. Verbinden mit: bonys-agents vpn {m.name} up")
         return 0
+    if args.action == "update":
+        if value:
+            raise ValueError("„update“ erwartet keine weitere Angabe.")
+        print(f"Installiere das neueste Bony's VPN aus dem offiziellen Release ({vpnlink.VPN_REPO_URL}) in "
+              f"„{m.name}“ – Signatur und Prüfsumme werden geprüft, Tunnel und Kill-Switch bleiben …")
+        vpnlink.update_app(m, log=print, **kw)
+        st = vpnlink.status(m, **kw)
+        print(f"Fertig: Bony's VPN {st.get('version', '')} ist installiert.")
+        return 0
     if value and args.action in ("status", "ip"):
         raise ValueError(f"„{args.action}“ erwartet keine weitere Angabe.")
     tunnel = args.tunnel or (value if args.action in ("up", "down") else None)
@@ -651,7 +664,7 @@ def cmd_vpn(args) -> int:
         if args.json:
             print(json.dumps(st, ensure_ascii=False, indent=2))
         else:
-            _print_vpn(st)
+            _print_vpn(st, m.name)
         return 0 if st.get("installed", True) else 1
     if args.action == "ip":
         print(vpnlink.public_ip(m, **kw))
@@ -1038,9 +1051,9 @@ def build_parser() -> argparse.ArgumentParser:
     ins.set_defaults(func=cmd_install)
     vp = sub.add_parser("vpn", help="Bony's VPN im laufenden Agent-PC: Status, verbinden, trennen, importieren",
                         description="status [--json] | up [TUNNEL] | down [TUNNEL] | import DATEI | "
-                                    "killswitch on|off | autostart on|off | ip")
+                                    "killswitch on|off | autostart on|off | ip | update (VPN-App aktualisieren)")
     vp.add_argument("name")
-    vp.add_argument("action", choices=["status", "up", "down", "import", "killswitch", "autostart", "ip"])
+    vp.add_argument("action", choices=["status", "up", "down", "import", "killswitch", "autostart", "ip", "update"])
     vp.add_argument("value", nargs="?", metavar="WERT",
                     help="import: die .conf-Datei · up/down: der Tunnel · killswitch/autostart: on oder off")
     vp.add_argument("--tunnel", metavar="TUNNEL", help="Tunnelname (bei import: statt des Dateinamens)")

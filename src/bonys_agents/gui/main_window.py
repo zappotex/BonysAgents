@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import (
     APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, host, remote,
-    screen, storage, updates, vm,
+    screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
 
@@ -24,7 +24,7 @@ from . import style
 from .about_dialog import AboutDialog
 from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
-from .host_vpn import HostVpnPanel, mac_wireguard, state_icon, windows_wireguard
+from .host_vpn import button_text, linux_vpn, mac_wireguard, vpn_icon, windows_wireguard
 from .install_dialog import InstallAppsDialog
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
 from .vpn_panel import VpnPanel
@@ -105,9 +105,10 @@ class MainWindow(QMainWindow):
         self._powering_off: set[str] = set()      # „Sofort ausschalten“ läuft gerade
         self._notices: dict[str, str] = {}        # z. B. „wurde hart ausgeschaltet“ – bis zum nächsten Start
         self._remote_check: TaskWorker | None = None
+        self._vpn_check: TaskWorker | None = None
+        self._vpn_checked: set[tuple[str, int]] = set()  # (Agent-PC, QMP-Port) – einmal je Start prüfen
         self._ticks = 0
         self._console_big = False
-        self.vpn_mode = False                     # Bereich „VPN“ (dieser Rechner) statt der Details
         self.entries: dict[str, vm.VM | vm.MissingVM] = {}
         self.setWindowTitle(APP_NAME)
 
@@ -157,11 +158,9 @@ class MainWindow(QMainWindow):
         self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, exportieren, importieren")
         self.new_btn = QPushButton("+  Neuer Agent-PC")
         self.new_btn.setObjectName("Primary")
-        # Bony's VPN für diesen Rechner (nur Linux; Windows/macOS: ⓘ → Extras)
+        # Bony's VPN für diesen Rechner – eigenes Programm (nur Linux; Windows/macOS: ⓘ → Extras)
         self.vpn_btn = QPushButton("VPN")
-        self.vpn_btn.setCheckable(True)
-        self.vpn_btn.setIcon(state_icon("disconnected"))
-        self.vpn_btn.setToolTip("Bony's VPN – WireGuard für diesen ganzen Rechner")
+        self.vpn_btn.setIcon(vpn_icon())
         self.vpn_btn.setVisible(sys.platform.startswith("linux"))
         for b in (self.youtube_btn, self.doctor_btn, self.vpn_btn, self.import_btn, self.templates_btn,
                   self.new_btn):
@@ -187,7 +186,6 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self._empty_page())
         self.stack.addWidget(self._detail_page())
         self.stack.addWidget(self._missing_page())
-        self.stack.addWidget(self._vpn_page())
         # Bei kleinem Fenster wird gescrollt statt abgeschnitten
         self.detail_scroll = QScrollArea()
         self.detail_scroll.setWidgetResizable(True)
@@ -205,9 +203,8 @@ class MainWindow(QMainWindow):
         self.import_btn.clicked.connect(self.import_vm)
         self.templates_btn.clicked.connect(self.show_templates)
         self.youtube_btn.clicked.connect(lambda: open_url(YOUTUBE_CHANNEL_URL))
-        self.list.currentItemChanged.connect(lambda *_: self.show_vpn(False))
-        self.list.itemPressed.connect(lambda *_: self.show_vpn(False))
-        self.vpn_btn.clicked.connect(self.show_vpn)
+        self.vpn_btn.clicked.connect(self.host_vpn)
+        self._vpn_button_state()
 
         sysinfo = QLabel(f"v{__version__}  ·  {self.info.os} / {self.info.arch}  ·  Beschleuniger: {self.info.accel}")
         sysinfo.setObjectName("Muted")
@@ -253,7 +250,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         extras = menu.addMenu("Extras")
         if sys.platform.startswith("linux"):
-            extras.addAction("Bony's VPN für diesen Rechner", lambda: self.show_vpn(True))
+            extras.addAction("Bony's VPN für diesen Rechner", self.host_vpn)
         elif sys.platform == "win32":
             extras.addAction("WireGuard für diesen Rechner installieren …", lambda: self._keep_worker(
                 windows_wireguard(self)))
@@ -420,27 +417,16 @@ class MainWindow(QMainWindow):
         lay.addStretch(1)
         return w
 
-    def _vpn_page(self) -> QWidget:
-        w = _card()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        self.host_vpn = HostVpnPanel()
-        self.host_vpn.state_changed.connect(lambda st: self.vpn_btn.setIcon(state_icon(st)))
-        self.host_vpn.notify.connect(lambda title, body: self.statusBar().showMessage(f"{title}: {body}", 15000))
-        lay.addWidget(self.host_vpn)
-        return w
+    def _vpn_button_state(self) -> None:
+        self.vpn_btn.setToolTip(f"{button_text()} – WireGuard für diesen ganzen Rechner (eigenes Programm)")
 
-    def show_vpn(self, on: bool = True) -> None:
-        """Bereich „VPN“ (dieser Rechner) zeigen – oder zurück zu den Details des Agent-PCs."""
-        on = bool(on) and sys.platform.startswith("linux")
-        if on != self.vpn_mode:
-            self.vpn_mode = on
-            if on:
-                self.host_vpn.start()
-            else:
-                self.host_vpn.pause()
-        self.vpn_btn.setChecked(on)
-        self.refresh_detail()
+    def host_vpn(self) -> None:
+        """Knopf „VPN“: Bony's VPN öffnen bzw. installieren (nur Linux)."""
+        w = linux_vpn(self)
+        if w is not None:
+            self.statusBar().showMessage("Installiere Bony's VPN …")
+            w.finished.connect(lambda: (self.statusBar().clearMessage(), self._vpn_button_state()))
+            self._keep_worker(w)
 
     def _keep_worker(self, w) -> None:
         if w is not None:
@@ -905,6 +891,7 @@ class MainWindow(QMainWindow):
         self._ticks += 1
         if self._ticks % 8 == 0:
             self._check_remote_resets([e for e in entries if isinstance(e, vm.VM)])
+            self._check_vpn_apps([e for e in entries if isinstance(e, vm.VM)])
         # Ersteinrichtung fertig und Gast ausgeschaltet → jetzt mit Fenster starten
         # (greift auch, wenn die App beim Ende der Einrichtung geschlossen war).
         for e in entries:
@@ -922,9 +909,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"„{m.name}“ ist eingerichtet und startet jetzt mit Desktop.", 8000)
 
     def refresh_detail(self) -> None:
-        if self.vpn_mode:
-            self.stack.setCurrentIndex(3)
-            return
         entry = self.current_entry()
         if entry is None:
             self.stack.setCurrentIndex(0)
@@ -1149,6 +1133,52 @@ class MainWindow(QMainWindow):
         w.finished.connect(lambda: w.result and self.statusBar().showMessage(
             "Fernzugriff nach Neustart ausgeschaltet: " + ", ".join(w.result), 10000))
         self._remote_check = w
+        w.start()
+
+    def _check_vpn_apps(self, machines: list[vm.VM]) -> None:
+        """Im Hintergrund, einmal je Start: Alte, eingebaute Fassung von Bony's VPN (bis 0.14) bzw. zu altes
+        Paket im Agent-PC? Dann auf das Paket bonys-vpn umstellen. Nur über den Gast-Agent (ohne Passwort);
+        /etc/wireguard und der Kill-Switch bleiben unverändert."""
+        if self._vpn_check and self._vpn_check.isRunning():
+            return
+        todo = []
+        for m in machines:
+            if vpnlink.APP_ID not in m.config.apps or m.config.first_boot_pending or not m.is_running():
+                continue
+            key = (m.name, int(m.runtime().get("qmp_port") or 0))
+            if key not in self._vpn_checked and m.progress().ready:
+                todo.append((key, m))
+        if not todo:
+            return
+
+        def run() -> list[tuple[str, str]]:
+            out = []
+            for key, m in todo:
+                if not m.guest_agent_ready():
+                    continue  # Gast bootet noch – beim nächsten Durchlauf wieder
+                self._vpn_checked.add(key)
+                if not vpnlink.needs_update(m):
+                    continue
+                try:
+                    vpnlink.update_app(m)
+                    out.append((m.name, ""))
+                except Exception as e:  # noqa: BLE001 – Meldung in der Statusleiste, Knopf im Reiter „VPN“
+                    out.append((m.name, str(e)))
+            return out
+
+        w = TaskWorker(run)
+
+        def done() -> None:
+            for name, err in w.result or []:
+                self.statusBar().showMessage(
+                    f"Bony's VPN in „{name}“ " + (f"nicht umgestellt: {err}" if err else
+                                                  "auf das Paket bonys-vpn umgestellt (Tunnel unverändert)."),
+                    20000)
+            if w.result:
+                self.refresh_detail()
+
+        w.finished.connect(done)
+        self._vpn_check = w
         w.start()
 
     def _keep(self, w: TaskWorker) -> None:

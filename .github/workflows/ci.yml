@@ -27,6 +27,57 @@ jobs:
       - run: ruff check src tests
       - run: pytest -q
 
+  # Bony's VPN aus dem echten Release von zappotex/bonys-vpn (Signatur, SHA-256, apt):
+  # Installationsschritt im Agent-PC (Debian 13, auch als Umstellung einer alten Fassung) und Knopf
+  # „Bony's VPN installieren“ auf dem eigenen Rechner (Ubuntu).
+  bonys-vpn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install platformdirs psutil
+      - name: Agent-PC – App-Option „WireGuard VPN (Bony's VPN)“ in Debian 13 (mit alter Fassung unter /usr/local)
+        run: |
+          PYTHONPATH=src python -c "from bonys_agents import apps, cloudinit; print(cloudinit.app_install_script(apps.VPN, 'agent'), end='')" > vpn-install.sh
+          docker run --rm -v "$PWD/vpn-install.sh:/vpn-install.sh:ro" debian:trixie bash -euxc '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq sudo polkitd python3 >/dev/null
+            useradd -m -s /bin/bash agent
+            # Reste der alten, eingebauten Fassung (Bony'"'"'s Agents 0.14)
+            install -d /usr/local/sbin /usr/local/bin /usr/local/lib/bonys-vpn /etc/polkit-1/rules.d /home/agent/Schreibtisch
+            for f in /usr/local/sbin/bonys-vpn-helper /usr/local/bin/bonys-vpn /usr/local/bin/bonys-vpn-gui; do
+              printf "#!/bin/sh\nexit 0\n" > $f; chmod 755 $f; done
+            printf "polkit.addRule(function(action, subject) { if (action.id == \"io.github.bonys-agents.vpn\" && subject.user == \"agent\") { return polkit.Result.YES; } });\n" \
+              > /etc/polkit-1/rules.d/50-bonys-vpn.rules
+            echo alt > /home/agent/Schreibtisch/io.github.bonys_agents.vpn.desktop
+            install -d -m700 /etc/wireguard && echo "# Platzhalter" > /etc/wireguard/test.conf && chmod 600 /etc/wireguard/test.conf
+            bash /vpn-install.sh
+            bonys-vpn version --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert d[\"schema\"] == 1, d; print(d)"
+            dpkg -s bonys-vpn-agentpc | grep -q "Status: install ok installed"
+            id -nG agent | grep -qw bonys-vpn
+            test ! -e /usr/local/sbin/bonys-vpn-helper && test ! -e /usr/local/lib/bonys-vpn
+            test ! -e /etc/polkit-1/rules.d/50-bonys-vpn.rules
+            test -f /home/agent/Schreibtisch/bonys-vpn.desktop && test ! -e /home/agent/Schreibtisch/io.github.bonys_agents.vpn.desktop
+            test "$(cat /etc/wireguard/test.conf)" = "# Platzhalter"   # Tunnel bleiben unverändert
+            test -f /etc/apt/sources.list.d/bonys-vpn.sources
+          '
+      - name: Eigener Rechner – „Bony's VPN installieren“ (geprüftes .deb aus dem Release)
+        run: |
+          sudo apt-get update -qq
+          python -c "
+          import subprocess
+          from bonys_agents import hostvpn
+          assert hostvpn.gui_command() is None and not hostvpn.apt_configured()
+          v = hostvpn.install(print, runner=lambda s: subprocess.call(['sudo', 'sh', '-c', s]))
+          print('installiert:', v)
+          assert hostvpn.gui_command() == '/usr/bin/bonys-vpn-gui' and hostvpn.installed_version() == v
+          "
+          bonys-vpn version --json
+        env:
+          PYTHONPATH: src
+
   # WireGuard auf dem eigenen Rechner unter Windows und macOS (Menü „Extras“)
   wireguard-host:
     strategy:

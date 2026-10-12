@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """WireGuard auf dem eigenen Rechner (Host) – ohne Qt, damit es sich testen lässt.
 
-- **Linux**: Bony's VPN. Das .deb bringt den Root-Helfer (``/usr/sbin/bonys-vpn-helper``), die
-  polkit-Aktion (``auth_admin_keep``) und die systemd-Unit des Kill-Switch mit. Die Oberfläche ist
-  der Bereich „VPN“ in Bony's Agents (``gui/host_vpn.py``). ``wireguard-tools`` und ``nftables``
-  sind nur empfohlen und werden bei Bedarf nach Rückfrage per pkexec/apt nachinstalliert.
+- **Linux**: Bony's VPN, ein eigenes Projekt (https://github.com/zappotex/bonys-vpn) mit eigener
+  Oberfläche. Bony's Agents öffnet es nur bzw. installiert das Paket ``bonys-vpn`` nach Rückfrage
+  aus der offiziellen Quelle: aus der APT-Paketquelle, wenn sie eingerichtet ist, sonst das .deb aus
+  dem GitHub-Release (minisign-Signatur und SHA-256 geprüft), jeweils über pkexec.
 - **Windows**: die offizielle WireGuard-App per winget (``WireGuard.WireGuard``).
 - **macOS**: die offizielle WireGuard-App gibt es nur im App Store. Einen offiziellen automatischen
   Weg gibt es nicht (Homebrew/MacPorts liefern nur die Kommandozeilen-Werkzeuge ohne App), also
@@ -17,33 +17,29 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
+from . import updates
 from .procutil import clean_env
-from .vpn import cli as vpncli
-from .vpn import conf as wgconf
+from .vpnlink import VPN_REPO, VPN_REPO_URL
 
-TOOLS = {"wg": "wireguard-tools", "wg-quick": "wireguard-tools", "nft": "nftables"}
-PACKAGES = ("wireguard-tools", "nftables")
-SYSTEM_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
-# polkit-Regel von Bony's VPN: .deb, sonst install.py
-RULES_FILES = (Path("/usr/share/polkit-1/rules.d/50-bonys-vpn.rules"), Path("/etc/polkit-1/rules.d/50-bonys-vpn.rules"))
+PACKAGE = "bonys-vpn"
+GUI = "bonys-vpn-gui"
+GUI_PATH = Path("/usr/bin/bonys-vpn-gui")
+VPN_SOURCES = Path("/etc/apt/sources.list.d/bonys-vpn.sources")
+# Altes .deb von Bony's Agents (bis 0.14) brachte Bony's VPN mit – Reste davon erkennen
+OLD_STATE = Path("/etc/bonys-vpn/killswitch.json")
 
 WHOLE_COMPUTER = "Das VPN gilt dann für deinen ganzen Rechner, nicht nur für die Agent-PCs."
-INTRO = (WHOLE_COMPUTER + "\n\nJedes Programm auf diesem Rechner – Browser, Mail, Updates und auch die "
-         "Agent-PCs – geht dann durch den Tunnel. Agent-PCs mit eigenem Bony's VPN bauen ihren Tunnel "
-         "zusätzlich durch diesen auf.\n\nFür Aktionen wie Verbinden und Trennen fragt dein Rechner nach "
-         "dem Administrator-Passwort und merkt es sich einige Minuten.")
-KILLSWITCH_WARNING = (
-    "Kill-Switch für den ganzen Rechner einschalten?\n\n"
-    "Solange kein Tunnel verbunden ist, kommt dann kein Programm auf diesem Rechner mehr ins Internet – "
-    "auch nach einem Neustart nicht, bis du den Kill-Switch wieder abschaltest. Fällt der VPN-Server aus, "
-    "bist du offline.\n\n"
-    "Agent-PCs starten und laufen weiter: Steuerung, Fernzugriff (RDP/SPICE), Herunterfahren und "
-    "Fortschritt gehen über diesen Rechner selbst und sind nicht betroffen. Ihr Internet geht dann aber "
-    "ebenfalls nur über den Tunnel – ohne Tunnel können sie nichts herunterladen, und neue Agent-PCs "
-    "lassen sich erst nach dem Verbinden erstellen.\n\n"
-    "Geräte im Heimnetz (Drucker, NAS) erreichst du ohne Tunnel nur, wenn du ihr Netz als Ausnahme einträgst.")
+LINUX_INTRO = (
+    "Bony's VPN ist ein eigenes Programm von mir für WireGuard-Tunnel – mit Kill-Switch, Tray-Symbol und "
+    f"Import per Drag&Drop ({VPN_REPO_URL}).\n\n" + WHOLE_COMPUTER + "\n\n"
+    "Bony's Agents installiert jetzt das Paket „bonys-vpn“ aus der offiziellen Quelle: aus der Paketquelle "
+    "von Bony's Agents, sonst aus dem GitHub-Release (Signatur und Prüfsumme werden geprüft). Dein Rechner "
+    "fragt dafür nach dem Administrator-Passwort. Updates kommen danach über die Aktualisierungsverwaltung.")
+OLD_INSTALL_HINT = ("Bony's VPN steckt nicht mehr in Bony's Agents. Deine Tunnel in /etc/wireguard sind noch da – "
+                    "zum Verwalten Bony's VPN installieren.")
 
 # Windows
 WINGET_ID = "WireGuard.WireGuard"
@@ -74,177 +70,112 @@ class HostVpnError(RuntimeError):
     """Fehler mit deutscher Meldung für die Oberfläche (enthält nie Schlüssel)."""
 
 
-# ---------------------------------------------------------------- Linux: Zustand
+# ---------------------------------------------------------------- Linux: Bony's VPN
 def supported() -> bool:
     return sys.platform.startswith("linux")
 
 
-def helper() -> str | None:
-    """Installierter Helfer (aus dem .deb oder per install.py) – sonst None."""
-    path = vpncli.helper_path()
-    return path if Path(path).exists() else None
+def gui_command() -> str | None:
+    """Oberfläche von Bony's VPN, wenn das Paket installiert ist."""
+    found = shutil.which(GUI, path=os.pathsep.join(["/usr/bin", "/usr/local/bin", os.environ.get("PATH", "")]))
+    return found or (str(GUI_PATH) if GUI_PATH.exists() else None)
 
 
-def missing_tools(path: str = SYSTEM_PATH) -> list[str]:
-    """Debian-Pakete, die für Bony's VPN noch fehlen (wireguard-tools, nftables)."""
-    missing = []
-    for tool, pkg in TOOLS.items():
-        if not shutil.which(tool, path=path) and pkg not in missing:
-            missing.append(pkg)
-    return missing
+def installed_version() -> str | None:
+    """Installierte Version des Pakets bonys-vpn – None, wenn es fehlt (oder kein dpkg da ist)."""
+    if not shutil.which("dpkg-query"):
+        return None
+    try:
+        r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status} ${Version}", PACKAGE],
+                           capture_output=True, text=True, timeout=15, env=clean_env())
+    except (OSError, subprocess.SubprocessError):
+        return None
+    state, _, version = r.stdout.strip().partition(" ")
+    return version if r.returncode == 0 and state == "installed" and version else None
 
 
-def has_apt() -> bool:
-    return bool(shutil.which("apt-get"))
+def old_leftovers() -> bool:
+    """Gibt es Einstellungen der alten, eingebauten Fassung, aber kein Bony's VPN mehr?"""
+    return OLD_STATE.exists() and gui_command() is None
 
 
-def install_tools_command(packages: list[str] | None = None) -> list[str]:
-    """pkexec apt-get install … – die Oberfläche fragt vorher nach."""
-    pkgs = [p for p in (packages or list(PACKAGES)) if p in PACKAGES]
-    script = ("set -e\nexport DEBIAN_FRONTEND=noninteractive\napt-get update -q\n"
-              f"apt-get install -y -q --no-install-recommends {' '.join(pkgs)}\n")
-    return ["pkexec", "sh", "-c", script]
+def can_install() -> bool:
+    return bool(shutil.which("apt-get") and shutil.which("dpkg"))
 
 
-def install_tools(packages: list[str] | None = None) -> None:
-    if not shutil.which("pkexec"):
-        raise HostVpnError("pkexec fehlt – bitte im Terminal „sudo apt install wireguard-tools nftables“ ausführen.")
-    rc = subprocess.run(install_tools_command(packages), env=clean_env()).returncode
+def open_app() -> None:
+    cmd = gui_command()
+    if cmd is None:
+        raise HostVpnError("Bony's VPN ist nicht installiert.")
+    subprocess.Popen([cmd], env=clean_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def deb_arch() -> str:
+    try:
+        out = subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True, timeout=10,
+                             env=clean_env()).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    return out or {"x86_64": "amd64", "aarch64": "arm64"}.get(os.uname().machine, os.uname().machine)
+
+
+def asset_name(info: updates.UpdateInfo, arch: str) -> str:
+    """Paket im Release: „all“ (reines Python), sonst passend zur Architektur."""
+    for candidate in (f"{PACKAGE}_{info.version}_all.deb", f"{PACKAGE}_{info.version}_{arch}.deb"):
+        if candidate in info.assets:
+            return candidate
+    raise HostVpnError(f"Im Release {info.tag} von Bony's VPN gibt es kein Paket für {arch}.")
+
+
+def apt_configured() -> bool:
+    return updates.apt_source_configured() or updates.apt_source_configured(VPN_SOURCES)
+
+
+def apt_script() -> str:
+    return ("set -e\nexport DEBIAN_FRONTEND=noninteractive\n"
+            'apt-get update || echo "Warnung: Nicht alle Paketquellen ließen sich aktualisieren."\n'
+            f"apt-get install -y {PACKAGE}\n")
+
+
+def install(log: Callable[[str], None], opener=None, runner=None) -> str:
+    """Bony's VPN installieren (die Oberfläche fragt vorher). Gibt die installierte Version zurück.
+
+    Erst die Paketquelle (enthält bonys-vpn in beiden Suiten), sonst bzw. wenn das nicht klappt das
+    geprüfte .deb aus dem offiziellen Release. Root nur über pkexec.
+    """
+    from . import deps
+
+    run = runner or (lambda script: deps._run(deps._elevate_linux(script, gui=True), log))
+    if apt_configured():
+        log("Installiere bonys-vpn aus der Paketquelle (fragt nach deinem Passwort) …")
+        rc = run(apt_script())
+        if rc in (126, 127):
+            raise HostVpnError("Die Anmeldung wurde abgebrochen – nichts installiert.")
+        if rc == 0 and installed_version():
+            return installed_version() or ""
+        log("Über die Paketquelle ging es nicht – lade das Paket direkt aus dem Release.")
+    log("Suche die neueste Version von Bony's VPN auf GitHub …")
+    try:
+        info = updates.fetch_latest(VPN_REPO, opener=opener)
+    except Exception as e:  # noqa: BLE001
+        raise HostVpnError(f"GitHub ist nicht erreichbar: {e}") from None
+    if info is None:
+        raise HostVpnError("Auf GitHub gibt es noch kein Release von Bony's VPN.")
+    name = asset_name(info, deb_arch())
+    log(f"Lade {name} und prüfe Signatur und Prüfsumme …")
+    try:
+        deb = updates.download_verified(info, name, updates.download_dir(), repo=VPN_REPO, opener=opener)
+    except updates.UpdateError as e:
+        raise HostVpnError(str(e)) from None
+    log("Signatur und Prüfsumme in Ordnung. Installiere (fragt nach deinem Passwort) …")
+    rc = run(updates.deb_install_script(deb))
+    shutil.rmtree(deb.parent, ignore_errors=True)
     if rc in (126, 127):
         raise HostVpnError("Die Anmeldung wurde abgebrochen – nichts installiert.")
     if rc != 0:
         raise HostVpnError(f"Die Installation ist fehlgeschlagen (Code {rc}).")
-
-
-def status_needs_password(rules: tuple[Path, ...] = RULES_FILES) -> bool:
-    """Erlaubt die polkit-Regel „… status“ ohne Passwort? Sonst fragt jede Statusabfrage nach dem
-    Passwort – die Oberfläche fragt den Helfer dann nicht regelmäßig."""
-    for f in rules:
-        try:
-            if 'command_line") == "' in f.read_text("utf-8"):
-                return False
-        except OSError:
-            continue
-    return True
-
-
-NM_ACTIVATION_EXTERNAL = 0x80   # NM_ACTIVATION_STATE_FLAG_EXTERNAL: nur übernommen, nicht selbst verbunden
-
-
-def _nm_external(path: str, run) -> bool:
-    """Hat der NetworkManager die Verbindung nur übernommen? Er meldet jede WireGuard-Schnittstelle als
-    aktive Verbindung – auch die, die wg-quick (also Bony's VPN) angelegt hat. Im Zweifel: nein."""
-    if not path.startswith("/org/freedesktop/NetworkManager/") or not shutil.which("busctl"):
-        return False
-    try:
-        proc = run(["busctl", "get-property", "org.freedesktop.NetworkManager", path,
-                    "org.freedesktop.NetworkManager.Connection.Active", "StateFlags"], capture_output=True,
-                   text=True, timeout=5, env=clean_env({"LC_ALL": "C"}))
-        kind, value = proc.stdout.split()
-        return proc.returncode == 0 and kind == "u" and bool(int(value) & NM_ACTIVATION_EXTERNAL)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return False
-
-
-def nm_wireguard(run=subprocess.run) -> set[str]:
-    """Aktive WireGuard-Verbindungen des NetworkManager. Die trennt nur der NetworkManager selbst
-    (wg-quick kennt sie nicht), und sie benutzen dieselbe Routing-Tabelle wie wg-quick (51820).
-    Tunnel, die der NetworkManager nur übernommen hat (mit wg-quick verbunden), zählen nicht."""
-    if not shutil.which("nmcli"):
-        return set()
-    try:
-        proc = run(["nmcli", "-t", "-f", "NAME,TYPE,ACTIVE-PATH", "connection", "show", "--active"],
-                   capture_output=True, text=True, timeout=5, env=clean_env({"LC_ALL": "C"}))
-    except (OSError, subprocess.SubprocessError):
-        return set()
-    out = set()
-    for line in proc.stdout.splitlines():
-        rest, _, path = line.replace("\\:", "\0").rpartition(":")
-        name, _, kind = rest.rpartition(":")
-        if kind == "wireguard" and not _nm_external(path.replace("\0", ":"), run):
-            out.add(name.replace("\0", ":"))
-    return out
-
-
-# ---------------------------------------------------------------- Linux: Aktionen
-def _call(args: list[str], data: bytes | None = None) -> str:
-    if helper() is None:
-        raise HostVpnError("Der Helfer von Bony's VPN ist nicht installiert – er kommt mit dem .deb von "
-                           "Bony's Agents (/usr/sbin/bonys-vpn-helper).")
-    try:
-        return vpncli.call(args, data)
-    except vpncli.CliError as e:
-        raise HostVpnError(str(e)) from None
-
-
-def _call_json(args: list[str], data: bytes | None = None):
-    import json
-
-    try:
-        return json.loads(_call(args, data))
-    except ValueError:
-        raise HostVpnError("Unerwartete Antwort des Helfers.") from None
-
-
-def status() -> dict:
-    return _call_json(["status"])
-
-
-def up(name: str) -> None:
-    _call(["up", wgconf.check_name(name)])
-
-
-def down(name: str | None = None) -> None:
-    _call(["down"] + ([wgconf.check_name(name)] if name else []))
-
-
-def import_conf(name: str, data: bytes, allow_hooks: bool = False, replace: bool = False) -> dict:
-    extra = (["--allow-hooks"] if allow_hooks else []) + (["--replace"] if replace else [])
-    return _call_json(["import", wgconf.check_name(name), *extra], data)
-
-
-def delete(name: str) -> None:
-    _call(["delete", wgconf.check_name(name)])
-
-
-def rename(old: str, new: str) -> None:
-    _call(["rename", wgconf.check_name(old), wgconf.check_name(new)])
-
-
-def show(name: str) -> dict:
-    return _call_json(["show", wgconf.check_name(name)])
-
-
-def export(name: str) -> str:
-    return _call(["export", wgconf.check_name(name)])
-
-
-def set_autostart(name: str, on: bool) -> None:
-    _call(["autostart", wgconf.check_name(name), "on" if on else "off"])
-
-
-def set_killswitch(on: bool, exceptions: list[str] | None = None) -> dict:
-    """Kill-Switch an/aus. ``exceptions`` (nur beim Einschalten): None = bisherige behalten, [] = keine."""
-    extra: list[str] = []
-    if on and exceptions is not None:
-        extra = [x for net in exceptions for x in ("--exception", net)] or ["--no-exceptions"]
-    return _call_json(["killswitch", "on" if on else "off", *extra])
-
-
-def parse_exceptions(text: str) -> list[str]:
-    """„192.168.178.0/24, 10.0.0.5“ → Liste. Ungültige Einträge → ValueError mit dem Eintrag."""
-    import ipaddress
-
-    out = []
-    for item in text.replace(";", ",").replace("\n", ",").split(","):
-        item = item.strip()
-        if not item:
-            continue
-        try:
-            out.append(str(ipaddress.ip_network(item, strict=False)))
-        except ValueError:
-            raise ValueError(f"„{item}“ ist keine IP-Adresse und kein Netz (z. B. 192.168.178.0/24).") from None
-    return out
+    return installed_version() or info.version
 
 
 # ---------------------------------------------------------------- Windows

@@ -125,13 +125,13 @@ def test_provision_imports_after_all_steps(conf_file):
     script = cloudinit.provision_script(_guest(setup, ("brave", "vpn", "hermes")))
     assert no_secret(script)
     last_step = script.rindex(cloudinit.STEP_MARKER)
-    imp = script.index(f"bonys-vpn-helper import {setup.name} --replace")
+    imp = script.index(f"\"$VPN_H\" import {setup.name} --replace")
     assert last_step < imp < script.index('touch "$STATE/ready"')  # nach Hermes & Co., vor „fertig“
     assert imp < script.index("autostart fritz_box on") < script.index("killswitch on")
     if sys.platform != "win32":  # unter Windows ist „bash“ nur der WSL-Platzhalter
         assert subprocess.run(["bash", "-n"], input=script.encode()).returncode == 0
     plain = cloudinit.provision_script(_guest(None, ("brave", "vpn")))
-    assert "bonys-vpn-helper import" not in plain
+    assert "\"$VPN_H\" import" not in plain
 
 
 def _fake_bin(tmp_path: Path, seed: Path) -> Path:
@@ -166,8 +166,8 @@ def _fake_helper(tmp_path: Path, fail_import=False) -> Path:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-Shell")
-@pytest.mark.parametrize("fail", [False, True])
-def test_guest_import_script_with_fake_helper(conf_file, tmp_path, fail):
+@pytest.mark.parametrize("fail, legacy", [(False, False), (True, False), (False, True)])
+def test_guest_import_script_with_fake_helper(conf_file, tmp_path, fail, legacy):
     seed = tmp_path / "seed"
     seed.mkdir()
     (seed / vpnlink.SEED_FILE).write_bytes(CONF.encode())
@@ -175,7 +175,12 @@ def test_guest_import_script_with_fake_helper(conf_file, tmp_path, fail):
     helper = _fake_helper(tmp_path, fail_import=fail)
     done = tmp_path / "state" / "vpn-config.done"
     setup = vpnlink.load_conf(conf_file, autoconnect=True, killswitch=True)
-    script = vpnlink.guest_import_script(setup, helper=str(helper), done_file=str(done))
+    if legacy:  # Vorlage aus 0.14: nur der alte Helfer unter /usr/local
+        script = vpnlink.guest_import_script(setup, helper=str(tmp_path / "fehlt"), done_file=str(done),
+                                             legacy_helper=str(helper))
+    else:
+        script = vpnlink.guest_import_script(setup, helper=str(helper), done_file=str(done),
+                                             legacy_helper=str(tmp_path / "fehlt"))
     env = dict(os.environ, PATH=f"{_fake_bin(tmp_path, seed)}:{os.environ['PATH']}")
     out = subprocess.run(["sh", "-c", script], env=env, capture_output=True, text=True)
     assert out.returncode == 0 and no_secret(out.stdout + out.stderr)
@@ -194,10 +199,10 @@ def test_guest_import_script_with_fake_helper(conf_file, tmp_path, fail):
 def test_clone_first_boot_imports_too(conf_file):
     setup = vpnlink.load_conf(conf_file)
     data = cloudinit.clone_user_data("pc", "agent", "geheim1", setup)
-    assert no_secret(data) and "bonys-vpn-helper import fritz_box" in data and "autostart" not in data
+    assert no_secret(data) and "import fritz_box --replace" in data and "autostart" not in data
     assert "bonys-vpn-helper" not in cloudinit.clone_user_data("pc", "agent", "geheim1")
     script = cloudinit.clone_firstboot_script(setup)
-    assert script.index("bonys-vpn-helper import") < script.index(cloudinit.READY_MARKER)
+    assert script.index("\"$VPN_H\" import") < script.index(cloudinit.READY_MARKER)
     assert subprocess.run(["sh", "-n"], input=script, text=True).returncode == 0
 
 
@@ -374,8 +379,11 @@ def test_default_tunnel():
 def test_import_goes_over_stdin_and_errors_are_scrubbed(ga, conf_file):
     setup = vpnlink.load_conf(conf_file, autoconnect=True, killswitch=True)
     vpnlink.import_conf(fake_machine(), setup, replace=True)
-    assert ga.calls[0] == (vpnlink.GUEST_HELPER, ["import", "fritz_box", "--replace"], CONF.encode())
-    assert [c[1] for c in ga.calls[1:]] == [["autostart", "fritz_box", "an"], ["killswitch", "an"]]
+    path, args, stdin = ga.calls[0]
+    assert path == "/bin/sh" and args[2:] == ["bonys-vpn-helper", "import", "fritz_box", "--replace"]
+    assert vpnlink.GUEST_HELPER in args[1] and stdin == CONF.encode()
+    assert [c[1][3:] for c in ga.calls[1:]] == [["autostart", "fritz_box", "an"], ["killswitch", "an"]]
+    assert all(vpnlink.GUEST_CLI in c[1][1] for c in ga.calls[1:])
     assert all(c[2] == b"" for c in ga.calls[1:])  # Schlüssel nur beim Import
     ga.reply = (1, "", f"Fehler: Zeile 2: PrivateKey ungültig {PRIV}")
     with pytest.raises(vpnlink.VpnError) as e:

@@ -26,17 +26,12 @@ def run() -> int:
     app.setWindowIcon(QIcon(str(style.resource("logo.png"))))
 
     if "--vpn" in sys.argv[1:]:
-        # Desktop-Eintrag „Bony's VPN“: nur Bony's VPN für diesen Rechner (läuft im Infobereich weiter)
-        from .host_vpn import HostVpnWindow
+        # Früher: eigenes Fenster „Bony's VPN“. Heute ist Bony's VPN ein eigenes Programm.
+        from bonys_agents import hostvpn
 
-        app.setApplicationName("Bony's VPN")
-        app.setDesktopFileName("bonys-vpn")
-        app.setQuitOnLastWindowClosed(False)
-        win = HostVpnWindow()
-        win.destroyed.connect(app.quit)
-        win.setAttribute(Qt.WA_DeleteOnClose)
-        win.show()
-        return app.exec()
+        if hostvpn.gui_command():
+            hostvpn.open_app()
+            return 0
 
     from .main_window import MainWindow
 

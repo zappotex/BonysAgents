@@ -12,12 +12,7 @@ Die Reihenfolge in ``APPS`` ist auch die Reihenfolge der Einrichtungsschritte.
 
 from __future__ import annotations
 
-import base64
-import gzip
-import io
-import tarfile
 from dataclasses import dataclass
-from importlib import resources
 
 from bonys_agents import screen
 
@@ -220,52 +215,83 @@ chown -R "$AGENT_USER:$AGENT_USER" "$VAULT" "$AGENT_HOME/.config/obsidian"
 """,
 )
 
-# Debian-Pakete für Bony's VPN: Werkzeuge + Oberfläche (GTK 3 über python3-gi, Tray über Ayatana-AppIndicator).
-# Kein openresolv: Der Agent-PC nutzt systemd-resolved, das resolvconf schon mitbringt.
-VPN_PACKAGES = ("wireguard-tools nftables pkexec polkitd python3-gi gir1.2-gtk-3.0 "
-                "gir1.2-ayatanaappindicator3-0.1")
-
-
-def vpn_payload() -> str:
-    """Quelltext von Bony's VPN (src/bonys_agents/vpn, ohne __pycache__) als tar.gz in base64.
-
-    Steht direkt im Installationsschritt – kommt so beim Erstellen über das Seed-ISO und beim
-    Nachinstallieren über den SSH-Weg in den Agent-PC. Reproduzierbar (feste Zeiten und Rechte).
-    """
-    root = resources.files("bonys_agents") / "vpn"
-    files: list[tuple[str, bytes]] = []
-
-    def walk(node, prefix: str) -> None:
-        for child in sorted(node.iterdir(), key=lambda c: c.name):
-            if child.name == "__pycache__" or child.name.endswith(".pyc"):
-                continue
-            if child.is_dir():
-                walk(child, f"{prefix}{child.name}/")
-            else:
-                files.append((f"{prefix}{child.name}", child.read_bytes()))
-
-    walk(root, "bonys_vpn/")
-    buf = io.BytesIO()
-    with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0) as gz, tarfile.open(fileobj=gz, mode="w") as tar:
-        for name, data in files:
-            info = tarfile.TarInfo(name)
-            info.size, info.mode, info.mtime = len(data), 0o644, 0
-            tar.addfile(info, io.BytesIO(data))
-    return base64.encodebytes(buf.getvalue()).decode("ascii")
+# Bony's VPN ist ein eigenes Projekt (https://github.com/zappotex/bonys-vpn). Installiert werden die Pakete
+# bonys-vpn und bonys-vpn-agentpc aus dem offiziellen Release: SHA256SUMS mit minisign-Signatur (derselbe
+# Schlüssel wie bei Bony's Agents, die Signatur muss genau diese Version nennen), dann die SHA-256 jeder
+# Datei, dann apt (zieht wireguard-tools, nftables, GTK usw. aus Debian). Danach kommen Updates über die
+# APT-Paketquelle, die das Paket selbst einträgt („Agent-PC aktualisieren“). Die alte, eingebaute Fassung
+# unter /usr/local (bis 0.14) räumt das Paket beim Installieren auf – /etc/wireguard bleibt, wie es ist.
+VPN_RELEASE = "https://github.com/zappotex/bonys-vpn/releases/latest/download"
+VPN_PACKAGES = ("bonys-vpn", "bonys-vpn-agentpc")
+VPN_BLOCKED_HINT = ("HINWEIS: Der Kill-Switch von Bony's VPN ist an, aber kein Tunnel verbunden – ohne VPN hat der "
+                    "Agent-PC kein Internet. Erst den Tunnel verbinden, dann aktualisieren.")
 
 
 def _vpn_install() -> str:
+    from bonys_agents import UPDATE_PUBLIC_KEY, vpnlink
+
     return r"""
-apt-get install -y """ + VPN_PACKAGES + r"""
+VPN_BASE='""" + VPN_RELEASE + r"""'
+VPN_KEY='""" + UPDATE_PUBLIC_KEY + r"""'
+VPN_MIN='""" + vpnlink.MIN_VERSION + r"""'
+# Kill-Switch an, aber kein Tunnel → kein Internet: gleich mit Hinweis abbrechen
+if nft list table inet bonys_vpn >/dev/null 2>&1 && [ -z "$(wg show interfaces 2>/dev/null)" ]; then
+  echo '""" + VPN_BLOCKED_HINT.replace("'", "'\"'\"'") + r"""'
+  exit 1
+fi
+apt-get install -y minisign curl ca-certificates
 VPN_TMP="$(mktemp -d)"
-base64 -d > "$VPN_TMP/bonys-vpn.tar.gz" <<'BONYS_VPN_PAYLOAD'
-""" + vpn_payload() + r"""BONYS_VPN_PAYLOAD
-tar -xzf "$VPN_TMP/bonys-vpn.tar.gz" -C "$VPN_TMP" --no-same-owner
-# Helfer, Kommandozeile, Oberfläche, polkit (Benutzer ohne Passwort), Kill-Switch-Unit, Autostart des Tray-Symbols
-python3 -I "$VPN_TMP/bonys_vpn/install.py" --variant agent --user "$AGENT_USER" --autostart-tray
-rm -rf "$VPN_TMP"
-systemctl daemon-reload
-cp /usr/local/share/applications/io.github.bonys_agents.vpn.desktop "$DESKTOP_DIR/"
+trap 'rm -rf "$VPN_TMP"' EXIT
+vpn_get() { curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --max-time 300 -o "$VPN_TMP/$1" "$VPN_BASE/$1"; }
+echo "Bony's VPN: lade die Prüfsummen aus dem offiziellen Release (github.com/zappotex/bonys-vpn) …"
+vpn_get SHA256SUMS
+vpn_get SHA256SUMS.minisig
+# Signatur prüfen – -Q gibt nur den signierten Kommentar aus („Bony's VPN v1.0.1“)
+VPN_COMMENT="$(minisign -V -Q -P "$VPN_KEY" -m "$VPN_TMP/SHA256SUMS" -x "$VPN_TMP/SHA256SUMS.minisig")" || {
+  echo "FEHLER: Die Signatur der Prüfsummen von Bony's VPN ist ungültig – nichts installiert." >&2; exit 1; }
+VPN_ARCH="$(dpkg --print-architecture)"
+VPN_VER="$(sed -n 's/^[0-9a-f]\{64\}  bonys-vpn_\([0-9][0-9A-Za-z.+~-]*\)_\(all\|'"$VPN_ARCH"'\)\.deb$/\1/p' \
+  "$VPN_TMP/SHA256SUMS" | head -n1)"
+[ -n "$VPN_VER" ] || { echo "FEHLER: Kein Paket von Bony's VPN für $VPN_ARCH im Release." >&2; exit 1; }
+case " $VPN_COMMENT " in
+  *" v$VPN_VER "*) ;;
+  *) echo "FEHLER: Die Signatur gehört zu einer anderen Version – nichts installiert." >&2; exit 1 ;;
+esac
+dpkg --compare-versions "$VPN_VER" ge "$VPN_MIN" || {
+  echo "FEHLER: Bony's VPN $VPN_VER ist älter als $VPN_MIN." >&2; exit 1; }
+VPN_DEBS=""
+for p in """ + " ".join(VPN_PACKAGES) + r"""; do
+  f="$(grep -oE "  ${p}_${VPN_VER}_(all|$VPN_ARCH)\.deb$" "$VPN_TMP/SHA256SUMS" | head -n1 | sed 's/^  //')"
+  [ -n "$f" ] || { echo "FEHLER: $p fehlt im Release $VPN_VER." >&2; exit 1; }
+  echo "Bony's VPN: lade $f …"
+  vpn_get "$f"
+  ( cd "$VPN_TMP" && grep -E "^[0-9a-f]{64}  ${f}$" SHA256SUMS | sha256sum -c --strict - ) || {
+    echo "FEHLER: Prüfsumme von $f stimmt nicht – nichts installiert." >&2; exit 1; }
+  VPN_DEBS="$VPN_DEBS $VPN_TMP/$f"
+done
+echo "Bony's VPN $VPN_VER: Signatur und Prüfsummen in Ordnung, installiere …"
+# Tray-Symbol der alten Fassung (/usr/local) merken – seine Dateien verschwinden gleich. [b]/[l]: damit das
+# Muster nicht dieses Skript selbst trifft (es steht in dessen Befehlszeile).
+VPN_TRAYS="$(pgrep -f '/usr/local/[b]in/bonys-vpn-gui|/usr/local/[l]ib/bonys-vpn/' 2>/dev/null | grep -vx "$$" || true)"
+chmod 755 "$VPN_TMP"; chmod 644 "$VPN_TMP"/*.deb   # apt liest lokale Pakete als Benutzer _apt
+# shellcheck disable=SC2086
+apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $VPN_DEBS
+# Bony's VPN ohne Passwort (polkit über die Gruppe bonys-vpn)
+usermod -a -G bonys-vpn "$AGENT_USER"
+# Verknüpfung auf dem Schreibtisch – die der alten Fassung zeigte auf /usr/local
+rm -f "$DESKTOP_DIR/io.github.bonys_agents.vpn.desktop"
+cp /usr/share/applications/bonys-vpn.desktop "$DESKTOP_DIR/"
+# Altes Tray-Symbol durch das neue ersetzen – in derselben Sitzung (Umgebung des alten Prozesses)
+for pid in $VPN_TRAYS; do
+  [ -r "/proc/$pid/environ" ] || continue
+  u="$(stat -c %U "/proc/$pid")"
+  envs="$(tr '\0' '\n' < "/proc/$pid/environ" | grep -E \
+    '^(DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|XDG_CURRENT_DESKTOP|LANG|HOME)=' || true)"
+  kill "$pid" 2>/dev/null || true
+  # shellcheck disable=SC2086
+  runuser -u "$u" -- env -i PATH=/usr/bin:/bin $envs setsid -f /usr/bin/bonys-vpn-gui --tray \
+    </dev/null >/dev/null 2>&1 || true
+done
 """
 
 
@@ -275,8 +301,8 @@ VPN = AppSpec(
     description="Eigene WireGuard-Tunnel mit Kill-Switch und Tray-Symbol – Konfiguration bringst du selbst mit",
     default=False,
     weight=3.0,
-    check="test -x /usr/local/bin/bonys-vpn-gui && test -x /usr/local/sbin/bonys-vpn-helper",
-    launcher="io.github.bonys_agents.vpn.desktop",
+    check="test -x /usr/bin/bonys-vpn-gui && test -x /usr/sbin/bonys-vpn-helper && id -nG | grep -qw bonys-vpn",
+    launcher="bonys-vpn.desktop",
     install=_vpn_install(),
 )
 
@@ -466,8 +492,6 @@ bonys_apt_wait() {  # höchstens 20 Minuten
 
 UPGRADE_DONE = "BONYS-UPGRADE-DONE"
 REBOOT_MARKER = "BONYS-REBOOT-REQUIRED"
-VPN_BLOCKED_HINT = ("HINWEIS: Der Kill-Switch von Bony's VPN ist an, aber kein Tunnel verbunden – ohne VPN hat der "
-                    "Agent-PC kein Internet. Erst den Tunnel verbinden, dann aktualisieren.")
 
 
 def _sq(s: str) -> str:

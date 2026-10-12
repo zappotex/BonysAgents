@@ -51,13 +51,9 @@ jobs:
           bonys-agents --version
           bonys-agents selftest
           QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
-          # Bony's VPN für diesen Rechner: Helfer, polkit (mit Passwort), Status, eigenes Fenster
-          test -x /usr/sbin/bonys-vpn-helper && test -x /usr/bin/bonys-vpn
-          pkaction --action-id io.github.bonys-agents.vpn --verbose | grep -q "implicit active: *auth_admin_keep"
-          grep -q 'command_line") == "/usr/sbin/bonys-vpn-helper status"' /usr/share/polkit-1/rules.d/50-bonys-vpn.rules
-          sudo /usr/sbin/bonys-vpn-helper status
-          systemctl cat bonys-vpn-killswitch.service > /dev/null
-          QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui --vpn || [ $? -eq 124 ]
+          # Bony's VPN ist ein eigenes Paket: hier nur „Suggests“, keine Dateien davon
+          dpkg-deb -f dist/*.deb Suggests | grep -qw bonys-vpn
+          if dpkg -L bonys-agents | grep -qE 'bonys-vpn|polkit|systemd'; then echo "Dateien von Bony's VPN im Paket" >&2; exit 1; fi
       # Neuere Systeme als die Bau-Basis: dort fielen mitgelieferte Bibliotheken zuerst auf
       # (QEMU: „libmount.so.1: version `MOUNT_2_40' not found“).
       - name: In Debian 13 und Ubuntu 24.04 installieren und Selbsttest
@@ -71,8 +67,6 @@ jobs:
               bonys-agents --version
               bonys-agents selftest
               QT_QPA_PLATFORM=offscreen timeout 10 bonys-agents-gui || [ $? -eq 124 ]
-              /usr/sbin/bonys-vpn-helper status
-              QT_QPA_PLATFORM=offscreen timeout 10 bonys-agents-gui --vpn || [ $? -eq 124 ]
             '
             echo "::endgroup::"
           done

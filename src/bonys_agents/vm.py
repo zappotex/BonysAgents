@@ -793,6 +793,18 @@ class VM:
         except (OSError, RuntimeError, TypeError, ValueError):
             return False
 
+    def guest_agent_ready(self) -> bool:
+        """Antwortet der Gast-Agent (Gast fertig gebootet)?"""
+        port = self.runtime().get("qga_port")
+        if not port or not self.is_running():
+            return False
+        try:
+            with qemu.GuestAgent(port, timeout=2) as ga:
+                ga.execute("guest-ping")
+            return True
+        except (qemu.GuestAgentError, RuntimeError):
+            return False
+
     def _guest_shutdown(self) -> bool:
         port = self.runtime().get("qga_port")
         if not port:
@@ -968,6 +980,17 @@ class VM:
         if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
             raise RuntimeError(f"„{self.name}“ muss laufen und fertig eingerichtet sein.")
         script = apps.upgrade_script(self.config.apps, self.config.username)
+        rc, out = self.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log, timeout=timeout)
+        return UpgradeResult(ok=rc == 0, reboot_required=apps.REBOOT_MARKER in out, exit_code=rc,
+                             vpn_blocked=apps.VPN_BLOCKED_HINT in out)
+
+    def run_logged(self, script: str, password: str | None = None, ssh_prompt: bool = False,
+                   log: Callable[[str], None] | None = None, timeout: float = 3600) -> tuple[int, str]:
+        """Bash-Skript als root im Gast, Ausgabe live an ``log``. Gibt (Exit-Code, Ausgabe) zurück.
+
+        Über den QEMU Guest Agent (die Ausgabe kommt über die serielle Konsole, wenn das Skript dorthin
+        schreibt), sonst per SSH – dafür braucht es das Passwort (``password``) bzw. ``ssh_prompt``.
+        """
         emit = log or (lambda line: None)
         port = self.runtime().get("qga_port") or 0
         try:
@@ -981,23 +1004,20 @@ class VM:
         except qemu.GuestAgentError:
             pid = None
         if pid is not None:
-            rc, out = self._guest_exec_follow(port, pid, pos, emit, timeout)
-        else:
-            if not password and not ssh_prompt:
-                raise NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
-                                    "des Agent-PCs gebraucht.")
-            lines: list[str] = []
+            return self._guest_exec_follow(port, pid, pos, emit, timeout)
+        if not password and not ssh_prompt:
+            raise NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
+                                "des Agent-PCs gebraucht.")
+        lines: list[str] = []
 
-            def collect(line: str) -> None:
-                lines.append(line)
-                emit(line)
+        def collect(line: str) -> None:
+            lines.append(line)
+            emit(line)
 
-            rc = self._ssh(SSH_SUDO_SCRIPT, script, password, collect)
-            if rc == 255:
-                raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
-            out = "\n".join(lines)
-        return UpgradeResult(ok=rc == 0, reboot_required=apps.REBOOT_MARKER in out, exit_code=rc,
-                             vpn_blocked=apps.VPN_BLOCKED_HINT in out)
+        rc = self._ssh(SSH_SUDO_SCRIPT, script, password, collect)
+        if rc == 255:
+            raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
+        return rc, "\n".join(lines)
 
     def _guest_exec_follow(self, port: int, pid: int, pos: int, emit: Callable[[str], None],
                            timeout: float) -> tuple[int, str]:

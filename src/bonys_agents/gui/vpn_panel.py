@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Bereich „VPN“ der Detailansicht: Bony's VPN im laufenden Agent-PC.
 
-Der Status kommt über den Gast-Agent (``bonys-vpn status --json``), notfalls per SSH. Eine
+Bony's VPN ist ein eigenes Programm (Pakete bonys-vpn/bonys-vpn-agentpc). Der Status kommt über den
+Gast-Agent (``bonys-vpn status --json``, Schema-Version geprüft), notfalls per SSH. „VPN-App aktualisieren“
+stellt alte, eingebaute Fassungen auf das Paket um bzw. holt das neueste Release. Eine
 Konfiguration wird hier nur gelesen, geprüft und über die Standardeingabe des Helfers übertragen –
 auf diesem Rechner bleibt nichts davon liegen.
 """
@@ -79,6 +81,12 @@ class VpnPanel(QWidget):
         self.install_btn.setToolTip("Installiert Bony's VPN (WireGuard, Kill-Switch, Tray-Symbol) im laufenden "
                                     "Agent-PC – wie „Programme hinzufügen“")
         lay.addWidget(self.install_btn)
+        # Alte, eingebaute Fassung (bis 0.14) oder zu altes Paket
+        self.update_btn = QPushButton("VPN-App aktualisieren")
+        self.update_btn.setObjectName("Primary")
+        self.update_btn.setToolTip("Installiert das neueste Bony's VPN aus dem offiziellen Release (Signatur und "
+                                   "Prüfsumme geprüft). Tunnel, Schlüssel und Kill-Switch bleiben, wie sie sind.")
+        lay.addWidget(self.update_btn)
 
         # Mit Bony's VPN
         self.body = QWidget()
@@ -130,6 +138,7 @@ class VpnPanel(QWidget):
         self.timer.setInterval(POLL_MS)
         self.timer.timeout.connect(lambda: self.reload(quiet=True))
         self.install_btn.clicked.connect(self.install_requested.emit)
+        self.update_btn.clicked.connect(self._update_app)
         self.refresh_btn.clicked.connect(lambda: self.reload())
         self.up_btn.clicked.connect(self._up)
         self.down_btn.clicked.connect(lambda: self._act(lambda m, **kw: vpnlink.down(m, self.tunnel.currentText()
@@ -177,6 +186,9 @@ class VpnPanel(QWidget):
         st = self.state if has_app else None
         self.install_btn.setVisible(not has_app)
         self.install_btn.setEnabled(running and not self.busy())
+        problem = (st or {}).get("compat", "")
+        self.update_btn.setVisible(has_app and problem in ("legacy", "outdated"))
+        self.update_btn.setEnabled(running and not self.busy())
         self.body.setVisible(has_app)
         if not has_app:
             self.headline.setText("Bony's VPN ist nicht installiert")
@@ -193,7 +205,9 @@ class VpnPanel(QWidget):
             self.note.setText(self.error or "Frage den Status im Agent-PC ab …")
         elif not st.get("installed", True):
             self.headline.setText("Bony's VPN fehlt im Agent-PC")
-            self.note.setText("Laut Einstellungen installiert, im Agent-PC aber nicht gefunden.")
+            self.note.setText("Laut Einstellungen installiert, im Agent-PC aber nicht gefunden. "
+                              "„VPN-App aktualisieren“ installiert es neu.")
+            self.update_btn.setVisible(True)
         else:
             active = st.get("active")
             self.headline.setText(f"●  verbunden – „{active}“" if active else "●  getrennt")
@@ -204,6 +218,8 @@ class VpnPanel(QWidget):
                 notes.append("Kill-Switch an: Ohne Tunnel hat der Agent-PC kein Internet.")
             if not st.get("tunnels"):
                 notes.append("Noch kein Tunnel – „Konfiguration importieren …“ oder im Agent-PC über Bony's VPN.")
+            if st.get("compat") in vpnlink.COMPAT_TEXT:
+                notes.append(f"⚠ {vpnlink.COMPAT_TEXT[st['compat']]}")
             if self.error:
                 notes.append(f"⚠ {self.error}")
             self.note.setText("\n".join(notes))
@@ -222,7 +238,7 @@ class VpnPanel(QWidget):
         self.tunnel_label.setVisible(bool(names))
         self.details.setText(tunnel_details(tunnel) if tunnel else "")
         self.details.setVisible(bool(tunnel))
-        ok = running and st is not None and st.get("installed", True) and not self.busy()
+        ok = running and st is not None and vpnlink.usable(st) and not self.busy()
         self.up_btn.setEnabled(ok and tunnel is not None and not tunnel.get("active"))
         self.down_btn.setEnabled(ok and bool((st or {}).get("active")))
         self.ip_btn.setEnabled(running and not self.busy())
@@ -243,13 +259,15 @@ class VpnPanel(QWidget):
         if m is None:
             return
         w = TaskWorker(lambda: fn(None))
-        self.status.setText(message)
-        self.status.setStyleSheet("")
+        if message:  # stille Statusabfrage: letzte Meldung (z. B. „ist installiert“) stehen lassen
+            self.status.setText(message)
+            self.status.setStyleSheet("")
 
         def finished() -> None:
             self.workers = [x for x in self.workers if x.isRunning()]
             if w.error is None:
-                self.status.setText("")
+                if message:
+                    self.status.setText("")
                 if done:
                     done(w.result)
             elif isinstance(w.error, vm.NeedsPassword):
@@ -374,7 +392,7 @@ class VpnPanel(QWidget):
         if not ok or not name.strip():
             return
         try:
-            setup = vpnlink.VpnSetup(name=vpnlink.wgconf.check_name(name.strip()), data=setup.data,
+            setup = vpnlink.VpnSetup(name=vpnlink.check_name(name.strip()), data=setup.data,
                                      endpoint=setup.endpoint)
         except ValueError:
             QMessageBox.warning(self, APP_NAME, "Tunnelname: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -")
@@ -394,3 +412,23 @@ class VpnPanel(QWidget):
             self.status.setText(f"„{setup.name}“ importiert – jetzt „Verbinden“.")
 
         self._start(run, done, f"Übertrage „{setup.name}“ in den Agent-PC …")
+
+    def _update_app(self) -> None:
+        m = self.machine
+        if m is None:
+            return
+        if QMessageBox.question(
+                self, APP_NAME, f"Bony's VPN in „{m.name}“ jetzt aktualisieren?\n\nDas neueste Bony's VPN kommt "
+                f"aus dem offiziellen Release ({vpnlink.VPN_REPO_URL}), Signatur und Prüfsumme werden geprüft. Tunnel, "
+                "Schlüssel und Kill-Switch bleiben, wie sie sind. Dauert etwa eine Minute.") != QMessageBox.Yes:
+            return
+
+        def run(pw):
+            vpnlink.update_app(m, password=pw)
+            return vpnlink.status(m, password=pw)
+
+        def done(st: dict) -> None:
+            self._set_state(st)
+            self.status.setText(f"Bony's VPN {st.get('version', '')} ist installiert.".replace("  ", " "))
+
+        self._start(run, done, "Aktualisiere Bony's VPN im Agent-PC … (Ausgabe im Reiter „Konsole“)")

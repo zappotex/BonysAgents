@@ -10,8 +10,8 @@ Jede Sitzung liest zuerst diese Datei (und ab Sitzung 2 `docs/vpn.md`) und aktua
 > **Seit 2026-10-12 geht die Entwicklung von Bony's VPN im eigenen Repository weiter:**
 > https://github.com/zappotex/bonys-vpn (lokal `/media/zappotex/bonysagent/BonysAgents/bonys-vpn`, Version 1.0.0).
 > Code, Sicherheitskonzept (`docs/sicherheit.md`) und die Schnittstelle für Bony's Agents (`docs/cli.md`) liegen dort.
-> `src/bonys_agents/vpn/` und `docs/vpn.md` hier sind ab jetzt eingefroren und werden in der nächsten Sitzung
-> („Sitzung B“) durch die Nutzung der Pakete `bonys-vpn`/`bonys-vpn-agentpc` ersetzt.
+> Seit Sitzung B (Bony's Agents 0.15.0) nutzt Bony's Agents nur noch die Pakete `bonys-vpn`/`bonys-vpn-agentpc`;
+> `src/bonys_agents/vpn/` ist gelöscht, `docs/vpn.md` beschreibt nur noch die Anbindung.
 
 ## Regeln (gelten für alle Sitzungen)
 
@@ -315,6 +315,42 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
   beim Entfernen den Kill-Switch von bonys-vpn ab (ab 0.15 entfernen); „Bony's Agents öffnen“ startet bei laufendem
   Bony's Agents ein zweites Fenster – Bony's Agents sollte nur einmal laufen bzw. das vorhandene Fenster zeigen
 
+### Sitzung B (2026-10-13) – Bony's Agents nutzt das Paket bonys-vpn (Version 0.15.0)
+
+- [x] Doppelten Code entfernt: `src/bonys_agents/vpn/`, `tests/test_vpn*.py`, `packaging/linux/bonys-vpn.desktop`,
+  PyInstaller-Daten. `vpnlink` spricht nur noch über `bonys-vpn … --json` bzw. `bonys-vpn-helper` (Gast-Agent als root),
+  mit Ausweich auf die alte CLI unter /usr/local. Eigene, grobe .conf-Prüfung (`inspect_conf`: Abschnitte, Schlüsselformat,
+  Endpoint-Port, Hooks; Meldungen nur mit Zeilennummern), die vollständige macht der Helfer
+- [x] `vpnlink.SCHEMA = 1`, `MIN_VERSION = "1.0.0"`, `compat()`: legacy / outdated / newer / missing
+- [x] App-Option `vpn`: SHA256SUMS + `.minisig` aus `releases/latest/download`, `minisign -V -Q` (Debian-Paket) mit
+  `UPDATE_PUBLIC_KEY`, signierter Kommentar muss `v<Version>` nennen, `sha256sum -c`, `apt-get install` beider .deb
+  (`all`, sonst passende Architektur), `usermod -aG bonys-vpn`, Schreibtisch-Verknüpfung `bonys-vpn.desktop`, altes
+  Tray-Symbol in der laufenden Sitzung ersetzt. Kill-Switch ohne Tunnel → sofort Abbruch mit Hinweis
+- [x] Umstellung alter Agent-PCs: automatisch einmal je Start im Hauptfenster (nur Gast-Agent, `_check_vpn_apps`),
+  Knopf „VPN-App aktualisieren“ im Reiter VPN, `bonys-agents vpn NAME update`. `VM.run_logged` (aus `upgrade` herausgelöst).
+  Import beim Erststart von Klonen aus 0.14-Vorlagen nimmt bei Bedarf den alten Helfer
+- [x] Host (Linux): VPN-Bereich und Fenster `--vpn` entfernt; Knopf „VPN“ = „Bony's VPN öffnen“/„… installieren“
+  (`hostvpn.install`: APT-Quelle, sonst geprüftes .deb aus dem Release, pkexec). .deb: `Suggests: bonys-vpn`, keine
+  VPN-Dateien, kein prerm mehr; `preinst` schaltet beim Update von < 0.15 ohne Paket bonys-vpn den Kill-Switch ab
+- [x] README (Abschnitt VPN mit Links, Tabelle Open Source), `docs/vpn.md` neu (Anbindung)
+- [x] Tests: `tests/test_vpnapp.py` (Installationsskript mit Attrappen und echter Ed25519-Prüfung, Fehlerfälle Prüfsumme/
+  Signatur/alte Signatur/zu alt/fehlendes Paket/Kill-Switch, compat, Legacy-Status, update_app, CLI, Reiter, Hauptfenster),
+  `tests/test_hostvpn.py` neu. pytest 293 grün, ruff sauber. CI-Job `bonys-vpn`: Installationsschritt in Debian 13 mit
+  simulierter Altinstallation, Host-Installation auf Ubuntu – beides mit dem echten Release
+- [x] Echter Test (2026-10-13, Quellstand), Screenshots in `/media/zappotex/bonysagent/BonysAgents/screenshots-sitzung-b/`:
+  - „vpn-xfce“ (alte Fassung, Kill-Switch + Autostart): beim Start automatisch umgestellt. /etc/wireguard unverändert
+    (gleiche Prüfsumme, 600), Kill-Switch die ganze Zeit geladen, Unit jetzt aus /usr/lib, Tunnel blieb verbunden, Tray
+    ersetzt, Gruppe/Verknüpfung umgestellt. Danach trennen (kein Internet), als `agent` ohne Passwort verbinden,
+    Kill-Switch aus/an. Herunterfahren mit Kill-Switch ohne Tunnel 3,2 s
+  - „vpn-neu“ (neu, Xfce, nur VPN, `--vpn-config … --vpn-autoconnect --killswitch`): Pakete 1.0.1 aus dem Release,
+    „Signatur und Prüfsummen in Ordnung“, Import, Autostart, Kill-Switch; IP = VPN-Server; Trennen/Verbinden über den
+    Reiter; APT-Quelle `bonys-vpn` aktiv; keine Schlüsselzeile auf dem Host außerhalb der Festplatte; Stopp 2 s
+  - „vpn-cinnamon“ (alte Fassung): Hinweis + Knopf „VPN-App aktualisieren“ → umgestellt, Tunnel unverändert
+  - Host: Knopf öffnet das installierte Bony's VPN (Einzelinstanz). Installationsweg mit echtem Release-Download und
+    Signaturprüfung, nur ohne pkexec-Schritt (bonys-vpn ist auf dem Host schon installiert)
+- Achtung: „vpn-neu“ trägt jetzt ebenfalls den echten Schlüssel (Autostart + Kill-Switch an) – fünf PCs, nie zwei
+  gleichzeitig starten. vpn-agent und obsidian-test haben noch die alte Fassung (werden beim nächsten Start umgestellt)
+
 ### Später
 
 - Geteilter Ordner Host ↔ Agent-PC (siehe oben)
@@ -322,9 +358,11 @@ Vor jeder Sitzung `/clear`. Wird es zwischendurch knapp: „mach einen Zwischens
 - Drag&Drop und ZIP-Import real testen (bisher nur Logik und Offscreen-Test), KDE/GNOME/MATE/LXQt im Agent-PC,
   englische Oberfläche
 - „VPN-App installieren“ in einem echten Agent-PC ohne die Option, SSH-Weg mit Passwortabfrage in der Oberfläche
+- Host-Knopf „Bony's VPN installieren“ mit echtem pkexec auf einem Rechner ohne bonys-vpn (CI prüft es mit sudo)
+- Bony's Agents nur einmal starten bzw. vorhandenes Fenster zeigen (aus Sitzung A)
 - Host: Tray-Symbol nach der Anmeldung automatisch starten (Autostart-Eintrag, abschaltbar)
 - Host: NetworkManager-Tunnel direkt über NetworkManager trennen/verbinden statt nur Hinweis
 - Host auf echter arm64-Hardware, andere Distributionen (Fedora, Arch: nur Debian/Ubuntu-Pakete geprüft)
 - Herunterfahren ohne Internet beschleunigen (Hermes-Gateway wartet 60 s auf Telegram)
-- Die vier Test-PCs vpn-agent, vpn-cinnamon, vpn-xfce, obsidian-test tragen denselben echten Schlüssel – bleiben
+- Die fünf Test-PCs vpn-agent, vpn-cinnamon, vpn-xfce, vpn-neu, obsidian-test tragen denselben echten Schlüssel – bleiben
   auf Wunsch erhalten, nie zwei gleichzeitig starten
