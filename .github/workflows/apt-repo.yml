@@ -1,0 +1,113 @@
+name: APT-Paketquelle
+
+# Gemeinsame APT-Paketquelle von Bony's Agents und Bony's VPN auf GitHub Pages
+# (https://zappotex.github.io/BonysAgents/apt/). Die .deb kommen aus den neuesten Releases BEIDER
+# Projekte – so überschreibt keines die Pakete des anderen.
+#
+# Läuft
+#   - nach jedem Release von Bony's Agents (release.yml ruft diesen Workflow auf),
+#   - stündlich: baut nur neu, wenn sich ein Release geändert hat (versions.txt auf der Seite),
+#   - von Hand („Run workflow“) oder angestoßen vom Release-Workflow von bonys-vpn (gh workflow run).
+#
+# Secrets: APT_GPG_PRIVATE_KEY, APT_GPG_PASSPHRASE (siehe docs/RELEASE.md).
+# Settings → Environments → github-pages: Tags „v*“ UND der Branch „main“ müssen deployen dürfen.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apt-repo
+  cancel-in-progress: false
+
+env:
+  AGENTS_REPO: zappotex/BonysAgents
+  VPN_REPO: zappotex/bonys-vpn
+  SITE: https://zappotex.github.io/BonysAgents/apt
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.v.outputs.changed }}
+    steps:
+      - name: Neueste Releases mit der veröffentlichten Paketquelle vergleichen
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "bonys-agents $(gh release view -R "$AGENTS_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
+            echo "bonys-vpn $(gh release view -R "$VPN_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
+          } > versions.txt
+          cat versions.txt
+          live="$(curl -fsSL "$SITE/versions.txt" 2>/dev/null || true)"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$live" = "$(cat versions.txt)" ]; then
+            echo "Unverändert – nichts zu tun."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: .deb aus den neuesten Releases beider Projekte laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p debs
+          gh release download -R "$AGENTS_REPO" --pattern 'bonys-agents_*.deb' --dir debs
+          gh release download -R "$VPN_REPO" --pattern 'bonys-vpn*_all.deb' --dir debs \
+            || echo "::notice::Noch kein Release von bonys-vpn."
+          # Nur Pakete mit gültiger Prüfsumme aus dem signierten SHA256SUMS des jeweiligen Release
+          for repo in "$AGENTS_REPO" "$VPN_REPO"; do
+            gh release download -R "$repo" --pattern SHA256SUMS --output "sums-${repo#*/}" 2>/dev/null || continue
+            (cd debs && grep -E '\.deb$' "../sums-${repo#*/}" | sha256sum -c --ignore-missing)
+          done
+          ls -la debs
+          {
+            echo "bonys-agents $(gh release view -R "$AGENTS_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
+            echo "bonys-vpn $(gh release view -R "$VPN_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
+          } > versions.txt
+      - name: Signierte APT-Paketquelle bauen
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "::error::Secret APT_GPG_PRIVATE_KEY fehlt (siehe docs/RELEASE.md)."
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 -p "$GNUPGHOME"
+          printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          export APT_GPG_KEY_ID="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          packaging/linux/build-apt-repo.sh debs site/apt
+          cp versions.txt site/apt/versions.txt
+          # Gegenprobe: passt der Schlüssel zu dem, der in den Paketen steckt?
+          gpg --batch --dearmor < packaging/linux/bonys-agents-archive-keyring.asc > "$RUNNER_TEMP/keyring.gpg"
+          for suite in stable bonys-vpn; do gpgv --keyring "$RUNNER_TEMP/keyring.gpg" "site/apt/dists/$suite/InRelease"; done
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

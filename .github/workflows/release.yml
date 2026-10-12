@@ -6,8 +6,8 @@ name: Release
 #   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64)
 #   - BonysAgents-<version>-macos-intel.dmg            (macOS, Intel – x86_64)
 #   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen, signiert – die App prüft sie vor jedem Update)
-# hängt alles an eine GitHub-Release-Seite und veröffentlicht die signierte APT-Paketquelle
-# auf GitHub Pages (https://<besitzer>.github.io/<repository>/apt/).
+# hängt alles an eine GitHub-Release-Seite und veröffentlicht danach die signierte APT-Paketquelle
+# auf GitHub Pages (https://<besitzer>.github.io/<repository>/apt/) – gemeinsam mit Bony's VPN, siehe apt-repo.yml.
 # Ohne Tag (manuell über "Run workflow") entstehen die Dateien nur als Artefakte zum Testen.
 #
 # Benötigte GitHub-Secrets (Settings → Secrets and variables → Actions) – Anleitung: docs/RELEASE.md
@@ -19,7 +19,7 @@ name: Release
 # Fehlt ein Secret, läuft das Release trotzdem durch, aber ohne Signatur bzw. ohne Paketquelle
 # (mit Warnung) – die App installiert unsignierte Updates nie.
 # Außerdem: Settings → Pages → Source „GitHub Actions“ und unter Settings → Environments →
-# github-pages die Tags „v*“ als Deployment-Regel erlauben.
+# github-pages die Tags „v*“ und den Branch „main“ als Deployment-Regeln erlauben.
 
 on:
   push:
@@ -329,54 +329,13 @@ jobs:
 
             Prüfsummen: `SHA256SUMS`, signiert mit minisign (`SHA256SUMS.minisig`).
 
+  # Gemeinsame APT-Paketquelle mit Bony's VPN – holt die .deb aus den neuesten Releases beider Projekte
   apt-repo:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [deb]
-    runs-on: ubuntu-latest
+    needs: [release]
     permissions:
       contents: read
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: deb-*
-          path: debs
-          merge-multiple: true
-      - name: Signierte APT-Paketquelle bauen
-        id: repo
-        env:
-          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
-          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
-        run: |
-          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
-            echo "::warning::Secret APT_GPG_PRIVATE_KEY fehlt – die APT-Paketquelle wird nicht veröffentlicht (siehe docs/RELEASE.md)."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          export GNUPGHOME="$RUNNER_TEMP/gnupg"
-          mkdir -m 700 -p "$GNUPGHOME"
-          printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
-          export APT_GPG_KEY_ID="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
-          packaging/linux/build-apt-repo.sh debs site/apt
-          # Gegenprobe: passt der Schlüssel zu dem, der im Paket steckt?
-          if [ -s packaging/linux/bonys-agents-archive-keyring.asc ]; then
-            gpg --batch --dearmor < packaging/linux/bonys-agents-archive-keyring.asc > "$RUNNER_TEMP/keyring.gpg"
-            gpgv --keyring "$RUNNER_TEMP/keyring.gpg" site/apt/dists/stable/InRelease
-          else
-            echo "::warning::packaging/linux/bonys-agents-archive-keyring.asc fehlt – das .deb richtet die Paketquelle nicht ein."
-          fi
-          echo "publish=true" >> "$GITHUB_OUTPUT"
-      - if: steps.repo.outputs.publish == 'true'
-        uses: actions/configure-pages@v5
-      - if: steps.repo.outputs.publish == 'true'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - if: steps.repo.outputs.publish == 'true'
-        id: deploy
-        uses: actions/deploy-pages@v4
+    uses: ./.github/workflows/apt-repo.yml
+    secrets: inherit

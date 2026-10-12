@@ -105,7 +105,9 @@ bleibt in deinem Schlüsselbund, und gesichert hast du ihn ja.
 
 1. **Settings → Pages → Build and deployment → Source:** „GitHub Actions“ wählen.
 2. **Settings → Environments → github-pages → Deployment branches and tags:** eine Regel hinzufügen,
-   Typ **Tag**, Muster **`v*`**. (Sonst darf ein Release-Tag die Seite nicht veröffentlichen.)
+   Typ **Tag**, Muster **`v*`**. (Sonst darf ein Release-Tag die Seite nicht veröffentlichen.) Dazu eine
+   zweite Regel, Typ **Branch**, Name **`main`** – damit darf der Workflow `apt-repo.yml` die Paketquelle auch
+   stündlich und von Hand neu bauen (für neue Releases von Bony's VPN).
 
 ### 6. Änderungen committen
 
@@ -163,7 +165,20 @@ notarisiert mit `xcrun notarytool` (Schritt „Notarisieren“ im Release-Workfl
    - erzeugt `SHA256SUMS`, signiert sie mit minisign (vertrauenswürdiger Kommentar
      „Bony's Agents v0.9.0“) und prüft die Signatur gegen den Schlüssel im Programm,
    - veröffentlicht alles auf der Release-Seite,
-   - baut die signierte APT-Paketquelle und veröffentlicht sie auf GitHub Pages.
+   - baut danach die signierte APT-Paketquelle (`apt-repo.yml`) und veröffentlicht sie auf GitHub Pages.
+
+### Gemeinsame Paketquelle mit Bony's VPN
+
+Die Paketquelle auf GitHub Pages gehört beiden Projekten: Bony's Agents und
+[Bony's VPN](https://github.com/zappotex/bonys-vpn). Der Workflow `.github/workflows/apt-repo.yml` holt die
+`.deb` aus den **neuesten Releases beider Repositorys** (geprüft gegen ihr `SHA256SUMS`) und baut daraus die
+Quelle – so überschreibt kein Release die Pakete des anderen Projekts. Er läuft nach jedem Release von
+Bony's Agents, stündlich (baut nur neu, wenn sich ein Release geändert hat, Vergleich über
+`apt/versions.txt`) und von Hand („Actions → APT-Paketquelle → Run workflow“). Bony's VPN stößt ihn nach
+einem Release an, wenn dort das Secret `APT_DISPATCH_TOKEN` hinterlegt ist, sonst holt ihn der stündliche Lauf.
+
+Die Quelle hat zwei Suiten mit demselben Inhalt: `stable` (trägt das Paket bonys-agents ein) und `bonys-vpn`
+(trägt das Paket bonys-vpn ein). Zwei Einträge für dieselbe Suite mit verschiedenen `Signed-By` lehnt apt ab.
 
 Vorversionen (Tag z. B. `v0.9.0-rc.1`, auf GitHub als „Pre-release“ markiert) bekommen nur Nutzer,
 die in der App „Testversionen anbieten“ eingeschaltet haben.
@@ -182,4 +197,5 @@ apt policy bonys-agents  # zeigt die Version aus der Paketquelle
 ```
 
 Lokal lässt sich die Paketquelle auch ohne GitHub bauen:
-`packaging/linux/build-apt-repo.sh dist /tmp/apt-test` (signiert mit deinem Standard-GPG-Schlüssel).
+`packaging/linux/build-apt-repo.sh ORDNER-MIT-DEBS /tmp/apt-test` (signiert mit deinem Standard-GPG-Schlüssel;
+im Ordner nur die neuesten `.deb` von bonys-agents und bonys-vpn).
