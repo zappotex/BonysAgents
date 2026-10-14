@@ -203,3 +203,31 @@ def test_install_desktop_later(datadir, monkeypatch):
     assert "autologin-session=xfce" in sent["s"]
     with pytest.raises(ValueError):
         m.install_desktop("xfce", password="pw")
+
+
+def test_no_automatic_screen_lock():
+    # Automatische Anmeldung: keine Sperre nach ein paar Minuten ohne Eingabe (sonst Passwortabfrage)
+    override = desktops.schema_override()
+    for section in ("org.cinnamon.desktop.screensaver", "org.gnome.desktop.screensaver", "org.mate.screensaver"):
+        body = override.split(f"[{section}]\n", 1)[1].split("\n\n", 1)[0]
+        assert "lock-enabled=false" in body
+    for d in desktops.DESKTOPS:
+        assert desktops.nolock_script() in _steps(_script(d))["BONYS_STEP_2"]
+
+
+@needs_bash
+def test_nolock_script_hides_xfce_lockers_and_keeps_own_choice(tmp_path):
+    import getpass
+
+    home = tmp_path / "home"
+    (home / ".config" / "autostart").mkdir(parents=True)
+    own = home / ".config" / "autostart" / "xfce4-screensaver.desktop"
+    own.write_text("[Desktop Entry]\nHidden=false\n")
+    script = desktops.nolock_script().replace(desktops.KSCREENLOCKER_CONF, str(tmp_path / "kscreenlockerrc"))
+    env = {**os.environ, "AGENT_USER": getpass.getuser(), "AGENT_HOME": str(home)}
+    r = subprocess.run(["bash", "-e"], input=script, text=True, capture_output=True, env=env)
+    assert r.returncode == 0, r.stderr
+    assert "Autolock=false" in (tmp_path / "kscreenlockerrc").read_text()
+    assert "Hidden=true" in (home / ".config" / "autostart" / "light-locker.desktop").read_text()
+    assert own.read_text() == "[Desktop Entry]\nHidden=false\n"  # eigene Einstellung bleibt
+    assert subprocess.run(["bash", "-e"], input=script, text=True, env=env).returncode == 0  # wiederholbar

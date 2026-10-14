@@ -25,6 +25,8 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 
 - Desktop-App mit Übersicht, Start/Stopp, Live-Konsole und Einrichtungs-Fortschritt
 - Vollständige Kommandozeile für Skripte und Server (`bonys-agents …`)
+- Automatische Anmeldung im Agent-PC, ohne automatische Bildschirmsperre: nach ein paar Minuten ohne Eingabe
+  kommt keine Passwortabfrage (der Bildschirmschoner geht mit einem Tastendruck weg; bei neuen Agent-PCs)
 - Ressourcen automatisch passend zum Host: alle CPU-Kerne, so viel RAM wie sicher möglich,
   Festplatte von 32 GB bis 1 TB, Standard 64 GB (dynamisch – belegt nur, was wirklich genutzt wird),
   später jederzeit vergrößerbar

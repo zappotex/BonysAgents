@@ -220,8 +220,12 @@ def schema_override() -> str:
     return (
         f"[org.cinnamon.desktop.background]\npicture-uri='file://{img}'\n{bg}\n"
         "[org.cinnamon.settings-daemon.plugins.power]\nbutton-power='shutdown'\n\n"
+        # Keine automatische Bildschirmsperre: der Agent-PC meldet sich ohnehin automatisch an, eine Sperre
+        # nach ein paar Minuten ohne Eingabe brächte nur eine Passwortabfrage (Cinnamon, GNOME, MATE)
+        "[org.cinnamon.desktop.screensaver]\nlock-enabled=false\n\n"
+        "[org.mate.screensaver]\nlock-enabled=false\n\n"
         f"[org.gnome.desktop.background]\npicture-uri='file://{img}'\npicture-uri-dark='file://{img}'\n{bg}\n"
-        f"[org.gnome.desktop.screensaver]\npicture-uri='file://{img}'\n{bg}\n"
+        f"[org.gnome.desktop.screensaver]\npicture-uri='file://{img}'\nlock-enabled=false\n{bg}\n"
         # GNOME: keine Einstellung zum Ausschaltknopf – in VMs fährt gsd-media-keys bei allem außer
         # „nothing“ sofort herunter (und hält die Taste per handle-power-key-Sperre, logind greift nicht).
         "[org.gnome.shell]\nfavorite-apps=['org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop']\n"
@@ -396,6 +400,34 @@ for dm in gdm3 gdm sddm; do systemctl disable "$dm" >/dev/null 2>&1 || true; don
 ln -sf /lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service"""
 
 
+NOLOCK_AUTOSTART = ("light-locker.desktop", "xfce4-screensaver.desktop")
+KSCREENLOCKER_CONF = "/etc/xdg/kscreenlockerrc"
+
+
+def nolock_script() -> str:
+    """Bash (als root): keine automatische Bildschirmsperre – der Agent-PC meldet sich automatisch an.
+
+    Cinnamon, GNOME und MATE regeln das über gsettings (schema_override). Hier: KDE systemweit und die
+    Sperr-Programme von Xfce (light-locker, xfce4-screensaver) im Autostart des Benutzers ausblenden.
+    Erwartet $AGENT_USER und $AGENT_HOME. Wiederholbar.
+    """
+    return f"""
+# Keine automatische Bildschirmsperre (automatische Anmeldung – sonst nach ein paar Minuten Passwortabfrage)
+cat > {KSCREENLOCKER_CONF} <<'BONYS_DESKTOP'
+[Daemon]
+Autolock=false
+LockOnResume=false
+BONYS_DESKTOP
+A="$AGENT_HOME/.config/autostart"
+install -d -o "$AGENT_USER" -g "$AGENT_USER" "$AGENT_HOME/.config" "$A"
+for f in {" ".join(NOLOCK_AUTOSTART)}; do
+  # eigene Einstellung des Benutzers bleibt
+  [ -e "$A/$f" ] || printf '[Desktop Entry]\\nType=Application\\nName=Bildschirmsperre\\nHidden=true\\n' > "$A/$f"
+  chown "$AGENT_USER:$AGENT_USER" "$A/$f"
+done
+"""
+
+
 def install_script(d: DesktopSpec, set_default: bool = True, locale: str = "de_DE.UTF-8") -> str:
     """Bash-Schritt (als root): Desktop installieren; ``set_default`` = automatische Anmeldung dorthin.
 
@@ -425,7 +457,7 @@ BONYS_DESKTOP
 cat > {screen.SCHEMA_OVERRIDE} <<'BONYS_DESKTOP'
 {schema_override()}BONYS_DESKTOP
 glib-compile-schemas /usr/share/glib-2.0/schemas
-# Anmeldebildschirm: lightdm-gtk-greeter kennt kein „scaled“; „#zoomed:“ füllt den Bildschirm mit
+{nolock_script()}# Anmeldebildschirm: lightdm-gtk-greeter kennt kein „scaled“; „#zoomed:“ füllt den Bildschirm mit
 # erhaltenem Seitenverhältnis (Ränder werden beschnitten, aber nichts verzerrt).
 cat > {GREETER_DROPIN} <<'BONYS_DESKTOP'
 [greeter]
