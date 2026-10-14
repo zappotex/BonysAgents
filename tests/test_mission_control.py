@@ -21,6 +21,13 @@ linux_only = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Ba
 SECRET = "geheimes-token-0123456789abcdef"
 
 
+def bash_syntax_ok(script: str) -> bool:
+    """bash -n – nur unter Linux (auf Windows-Runnern gibt es kein brauchbares bash)."""
+    if not sys.platform.startswith("linux"):
+        return True
+    return subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0
+
+
 # ---------------------------------------------------------------- Abhängigkeiten
 def test_mission_control_requires_docker():
     assert apps.APPS[MC.APP_ID].requires == ("docker",)
@@ -57,7 +64,7 @@ def test_docker_install_uses_official_repo_with_key_check():
     assert 'usermod -a -G docker "$AGENT_USER"' in s
     assert "amd64|arm64" in s
     assert "docker.io" not in s.split("apt-get install -y docker-ce")[1]  # nur entfernen, nie installieren
-    assert subprocess.run(["bash", "-n"], input=s, text=True).returncode == 0
+    assert bash_syntax_ok(s)
 
 
 @linux_only
@@ -91,7 +98,7 @@ def test_install_script_uses_fixed_release_and_checksums():
     assert "--no-desktop" in s and "--install-deps" not in s.replace("ohne --install-deps", "")
     assert '--user "$AGENT_USER"' in s
     assert "/releases/latest" not in s  # neue Agent-PCs bekommen immer genau dieses Release
-    assert subprocess.run(["bash", "-n"], input=s, text=True).returncode == 0
+    assert bash_syntax_ok(s)
 
 
 def test_launcher_opens_brave():
@@ -414,7 +421,7 @@ def test_forward_only_localhost_and_off_by_default(datadir, monkeypatch):
     # Proxy im Agent-PC: nur an der Adresse im QEMU-Netz, Ziel 127.0.0.1 im Agent-PC
     assert f"ListenStream={MC.GUEST_NET_ADDR}:{MC.GUEST_FORWARD_PORT}" in scripts[0]
     assert f"127.0.0.1:{MC.PORT}" in scripts[0] and "systemctl enable bonys-mc-forward.socket" in scripts[0]
-    assert subprocess.run(["bash", "-n"], input=scripts[0], text=True).returncode == 0
+    assert bash_syntax_ok(scripts[0])
     MC.set_forward(m, False)
     assert not vm.VM(m.path).config.mc_forward and ("remove", rule) in _FakeQMP.log
     assert "disable --now bonys-mc-forward.socket" in scripts[-1]
