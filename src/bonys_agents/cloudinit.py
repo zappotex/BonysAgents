@@ -492,6 +492,7 @@ SYSTEM_CLEANUP: tuple[str, ...] = (
     "cloud-init zurücksetzen (cloud-init clean --logs --seed --machine-id) – Klone starten als neue Instanz",
     "/etc/machine-id leeren – jeder Klon bekommt beim ersten Start eine eigene",
     "SSH-Host-Schlüssel löschen (/etc/ssh/ssh_host_*) – werden beim ersten Start neu erzeugt",
+    "SSH-Schlüssel und bekannte Rechner von root (/root/.ssh)",
     "Befehlsverläufe von root und Benutzer (.bash_history, .python_history, .lesshst, .viminfo …)",
     "Paket-Cache (apt-get clean), Zwischenspeicher (~/.cache, ~/.npm-Cache) und ~/.xsession-errors",
     "Protokolle (/var/log, systemd-Journal), DHCP-Leases, Zufalls-Startwert",
@@ -617,6 +618,8 @@ fi""",
                     lines.append(f'wipe "$H/{p}"')
     lines.append(r"""echo "== System =="
 wipe /root/.bash_history /root/.python_history /root/.lesshst /root/.viminfo /root/.wget-hsts
+# SSH von root: cloud-init legt authorized_keys je Instanz neu an, Bony's Agents braucht nichts davon
+wipe /root/.ssh
 wipe "$H/.bash_history" "$H/.python_history" "$H/.lesshst" "$H/.viminfo" "$H/.wget-hsts" "$H/.node_repl_history"
 wipe /var/lib/bonys-agents/vpn-config.done
 wipe "$H/.cache" /root/.cache "$H/.npm/_cacache" "$H/.npm/_logs" "$H/.xsession-errors" "$H/.xsession-errors.old"

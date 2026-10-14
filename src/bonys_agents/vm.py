@@ -143,6 +143,8 @@ class VMConfig:
     # Mission Control auch im Browser dieses Rechners (nur 127.0.0.1) – standardmäßig aus
     mc_forward: bool = False
     mc_forward_port: int = 0
+    # Aus einer weitergegebenen Vorlage: nicht mitgelieferte Apps (Lizenz) – „Programme hinzufügen“ schlägt sie vor
+    reinstall: list[str] = field(default_factory=list)
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
 
@@ -721,7 +723,8 @@ class VM:
         screen_mode, screen_size = self.screen_settings()
         screen_setting = screen.guest_setting(screen_mode, screen_size)
         spec = qemu.LaunchSpec(
-            qemu_bin=qemu_bin, arch=c.arch, accel=info.accel,
+            # Fremde Architektur (z. B. amd64-Vorlage auf einem Mac mit Apple-Chip): nur Emulation (TCG), sehr langsam
+            qemu_bin=qemu_bin, arch=c.arch, accel=info.accel if c.arch == info.arch else "tcg",
             name=qemu_window_title(self.name),
             cpus=c.cpus, ram_mb=c.ram_mb,
             disk=self.disk, qmp_port=qmp_port, ssh_port=ssh_port,
@@ -1468,6 +1471,7 @@ def create(
     desktop: str = desktops.DEFAULT,
     linked: bool | None = None,
     vpn: vpnlink.VpnSetup | None = None,
+    foreign_arch: bool = False,
 ) -> VM:
     """Neuen Agent-PC anlegen – neu installiert (Debian-Image + Einrichtung) oder aus einer Vorlage.
 
@@ -1477,6 +1481,8 @@ def create(
 
     ``vpn``: mitgebrachte WireGuard-Konfiguration. Sie geht nur über das Seed-ISO in den Agent-PC
     (dort per Helfer importiert) – nicht in vm.json und in keine Meldung. Installiert Bony's VPN mit.
+
+    ``foreign_arch``: Vorlage einer anderen Architektur trotzdem nutzen (Emulation, sehr langsam).
     """
     def report(phase: str, frac: float, msg: str) -> None:
         if progress:
@@ -1487,7 +1493,7 @@ def create(
     if template is not None:
         return _create_from_template(name, password, template, linked=linked, cpus=cpus, ram_mb=ram_mb,
                                      disk_gb=disk_gb, keyboard=keyboard, location=location, report=report,
-                                     vpn=vpn)
+                                     vpn=vpn, foreign_arch=foreign_arch)
     disk_gb = DEFAULT_DISK_GB if disk_gb is None else disk_gb
     desktops.get(desktop)
     if not re.match(r"^[a-z_][a-z0-9_-]{0,31}$", username):
@@ -1562,7 +1568,8 @@ def create(
 
 def _create_from_template(name: str, password: str, template_name: str, *, linked: bool | None,
                           cpus: int | None, ram_mb: int | None, disk_gb: int | None, keyboard: str,
-                          location: Path | None, report: ProgressFn, vpn: vpnlink.VpnSetup | None = None) -> VM:
+                          location: Path | None, report: ProgressFn, vpn: vpnlink.VpnSetup | None = None,
+                          foreign_arch: bool = False) -> VM:
     """Agent-PC aus einer Vorlage: nur Festplatte (verknüpft oder kopiert) und ein kleines Seed."""
     from bonys_agents import templates
 
@@ -1574,8 +1581,9 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         raise ValueError(f"In der Vorlage „{tpl.name}“ ist Bony's VPN nicht installiert – die WireGuard-Konfiguration "
                          "geht erst, wenn die VPN-App im Agent-PC nachinstalliert ist (Detailansicht → VPN).")
     info = host.detect()
-    if tpl.arch != info.arch:
-        raise ValueError(f"Die Vorlage „{tpl.name}“ ist für {tpl.arch}, dieser Rechner ist {info.arch}.")
+    if tpl.arch != info.arch and not foreign_arch:
+        raise ValueError(f"Die Vorlage „{tpl.name}“ ist für {tpl.arch}, dieser Rechner ist {info.arch}. "
+                         "Sie liefe nur emuliert und sehr langsam – besser das Rezept nutzen (neu einrichten).")
     disk_gb = tpl.disk_gb if disk_gb is None else disk_gb
     check_disk_gb(disk_gb)
     if disk_gb < tpl.disk_gb:
@@ -1599,16 +1607,16 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         raise RuntimeError(f"Zu wenig Platz für eine vollständige Kopie der Vorlage ({tpl.size / storage.GB:.1f} GB "
                            "komprimiert, entpackt deutlich mehr).")
     qemu_img = qemu.find_binary("qemu-img", info.os)
-    qemu.find_binary(qemu.ARCH_BINARY[info.arch], info.os)
+    qemu.find_binary(qemu.ARCH_BINARY[tpl.arch], info.os)
 
     cfg = VMConfig(
-        name=name, arch=info.arch,
+        name=name, arch=tpl.arch,
         cpus=max(1, min(cpus or info.default_vm_cpus, info.cpus)),
         ram_mb=max(host.MIN_VM_RAM_MB, ram_mb or info.default_vm_ram_mb),
         disk_gb=disk_gb, username=tpl.username, apps=list(tpl.apps), app_info=json.loads(json.dumps(tpl.app_info)),
         keyboard=tpl.keyboard or keyboard, timezone=tpl.timezone or "Europe/Berlin",
         desktop=tpl.desktop, extra_desktops=list(tpl.extra_desktops),
-        provisioned=False, first_boot_pending=False, template=tpl.name,
+        provisioned=False, first_boot_pending=False, template=tpl.name, reinstall=list(tpl.reinstall),
     )
     path.mkdir(parents=True)
     try:

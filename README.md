@@ -43,6 +43,7 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Unterbrochene Einrichtung (QEMU beendet, Neustart, Speichermangel) läuft beim nächsten Start dort weiter, wo sie war
 - Selbsttest `bonys-agents selftest`: prüft, ob QEMU auf diesem Rechner startet
 - Vorlagen: einen fertig eingerichteten Agent-PC als Vorlage speichern – neue Agent-PCs entstehen daraus in Sekunden, ohne Downloads und Einrichtung (siehe „Vorlagen“)
+- Schulungen: Vorlagen als eine `.bonys`-Datei weitergeben – mit Frisch-Prüfung auf Geheimnisse, ohne nicht weitergebbare Programme, mit Prüfsumme (siehe „Schulungen: Agent-PCs weitergeben“)
 - **[Bony's VPN](https://github.com/zappotex/bonys-vpn)** (eigenes Projekt): eigene WireGuard-Tunnel im Agent-PC und auf dem eigenen Linux-Rechner, mit Kill-Switch (siehe „VPN“)
 - Optional **Obsidian** für Notizen im Agent-PC (siehe „Obsidian“)
 - Optional **[Mission Control](https://github.com/zappotex/bonys-agents-mission-control)** (eigenes Projekt):
@@ -79,7 +80,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.16.3` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.17.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -390,9 +391,10 @@ allen Speicherorten gefunden, auch auf Wechsellaufwerken.
 
 - **Löschen** ist gesperrt, solange verknüpfte Agent-PCs darauf aufbauen. Die App bietet dann an,
   diese vorher zu unabhängigen Kopien zu machen (`qemu-img rebase`).
-- **Exportieren** erzeugt eine einzelne Datei `.bonys-template` (tar mit `disk.qcow2` und
-  `template.json`) – zum Weitergeben oder für einen anderen PC. Prüfe vorher, dass keine persönlichen
-  Daten enthalten sind.
+- **Weitergeben (.bonys) …** speichert die Vorlage als eine Datei – mit Frisch-Prüfung, siehe
+  [Schulungen: Agent-PCs weitergeben](#schulungen-agent-pcs-weitergeben). Importieren: Knopf
+  „Importieren …“ oder die Datei einfach ins Fenster „Vorlagen“ ziehen (auch das alte Format
+  `.bonys-template` bis 0.16).
 - Fehlt die Vorlage eines verknüpften Agent-PCs (Laufwerk nicht eingesteckt), steht er als
   „nicht verfügbar – Vorlage fehlt“ in der Liste. Wird er auf ein anderes Laufwerk verschoben, wird er
   automatisch zu einer unabhängigen Kopie. „Unabhängig machen …“ geht auch von Hand.
@@ -406,12 +408,119 @@ bonys-agents template create agent-pc-1 basis --keep-personal-data   # Anmeldung
 bonys-agents template list
 bonys-agents template rename basis basis-2026
 bonys-agents template describe basis "Neuer Text"
-bonys-agents template export basis ~/basis.bonys-template
-bonys-agents template import ~/basis.bonys-template [--name anderer-name]
+bonys-agents template export basis [~/Kurs] [--creator "Kursleitung"] [--version 1.0] [--clean]
+bonys-agents template import ~/basis-1.0.bonys [--name anderer-name] [--create neuer-pc] [--recipe neuer-pc]
 bonys-agents template delete basis [--make-independent]
 bonys-agents create neu --template basis [--linked|--full] [--disk 128] [--wait]
 bonys-agents make-independent neu       # verknüpften Agent-PC unabhängig machen
 ```
+
+## Schulungen: Agent-PCs weitergeben
+
+Für Kurse und Workshops: Der Kursleiter richtet einen Agent-PC einmal ein, macht daraus eine **frische
+Vorlage** und gibt sie als **eine Datei** (`NAME-VERSION.bonys`) weiter – per USB-Stick, Netzlaufwerk oder
+Cloud. Die Teilnehmer importieren sie und haben in Minuten denselben Agent-PC, ohne Downloads und
+Einrichtung.
+
+### Weitergeben (Kursleiter)
+
+„Vorlagen“ → Vorlage wählen → **„Weitergeben (.bonys) …“** (oder `bonys-agents template export NAME`).
+Ersteller, Version und optional ein Vorschaubild eintragen, dann **„Prüfen und exportieren“**.
+
+Die Vorlage selbst bleibt dabei unverändert – alles passiert in einer Kopie ohne Netz:
+
+1. **Frisch-Prüfung:** Die Kopie startet und wird nach Resten durchsucht: API-Schlüssel und Token-Dateien
+   (z. B. `~/.hermes/.env`, Claude, OpenClaw, GitHub, npm, Docker), `/etc/wireguard`, SSH-Schlüssel,
+   Browser-Profile (Verlauf, Cookies, Logins), Telegram-Sitzung, Schlüsselbund, Geheimnisse und Daten von
+   Mission Control, Befehlsverläufe. Funde werden mit Art und Ort angezeigt – **nie mit Inhalt** – und
+   **blockieren den Export**. „In der Kopie bereinigen und exportieren“ (`--clean`) entfernt sie nur in
+   der Export-Kopie.
+2. **Lizenzen:** Programme, die nicht frei weitergegeben werden dürfen (**Claude Code**, **Obsidian**),
+   werden aus der Kopie entfernt. In der Datei steht dann „beim Empfänger neu installieren (offizielle
+   Quelle)“.
+3. Passwörter werden gesperrt, die Kopie wird verallgemeinert (wie beim Erstellen einer Vorlage) und
+   **noch einmal streng geprüft** – jetzt auch SSH-Hostschlüssel, Maschinen-ID und Passwort-Hashes.
+4. Die Festplatte wird komprimiert (`qemu-img convert -c`, eigenständig) und mit SHA-256-Prüfsumme in die
+   Datei geschrieben.
+
+Vorlagen mit persönlichen Daten (Klone) lassen sich nur „frisch gemacht“ weitergeben. Der Export zeigt den
+Fortschritt in Prozent und lässt sich jederzeit abbrechen (es bleibt nichts liegen).
+
+### Importieren (Teilnehmer)
+
+Die `.bonys`-Datei ins Fenster „Vorlagen“ ziehen (oder „Importieren …“, bzw.
+`bonys-agents template import DATEI`). Angezeigt wird, was drin ist: Ersteller, Programme mit Versionen,
+Desktop, Debian-Version, Architektur, Größe und empfohlene Ausstattung. Beim Import wird die Prüfsumme
+geprüft – eine beschädigte oder veränderte Datei wird abgelehnt. Optional entsteht gleich ein neuer
+Agent-PC daraus (Name, Speicherort, RAM und CPUs wählbar; `--create NAME`).
+
+Beim ersten Start bekommt jeder Agent-PC eine **eigene Identität**: neue Maschinen-ID, neue
+SSH-Hostschlüssel, ein eigenes Passwort und neue Geheimnisse für Mission Control.
+Nicht mitgelieferte Programme (z. B. Claude Code) schlägt **„Programme hinzufügen …“** danach schon
+ausgewählt vor – sie kommen aus der offiziellen Quelle.
+
+**Andere Architektur:** Eine amd64-Vorlage auf einem Mac mit Apple-Chip (oder umgekehrt) liefe nur
+emuliert und sehr langsam. Bony's Agents warnt deutlich und bietet das **Rezept** an: Derselbe Desktop mit
+denselben Programmen wird mit dem passenden Debian-Image neu eingerichtet (`--recipe NAME`).
+
+```bash
+bonys-agents template export kurs ~/Kurs --creator "Kursleitung" --version 1.0   # → ~/Kurs/kurs-1.0.bonys
+bonys-agents template import ~/Downloads/kurs-1.0.bonys --create teilnehmer-pc
+bonys-agents template import ~/Downloads/kurs-1.0.bonys --recipe teilnehmer-pc    # andere Architektur
+```
+
+Das Format: ein tar mit `manifest.json` (Name, Beschreibung, Ersteller, Datum, Mindestversion von
+Bony's Agents, Architektur, Desktop, Debian-Version, Programme mit Versionen, empfohlene Ausstattung,
+SHA-256 der Daten), optional `preview.png` und `disk.qcow2`.
+
+### Im Netzwerk freigeben (Kursraum oder VPN)
+
+Ohne Datei-Herumreichen: Der Kursleiter gibt die Vorlage direkt von seinem Rechner frei, die Teilnehmer
+laden sie im selben Netz – oder über ein VPN wie Bony's VPN/WireGuard.
+
+**Kursleiter:** „Vorlagen“ → Vorlage wählen → **„Im Netzwerk freigeben …“** → „Freigabe starten“. Die
+`.bonys`-Datei wird dafür einmal erzeugt (mit Frisch-Prüfung, siehe oben) und zwischengespeichert, bis sich
+die Vorlage ändert. Angezeigt werden:
+
+- der **Freigabe-Code** (z. B. `4711-BONY` – kurz und gut vorlesbar, für jede Freigabe neu),
+- die **Adresse(n)** dieses Rechners (Heimnetz, VPN),
+- ein **QR-Code** mit Adresse, Code und Fingerabdruck (Inhalt: `bonys://ADRESSE:PORT?code=…&fp=…`),
+- der **Fingerabdruck** des Zertifikats (zum Vergleichen),
+- die **Teilnehmer** mit Status, Fortschritt und Restzeit, dazu „Freigabe beenden“.
+
+Einstellbar: Port (Standard **47110**), Dauer (Standard 120 Minuten, danach endet die Freigabe von selbst)
+und gleichzeitige Downloads (Standard 4 – wer danach kommt, wartet in einer Schlange und sieht seinen Platz).
+
+**Teilnehmer:** Hauptfenster → **„Schulung beitreten“**. Im selben Netz erscheint die Freigabe von selbst
+(mDNS/Zeroconf, Dienst `_bonys-agents._tcp`). Im VPN oder wenn nichts erscheint: Adresse und Code eintippen
+oder den Link aus dem QR-Code einfügen. Danach zeigt Bony's Agents, was drin ist, und lädt die Vorlage mit
+Fortschritt und Restzeit. Ein abgebrochener Download wird beim nächsten Mal **fortgesetzt**. Am Ende wird die
+Prüfsumme geprüft, dann geht es weiter wie beim Import (Agent-PC erstellen …).
+
+**Sicherheit:**
+
+- Verschlüsselt (HTTPS) mit einem **eigenen Zertifikat für jede Freigabe**. Sein Fingerabdruck kommt über
+  den QR-Code bzw. die Suche mit oder wird verglichen („Stimmt er mit dem Bildschirm des Kursleiters
+  überein?“). Passt er nicht, bricht Bony's Agents ab.
+- Zugriff **nur mit Code**. Nach 5 falschen Versuchen ist die Adresse eine Minute gesperrt, nach zu vielen
+  Fehlversuchen insgesamt endet die Freigabe.
+- **Nur lesend:** Erreichbar sind nur Infos und die eine Datei, sonst nichts auf dem Rechner. Die Freigabe
+  läuft nur, solange das Fenster offen ist bzw. bis die Zeit abläuft.
+- Firewall: Bony's Agents öffnet **nichts dauerhaft**. Windows fragt beim ersten Freigeben – „Zugriff
+  zulassen“, nur für **private Netzwerke**. macOS fragt ggf. nach eingehenden Verbindungen – „Erlauben“.
+  Unter Linux ist meist keine Firewall aktiv. Mit ufw den Port nur für die Schulung öffnen
+  (`sudo ufw allow 47110/tcp`, danach `sudo ufw delete allow 47110/tcp`), mit firewalld nur vorübergehend
+  (`sudo firewall-cmd --add-port=47110/tcp`, ohne `--permanent`).
+
+```bash
+bonys-agents share kurs [--port 47110] [--timeout 120] [--max-downloads 4]   # Kursleiter (Strg+C beendet)
+bonys-agents join                                              # Teilnehmer: im Netz suchen
+bonys-agents join 192.168.1.5:47110 4711-BONY [--create teilnehmer-pc]
+bonys-agents join "bonys://192.168.1.5:47110?code=4711-BONY&fp=…"   # Link aus dem QR-Code
+```
+
+Ausblick (siehe `docs/plan-schulung.md`): Live-Vorführung im Browser (nur ansehen), Hilfe-Modus mit
+Zustimmung, Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
 
 ## Fernzugriff (RDP und SPICE)
 
@@ -676,7 +785,10 @@ src/bonys_agents/
   apps.py        Installierbare Programme – hier neue ergänzen
   desktops.py    Desktop-Umgebungen (Cinnamon, Xfce, KDE …) – hier neue ergänzen
   vm.py          Lebenszyklus: anlegen, starten, stoppen, löschen, aktualisieren
-  templates.py   Vorlagen: erstellen (über eine Überlagerung), klonen, verwalten, exportieren
+  templates.py   Vorlagen: erstellen (über eine Überlagerung), klonen, verwalten
+  bonysfile.py   Vorlagen weitergeben (.bonys): Frisch-Prüfung, Lizenzen, Manifest, Export/Import, Rezept
+  share.py       Schulung: Freigabe im Netzwerk (HTTPS, Code, Zertifikat je Freigabe, Warteschlange) und Beitreten
+  mdns.py        kleines mDNS/DNS-SD: Freigaben ankündigen und finden (_bonys-agents._tcp)
   procutil.py    externe Programme mit sauberer Umgebung starten (ohne Bibliotheken des Bundles)
   selftest.py    Selbsttest: startet QEMU wie die App
   diagnose.py    Ursache erkennen, wenn QEMU während der Einrichtung endet

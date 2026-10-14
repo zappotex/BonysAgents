@@ -67,6 +67,11 @@ class Template:
     desktop: str = "cinnamon"
     extra_desktops: list[str] = field(default_factory=list)
     app_info: dict = field(default_factory=dict)   # wie in vm.json, z. B. Version von Mission Control
+    # Aus einer .bonys-Datei importiert: Ersteller, Version, Apps zum Neu-Installieren (offizielle Quelle)
+    creator: str = ""
+    version: str = ""
+    reinstall: list[str] = field(default_factory=list)
+    preview: str = ""             # Dateiname des Vorschaubilds im Vorlagen-Ordner
     format: int = FORMAT
 
     @property
@@ -209,12 +214,14 @@ def _wait_guest_agent(copy: _WorkVM, progress: ProgressFn | None, timeout: float
     return False
 
 
-def _run_in_copy(copy: _WorkVM, script: str, password: str | None, has_agent: bool, timeout: float) -> str:
+def _run_in_copy(copy: _WorkVM, script: str, password: str | None, has_agent: bool, timeout: float,
+                 what: str = "Verallgemeinern", poll: Callable[[], None] | None = None) -> str:
+    """Skript als root in der Arbeitskopie (Gast-Agent, sonst SSH). ``poll`` siehe ``GuestAgent.exec``."""
     if has_agent:
         with qemu.GuestAgent(copy.runtime()["qga_port"], timeout=10) as ga:
-            rc, out = ga.run(script, timeout=timeout, shell="/bin/bash")
+            rc, out = ga.run(script, timeout=timeout, shell="/bin/bash", poll=poll)
         if rc != 0:
-            raise RuntimeError(f"Verallgemeinern fehlgeschlagen (Code {rc}): {out.strip()[-600:]}")
+            raise RuntimeError(f"{what} fehlgeschlagen (Code {rc}): {out.strip()[-600:]}")
         return out
     if not password:
         raise vm.NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort des Agent-PCs gebraucht.")
@@ -223,7 +230,7 @@ def _run_in_copy(copy: _WorkVM, script: str, password: str | None, has_agent: bo
     if rc == 255:
         raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
     if rc != 0:
-        raise RuntimeError(f"Verallgemeinern fehlgeschlagen (Code {rc}): {chr(10).join(lines)[-600:]}")
+        raise RuntimeError(f"{what} fehlgeschlagen (Code {rc}): {chr(10).join(lines)[-600:]}")
     return "\n".join(lines)
 
 
@@ -420,7 +427,8 @@ class _Reader:
 
 
 def export(name: str, file: Path, progress: ProgressFn | None = None) -> Path:
-    """Vorlage als eine Datei (.bonys-template = tar mit template.json und disk.qcow2)."""
+    """Altes Format bis 0.16 (.bonys-template = tar mit template.json und disk.qcow2) – Bony's Agents exportiert
+    seit 0.17 nur noch .bonys (siehe bonysfile); hier bleibt es für die Tests des Imports alter Dateien."""
     t = get(name)
     file = Path(file)
     if file.suffix != FILE_SUFFIX:

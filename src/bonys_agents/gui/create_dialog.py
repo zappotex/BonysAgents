@@ -42,7 +42,11 @@ def _slider_row(slider: QSlider, label: QLabel) -> QWidget:
 
 
 class CreateDialog(QDialog):
-    def __init__(self, info: host.HostInfo, parent=None):
+    """``preset_template``: diese Vorlage vorauswählen (auch eine fremder Architektur – dann emuliert).
+    ``recipe``: Rezept aus einer .bonys-Datei (bonysfile.recipe) – neu installieren mit Desktop und Apps daraus."""
+
+    def __init__(self, info: host.HostInfo, parent=None, preset_template: str | None = None,
+                 recipe: dict | None = None):
         super().__init__(parent)
         self.info = info
         self.worker: CreateWorker | None = None
@@ -66,13 +70,15 @@ class CreateDialog(QDialog):
         root.addWidget(title)
 
         # Grundlage: neu installieren oder aus einer Vorlage (sofort fertig, keine Downloads)
-        self.templates = {t.name: t for t in templates.list_templates() if t.arch == info.arch}
+        self.templates = {t.name: t for t in templates.list_templates()
+                          if t.arch == info.arch or t.name == preset_template}
         base_form = QFormLayout()
         base_form.setHorizontalSpacing(16)
         self.base = QComboBox()
         self.base.addItem("Neu installieren (Debian 13)", "")
         for t in self.templates.values():
-            self.base.addItem(f"Vorlage: {t.name}", t.name)
+            self.base.addItem(f"Vorlage: {t.name}" + ("" if t.arch == info.arch else " (andere Architektur – emuliert, "
+                                                       "sehr langsam)"), t.name)
         base_form.addRow("Grundlage", self.base)
         root.addLayout(base_form)
         self.base_info = QLabel()
@@ -261,8 +267,32 @@ class CreateDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         self.ok_btn.clicked.connect(self._create)
         self._update_labels()
+        if preset_template and self.base.findData(preset_template) >= 0:
+            self.base.setCurrentIndex(self.base.findData(preset_template))
         self._base_changed()
+        if recipe:
+            self._apply_recipe(recipe)
         self._update_ok()
+
+    def _apply_recipe(self, r: dict) -> None:
+        """Rezept übernehmen: Desktop, Apps, Benutzer, Tastatur und Empfehlungen – bleibt alles änderbar."""
+        idx = self.desktop.findData(r.get("desktop"))
+        if idx >= 0:
+            self.desktop.setCurrentIndex(idx)
+        for a, cb in self.app_boxes.items():
+            cb.setChecked(a in r.get("app_ids", []))
+        if r.get("username"):
+            self.user.setText(r["username"])
+        idx = self.keyboard.findData(r.get("keyboard"))
+        if idx >= 0:
+            self.keyboard.setCurrentIndex(idx)
+        if r.get("cpus"):
+            self.cpu.setValue(min(int(r["cpus"]), self.info.cpus))
+        if r.get("ram_mb"):
+            self.ram.setValue(min(int(r["ram_mb"]) // 512, self.ram.maximum()))
+        if r.get("disk_gb"):
+            self.disk.setValue(int(r["disk_gb"]))
+        self._update_mc()
 
     def _mc_section(self) -> QWidget:
         """Mission Control: Häkchen mit Erklärung, „Docker wird mitinstalliert“ und Hinweis auf knappe Werte."""
@@ -562,7 +592,7 @@ class CreateDialog(QDialog):
                 return
             for key in ("username", "app_ids", "keyboard", "desktop"):
                 params.pop(key)
-            params.update(template=t.name, linked=self.linked.isChecked())
+            params.update(template=t.name, linked=self.linked.isChecked(), foreign_arch=t.arch != self.info.arch)
         if self.remember_loc.isChecked() and params["location"]:
             storage.set_preferred_library(params["location"])
         self._set_busy(True)

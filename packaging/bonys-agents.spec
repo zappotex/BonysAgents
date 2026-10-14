@@ -37,7 +37,8 @@ def analysis(script):
         [str(ROOT / "packaging" / script)],
         pathex=[str(ROOT / "src")],
         datas=datas,
-        hiddenimports=["bonys_agents.gui.app", "bonys_agents.gui.main_window"],
+        hiddenimports=["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.gui.share_dialogs",
+                       "qrcode"],
         excludes=EXCLUDES,
         noarchive=False,
     )

@@ -976,21 +976,229 @@ def cmd_template_delete(args) -> int:
 
 
 def cmd_template_export(args) -> int:
-    from bonys_agents import templates
+    from bonys_agents import bonysfile, templates
 
-    print(f"Hinweis: {templates.EXPORT_WARNING}")
-    out = templates.export(args.name, Path(args.file), progress=_template_progress)
-    print(f"\nExportiert: {out}")
+    t = templates.get(args.name)
+    removed = apps.not_redistributable(t.apps)
+    print(f"Export von „{t.name}“ als .bonys-Datei. Die Vorlage bleibt unverändert: Geprüft und bereinigt wird "
+          "eine Kopie (ohne Netz).")
+    if removed:
+        print(f"Nicht frei weitergebbar, wird aus der Kopie entfernt: {', '.join(apps.names(removed))} – der "
+              "Empfänger installiert es aus der offiziellen Quelle neu.")
+    if not t.personal_data_removed and not args.clean:
+        print("Diese Vorlage enthält persönliche Daten (Klon). Export nur „frisch gemacht“: mit --clean werden die "
+              "persönlichen Daten in der Export-Kopie entfernt.", file=sys.stderr)
+        return 1
+    try:
+        out = bonysfile.export(t.name, Path(args.file) if args.file else None, creator=args.creator or "",
+                               version=args.version or "", clean=args.clean,
+                               preview=Path(args.preview) if args.preview else None,
+                               progress=_template_progress,
+                               log=(lambda line: print("\n  " + line, end="")) if args.verbose else None)
+    except bonysfile.NotFreshError as e:
+        print(f"\n{e}", file=sys.stderr)
+        if not e.strict:
+            print("\nBereinigen (nur in der Export-Kopie, die Vorlage bleibt): erneut mit --clean.", file=sys.stderr)
+        return 1
+    print(f"\nExportiert: {out} ({out.stat().st_size / storage.GB:.2f} GB)")
+    print(bonysfile.describe_manifest(bonysfile.read_manifest(out)))
     return 0
 
 
 def cmd_template_import(args) -> int:
-    from bonys_agents import templates
+    from bonys_agents import bonysfile
 
-    t = templates.import_file(Path(args.file), location=Path(args.location) if args.location else None,
-                              name=args.name, progress=_template_progress)
-    print(f"\nVorlage „{t.name}“ importiert: {t.path}")
+    file = Path(args.file)
+    if not bonysfile.is_bonys(file):
+        if args.recipe or args.create:
+            print("--create/--recipe gibt es nur für .bonys-Dateien.", file=sys.stderr)
+            return 2
+        t = bonysfile.import_any(file, location=Path(args.location) if args.location else None, name=args.name,
+                                 progress=_template_progress)
+        print(f"\nVorlage „{t.name}“ importiert (altes Format): {t.path}")
+        return 0
+    return _import_bonys(file, args)
+
+
+def _import_bonys(file: Path, args) -> int:
+    """.bonys importieren – mit Anzeige des Inhalts, Architektur-Prüfung, --create/--recipe (template import, join)."""
+    from bonys_agents import bonysfile
+
+    m = bonysfile.read_manifest(file)
+    print(bonysfile.describe_manifest(m, file.stat().st_size))
+    print()
+    host_arch = host.detect().arch
+    if args.recipe:
+        return _create_from_recipe(args, m)
+    if not bonysfile.arch_matches(m):
+        print("⚠ " + bonysfile.SLOW_ARCH_WARNING.format(tpl=m["arch"], host=bonysfile.arch_name(host_arch)))
+        print(f"   Rezept: bonys-agents template import {file} --recipe NAME")
+        if args.create and not args.foreign_arch:
+            print("Trotzdem aus der Vorlage erstellen: --foreign-arch", file=sys.stderr)
+            return 1
+    password = None
+    if args.create:
+        if any(m2.name == args.create for m2 in vm.list_all()):
+            raise FileExistsError(f"Agent-PC '{args.create}' existiert bereits")
+        password = args.password or _ask_password()
+    t = bonysfile.import_bundle(file, location=Path(args.location) if args.location else None, name=args.name,
+                                progress=_template_progress)
+    print(f"\nVorlage „{t.name}“ importiert (Prüfsumme stimmt): {t.path}")
+    if not args.create:
+        print(f"Neuer Agent-PC daraus: bonys-agents create NAME --template {t.name}")
+        _print_reinstall_hint("NAME", t.reinstall)
+        return 0
+    rec = m.get("recommended", {})
+    machine = vm.create(args.create, password, template=t.name, cpus=args.cpus or rec.get("cpus"),
+                        ram_mb=args.ram or rec.get("ram_mb"), linked=False if args.full else None,
+                        location=Path(args.vm_location) if args.vm_location else None,
+                        foreign_arch=args.foreign_arch,
+                        progress=lambda phase, frac, msg: print(f"\r{_bar(frac)} {msg[:50]:50}", end="", flush=True))
+    c = machine.config
+    print(f"\nAgent-PC '{c.name}' aus „{t.name}“: {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB")
+    print("Beim ersten Start bekommt er eine neue Maschinen-ID, neue SSH-Hostschlüssel und neue Geheimnisse.")
+    print(f"Starten mit: bonys-agents start {c.name}")
+    _print_reinstall_hint(c.name, t.reinstall)
     return 0
+
+
+def _print_reinstall_hint(vm_name: str, ids: list[str]) -> None:
+    ids = [i for i in ids if i in apps.APPS]
+    if ids:
+        print(f"Nicht mitgeliefert (Lizenz): {', '.join(apps.names(ids))}. Aus der offiziellen Quelle installieren, "
+              f"wenn der Agent-PC läuft: bonys-agents install {vm_name} {' '.join(ids)}")
+
+
+def _create_from_recipe(args, m: dict) -> int:
+    """Rezept: dieselbe Ausstattung mit dem passenden Debian-Image neu einrichten (ohne die Festplatte)."""
+    from bonys_agents import bonysfile
+
+    r = bonysfile.recipe(m)
+    print(f"Rezept: {desktops.name(r['desktop'])} mit {', '.join(apps.names(r['app_ids'])) or 'ohne Apps'} wird "
+          "hier neu eingerichtet (Debian-Image für diesen Rechner, Downloads aus den offiziellen Quellen).")
+    if m.get("extra_desktops"):
+        print("Zusätzliche Desktops kommen nicht mit – nachrüsten mit „Desktop hinzufügen …“.")
+    if not _ensure_ready(args.yes):
+        print("Agent-PC kann noch nicht erstellt werden – siehe oben.")
+        return 1
+    password = args.password or _ask_password()
+    machine = vm.create(args.recipe, password, cpus=args.cpus or r["cpus"], ram_mb=args.ram or r["ram_mb"],
+                        disk_gb=r["disk_gb"] or vm.DEFAULT_DISK_GB, username=r["username"], app_ids=r["app_ids"],
+                        keyboard=r["keyboard"], timezone_name=r["timezone_name"], desktop=r["desktop"],
+                        location=Path(args.vm_location) if args.vm_location else None,
+                        progress=lambda phase, frac, msg: print(f"\r{_bar(frac)} {msg[:50]:50}", end="", flush=True))
+    print(f"\nAgent-PC '{machine.name}' angelegt. Starten (richtet sich dann ein): bonys-agents start {machine.name}")
+    return 0
+
+
+def cmd_share(args) -> int:
+    """Vorlage im Netzwerk freigeben (Kursleiter) – läuft, bis Strg+C, Zeit abgelaufen oder zu viele Fehlversuche."""
+    from bonys_agents import bonysfile, share, templates
+
+    t = templates.get(args.name)
+    cached = share.cached_bundle(t)
+    if cached:
+        file, sha = cached
+        print(f"Datei für die Freigabe: {file} (schon erzeugt, Vorlage seitdem unverändert)")
+    else:
+        print("Erzeuge die .bonys-Datei für die Freigabe (einmalig, mit Frisch-Prüfung) …")
+        try:
+            file = bonysfile.export(t.name, share.cache_target(t, args.version or t.version or "1"),
+                                    creator=args.creator or "", version=args.version or "", clean=args.clean,
+                                    progress=_template_progress)
+        except bonysfile.NotFreshError as e:
+            print(f"\n{e}", file=sys.stderr)
+            if not e.strict:
+                print("\nBereinigen (nur in der Export-Kopie): erneut mit --clean.", file=sys.stderr)
+            return 1
+        print("\nBerechne Prüfsumme …")
+        sha = share.remember_cache(t, file)
+    s = share.Share(file, port=args.port, timeout_min=args.timeout, max_downloads=args.max_downloads, sha256=sha)
+    s.start()
+    print(f"\nFreigabe „{t.name}“ läuft – endet nach {s.timeout_min} min (Strg+C beendet sofort).\n")
+    print(f"  Freigabe-Code:     {s.code}")
+    print(f"  Fingerabdruck:     {share.short_fingerprint(s.fingerprint)}  (Teilnehmer vergleichen)")
+    print(f"                     {share.format_fingerprint(s.fingerprint)}")
+    for addr in s.addresses():
+        kind = share.address_kind(addr)
+        print(f"  Adresse ({kind or '?'}):".ljust(21) + f"{addr}:{s.port}")
+    print(f"\n  Teilnehmer: bonys-agents join {(s.addresses() or ['ADRESSE'])[0]}:{s.port} {s.code} "
+          f"--fingerprint {s.fingerprint}")
+    print(f"  oder den Link einfügen: {s.link()}\n")
+    _print_qr(s.link())
+    print("Firewall: " + share.FIREWALL_HINTS.get(host.detect().os, "").format(port=s.port) + "\n")
+    shown = 0
+    try:
+        while not s.stopped.wait(2):
+            with s.lock:
+                new_events = s.events[shown:]
+                shown = len(s.events)
+            for line in new_events:
+                print(line)
+            busy = [p for p in s.participants.values() if p.status in ("lädt", "wartet")]
+            if busy:
+                print("   " + " | ".join(f"{p.name}: {p.status}"
+                                         + (f" {p.percent:.0f} %" if p.status == "lädt" else f" (Platz {p.queue})")
+                                         for p in busy), flush=True)
+    except KeyboardInterrupt:
+        s.stop("Freigabe beendet (Strg+C).")
+    for line in s.events[shown:]:
+        print(line)
+    done = sum(1 for p in s.participants.values() if p.status == "fertig")
+    print(f"Freigabe beendet: {done} Teilnehmer haben die Vorlage geladen.")
+    return 0
+
+
+def _print_qr(text: str) -> None:
+    try:
+        import qrcode
+    except ImportError:
+        return
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(text)
+    try:
+        qr.print_ascii(invert=True)
+    except (UnicodeEncodeError, OSError):
+        pass
+
+
+def cmd_join(args) -> int:
+    """Einer Schulung beitreten: Vorlage vom Kursleiter-Rechner laden (setzt fort), prüfen, importieren."""
+    from bonys_agents import bonysfile, share
+
+    if not args.address:
+        print("Suche Freigaben im Netz (mDNS) …")
+        found = share.discover()
+        if not found:
+            print("Keine Freigabe gefunden. In VPN-Netzen geht die Suche nicht – dann Adresse und Code angeben: "
+                  "bonys-agents join ADRESSE CODE", file=sys.stderr)
+            return 1
+        for f in found:
+            print(f"  {f.address}  {f.txt.get('name', '?')} {f.txt.get('version', '')} "
+                  f"von {f.txt.get('creator') or '?'}  (Fingerabdruck {share.short_fingerprint(f.txt.get('fp', ''))})")
+        if len(found) > 1:
+            print("Mehrere Freigaben – bitte eine Adresse angeben.", file=sys.stderr)
+            return 1
+        args.address = found[0].address
+        args.fingerprint = args.fingerprint or found[0].txt.get("fp", "")
+    target = share.parse_target(args.address, args.code or "", args.fingerprint or "")
+    if not target.code:
+        target.code = share.normalize_code(input("Freigabe-Code (z. B. 4711-BONY): "))
+    info = share.fetch_info(target)
+    print(f"Verbunden mit {target.netloc}. Fingerabdruck: {share.short_fingerprint(info.fingerprint)}")
+    if not target.fingerprint:
+        print(f"   ganz: {share.format_fingerprint(info.fingerprint)}")
+        if not _yes("Stimmt er mit dem auf dem Bildschirm des Kursleiters überein?", args.yes):
+            print("Abgebrochen – nichts geladen.")
+            return 1
+    print()
+    print(bonysfile.describe_manifest(info.manifest, info.size))
+    print()
+    dest = Path(args.dir) if args.dir else share.downloads_dir()
+    file = share.download(info, dest, progress=lambda phase, frac, msg: print(f"\r{_bar(frac)} {msg[:60]:60}",
+                                                                                end="", flush=True))
+    print(f"\nGeladen: {file}\n")
+    return _import_bonys(file, args)
 
 
 def cmd_template_rename(args) -> int:
@@ -1023,6 +1231,24 @@ def cmd_make_independent(args) -> int:
 def cmd_gui(args) -> int:
     from bonys_agents.gui.app import run
     return run()
+
+
+def _import_options(p) -> None:
+    """Gemeinsame Optionen von „template import“ und „join“."""
+    p.add_argument("--name", help="Unter anderem Namen ablegen")
+    p.add_argument("--location", metavar="ORDNER", help="Speicherort der Vorlage (Standard: der bevorzugte)")
+    p.add_argument("--create", metavar="AGENT-PC", help="Gleich einen Agent-PC daraus erstellen (unabhängige "
+                                                        "Kopie, wenn --full; sonst verknüpft, wenn möglich)")
+    p.add_argument("--recipe", metavar="AGENT-PC",
+                   help="Nur das Rezept nutzen: Desktop und Apps hier neu einrichten (z. B. andere Architektur)")
+    p.add_argument("--full", action="store_true", help="Mit --create: unabhängige Kopie")
+    p.add_argument("--vm-location", metavar="ORDNER", help="Mit --create/--recipe: Speicherort des Agent-PCs")
+    p.add_argument("--ram", type=int, metavar="MB", help="Mit --create/--recipe: RAM (Standard: Empfehlung)")
+    p.add_argument("--cpus", type=int, help="Mit --create/--recipe: CPUs (Standard: Empfehlung)")
+    p.add_argument("--password", help=argparse.SUPPRESS)
+    p.add_argument("--foreign-arch", action="store_true",
+                   help="Andere Architektur trotzdem nutzen (Emulation, sehr langsam)")
+    p.add_argument("-y", "--yes", action="store_true")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1120,14 +1346,21 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Verknüpfte Agent-PCs vorher zu unabhängigen Kopien machen")
     td.add_argument("-y", "--yes", action="store_true")
     td.set_defaults(func=cmd_template_delete)
-    te = tsub.add_parser("export", help="Vorlage als eine Datei (.bonys-template) speichern")
+    te = tsub.add_parser("export", help="Vorlage zum Weitergeben als eine Datei (.bonys) speichern – mit "
+                                        "Frisch-Prüfung, ohne nicht weitergebbare Programme")
     te.add_argument("name")
-    te.add_argument("file", metavar="DATEI")
+    te.add_argument("file", metavar="DATEI", nargs="?",
+                    help="Zieldatei oder Ordner (Standard: Persönlicher Ordner, NAME-VERSION.bonys)")
+    te.add_argument("--creator", metavar="TEXT", help="Ersteller (z. B. Name des Kursleiters)")
+    te.add_argument("--version", metavar="V", help="Version der Vorlage (Standard: 1)")
+    te.add_argument("--preview", metavar="BILD", help="Vorschaubild (PNG oder JPEG, höchstens 5 MB)")
+    te.add_argument("--clean", action="store_true",
+                    help="Funde der Frisch-Prüfung in der Export-Kopie bereinigen (die Vorlage bleibt unverändert)")
+    te.add_argument("-v", "--verbose", action="store_true", help="Ausgabe aus der Export-Kopie anzeigen")
     te.set_defaults(func=cmd_template_export)
-    ti = tsub.add_parser("import", help="Vorlage aus einer .bonys-template-Datei hinzufügen")
+    ti = tsub.add_parser("import", help="Vorlage aus einer .bonys-Datei (oder .bonys-template) hinzufügen")
     ti.add_argument("file", metavar="DATEI")
-    ti.add_argument("--name", help="Unter anderem Namen ablegen")
-    ti.add_argument("--location", metavar="ORDNER", help="Speicherort (Standard: der bevorzugte)")
+    _import_options(ti)
     ti.set_defaults(func=cmd_template_import)
     tr = tsub.add_parser("rename", help="Vorlage umbenennen")
     tr.add_argument("name")
@@ -1137,6 +1370,27 @@ def build_parser() -> argparse.ArgumentParser:
     tdesc.add_argument("name")
     tdesc.add_argument("text")
     tdesc.set_defaults(func=cmd_template_describe)
+    sh = sub.add_parser("share", help="Schulung: Vorlage im Netzwerk (LAN/VPN) freigeben – Teilnehmer treten mit "
+                                      "„join“ bei")
+    sh.add_argument("name", metavar="VORLAGE")
+    sh.add_argument("--port", type=int, default=47110, help="Port (Standard: 47110)")
+    sh.add_argument("--timeout", type=int, default=120, metavar="MIN",
+                    help="Freigabe endet automatisch nach MIN Minuten (Standard: 120)")
+    sh.add_argument("--max-downloads", type=int, default=4, metavar="N",
+                    help="Höchstens N gleichzeitige Downloads, der Rest wartet (Standard: 4)")
+    sh.add_argument("--creator", metavar="TEXT", help="Ersteller (nur beim ersten Erzeugen der Datei)")
+    sh.add_argument("--version", metavar="V", help="Version der Vorlage (nur beim ersten Erzeugen der Datei)")
+    sh.add_argument("--clean", action="store_true", help="Funde der Frisch-Prüfung in der Export-Kopie bereinigen")
+    sh.set_defaults(func=cmd_share)
+    jn = sub.add_parser("join", help="Schulung beitreten: Vorlage vom Kursleiter laden und importieren "
+                                     "(ohne Adresse: im Netz suchen)")
+    jn.add_argument("address", metavar="ADRESSE", nargs="?",
+                    help="z. B. 192.168.1.5:47110 oder der Link bonys://… (aus dem QR-Code)")
+    jn.add_argument("code", metavar="CODE", nargs="?", help="Freigabe-Code, z. B. 4711-BONY")
+    jn.add_argument("--fingerprint", metavar="FP", help="Fingerabdruck des Zertifikats (sonst Rückfrage)")
+    jn.add_argument("--dir", metavar="ORDNER", help="Wohin laden (Standard: Datenordner/schulung)")
+    _import_options(jn)
+    jn.set_defaults(func=cmd_join)
     mi = sub.add_parser("make-independent", help="Verknüpften Agent-PC in eine unabhängige Kopie umwandeln")
     mi.add_argument("name")
     mi.set_defaults(func=cmd_make_independent)

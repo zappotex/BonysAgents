@@ -175,6 +175,29 @@ def test_window_outside_all_screens_returns_to_primary(app, window):
 
 
 # ---------------------------------------------------------------- Dialoge
+def _fake_bundle(info):
+    """Vorlage (nur im Speicher) und eine kleine .bonys-Datei für die Dialoge „Weitergeben“/„Importieren“."""
+    import hashlib
+
+    from bonys_agents import bonysfile, templates
+
+    base = vm.vms_dir().parent / "bonys-test"
+    base.mkdir(parents=True, exist_ok=True)
+    tpl = templates.Template(path=base, name="kurs-vorlage", description="Kurs mit langer Beschreibung " * 4,
+                             arch=info.arch, apps=["brave", "telegram", "obsidian", "hermes", "claude-code"],
+                             personal_data_removed=False)
+    disk = base / "disk.qcow2"
+    disk.write_bytes(b"QFI\xfb" + b"\0" * 1020)
+    m = bonysfile.build_manifest(tpl, creator="Kursleiterin mit einem langen Namen", version="1.0",
+                                 disk_size=disk.stat().st_size,
+                                 disk_sha256=hashlib.sha256(disk.read_bytes()).hexdigest(),
+                                 virtual_size=2**30, debian="13.1", versions={}, removed=["obsidian", "claude-code"])
+    file = base / "kurs-vorlage-1.0.bonys"
+    file.unlink(missing_ok=True)
+    bonysfile.write_bundle(file, m, disk)
+    return tpl, file, m
+
+
 def _dialogs(window, monkeypatch):
     from bonys_agents import host
     from bonys_agents.gui import (
@@ -188,6 +211,11 @@ def _dialogs(window, monkeypatch):
     m = window.current()
     info = host.detect()
     up = updates.UpdateInfo(version="9.9.9", tag="v9.9.9", notes="Neu\n" * 40)
+    tpl, bundle, manifest = _fake_bundle(info)
+    from bonys_agents import share
+    from bonys_agents.gui import share_dialogs
+
+    monkeypatch.setattr(share, "discover", lambda timeout=2.5: [])  # keine echte Suche im Netz
     return {
         "Neuer Agent-PC": lambda: create_dialog.CreateDialog(info, window),
         "Einrichtung": lambda: setup_dialog.SetupDialog(info, window),
@@ -195,6 +223,12 @@ def _dialogs(window, monkeypatch):
         "Festplatte": lambda: resize_dialog.ResizeDialog(m, window),
         "Als Vorlage speichern": lambda: template_dialogs.SaveTemplateDialog(m, window),
         "Vorlagen": lambda: template_dialogs.TemplatesDialog(window),
+        "Weitergeben": lambda: template_dialogs.ExportDialog(tpl, window),
+        "Importieren": lambda: template_dialogs.ImportDialog(bundle, manifest, window),
+        "Im Netzwerk freigeben": lambda: share_dialogs.ShareDialog(tpl, window),
+        "Schulung beitreten": lambda: share_dialogs.JoinDialog(window),
+        "Importieren (andere Architektur)": lambda: template_dialogs.ImportDialog(
+            bundle, {**manifest, "arch": "arm64" if info.arch == "x86_64" else "amd64"}, window),
         "Programme": lambda: install_dialog.InstallAppsDialog(m, window),
         "Desktop": lambda: desktop_dialog.AddDesktopDialog(m, window),
         "Über": lambda: about_dialog.AboutDialog(window),

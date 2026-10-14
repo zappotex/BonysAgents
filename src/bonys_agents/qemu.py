@@ -375,14 +375,20 @@ def _run_with_progress(cmd: list[str], progress) -> tuple[int, str]:
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             creationflags=no_window_flags(), env=clean_env())
     buf = b""
-    while True:
-        chunk = proc.stdout.read1(4096) if hasattr(proc.stdout, "read1") else proc.stdout.read(64)
-        if not chunk:
-            break
-        buf = (buf + chunk)[-200:]
-        found = _PROGRESS_RE.findall(buf)
-        if found and progress:
-            progress(min(float(found[-1]) / 100, 1.0))
+    try:
+        while True:
+            chunk = proc.stdout.read1(4096) if hasattr(proc.stdout, "read1") else proc.stdout.read(64)
+            if not chunk:
+                break
+            buf = (buf + chunk)[-200:]
+            found = _PROGRESS_RE.findall(buf)
+            if found and progress:
+                progress(min(float(found[-1]) / 100, 1.0))
+    except BaseException:
+        # Abbruch (z. B. aus ``progress``): qemu-img nicht weiterlaufen lassen
+        proc.kill()
+        proc.wait()
+        raise
     err = proc.stderr.read().decode("utf-8", errors="replace")
     return proc.wait(), err
 
@@ -578,16 +584,17 @@ class GuestAgent:
         except (OSError, ValueError) as e:
             raise GuestAgentError(f"Gast-Agent antwortet nicht ({e})") from None
 
-    def run(self, script: str, timeout: float = 120, shell: str = "/bin/sh") -> tuple[int, str]:
+    def run(self, script: str, timeout: float = 120, shell: str = "/bin/sh", poll=None) -> tuple[int, str]:
         """Shell-Skript im Gast ausführen. Gibt (Exit-Code, Ausgabe) zurück."""
-        rc, out, err = self.exec(shell, ["-c", script], timeout=timeout)
+        rc, out, err = self.exec(shell, ["-c", script], timeout=timeout, poll=poll)
         return rc, out + err
 
     def exec(self, path: str, args: list[str], stdin: bytes | None = None,
-             timeout: float = 120) -> tuple[int, str, str]:
+             timeout: float = 120, poll=None) -> tuple[int, str, str]:
         """Programm im Gast ausführen, ``stdin`` geht über die Standardeingabe (landet in keiner Datei).
 
-        Gibt (Exit-Code, stdout, stderr) zurück.
+        ``poll()`` wird beim Warten regelmäßig aufgerufen – eine Ausnahme daraus bricht das Warten ab
+        (z. B. „Abbrechen“ in der Oberfläche). Gibt (Exit-Code, stdout, stderr) zurück.
         """
         extra = {"capture-output": True}
         if stdin is not None:
@@ -600,6 +607,8 @@ class GuestAgent:
                 out, err = (base64.b64decode(st.get(k, "")).decode("utf-8", errors="replace")
                             for k in ("out-data", "err-data"))
                 return int(st.get("exitcode", 0)), out, err
+            if poll:
+                poll()
             time.sleep(0.2)
         raise GuestAgentError(f"Befehl im Gast nicht innerhalb von {timeout:.0f} s fertig")
 

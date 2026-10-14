@@ -39,6 +39,13 @@ class AppSpec:
     requires: tuple[str, ...] = ()
     # Nur Baustein für andere Apps: im Dialog keine eigene Auswahl, nur „wird mitinstalliert“
     hidden: bool = False
+    # Darf in einer weitergegebenen Vorlage (.bonys) stecken? False = Lizenz erlaubt keine Weitergabe:
+    # Vor dem Export wird die App mit ``uninstall`` (als root) aus der Kopie entfernt, der Empfänger
+    # installiert sie aus der offiziellen Quelle neu.
+    redistributable: bool = True
+    uninstall: str = ""
+    # Gibt die installierte Version aus (läuft als $AGENT_USER, erste Zeile zählt) – fürs Manifest
+    version: str = ""
 
 
 # Ordner im PATH des Agent-Benutzers ergänzen – in ~/.bashrc (Terminal) und ~/.profile (Anmeldung).
@@ -61,6 +68,7 @@ BRAVE = AppSpec(
     description="Datenschutzfreundlicher Browser (offizielles Brave-Repository)",
     check="command -v brave-browser",
     launcher="brave-browser.desktop",
+    version="dpkg-query -W -f='${Version}' brave-browser",
     install=r"""
 curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg \
   https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
@@ -89,6 +97,7 @@ TELEGRAM = AppSpec(
     description="Messenger über Flathub (x86_64 und ARM64)",
     check="flatpak info org.telegram.desktop",
     launcher="org.telegram.desktop.desktop",
+    version="flatpak info org.telegram.desktop | sed -n 's/^ *Version: *//p'",
     install=r"""
 apt-get install -y flatpak
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -103,6 +112,7 @@ XRDP = AppSpec(
     description="Fernsteuerung mit Ton – z. B. mit Remmina oder der Windows-Remotedesktopverbindung",
     weight=6.0,
     check="test -x /usr/sbin/xrdp",  # nur installiert – eingeschaltet wird bei Bedarf
+    version="dpkg-query -W -f='${Version}' xrdp",
     install=r"""
 apt-get install -y xrdp pipewire-module-xrdp dbus-x11
 adduser xrdp ssl-cert
@@ -148,6 +158,17 @@ OBSIDIAN = AppSpec(
     weight=8.0,
     check="test -x /opt/Obsidian/obsidian",
     launcher="md.obsidian.Obsidian.desktop",
+    version="dpkg-query -W -f='${Version}' obsidian 2>/dev/null || readlink -f /opt/Obsidian/obsidian",
+    # Kostenlos, aber kein Open Source: Weitergabe nur über die offizielle Quelle
+    redistributable=False,
+    uninstall=r"""
+if dpkg-query -W -f='${Status}' obsidian 2>/dev/null | grep -q 'install ok installed'; then
+  apt-get purge -y obsidian
+fi
+rm -rf /opt/Obsidian /usr/bin/obsidian /usr/share/applications/md.obsidian.Obsidian.desktop \
+  /usr/local/share/applications/md.obsidian.Obsidian.desktop "$DESKTOP_DIR/md.obsidian.Obsidian.desktop" \
+  "$AGENT_HOME/.config/obsidian"
+""",
     # Neueste Version aus dem offiziellen GitHub-Release, SHA-256 aus der GitHub-API.
     # amd64: offizielle .deb. arm64: keine .deb vorhanden → offizielles tar.gz nach /opt/Obsidian
     # mit denselben Abhängigkeiten und demselben Sandbox-Vorgehen wie die .deb.
@@ -321,6 +342,7 @@ VPN = AppSpec(
     weight=3.0,
     check="test -x /usr/bin/bonys-vpn-gui && test -x /usr/sbin/bonys-vpn-helper && id -nG | grep -qw bonys-vpn",
     launcher="bonys-vpn.desktop",
+    version="dpkg-query -W -f='${Version}' bonys-vpn",
     install=_vpn_install(),
 )
 
@@ -340,6 +362,7 @@ DOCKER = AppSpec(
     weight=8.0,
     # als Agent-Benutzer: Gruppe docker wirkt (su - meldet neu an), Dienst und Compose-Plugin da
     check="docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1",
+    version="dpkg-query -W -f='${Version}' docker-ce",
     install=r"""
 apt-get install -y ca-certificates curl gnupg
 ARCH="$(dpkg --print-architecture)"
@@ -392,6 +415,7 @@ HERMES = AppSpec(
     weight=12.0,
     check='PATH="$HOME/.local/bin:$PATH" command -v hermes',
     update='export PATH="$HOME/.local/bin:$PATH"; hermes update',
+    version='PATH="$HOME/.local/bin:$PATH" hermes --version',
     launcher="hermes-agent.desktop",
     install=r"""
 su - "$AGENT_USER" -c 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash' </dev/null \
@@ -427,6 +451,7 @@ OPENCLAW = AppSpec(
     weight=12.0,
     default=False,
     check='test -x "$HOME/.openclaw/bin/openclaw"',
+    version='"$HOME/.openclaw/bin/openclaw" --version',
     launcher="openclaw.desktop",
     # Eigener Updater; geht der nicht, aktualisiert der offizielle Installer (ohne Ersteinrichtung)
     update='export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$PATH"; openclaw update '
@@ -481,6 +506,14 @@ CLAUDE_CODE = AppSpec(
     check='test -x "$HOME/.local/bin/claude"',
     launcher="claude-code.desktop",
     update='export PATH="$HOME/.local/bin:$PATH"; claude update',
+    version='"$HOME/.local/bin/claude" --version',
+    # Kein Open Source, Lizenz von Anthropic: nur über den offiziellen Installer
+    redistributable=False,
+    uninstall=r"""
+rm -rf "$AGENT_HOME/.local/bin/claude" "$AGENT_HOME/.local/share/claude" "$AGENT_HOME/.local/state/claude" \
+  "$AGENT_HOME/.cache/claude" "$AGENT_HOME/.claude" "$AGENT_HOME/.claude.json" "$AGENT_HOME/.claude.json.backup" \
+  /usr/local/bin/bonys-claude-code /usr/share/applications/claude-code.desktop "$DESKTOP_DIR/claude-code.desktop"
+""",
     # Offizieller Installer, unverändert: legt ~/.local/bin/claude an. Keine Zugangsdaten –
     # angemeldet wird beim ersten Start über den offiziellen Weg im Browser des Agent-PCs.
     install=ENSURE_PATH + r"""
@@ -519,6 +552,11 @@ MISSION_CONTROL = _mission_control()
 
 APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, VPN, DOCKER, MISSION_CONTROL,
                                                HERMES, OPENCLAW, CLAUDE_CODE)}
+
+
+def not_redistributable(app_ids: list[str] | tuple[str, ...]) -> list[str]:
+    """Die Apps aus ``app_ids``, die nicht in einer weitergegebenen Vorlage stecken dürfen."""
+    return [i for i in app_ids if i in APPS and not APPS[i].redistributable]
 
 
 def default_app_ids() -> list[str]:

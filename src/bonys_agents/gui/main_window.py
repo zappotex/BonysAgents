@@ -156,14 +156,17 @@ class MainWindow(QMainWindow):
         self.import_btn = QPushButton("Hinzufügen …")
         self.import_btn.setToolTip("Vorhandenen Agent-PC von einer SSD oder aus einem Ordner in die Liste aufnehmen")
         self.templates_btn = QPushButton("Vorlagen")
-        self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, exportieren, importieren")
+        self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, weitergeben, im Netzwerk freigeben, "
+                                      "importieren")
+        self.join_btn = QPushButton("Schulung beitreten")
+        self.join_btn.setToolTip("Vorlage vom Rechner des Kursleiters laden (im selben Netz oder per VPN)")
         self.new_btn = QPushButton("+  Neuer Agent-PC")
         self.new_btn.setObjectName("Primary")
         # Bony's VPN für diesen Rechner – eigenes Programm (nur Linux; Windows/macOS: ⓘ → Extras)
         self.vpn_btn = QPushButton("VPN")
         self.vpn_btn.setIcon(vpn_icon())
         self.vpn_btn.setVisible(sys.platform.startswith("linux"))
-        for b in (self.youtube_btn, self.doctor_btn, self.vpn_btn, self.import_btn, self.templates_btn,
+        for b in (self.youtube_btn, self.doctor_btn, self.vpn_btn, self.import_btn, self.join_btn, self.templates_btn,
                   self.new_btn):
             top_buttons.addWidget(b)
         outer.addLayout(top)
@@ -203,6 +206,7 @@ class MainWindow(QMainWindow):
         self.doctor_btn.clicked.connect(self.show_doctor)
         self.import_btn.clicked.connect(self.import_vm)
         self.templates_btn.clicked.connect(self.show_templates)
+        self.join_btn.clicked.connect(self.join_training)
         self.youtube_btn.clicked.connect(lambda: open_url(YOUTUBE_CHANNEL_URL))
         self.vpn_btn.clicked.connect(self.host_vpn)
         self._vpn_button_state()
@@ -990,7 +994,9 @@ class MainWindow(QMainWindow):
         self.d_fields["Benutzer"].setText(c.username)
         others = [desktops.name(d) for d in c.extra_desktops]
         self.d_fields["Desktop"].setText(desktops.name(c.desktop) + (f"\nauch: {', '.join(others)}" if others else ""))
-        self.d_fields["Programme"].setText(", ".join(apps.labels(c.apps, c.app_info)) or "–")
+        todo = [a for a in c.reinstall if a in apps.APPS and a not in c.apps]
+        self.d_fields["Programme"].setText((", ".join(apps.labels(c.apps, c.app_info)) or "–") + (
+            f"\nNoch zu installieren (offizielle Quelle, Lizenz): {', '.join(apps.names(todo))}" if todo else ""))
         drive = storage.drive_for(m.path)
         where = drive.label if drive else ""
         self.d_fields["Speicherort"].setText(where)
@@ -1249,7 +1255,9 @@ class MainWindow(QMainWindow):
         m = self.current()
         if not m or not m.missing_apps():
             return
-        InstallAppsDialog(m, self, preselect=preselect or []).exec()
+        if preselect is None:  # aus einer weitergegebenen Vorlage: nicht mitgelieferte Apps vorschlagen
+            preselect = [a for a in m.config.reinstall if a in apps.APPS and a not in m.config.apps]
+        InstallAppsDialog(m, self, preselect=preselect).exec()
         self.refresh()
 
     def save_template(self) -> None:
@@ -1265,6 +1273,12 @@ class MainWindow(QMainWindow):
 
     def show_templates(self) -> None:
         TemplatesDialog(self).exec()
+        self.refresh()
+
+    def join_training(self) -> None:
+        from .share_dialogs import JoinDialog
+
+        JoinDialog(self).exec()
         self.refresh()
 
     def make_independent(self) -> None:

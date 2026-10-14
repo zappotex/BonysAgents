@@ -32,6 +32,8 @@ dependencies = [
   "psutil>=5.9",
   "platformdirs>=4.0",
   "pycdlib>=1.14",
+  # QR-Code der Schulungs-Freigabe (reines Python, BSD)
+  "qrcode>=7.4",
 ]
 
 [project.optional-dependencies]

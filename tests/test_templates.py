@@ -26,7 +26,7 @@ needs_gnu = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="bra
 def test_generalize_script_contains_system_cleanup():
     s = cloudinit.generalize_script("agent")
     for cmd in ("cloud-init clean --logs --seed --machine-id", "truncate -s 0 /etc/machine-id",
-                "rm -f /etc/ssh/ssh_host_*", "apt-get clean", "fstrim -av", "/root/.bash_history",
+                "rm -f /etc/ssh/ssh_host_*", "apt-get clean", "fstrim -av", "/root/.bash_history", "wipe /root/.ssh",
                 '"$H/.bash_history"', "find /var/log -type f", cloudinit.HOSTKEY_SERVICE):
         assert cmd in s, cmd
     # erst die Sitzung beenden, dann löschen, ganz am Ende nullen
