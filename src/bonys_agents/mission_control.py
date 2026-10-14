@@ -261,7 +261,8 @@ def app_spec() -> AppSpec:
                     "Docker-Container nur im Agent-PC)",
         default=False,
         weight=14.0,   # Image und Start dauern – mit Docker zusammen etwa wie ein großes Programm
-        requires=("docker",),
+        # Brave: die Verknüpfung öffnet die Oberfläche darin – ohne Browser im Agent-PC ginge sie ins Leere
+        requires=("brave", "docker"),
         check=CHECK,
         launcher=LAUNCHER,
         install=install_script(),

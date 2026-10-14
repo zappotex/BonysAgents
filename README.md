@@ -571,6 +571,8 @@ eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browse
   arm64), der Schlüssel wird gegen den veröffentlichten Fingerabdruck geprüft. Der Benutzer `agent` kommt in
   die Gruppe `docker` – das ist im Agent-PC vertretbar, weil er vom eigenen Rechner abgeschottet ist und der
   Benutzer dort ohnehin Administrator ist. Docker-Images und -Daten liegen im Agent-PC.
+- **Brave** kommt ebenfalls mit, falls es nicht gewählt ist – die Verknüpfung „Mission Control“ öffnet die
+  Oberfläche darin.
 - Installiert wird `install.sh` aus einem **festen Release** von Mission Control (diese Version von
   Bony's Agents: 0.1.0), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
   Bedarf laut `agentpc.json`: ca. 2 GB Festplatte und 512 MB RAM zusätzlich – beim Erstellen warnt der Dialog,

@@ -29,12 +29,15 @@ def bash_syntax_ok(script: str) -> bool:
 
 
 # ---------------------------------------------------------------- Abhängigkeiten
-def test_mission_control_requires_docker():
-    assert apps.APPS[MC.APP_ID].requires == ("docker",)
-    assert apps.dependencies([MC.APP_ID]) == ["docker"]
+def test_mission_control_requires_docker_and_brave():
+    # Brave: die Verknüpfung öffnet die Oberfläche darin (ohne Browser im Agent-PC passierte nichts)
+    assert apps.APPS[MC.APP_ID].requires == ("brave", "docker")
+    assert apps.dependencies([MC.APP_ID]) == ["brave", "docker"]
+    assert apps.dependencies([MC.APP_ID, "brave"]) == ["docker"]
     assert apps.with_dependencies(["hermes", MC.APP_ID, "brave"]) == ["brave", "docker", MC.APP_ID, "hermes"]
-    assert [a.id for a in apps.resolve([MC.APP_ID])] == ["docker", MC.APP_ID]
+    assert [a.id for a in apps.resolve([MC.APP_ID])] == ["brave", "docker", MC.APP_ID]
     assert apps.required_by("docker", ["brave", MC.APP_ID]) == [MC.APP_ID]
+    assert apps.required_by("brave", ["brave", "docker", MC.APP_ID]) == [MC.APP_ID]
     assert apps.dependencies(["brave"]) == [] and apps.with_dependencies(["docker"]) == ["docker"]
 
 
@@ -218,7 +221,7 @@ def test_cli_apps_lists_installed_and_available(datadir, monkeypatch, capsys):
     assert "telegram" in available and "docker" not in available and MC.APP_ID not in available
     assert cli.main(["apps"]) == 0
     out = capsys.readouterr().out
-    assert "mission-control" in out and "(bringt Docker mit)" in out and "  docker " not in out
+    assert "mission-control" in out and "(bringt Brave Browser, Docker mit)" in out and "  docker " not in out
 
 
 def test_cli_install_several_apps(datadir, monkeypatch, capsys):
@@ -515,7 +518,10 @@ def test_create_dialog_selects_docker_and_warns(qapp):
     dlg.desktop.setCurrentIndex(dlg.desktop.findData("cinnamon"))
     dlg.ram.setValue(desktops.get("cinnamon").min_ram_mb // 512)
     dlg.mc_box.setChecked(True)
+    dlg.app_boxes["brave"].setChecked(True)
     assert "Wird mitinstalliert: Docker" in dlg.mc_desc.text()
+    dlg.app_boxes["brave"].setChecked(False)  # ohne Brave-Häkchen kommt Brave trotzdem mit – und steht da
+    assert "Wird mitinstalliert: Brave Browser, Docker" in dlg.mc_desc.text()
     assert not dlg.mc_warn.isHidden() and "RAM" in dlg.mc_warn.text()
     dlg._fix_mc()
     assert dlg.ram.value() * 512 >= desktops.get("cinnamon").min_ram_mb + MC.DEFAULT_REQUIREMENTS.min_ram_mb

@@ -296,6 +296,9 @@ class CreateDialog(QDialog):
         lay.addWidget(self.mc_warn)
         lay.addLayout(fix_row)
         self.mc_box.toggled.connect(self._update_mc)
+        for dep in spec.requires:
+            if dep in self.app_boxes:
+                self.app_boxes[dep].toggled.connect(self._update_mc)
         self.mc_fix.clicked.connect(self._fix_mc)
         # Mindestwerte aus agentpc.json des Release (im Hintergrund, höchstens 5 s) – ohne Netz Standardwerte
         threading.Thread(target=mission_control.requirements, daemon=True).start()
@@ -328,7 +331,9 @@ class CreateDialog(QDialog):
         spec = apps.APPS[mission_control.APP_ID]
         text = f"{spec.description}. Open Source – {mission_control.requirement_note(self.mc_req)}."
         if self.mc_box.isChecked():
-            deps = apps.dependencies([spec.id])
+            # sichtbare Abhängigkeiten (Brave) nur nennen, wenn ihr Häkchen fehlt
+            deps = [d for d in apps.dependencies([spec.id])
+                    if d not in self.app_boxes or not self.app_boxes[d].isChecked()]
             text += f"\n✓ Wird mitinstalliert: {', '.join(apps.names(deps))} (offizielle Paketquelle)"
         self.mc_desc.setText(text)
         warnings = self._mc_warnings()
