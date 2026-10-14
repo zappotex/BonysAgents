@@ -215,7 +215,8 @@ def test_no_automatic_screen_lock():
         assert desktops.nolock_script() in _steps(_script(d))["BONYS_STEP_2"]
 
 
-@needs_bash
+# nur Linux: wie im Gast (Debian) braucht chown eine Gruppe mit dem Namen des Benutzers – macOS hat sie nicht
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not shutil.which("bash"), reason="Gast-Skript, Linux")
 def test_nolock_script_hides_xfce_lockers_and_keeps_own_choice(tmp_path):
     import getpass
 
