@@ -28,6 +28,8 @@ _APT_SUMMARY = re.compile(r"(\d+) (?:newly installed|neu installiert)")
 # Englisch und Deutsch: „Get:/Holen:“, „Unpacking/Entpacken von“, „Setting up/… wird eingerichtet“
 _APT_ACTION = re.compile(r"^(?:Get:|Holen:|Unpacking |Entpacken von |Setting up |.* wird eingerichtet)", re.M)
 _STEP = re.compile(rf"{cloudinit.STEP_MARKER} (\d+)/(\d+)")
+# Fortschrittszeilen von install.sh aus Mission Control: „[mission-control] (3/10) …“
+_MC_STEP = re.compile(r"^\[mission-control\] \((\d+)/(\d+)\)", re.M)
 
 # Steuerzeichen von Terminals (Farben ESC[0;32m, ESC[?7h, Abfragen wie ESC[6n …) – die serielle
 # Konsole des Gasts enthält sie, in der Anzeige der App sind sie nur störender Zeichensalat.
@@ -89,6 +91,11 @@ def _asymptotic(lines: int, scale: float, cap: float = 0.9) -> float:
 
 def step_fraction(step_text: str) -> float:
     """Wie weit ein einzelner Schritt ist (0..1), aus seiner Konsolenausgabe geschätzt."""
+    mc = list(_MC_STEP.finditer(step_text))
+    if mc:
+        n, total = int(mc[-1].group(1)), max(int(mc[-1].group(2)), 1)
+        # Vor install.sh: Download und Prüfung (5 %); jeder Schritt zählt erst halb, bis der nächste beginnt
+        return min(0.05 + 0.93 * (n - 0.5) / total, 0.98)
     summaries = list(_APT_SUMMARY.finditer(step_text))
     if summaries:
         last = summaries[-1]
@@ -126,6 +133,16 @@ def setup_percent(console: str, app_ids: list[str], ready: bool, pending: bool =
     if not 1 <= step <= len(ranges):  # passt nicht zur Konfiguration – nur grob anzeigen
         return _lerp(SETUP, (step - 1) / max(int(last.group(2)), 1))
     return _lerp(ranges[step - 1], step_fraction(console[last.end():]))
+
+
+def install_percent(app_ids: list[str], index: int, step_text: str) -> float:
+    """Fortschritt (0..100) beim Nachinstallieren: ``index`` = laufende App (0-basiert), Text = ihre Ausgabe."""
+    weights = [apps.APPS[a].weight if a in apps.APPS else APP_DEFAULT for a in app_ids]
+    total = sum(weights) or 1.0
+    if not 0 <= index < len(weights):
+        return 100.0 if index >= len(weights) else 0.0
+    done = sum(weights[:index])
+    return 100.0 * (done + weights[index] * step_fraction(step_text)) / total
 
 
 def eta_seconds(t0: float, p0: float, t: float, p: float,

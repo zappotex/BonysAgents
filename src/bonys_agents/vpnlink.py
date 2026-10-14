@@ -439,10 +439,8 @@ def update_app(machine: VM, password: str | None = None, ssh_prompt: bool = Fals
 
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
         raise VpnError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
-    script = cloudinit.app_install_script(apps.VPN, machine.config.username)
-    # Ausgabe auch auf die serielle Konsole – so zeigt die App sie live (wie beim Aktualisieren)
-    script = script.replace("set -uo pipefail\n", "set -uo pipefail\n"
-                            "exec > >(tee -a /var/log/bonys-agents-vpn.log /dev/console) 2>&1\n", 1)
+    # Ausgabe geht auch auf die serielle Konsole – so zeigt die App sie live (wie beim Aktualisieren)
+    script = cloudinit.app_install_script(apps.VPN, machine.config.username, force=True)
     rc, out = machine.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log, timeout=20 * 60)
     if apps.VPN_BLOCKED_HINT in out:
         raise VpnError("Der Kill-Switch ist an, aber kein Tunnel verbunden – ohne VPN kann der Agent-PC das Paket "

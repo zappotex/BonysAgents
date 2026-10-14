@@ -7,7 +7,8 @@ KI-Werkzeuge installieren sich selbst als $AGENT_USER (nie als root) und
 bringen keinerlei Zugangsdaten mit – angemeldet wird beim ersten Start im Agent-PC.
 
 Neue App hinzufügen = einen weiteren ``AppSpec`` in ``APPS`` eintragen.
-Die Reihenfolge in ``APPS`` ist auch die Reihenfolge der Einrichtungsschritte.
+Die Reihenfolge in ``APPS`` ist auch die Reihenfolge der Einrichtungsschritte – Abhängigkeiten
+(``requires``) müssen deshalb vor den Apps stehen, die sie brauchen.
 """
 
 from __future__ import annotations
@@ -34,6 +35,10 @@ class AppSpec:
     update: str = ""
     # Name der .desktop-Datei (für das GNOME-Dash); leer = kein Programm-Symbol
     launcher: str = ""
+    # Andere Apps, die mitinstalliert werden (IDs, z. B. "docker")
+    requires: tuple[str, ...] = ()
+    # Nur Baustein für andere Apps: im Dialog keine eigene Auswahl, nur „wird mitinstalliert“
+    hidden: bool = False
 
 
 # Ordner im PATH des Agent-Benutzers ergänzen – in ~/.bashrc (Terminal) und ~/.profile (Anmeldung).
@@ -306,6 +311,66 @@ VPN = AppSpec(
     install=_vpn_install(),
 )
 
+# Docker aus der offiziellen Paketquelle von Docker (nicht docker.io aus Debian). Der Schlüssel wird gegen
+# den veröffentlichten Fingerabdruck geprüft, bevor apt ihm vertraut. Alte Pakete aus Debian (docker.io,
+# docker-compose …) stören die offiziellen und werden vorher entfernt – /var/lib/docker bleibt dabei.
+DOCKER_KEY_URL = "https://download.docker.com/linux/debian/gpg"
+DOCKER_KEY_FINGERPRINT = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+DOCKER_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin", "docker-compose-plugin")
+
+DOCKER = AppSpec(
+    id="docker",
+    name="Docker",
+    description="Container-Laufzeit aus der offiziellen Docker-Paketquelle (für Mission Control)",
+    default=False,
+    hidden=True,
+    weight=8.0,
+    # als Agent-Benutzer: Gruppe docker wirkt (su - meldet neu an), Dienst und Compose-Plugin da
+    check="docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1",
+    install=r"""
+apt-get install -y ca-certificates curl gnupg
+ARCH="$(dpkg --print-architecture)"
+case "$ARCH" in amd64|arm64) ;; *) echo "Docker gibt es hier nur für amd64 und arm64 (gefunden: $ARCH)." >&2; exit 1 ;; esac
+CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+TMP="$(mktemp -d)"
+curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$TMP/docker.asc" '""" + DOCKER_KEY_URL + r"""'
+FPR="$(gpg --batch --show-keys --with-colons "$TMP/docker.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
+if [ "$FPR" != '""" + DOCKER_KEY_FINGERPRINT + r"""' ]; then
+  echo "FEHLER: Der Schlüssel der Docker-Paketquelle hat einen unerwarteten Fingerabdruck – nichts installiert." >&2
+  exit 1
+fi
+echo "Docker-Paketquelle: Schlüssel geprüft (Fingerabdruck $FPR)."
+install -d -m 0755 /etc/apt/keyrings
+install -m 0644 "$TMP/docker.asc" /etc/apt/keyrings/docker.asc
+rm -rf "$TMP"
+echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $CODENAME stable" \
+  > /etc/apt/sources.list.d/docker.list
+OLD=""
+for p in docker.io docker-doc docker-compose docker-cli podman-docker containerd runc; do
+  dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed' && OLD="$OLD $p"
+done
+if [ -n "$OLD" ]; then
+  echo "Entferne Docker-Pakete aus Debian:$OLD (Daten in /var/lib/docker bleiben)"
+  # shellcheck disable=SC2086
+  apt-get remove -y $OLD
+fi
+apt-get update -y
+apt-get install -y """ + " ".join(DOCKER_PACKAGES) + r"""
+systemctl enable --now containerd.service docker.service
+# Im Agent-PC vertretbar: Er ist vom Host abgeschottet, der Agent-Benutzer hat ohnehin sudo.
+usermod -a -G docker "$AGENT_USER"
+docker --version
+docker compose version
+""",
+)
+
+
+def _mission_control():
+    from bonys_agents import mission_control
+
+    return mission_control.app_spec()
+
+
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
@@ -437,8 +502,10 @@ cp /usr/share/applications/claude-code.desktop "$DESKTOP_DIR/"
 """,
 )
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, VPN, HERMES, OPENCLAW,
-                                               CLAUDE_CODE)}
+MISSION_CONTROL = _mission_control()
+
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, VPN, DOCKER, MISSION_CONTROL,
+                                               HERMES, OPENCLAW, CLAUDE_CODE)}
 
 
 def default_app_ids() -> list[str]:
@@ -449,18 +516,56 @@ def ids_in_category(category: str) -> list[str]:
     return [a.id for a in APPS.values() if a.category == category]
 
 
+def visible_ids() -> list[str]:
+    """Apps, die man selbst auswählen kann (ohne reine Bausteine wie Docker)."""
+    return [a.id for a in APPS.values() if not a.hidden]
+
+
+def dependencies(app_ids: list[str] | tuple[str, ...]) -> list[str]:
+    """Alle Apps, die für ``app_ids`` mitinstalliert werden (auch indirekt), ohne die gewählten selbst."""
+    wanted = [i for i in app_ids if i in APPS]
+    seen: set[str] = set(wanted)
+    todo = list(wanted)
+    while todo:
+        for dep in APPS[todo.pop()].requires:
+            if dep not in seen:
+                seen.add(dep)
+                todo.append(dep)
+    return [i for i in APPS if i in seen and i not in wanted]
+
+
+def with_dependencies(app_ids: list[str] | tuple[str, ...]) -> list[str]:
+    """IDs samt Abhängigkeiten, in der festen Reihenfolge von ``APPS`` (unbekannte IDs bleiben hinten)."""
+    known = set(app_ids) | set(dependencies(app_ids))
+    return [i for i in APPS if i in known] + [i for i in app_ids if i not in APPS]
+
+
+def required_by(app_id: str, app_ids: list[str] | tuple[str, ...]) -> list[str]:
+    """Welche der ``app_ids`` brauchen ``app_id`` (direkt oder indirekt)?"""
+    return [i for i in app_ids if i != app_id and i in APPS and app_id in dependencies([i])]
+
+
 def resolve(app_ids: list[str]) -> list[AppSpec]:
-    """Apps zu den IDs – ohne Doppelte und immer in der festen Reihenfolge von ``APPS``."""
+    """Apps zu den IDs samt Abhängigkeiten – ohne Doppelte und immer in der festen Reihenfolge von ``APPS``."""
     app_ids = [i.strip() for i in app_ids if i.strip()]
     unknown = [i for i in app_ids if i not in APPS]
     if unknown:
-        raise ValueError(f"Unbekannte App(s): {', '.join(unknown)}. Verfügbar: {', '.join(APPS)}")
-    return [a for a in APPS.values() if a.id in app_ids]
+        raise ValueError(f"Unbekannte App(s): {', '.join(unknown)}. Verfügbar: {', '.join(visible_ids())}")
+    return [APPS[i] for i in with_dependencies(app_ids)]
 
 
 def names(app_ids: list[str]) -> list[str]:
     """Anzeigenamen; unbekannte IDs (z. B. aus neueren Versionen) bleiben, wie sie sind."""
     return [APPS[i].name if i in APPS else i for i in app_ids]
+
+
+def labels(app_ids: list[str], app_info: dict | None = None) -> list[str]:
+    """Anzeigenamen, mit Version, wenn eine bekannt ist (z. B. „Mission Control 0.1.0“)."""
+    out = []
+    for app_id, name in zip(app_ids, names(app_ids), strict=True):
+        version = ((app_info or {}).get(app_id) or {}).get("version")
+        out.append(f"{name} {version}" if version else name)
+    return out
 
 
 # Sind dpkg/apt gerade beschäftigt (z. B. automatische Updates im Gast)? Geprüft werden dieselben

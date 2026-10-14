@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 
 from bonys_agents import (
-    APP_NAME, __version__, apps, deps, desktops, host, procutil, qemu, remote, screen, storage, vm, vpnlink,
+    APP_NAME, __version__, apps, deps, desktops, host, mission_control, procutil, qemu, remote, screen, storage, vm,
+    vpnlink,
 )
 from bonys_agents import progress as pct
 
@@ -203,6 +204,7 @@ def cmd_create(args) -> int:
     vpn = vpn_setup(args)
     desk = desktops.get(args.desktop)
     _warn_ram(desk.id, args.ram)
+    _warn_mission_control(app_ids, desk.id, args.ram, args.disk or vm.DEFAULT_DISK_GB)
     if not _ensure_ready(args.yes):
         print("Agent-PC kann noch nicht erstellt werden – siehe oben.")
         return 1
@@ -253,6 +255,19 @@ def _warn_ram(desktop_id: str, ram_mb: int | None) -> None:
     warning = desktops.ram_warning(desktop_id, ram)
     if warning:
         print(f"⚠ {warning}")
+
+
+def _warn_mission_control(app_ids: list[str] | None, desktop_id: str, ram_mb: int | None, disk_gb: int) -> None:
+    ids = app_ids if app_ids is not None else apps.default_app_ids()
+    if mission_control.APP_ID not in ids:
+        return
+    deps = apps.dependencies(ids)
+    if deps:
+        print(f"Wird mitinstalliert: {', '.join(apps.names(deps))}")
+    ram = ram_mb or host.detect().default_vm_ram_mb
+    for w in mission_control.resource_warnings(ids, ram, disk_gb, desktops.get(desktop_id).min_ram_mb,
+                                               mission_control.requirements()):
+        print(f"⚠ {w} (--ram/--disk)")
 
 
 def _ask_password() -> str:
@@ -436,7 +451,9 @@ def cmd_status(args) -> int:
     print(f"Name:    {c.name}\nStatus:  {m.status()}\nCPU/RAM: {c.cpus} / {c.ram_mb} MB\nDisk:    {c.disk_gb} GB")
     print(f"Benutzer: {c.username}\nDesktop: {desktops.name(c.desktop)}"
           + (f" (weitere: {', '.join(desktops.name(d) for d in c.extra_desktops)})" if c.extra_desktops else ""))
-    print(f"Apps:    {', '.join(c.apps)}\nOrdner:  {m.path}")
+    shown = [a + (f" {(c.app_info.get(a) or {}).get('version')}" if (c.app_info.get(a) or {}).get("version") else "")
+             for a in c.apps]
+    print(f"Apps:    {', '.join(shown)}\nOrdner:  {m.path}")
     if m.is_linked():
         print(f"Vorlage: {c.template or '?'} (verknüpft: {m.backing_file()})")
     elif c.template:
@@ -576,13 +593,42 @@ def cmd_add_desktop(args) -> int:
     return 0
 
 
+def _app_line(a: apps.AppSpec, extra: str = "") -> str:
+    deps = apps.dependencies([a.id])
+    note = f"  (bringt {', '.join(apps.names(deps))} mit)" if deps else ""
+    return f"  {a.id:16} {a.name:22} {a.description}{note}{extra}"
+
+
 def cmd_apps(args) -> int:
+    if getattr(args, "name", None):
+        return _apps_of(vm.get(args.name))
     for title, cat in (("Programme", apps.PROGRAM), ("KI-Werkzeuge (--agents)", apps.AGENT)):
         print(f"{title}:")
         for a in apps.APPS.values():
-            if a.category == cat:
-                std = "  [Standard]" if a.default else ""
-                print(f"  {a.id:12} {a.name:18} {a.description}{std}")
+            if a.category == cat and not a.hidden:
+                print(_app_line(a, "  [Standard]" if a.default else ""))
+    hidden = [a.name for a in apps.APPS.values() if a.hidden]
+    if hidden:
+        print(f"\nBausteine, die bei Bedarf automatisch mitkommen: {', '.join(hidden)}")
+    print(f"\nMission Control: {mission_control.requirement_note()}.")
+    return 0
+
+
+def _apps_of(m: vm.VM) -> int:
+    c = m.config
+    print(f"Installiert in „{m.name}“:")
+    for app_id in c.apps:
+        info = c.app_info.get(app_id) or {}
+        ver = f"  Version {info['version']}" if info.get("version") else ""
+        name = apps.APPS[app_id].name if app_id in apps.APPS else app_id
+        print(f"  {app_id:16} {name}{ver}")
+    missing = m.missing_apps()
+    if missing:
+        print("\nVerfügbar (bonys-agents install NAME APP …):")
+        for a in missing:
+            print(_app_line(a))
+    else:
+        print("\nAlle verfügbaren Apps sind installiert.")
     return 0
 
 
@@ -608,12 +654,65 @@ def app_selection(apps_arg: str | None, agents_arg: str | None) -> list[str] | N
 
 def cmd_install(args) -> int:
     m = vm.get(args.name)
-    spec = apps.APPS.get(args.app)
-    if spec is None:
-        raise ValueError(f"Unbekannte App '{args.app}'. Verfügbar: {', '.join(apps.APPS)}")
-    print(f"Installiere {spec.name} in „{m.name}“ per SSH – ssh fragt ggf. nach dem Passwort des Agent-PCs.")
-    m.install_app(args.app)
-    print(f"Fertig: {spec.name} ist installiert. Das Symbol liegt auf dem Schreibtisch des Agent-PCs.")
+    plan = m.install_plan(args.apps)
+    if not plan:
+        print(f"Schon installiert: {', '.join(apps.names(args.apps))}.")
+        return 0
+    deps = [i for i in plan if i not in args.apps]
+    print(f"Installiere in „{m.name}“: {', '.join(apps.names(plan))}"
+          + (f" ({', '.join(apps.names(deps))} wird mitinstalliert)" if deps else ""))
+    if mission_control.APP_ID in plan:
+        for w in mission_control.resource_warnings(plan, m.config.ram_mb, m.config.disk_gb,
+                                                   desktops.get(m.config.desktop).min_ram_mb,
+                                                   mission_control.requirements()):
+            print(f"⚠ {w}")
+    print("Ohne Gast-Agent fragt ssh nach dem Passwort des Agent-PCs. Bricht etwas ab: denselben Befehl erneut "
+          "ausführen – fertige Programme werden übersprungen.")
+
+    def step(n: int, total: int, app_id: str) -> None:
+        print(f"==> ({n}/{total}) {apps.APPS[app_id].name}")
+
+    m.install_apps(args.apps, ssh_prompt=True, log=print, step=step)
+    print(f"Fertig: {', '.join(apps.names(plan))} installiert. Die Symbole liegen auf dem Schreibtisch des Agent-PCs.")
+    return 0
+
+
+def cmd_mission_control(args) -> int:
+    m = vm.get(args.name)
+    mc = mission_control
+    kw = {"ssh_prompt": True}
+    if args.action == "status":
+        if mc.APP_ID not in m.config.apps:
+            print(f"{mc.NAME} ist in „{m.name}“ nicht installiert (bonys-agents install {m.name} {mc.APP_ID}).")
+            return 1
+        st = mc.status(m, **kw) if m.is_running() else None
+        print(f"{mc.NAME}: " + (mc.status_text(st) if st else "Agent-PC läuft nicht"))
+        if st and st.get("installed"):
+            print(f"  Adresse im Agent-PC: http://127.0.0.1:{st.get('port', mc.PORT)}/")
+        if m.config.mc_forward:
+            print(f"  Weiterleitung an diesen Rechner: {mc.forward_url(m)} (nur 127.0.0.1)")
+        return 0 if st is None or st.get("healthy") else 1
+    if args.action == "open":
+        print(mc.open_in_guest(m, **kw))
+    elif args.action == "update":
+        print(f"Aktualisiere {mc.NAME} auf {args.version} … (Einstellungen, Geheimnisse und Daten bleiben)")
+        print(mc.update(m, version=args.version, log=print, **kw))
+    elif args.action == "uninstall":
+        if args.purge and not _yes(f"Wirklich ALLE Daten und Einstellungen von {mc.NAME} in „{m.name}“ löschen? "
+                                   "Das lässt sich nicht rückgängig machen.", args.yes):
+            print("Abgebrochen.")
+            return 1
+        print(mc.uninstall(m, purge=args.purge, log=print, **kw))
+    elif args.action == "forward":
+        if args.value not in ("on", "off"):
+            print("Bitte „forward on“ oder „forward off“ angeben.", file=sys.stderr)
+            return 2
+        if args.value == "on":
+            print(f"⚠ {mc.FORWARD_WARNING}")
+            if not _yes("Weiterleitung einschalten?", args.yes):
+                print("Abgebrochen.")
+                return 1
+        print(mc.set_forward(m, args.value == "on", **kw))
     return 0
 
 
@@ -791,6 +890,7 @@ def cmd_template_create(args) -> int:
     print("In der Vorlage wird gelöscht bzw. zurückgesetzt:")
     if remove:
         print(f"  • {vpnlink.FRESH_CLEANUP}")
+        print(f"  • {mission_control.FRESH_CLEANUP}")
         for item in cloudinit.PERSONAL_DATA:
             print(f"  • {item.title}")
             for path in item.paths:
@@ -799,6 +899,8 @@ def cmd_template_create(args) -> int:
         print("  • Persönliche Daten bleiben ERHALTEN (--keep-personal-data) – Vorlage nicht weitergeben!")
         if vpnlink.APP_ID in m.config.apps:
             print(f"  ⚠ {vpnlink.CLONE_WARNING}")
+        if mission_control.APP_ID in m.config.apps:
+            print(f"  ⚠ {mission_control.CLONE_NOTE}")
     for line in cloudinit.SYSTEM_CLEANUP:
         print(f"  • {line}")
     print()
@@ -946,7 +1048,9 @@ def build_parser() -> argparse.ArgumentParser:
     ug.add_argument("name", nargs="?")
     ug.add_argument("--all", action="store_true", help="Alle laufenden Agent-PCs")
     ug.set_defaults(func=cmd_upgrade)
-    sub.add_parser("apps", help="Verfügbare Apps anzeigen").set_defaults(func=cmd_apps)
+    ap = sub.add_parser("apps", help="Verfügbare Apps anzeigen – mit NAME: installierte und noch verfügbare")
+    ap.add_argument("name", nargs="?", metavar="NAME", help="Agent-PC")
+    ap.set_defaults(func=cmd_apps)
     sub.add_parser("desktops", help="Verfügbare Desktops mit RAM-Empfehlung anzeigen").set_defaults(func=cmd_desktops)
     ad = sub.add_parser("add-desktop", help="Weiteren Desktop in einen laufenden Agent-PC installieren (per SSH)")
     ad.add_argument("name")
@@ -1045,10 +1149,23 @@ def build_parser() -> argparse.ArgumentParser:
     im = sub.add_parser("import", help="Vorhandene Agent-PCs (z. B. von einer SSD) hinzufügen")
     im.add_argument("path", metavar="ORDNER")
     im.set_defaults(func=cmd_import)
-    ins = sub.add_parser("install", help="App nachträglich in einen laufenden Agent-PC installieren (per SSH)")
+    ins = sub.add_parser("install", help="Apps nachträglich in einen laufenden Agent-PC installieren "
+                                          "(Abhängigkeiten kommen mit; erneut aufrufen setzt nach Abbruch fort)")
     ins.add_argument("name")
-    ins.add_argument("app", help=f"z. B. {', '.join(apps.APPS)}")
+    ins.add_argument("apps", nargs="+", metavar="APP", help=f"z. B. {', '.join(apps.visible_ids())}")
     ins.set_defaults(func=cmd_install)
+    mcp = sub.add_parser("mission-control", help="Mission Control im Agent-PC: Status, öffnen, aktualisieren, "
+                                                 "deinstallieren, Weiterleitung",
+                         description="status | open | update [--version X] | uninstall [--purge] | forward on|off")
+    mcp.add_argument("name")
+    mcp.add_argument("action", choices=["status", "open", "update", "uninstall", "forward"])
+    mcp.add_argument("value", nargs="?", metavar="WERT", help="bei forward: on oder off")
+    mcp.add_argument("--version", default="latest",
+                     help=f"bei update: Release, z. B. {mission_control.VERSION} (Standard: latest = neuestes)")
+    mcp.add_argument("--purge", action="store_true",
+                     help="bei uninstall: auch Einstellungen, Geheimnisse und Daten löschen (nicht umkehrbar)")
+    mcp.add_argument("-y", "--yes", action="store_true", help="Ohne Rückfrage")
+    mcp.set_defaults(func=cmd_mission_control)
     vp = sub.add_parser("vpn", help="Bony's VPN im laufenden Agent-PC: Status, verbinden, trennen, importieren",
                         description="status [--json] | up [TUNNEL] | down [TUNNEL] | import DATEI | "
                                     "killswitch on|off | autostart on|off | ip | update (VPN-App aktualisieren)")

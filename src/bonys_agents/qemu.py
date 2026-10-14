@@ -109,6 +109,8 @@ class LaunchSpec:
     # Netz abschotten: kein Internet und kein Zugriff auf den Host – nur die SSH-Weiterleitung bleibt
     # (z. B. beim Verallgemeinern für eine Vorlage, damit keine Sitzung des Originals online geht).
     restrict_net: bool = False
+    # Weitere Weiterleitungen schon beim Start (Regeln wie bei hostfwd, z. B. Mission Control nur an 127.0.0.1)
+    extra_forwards: tuple[str, ...] = ()
     # Nullen auf der Festplatte als „Null-Cluster“ speichern statt als Daten (Arbeitskopie für Vorlagen:
     # das Überschreiben des freien Platzes kostet so keinen Platz)
     zero_unmap: bool = False
@@ -203,6 +205,8 @@ def _netdev(s: LaunchSpec) -> str:
         net += ",restrict=on"
     if s.rdp_port and s.rdp_addr:
         net += f",hostfwd={rdp_forward(s.rdp_addr, s.rdp_port)}"
+    for rule in s.extra_forwards:
+        net += f",hostfwd={rule}"
     return net
 
 

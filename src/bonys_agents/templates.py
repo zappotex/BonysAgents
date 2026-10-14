@@ -66,6 +66,7 @@ class Template:
     personal_data_removed: bool = True
     desktop: str = "cinnamon"
     extra_desktops: list[str] = field(default_factory=list)
+    app_info: dict = field(default_factory=dict)   # wie in vm.json, z. B. Version von Mission Control
     format: int = FORMAT
 
     @property
@@ -337,6 +338,7 @@ def create(vm_name: str, name: str, description: str = "", remove_personal: bool
                 source=machine.name, username=machine.config.username, keyboard=machine.config.keyboard,
                 timezone=machine.config.timezone, personal_data_removed=remove_personal,
                 desktop=machine.config.desktop, extra_desktops=list(machine.config.extra_desktops),
+                app_info=json.loads(json.dumps(machine.config.app_info)),
             )
             tpl.save()
             os.replace(part, target)

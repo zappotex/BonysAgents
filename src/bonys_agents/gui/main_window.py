@@ -26,6 +26,7 @@ from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
 from .host_vpn import button_text, linux_vpn, mac_wireguard, vpn_icon, windows_wireguard
 from .install_dialog import InstallAppsDialog
+from .mc_panel import McPanel
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
 from .vpn_panel import VpnPanel
 from .move_dialog import MoveDialog
@@ -619,7 +620,9 @@ class MainWindow(QMainWindow):
         self.tab_remote = QPushButton("Fernzugriff")
         self.tab_vpn = QPushButton("VPN")
         self.tab_vpn.setToolTip("Bony's VPN im Agent-PC: Status, verbinden, trennen, Konfiguration importieren")
-        for b in (self.tab_console, self.tab_remote, self.tab_vpn):
+        self.tab_mc = QPushButton("Mission Control")
+        self.tab_mc.setToolTip("Mission Control im Agent-PC: Status, öffnen, aktualisieren, deinstallieren")
+        for b in (self.tab_console, self.tab_remote, self.tab_vpn, self.tab_mc):
             b.setObjectName("Tab")
             b.setCheckable(True)
             tabs.addWidget(b)
@@ -653,10 +656,21 @@ class MainWindow(QMainWindow):
         self.lower.addWidget(self.console)
         self.lower.addWidget(remote_scroll)
         self.lower.addWidget(vpn_scroll)
+        self.mc_panel = McPanel()
+        mc_scroll = QScrollArea()
+        mc_scroll.setObjectName("Glass")
+        mc_scroll.setWidgetResizable(True)
+        mc_scroll.setFrameShape(QFrame.NoFrame)
+        mc_scroll.setWidget(self.mc_panel)
+        mc_scroll.setMinimumHeight(style.px(200))
+        self.lower.addWidget(mc_scroll)
         lay.addWidget(self.lower, 1)
         self.tab_console.clicked.connect(lambda: self._show_tab(0))
         self.tab_remote.clicked.connect(lambda: self._show_tab(1))
         self.tab_vpn.clicked.connect(lambda: self._show_tab(2))
+        self.tab_mc.clicked.connect(lambda: self._show_tab(3))
+        self.mc_panel.install_requested.connect(lambda: self.add_apps(preselect=["mission-control"]))
+        self.mc_panel.changed.connect(self.refresh_detail)
         self.remote_panel.changed.connect(self.refresh_detail)
         self.vpn_panel.install_requested.connect(lambda: self.add_apps(preselect=["vpn"]))
 
@@ -692,6 +706,7 @@ class MainWindow(QMainWindow):
         self.tab_console.setChecked(index == 0)
         self.tab_remote.setChecked(index == 1)
         self.tab_vpn.setChecked(index == 2)
+        self.tab_mc.setChecked(index == 3)
         self.refresh_detail()
 
     def _peek(self) -> None:
@@ -975,7 +990,7 @@ class MainWindow(QMainWindow):
         self.d_fields["Benutzer"].setText(c.username)
         others = [desktops.name(d) for d in c.extra_desktops]
         self.d_fields["Desktop"].setText(desktops.name(c.desktop) + (f"\nauch: {', '.join(others)}" if others else ""))
-        self.d_fields["Programme"].setText(", ".join(apps.names(c.apps)) or "–")
+        self.d_fields["Programme"].setText(", ".join(apps.labels(c.apps, c.app_info)) or "–")
         drive = storage.drive_for(m.path)
         where = drive.label if drive else ""
         self.d_fields["Speicherort"].setText(where)
@@ -1044,6 +1059,8 @@ class MainWindow(QMainWindow):
             self.remote_panel.update_for(m, status)
         elif self.lower.currentIndex() == 2:
             self.vpn_panel.update_for(m, status)
+        elif self.lower.currentIndex() == 3:
+            self.mc_panel.update_for(m, status)
         text = m.console_tail(400)
         if text != self.console.toPlainText():
             bar = self.console.verticalScrollBar()

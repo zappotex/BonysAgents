@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, storage, templates, vm, vpnlink
+from bonys_agents import apps, desktops, host, mission_control, storage, templates, vm, vpnlink
 from bonys_agents import progress as pct
 
 from . import style
@@ -173,7 +174,8 @@ class CreateDialog(QDialog):
         self.app_boxes: dict[str, QCheckBox] = {}
         app_row = QHBoxLayout()
         for a in apps.APPS.values():
-            if a.category != apps.PROGRAM or a.id == vpnlink.APP_ID:  # VPN hat einen eigenen Abschnitt
+            # VPN hat einen eigenen Abschnitt, Mission Control steht mit Erklärung darunter, Docker kommt nur mit
+            if a.category != apps.PROGRAM or a.hidden or a.id in (vpnlink.APP_ID, mission_control.APP_ID):
                 continue
             cb = QCheckBox(a.name)
             cb.setChecked(a.default)
@@ -182,6 +184,7 @@ class CreateDialog(QDialog):
             app_row.addWidget(cb)
         app_row.addStretch(1)
         root.addLayout(app_row)
+        root.addWidget(self._mc_section())
 
         root.addWidget(self._vpn_section())
 
@@ -246,6 +249,7 @@ class CreateDialog(QDialog):
         fit_to_screen(self, style.px(600), style.px(860))
 
         self.disk.valueChanged.connect(self.location.set_disk_gb)
+        self.disk.valueChanged.connect(self._update_mc)
         self.location.changed.connect(self._update_ok)
         self.location.changed.connect(self._update_kind)
         self.base.currentIndexChanged.connect(self._base_changed)
@@ -259,6 +263,92 @@ class CreateDialog(QDialog):
         self._update_labels()
         self._base_changed()
         self._update_ok()
+
+    def _mc_section(self) -> QWidget:
+        """Mission Control: Häkchen mit Erklärung, „Docker wird mitinstalliert“ und Hinweis auf knappe Werte."""
+        self.mc_req = mission_control.requirements(fetch=False)
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        spec = apps.APPS[mission_control.APP_ID]
+        self.mc_box = QCheckBox(spec.name)
+        self.mc_box.setChecked(spec.default)
+        self.mc_box.setToolTip(spec.description)
+        self.app_boxes[spec.id] = self.mc_box
+        lay.addWidget(self.mc_box)
+        self.mc_desc = QLabel()
+        self.mc_desc.setObjectName("Muted")
+        self.mc_desc.setWordWrap(True)
+        self.mc_desc.setContentsMargins(26, 0, 0, 2)
+        lay.addWidget(self.mc_desc)
+        self.mc_warn = QLabel()
+        self.mc_warn.setWordWrap(True)
+        self.mc_warn.setStyleSheet(f"color: {style.WARN};")
+        self.mc_warn.setContentsMargins(26, 0, 0, 0)
+        self.mc_fix = QPushButton("Werte anpassen")
+        self.mc_fix.setObjectName("Small")
+        self.mc_fix.setToolTip("Arbeitsspeicher und Festplatte auf die empfohlenen Werte für Mission Control setzen")
+        fix_row = QHBoxLayout()
+        fix_row.setContentsMargins(26, 0, 0, 0)
+        fix_row.addWidget(self.mc_fix)
+        fix_row.addStretch(1)
+        lay.addWidget(self.mc_warn)
+        lay.addLayout(fix_row)
+        self.mc_box.toggled.connect(self._update_mc)
+        self.mc_fix.clicked.connect(self._fix_mc)
+        # Mindestwerte aus agentpc.json des Release (im Hintergrund, höchstens 5 s) – ohne Netz Standardwerte
+        threading.Thread(target=mission_control.requirements, daemon=True).start()
+        self._req_timer = QTimer(self)
+        self._req_timer.setInterval(1000)
+        self._req_timer.timeout.connect(self._req_loaded)
+        self._req_timer.start()
+        self._req_tries = 0
+        return box
+
+    def _req_loaded(self) -> None:
+        self._req_tries += 1
+        req = mission_control.requirements(fetch=False)
+        if req.fetched or self._req_tries >= 8:
+            self._req_timer.stop()
+        if req != self.mc_req:
+            self.mc_req = req
+            self._update_mc()
+
+    def _mc_warnings(self) -> list[str]:
+        if not self.mc_box.isChecked() or self.template() is not None:
+            return []
+        d = desktops.get(self.desktop.currentData() or desktops.DEFAULT)
+        return mission_control.resource_warnings([mission_control.APP_ID], self.ram.value() * 512,
+                                                 self.disk.value(), d.min_ram_mb, self.mc_req)
+
+    def _update_mc(self, *_) -> None:
+        if not hasattr(self, "mc_warn"):
+            return
+        spec = apps.APPS[mission_control.APP_ID]
+        text = f"{spec.description}. Open Source – {mission_control.requirement_note(self.mc_req)}."
+        if self.mc_box.isChecked():
+            deps = apps.dependencies([spec.id])
+            text += f"\n✓ Wird mitinstalliert: {', '.join(apps.names(deps))} (offizielle Paketquelle)"
+        self.mc_desc.setText(text)
+        warnings = self._mc_warnings()
+        self.mc_warn.setText("\n".join(f"⚠ {w}" for w in warnings))
+        self.mc_warn.setVisible(bool(warnings))
+        self.mc_fix.setVisible(bool(warnings))
+
+    def _fix_mc(self) -> None:
+        d = desktops.get(self.desktop.currentData() or desktops.DEFAULT)
+        need_ram = d.min_ram_mb + self.mc_req.min_ram_mb
+        steps = -(-need_ram // 512)
+        if self.ram.value() < steps:
+            self.ram.setValue(min(steps, self.ram.maximum()))
+        need_disk = mission_control.BASE_DISK_GB + self.mc_req.min_free_disk_gb
+        if self.disk.value() < need_disk:
+            self.disk.setValue(next((g for g in vm.DISK_STEPS_GB if g >= need_disk), vm.MAX_DISK_GB))
+        self._update_mc()
+        if self._mc_warnings():
+            self.status.setText("Mehr Arbeitsspeicher gibt dieser Rechner nicht her – Mission Control läuft "
+                                "trotzdem, kann aber knapp werden.")
 
     def _vpn_section(self) -> QWidget:
         """VPN: Bony's VPN installieren, optional mit eigener .conf, automatisch verbinden, Kill-Switch.
@@ -382,6 +472,7 @@ class CreateDialog(QDialog):
         if t is not None and vpnlink.APP_ID not in t.apps:
             self.vpn_setup = None
         self._update_vpn()
+        self._update_mc()
         if t is None:
             self.user.setText("agent")
             self.disk.setValue(vm.DEFAULT_DISK_GB)
@@ -427,11 +518,12 @@ class CreateDialog(QDialog):
         self.ram_warn.setText(f"⚠ {warning}")
         self.ram_warn.setVisible(bool(warning))
         self.ram_label.setText(f"{self.ram.value() * 512 / 1024:.1f} GB")
+        self._update_mc()
 
     def _set_busy(self, busy: bool) -> None:
         for w in (self.name, self.user, self.pw1, self.pw2, self.cpu, self.ram, self.disk,
                   self.keyboard, self.desktop, self.ok_btn, self.location, self.remember_loc, *self.app_boxes.values(),
-                  self.base, self.linked, self.full, self.vpn_opts):
+                  self.base, self.linked, self.full, self.vpn_opts, self.mc_fix):
             w.setEnabled(not busy)
         self.cancel_btn.setEnabled(not busy)
         self.progress.setVisible(busy)

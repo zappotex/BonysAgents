@@ -172,7 +172,7 @@ def test_update_app_runs_the_install_step(monkeypatch):
     machine.run_logged = run_logged
     vpnlink.update_app(machine)
     script, kw = runs[0]
-    assert apps.VPN.install in script and "tee -a /var/log/bonys-agents-vpn.log /dev/console" in script
+    assert apps.VPN.install in script and "/var/log/bonys-agents-apps.log" in script and "/dev/console" in script
     assert kw["timeout"] >= 600 and machine.config.apps == ["brave", "vpn"] and saved
     machine.run_logged = lambda script, **kw: (1, apps.VPN_BLOCKED_HINT)
     with pytest.raises(vpnlink.VpnError, match="Kill-Switch"):

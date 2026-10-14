@@ -25,7 +25,9 @@ from pathlib import Path
 
 import psutil
 
-from bonys_agents import apps, cloudinit, desktops, diagnose, host, images, qemu, remote, screen, storage, vpnlink
+from bonys_agents import (
+    apps, cloudinit, desktops, diagnose, host, images, mission_control, qemu, remote, screen, storage, vpnlink,
+)
 from bonys_agents import progress as pct
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
 
@@ -136,6 +138,11 @@ class VMConfig:
     setup_title: str = ""
     # Aus dieser Vorlage entstanden (nur zur Anzeige – verknüpft ist, wer ein Backing-File hat)
     template: str = ""
+    # Zusatzangaben je installierter App, z. B. {"mission-control": {"version": "0.1.0", "installed": "…"}}
+    app_info: dict = field(default_factory=dict)
+    # Mission Control auch im Browser dieses Rechners (nur 127.0.0.1) – standardmäßig aus
+    mc_forward: bool = False
+    mc_forward_port: int = 0
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
 
@@ -725,6 +732,7 @@ class VM:
             screen=screen.start_size(screen_mode, screen_size), screen_setting=screen_setting,
             restrict_net=self.restrict_net, zero_unmap=self.zero_unmap,
             rdp_addr=REMOTE_ADDR if remote_on else None, rdp_port=c.rdp_port,
+            extra_forwards=() if self.restrict_net else mission_control.launch_forwards(self),
             spice_addr=REMOTE_ADDR if spice_lan else "127.0.0.1",
             spice_port=c.spice_port if spice_ok else None, spice_password_file=pw_file, audio=audio,
         )
@@ -877,31 +885,62 @@ class VM:
         return True
 
     def missing_apps(self) -> list[apps.AppSpec]:
-        return [a for a in apps.APPS.values() if a.id not in self.config.apps]
+        """Apps, die man noch hinzufügen kann (ohne reine Bausteine wie Docker – die kommen automatisch mit)."""
+        return [a for a in apps.APPS.values() if a.id not in self.config.apps and not a.hidden]
+
+    def install_plan(self, app_ids: list[str]) -> list[str]:
+        """Was „Programme hinzufügen“ für ``app_ids`` tatsächlich installiert: samt Abhängigkeiten, ohne Vorhandenes."""
+        apps.resolve(app_ids)  # unbekannte IDs melden
+        return [i for i in apps.with_dependencies(app_ids) if i not in self.config.apps]
+
+    def install_apps(self, app_ids: list[str], password: str | None = None, ssh_prompt: bool = False,
+                     log: Callable[[str], None] | None = None,
+                     step: Callable[[int, int, str], None] | None = None) -> list[str]:
+        """Apps nachträglich im laufenden Agent-PC installieren – Abhängigkeiten (z. B. Docker) kommen mit.
+
+        Über den Gast-Agent (Ausgabe live über die serielle Konsole), sonst per SSH: dafür ``password`` bzw.
+        ``ssh_prompt`` (ssh fragt im Terminal), ohne beides NeedsPassword. Jede fertige App steht sofort in
+        vm.json – nach einem Abbruch (Fenster zu, Agent-PC aus …) setzt ein neuer Aufruf bei der nächsten fort.
+        Im Gast sorgt eine Sperre dafür, dass ein noch laufender alter Versuch erst fertig wird.
+        ``step(Nummer, Anzahl, App-ID)`` vor jeder App. Gibt die installierten IDs zurück.
+        """
+        plan = self.install_plan(app_ids)
+        if not plan:
+            names = ", ".join(apps.names([i for i in app_ids if i in apps.APPS]))
+            raise ValueError(f"{names} ist in „{self.name}“ bereits installiert.")
+        if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
+            raise RuntimeError("Der Agent-PC muss laufen und fertig eingerichtet sein.")
+        done: list[str] = []
+        for n, app_id in enumerate(plan, start=1):
+            spec = apps.APPS[app_id]
+            if step:
+                step(n, len(plan), app_id)
+            script = cloudinit.app_install_script(spec, self.config.username)
+            rc, _out = self.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log,
+                                       timeout=3 * 3600)
+            if rc != 0:
+                raise RuntimeError(f"Installation von {spec.name} fehlgeschlagen (Code {rc}) – siehe Ausgabe. "
+                                   "Erneut starten setzt hier fort.")
+            self._mark_installed(app_id)
+            done.append(app_id)
+        return done
+
+    def _mark_installed(self, app_id: str) -> None:
+        c = self.config
+        c.apps = [a for a in apps.APPS if a in c.apps or a == app_id] + [a for a in c.apps if a not in apps.APPS]
+        info = {"installed": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        if app_id == mission_control.APP_ID:
+            info["version"] = mission_control.VERSION
+        c.app_info[app_id] = info
+        self.save()
 
     def install_app(self, app_id: str, password: str | None = None,
                     log: Callable[[str], None] | None = None) -> None:
-        """App nachträglich per SSH installieren (Agent-PC muss laufen und eingerichtet sein).
-
-        Ohne ``password`` fragt ssh selbst im Terminal. Mit ``password`` wird es nur über die
-        Umgebung an ein kurzlebiges SSH_ASKPASS-Hilfsskript gereicht – nie gespeichert.
-        """
+        """Eine App (samt Abhängigkeiten) nachinstallieren – ohne Gast-Agent fragt ssh im Terminal."""
         spec = apps.APPS.get(app_id)
         if spec is None:
-            raise ValueError(f"Unbekannte App '{app_id}'. Verfügbar: {', '.join(apps.APPS)}")
-        if app_id in self.config.apps:
-            raise ValueError(f"{spec.name} ist in „{self.name}“ bereits installiert.")
-        if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
-            raise RuntimeError("Der Agent-PC muss laufen und fertig eingerichtet sein.")
-        script = cloudinit.app_install_script(spec, self.config.username)
-        rc = self._ssh(SSH_SUDO_SCRIPT, script, password, log)
-        if rc == 255:
-            raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
-        if rc != 0:
-            raise RuntimeError(f"Installation von {spec.name} fehlgeschlagen (Code {rc}) – siehe Ausgabe.")
-        self.config.apps = [a for a in apps.APPS if a in self.config.apps or a == app_id] \
-            + [a for a in self.config.apps if a not in apps.APPS]
-        self.save()
+            raise ValueError(f"Unbekannte App '{app_id}'. Verfügbar: {', '.join(apps.visible_ids())}")
+        self.install_apps([app_id], password=password, ssh_prompt=password is None, log=log)
 
     def installed_desktops(self) -> list[str]:
         return [self.config.desktop] + [d for d in self.config.extra_desktops if d != self.config.desktop]
@@ -1479,6 +1518,8 @@ def create(
         apps=[a.id for a in app_specs], keyboard=keyboard, timezone=timezone_name,
         desktop=desktop, first_boot_pending=True,
     )
+    if mission_control.APP_ID in cfg.apps:
+        cfg.app_info[mission_control.APP_ID] = {"version": mission_control.VERSION}
 
     chk = storage.check_location(library, cfg.disk_gb, create=True)
     if not chk.ok:
@@ -1564,7 +1605,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         name=name, arch=info.arch,
         cpus=max(1, min(cpus or info.default_vm_cpus, info.cpus)),
         ram_mb=max(host.MIN_VM_RAM_MB, ram_mb or info.default_vm_ram_mb),
-        disk_gb=disk_gb, username=tpl.username, apps=list(tpl.apps),
+        disk_gb=disk_gb, username=tpl.username, apps=list(tpl.apps), app_info=json.loads(json.dumps(tpl.app_info)),
         keyboard=tpl.keyboard or keyboard, timezone=tpl.timezone or "Europe/Berlin",
         desktop=tpl.desktop, extra_desktops=list(tpl.extra_desktops),
         provisioned=False, first_boot_pending=False, template=tpl.name,

@@ -43,6 +43,8 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Vorlagen: einen fertig eingerichteten Agent-PC als Vorlage speichern – neue Agent-PCs entstehen daraus in Sekunden, ohne Downloads und Einrichtung (siehe „Vorlagen“)
 - **[Bony's VPN](https://github.com/zappotex/bonys-vpn)** (eigenes Projekt): eigene WireGuard-Tunnel im Agent-PC und auf dem eigenen Linux-Rechner, mit Kill-Switch (siehe „VPN“)
 - Optional **Obsidian** für Notizen im Agent-PC (siehe „Obsidian“)
+- Optional **[Mission Control](https://github.com/zappotex/bonys-agents-mission-control)** (eigenes Projekt):
+  Übersicht und Steuerzentrale für deine Agenten im Browser, läuft mit Docker nur im Agent-PC (siehe „Mission Control“)
 - Weitere Programme lassen sich als kleines Modul ergänzen (siehe `src/bonys_agents/apps.py`)
 
 ## Installation – ganz ohne Terminal
@@ -75,7 +77,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.15.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.16.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -192,7 +194,9 @@ bonys-agents create mein-agent             # anlegen und starten (fragt nach Pas
 bonys-agents create mein-agent --wait      # … und warten, bis alles eingerichtet ist
 bonys-agents create mein-agent --agents hermes,claude-code   # KI-Werkzeuge wählen (oder: none)
 bonys-agents apps                          # alle Programme und KI-Werkzeuge
-bonys-agents install mein-agent openclaw   # nachträglich installieren (Agent-PC läuft)
+bonys-agents apps mein-agent               # installierte und noch verfügbare Programme
+bonys-agents install mein-agent openclaw mission-control   # nachträglich installieren (Agent-PC läuft)
+bonys-agents mission-control mein-agent status   # … open | update | uninstall [--purge] | forward on|off
 bonys-agents connect mein-agent --rdp      # Verbindung öffnen (oder --spice)
 bonys-agents remote mein-agent on          # Fernzugriff sofort an, bis zum Herunterfahren (off = aus)
 bonys-agents remote mein-agent on --permanent   # … dauerhaft, auch nach Neustarts
@@ -255,8 +259,12 @@ verändert Claude Code nicht.
 ### Programme nachträglich hinzufügen
 
 Bei einem laufenden Agent-PC in der Detailansicht unter „Programme“ auf
-**„Programme hinzufügen …“** klicken (oder `bonys-agents install NAME APP`). Die Installation
-läuft per SSH; das Passwort des Agent-PCs wird nur dafür verwendet und nicht gespeichert.
+**„Programme hinzufügen …“** klicken (oder `bonys-agents install NAME APP [APP …]`). Abhängigkeiten
+(z. B. Docker für Mission Control) kommen automatisch mit. Die Installation läuft über den Gast-Agent;
+antwortet der nicht, per SSH – das Passwort des Agent-PCs wird dann nur dafür verwendet und nicht gespeichert.
+Jedes fertige Programm steht sofort in `vm.json`: Bricht etwas ab (Fenster zu, Agent-PC aus, kein Netz),
+einfach erneut installieren – fertige Programme werden übersprungen, ein noch laufender alter Versuch im
+Agent-PC wird abgewartet. `bonys-agents apps NAME` zeigt, was installiert ist (mit Version).
 
 ### Desktop wählen
 
@@ -552,12 +560,44 @@ In frischen Vorlagen werden Obsidian-Einstellungen und der Inhalt von `~/Agent-N
 Obsidian ist **kostenlos, aber kein Open Source**. Einen geteilten Ordner zwischen deinem Rechner und
 dem Agent-PC gibt es absichtlich (noch) nicht – der KI-Agent hätte sonst Zugriff auf deine Dateien.
 
+## Mission Control
+
+**[Bony's Agents Mission Control](https://github.com/zappotex/bonys-agents-mission-control)** ist ein
+eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browser. Die App-Option
+**„Mission Control“** (standardmäßig aus) gibt es beim Erstellen und über „Programme hinzufügen …“.
+
+- **Docker** wird automatisch mitinstalliert – aus der offiziellen Docker-Paketquelle für Debian
+  (`docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`, `docker-compose-plugin`, amd64 und
+  arm64), der Schlüssel wird gegen den veröffentlichten Fingerabdruck geprüft. Der Benutzer `agent` kommt in
+  die Gruppe `docker` – das ist im Agent-PC vertretbar, weil er vom eigenen Rechner abgeschottet ist und der
+  Benutzer dort ohnehin Administrator ist. Docker-Images und -Daten liegen im Agent-PC.
+- Installiert wird `install.sh` aus einem **festen Release** von Mission Control (diese Version von
+  Bony's Agents: 0.1.0), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
+  Bedarf laut `agentpc.json`: ca. 2 GB Festplatte und 512 MB RAM zusätzlich – beim Erstellen warnt der Dialog,
+  wenn RAM oder Festplatte knapp sind, und schlägt passende Werte vor.
+- Die Oberfläche lauscht **nur im Agent-PC** (`http://127.0.0.1:8787/`); die Verknüpfung „Mission Control“
+  auf dem Schreibtisch öffnet sie in Brave.
+- Reiter **„Mission Control“** in der Detailansicht: Status (läuft/gestoppt, Healthcheck), **Öffnen** (im
+  Agent-PC), **Aktualisieren** (auf das neueste Release; Einstellungen und Daten bleiben),
+  **Deinstallieren** (Daten bleiben – löschen nur mit zusätzlicher Bestätigung). Kommandozeile:
+  `bonys-agents mission-control NAME status|open|update|uninstall`.
+- **Weiterleitung an den eigenen Rechner** (standardmäßig aus): macht Mission Control zusätzlich unter
+  `http://127.0.0.1:<Port>/` auf diesem Rechner erreichbar – nur dort, nie im Heimnetz. Jedes Programm auf
+  diesem Rechner kann die Oberfläche dann aufrufen; nur einschalten, wenn du sie hier brauchst.
+- **Vorlagen:** Eine frische Vorlage setzt die Geheimnisse und Benutzerdaten von Mission Control zurück
+  (`reset-secrets.sh`, danach geprüft) – jeder neue Agent-PC erzeugt beim ersten Start eigene. Docker-Images
+  bleiben (spart den Download). Ein Klon behält alles.
+- Geheimnisse von Mission Control (`.env` im Agent-PC) verlassen den Agent-PC nie: Bony's Agents liest dort
+  nur Version, Dienststatus, Healthcheck und Port.
+
 ## Welche Programme sind Open Source?
 
 | Programm | Open Source? | Lizenz / Bedingungen |
 |---|---|---|
 | Bony's Agents | ja | GPL-3.0-or-later |
 | [Bony's VPN](https://github.com/zappotex/bonys-vpn) (eigenes Projekt, im Agent-PC als App-Option) | ja | GPL-3.0-or-later |
+| [Mission Control](https://github.com/zappotex/bonys-agents-mission-control) (eigenes Projekt, im Agent-PC als App-Option, benötigt Docker) | ja | GPL-3.0-or-later |
+| Docker Engine (docker-ce, containerd, Compose, Buildx – für Mission Control) | ja | Apache-2.0 |
 | Debian, QEMU | ja | freie Lizenzen (u. a. GPL-2.0) |
 | Brave Browser | ja | MPL-2.0 |
 | Telegram Desktop | ja | GPL-3.0 |
@@ -638,11 +678,13 @@ src/bonys_agents/
   diagnose.py    Ursache erkennen, wenn QEMU während der Einrichtung endet
   updates.py     Update-Suche, Download, Signatur- und Prüfsummenprüfung
   signing.py     minisign/Ed25519 (ohne zusätzliche Abhängigkeiten)
+  mission_control.py  Mission Control im Agent-PC: Installation aus festem Release, Mindestanforderungen,
+                 Status, Öffnen, Update, Deinstallation, Weiterleitung, Vorlagen-Bereinigung
   vpnlink.py     Bony's VPN im Agent-PC: .conf prüfen und übertragen, Status/Steuerung über bonys-vpn --json,
                  Schema-/Versionsprüfung, „VPN-App aktualisieren“ (Bony's VPN selbst: github.com/zappotex/bonys-vpn)
   hostvpn.py     VPN auf dem eigenen Rechner (Linux: Bony's VPN öffnen/installieren, Windows: winget, macOS: App Store)
   cli.py         Kommandozeile
-  gui/           Desktop-App (Qt / PySide6) inkl. Einrichtungs-Assistent und Reiter „VPN“
+  gui/           Desktop-App (Qt / PySide6) inkl. Einrichtungs-Assistent und Reitern „VPN“ und „Mission Control“
 packaging/
   bonys-agents.spec      PyInstaller-Bauplan (Programm inkl. Python & Qt)
   linux/build-deb.sh     .deb-Paket

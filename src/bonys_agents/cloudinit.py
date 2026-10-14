@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, screen, vpnlink
+from bonys_agents import desktops, mission_control, screen, vpnlink
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -286,28 +286,60 @@ def desktop_install_script(d: desktops.DesktopSpec, username: str, make_default:
     ]) + "\n"
 
 
-def app_install_script(app: AppSpec, username: str, locale: str = "de_DE.UTF-8") -> str:
-    """Skript, das eine App nachträglich in einem fertigen Agent-PC installiert (läuft per sudo)."""
+APPS_STATE_DIR = f"{STATE_DIR}/apps"
+APPS_LOG = "/var/log/bonys-agents-apps.log"
+APPS_LOCK = "/run/bonys-agents-apps.lock"
+
+
+def app_install_script(app: AppSpec, username: str, locale: str = "de_DE.UTF-8", *,
+                       console: str = GUEST_CONSOLE, state_dir: str = APPS_STATE_DIR,
+                       lock_file: str = APPS_LOCK, log_file: str = APPS_LOG, force: bool = False) -> str:
+    """Skript, das eine App nachträglich in einem fertigen Agent-PC installiert (als root).
+
+    Wiederholbar: Ist die App laut Markierung schon fertig und ihre Prüfung grün, passiert nichts (außer mit
+    ``force``, z. B. um auf eine neuere Fassung umzustellen). Eine
+    Sperre wartet, bis ein noch laufender früherer Versuch (z. B. nach geschlossenem Fenster) fertig ist.
+    Die Ausgabe geht zusätzlich auf die serielle Konsole – dort liest die App den Fortschritt live.
+    Pfade nur für Tests änderbar.
+    """
+    check = f'su - "$AGENT_USER" -c {_q(app.check)} </dev/null >/dev/null 2>&1'
     return "\n".join([
         "#!/usr/bin/env bash",
-        "# Von Bony's Agents erzeugt – installiert eine App nachträglich.",
+        f"# Von Bony's Agents erzeugt – installiert {app.name} nachträglich.",
         "set -uo pipefail",
         "export DEBIAN_FRONTEND=noninteractive",
+        f'exec > >(tee -a {_q(log_file)} {_q(console)}) 2>&1',
         f"AGENT_USER={_q(username)}",
         'AGENT_HOME="/home/$AGENT_USER"',
         f'DESKTOP_DIR="$AGENT_HOME/{desktop_folder(locale)}"',
         'mkdir -p "$DESKTOP_DIR"',
         "export AGENT_USER AGENT_HOME DESKTOP_DIR",
+        f"STATE={_q(state_dir)}",
+        'mkdir -p "$STATE"',
+        f"exec 9>{_q(lock_file)}",
+        "if ! flock -n 9; then",
+        '  echo "Ein früherer Installationsversuch läuft noch im Agent-PC – warte, bis er fertig ist …"',
+        "  flock -w 10800 9 || { echo 'FEHLER: Der frühere Versuch wurde nicht fertig.' >&2; exit 4; }",
+        "fi",
+        f'if [ {0 if force else 1} = 1 ] && [ -f "$STATE/{app.id}.done" ] && {check}; then',
+        f'  echo "{app.name} ist bereits installiert."',
+        "  exit 0",
+        "fi",
+        f'echo "== {app.name} installieren =="',
+        APT_WAIT,
+        "bonys_apt_wait",
+        "dpkg --configure -a || true",
         "apt-get update -y || true",
         'STEP="$(mktemp)"',
         desktops.TERMINAL_HELPER,
         f"cat > \"$STEP\" <<'BONYS_APP'{app.install}BONYS_APP",
         favorite_snippet(app),
-        'bash -e "$STEP" </dev/null || echo "WARNUNG: Installationsschritt mit Fehler beendet"',
+        'bash -e "$STEP" </dev/null 9>&- || echo "WARNUNG: Installationsschritt mit Fehler beendet"',
         'rm -f "$STEP"',
         'chmod +x "$DESKTOP_DIR"/*.desktop 2>/dev/null || true',
         'chown -R "$AGENT_USER:$AGENT_USER" "$DESKTOP_DIR"',
-        f'if su - "$AGENT_USER" -c {_q(app.check)} </dev/null >/dev/null 2>&1; then',
+        f"if {check}; then",
+        f'  sync; touch "$STATE/{app.id}.done"; sync',
         f'  echo "{app.name} ist installiert."',
         "else",
         f'  echo "FEHLER: {app.name} wurde nicht gefunden – siehe Ausgabe oben." >&2',
@@ -574,6 +606,7 @@ fi""",
     ]
     if remove_personal:
         lines.append(VPN_CLEANUP)
+        lines.append(mission_control.fresh_template_script())
         lines.append('echo "== Persönliche Daten =="')
         for item in PERSONAL_DATA:
             lines.append(f"# {item.title}")
