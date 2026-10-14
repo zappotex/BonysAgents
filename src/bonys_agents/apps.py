@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from bonys_agents import screen
+from bonys_agents import desktops, screen
 
 PROGRAM = "program"
 AGENT = "agent"
@@ -53,6 +53,8 @@ ensure_path() {  # $1 = Ordner relativ zu $HOME, z. B. .local/bin
 """
 
 
+BRAVE_BASIC_MARKER = desktops.BRAVE_BASIC_MARKER
+
 BRAVE = AppSpec(
     id="brave",
     name="Brave Browser",
@@ -66,7 +68,18 @@ echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] http
   > /etc/apt/sources.list.d/brave-browser-release.list
 apt-get update -y
 apt-get install -y brave-browser
-cp /usr/share/applications/brave-browser.desktop "$DESKTOP_DIR/" || true
+""" + r"""
+# Ohne Schlüsselbund-Abfrage beim ersten Start (automatische Anmeldung hat keinen entsperrten Schlüsselbund):
+# offizieller Chromium-Schalter --password-store=basic – wie bei Obsidian. Nur bei NEU installiertem Brave: Ein
+# bestehendes Profil mit Passwörtern im Schlüsselbund könnte diese danach nicht mehr lesen. Die Markierung sagt
+# anderen Startern (z. B. Mission Control), dass Brave hier so läuft. Der Eintrag in /usr/local/share hat
+# Vorrang vor dem des Pakets und bleibt bei Brave-Updates erhalten.
+mkdir -p /usr/local/share/applications """ + BRAVE_BASIC_MARKER.rsplit("/", 1)[0] + r"""
+sed 's|^Exec=/usr/bin/brave-browser-stable|Exec=/usr/bin/brave-browser-stable --password-store=basic|' \
+  /usr/share/applications/brave-browser.desktop > /usr/local/share/applications/brave-browser.desktop
+grep -q -- '--password-store=basic' /usr/local/share/applications/brave-browser.desktop
+touch """ + BRAVE_BASIC_MARKER + r"""
+cp /usr/local/share/applications/brave-browser.desktop "$DESKTOP_DIR/"
 """,
 )
 

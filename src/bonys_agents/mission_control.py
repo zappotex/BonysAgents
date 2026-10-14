@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from bonys_agents import storage
+from bonys_agents import desktops, storage
 
 if TYPE_CHECKING:
     from bonys_agents.apps import AppSpec
@@ -219,7 +219,10 @@ cat > """ + OPENER + r""" <<'EOF'
 # Von Bony's Agents: Mission Control im Browser öffnen (Brave, sonst Standard-Browser)
 URL=""" + _sq(URL) + r"""
 if command -v brave-browser >/dev/null 2>&1; then
-  exec brave-browser --no-first-run --no-default-browser-check "$URL"
+  # wie die Brave-Verknüpfung: ohne Schlüsselbund nur, wenn Brave hier so eingerichtet wurde
+  STORE=""
+  [ -e """ + desktops.BRAVE_BASIC_MARKER + r""" ] && STORE="--password-store=basic"
+  exec brave-browser $STORE --no-first-run --no-default-browser-check "$URL"
 fi
 exec xdg-open "$URL"
 EOF

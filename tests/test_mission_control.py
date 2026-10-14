@@ -549,3 +549,51 @@ def test_mc_panel_states(qapp, datadir):
     p.update_for(m2, "gestoppt")
     assert p.install_btn.isHidden() and not p.body.isHidden() and "0.1.0" in p.headline.text()
     assert not p.forward.isChecked() and not p.open_btn.isEnabled()
+
+
+# ---------------------------------------------------------------- Brave ohne Schlüsselbund (--password-store=basic)
+BRAVE_DESKTOP = """[Desktop Entry]
+Name=Brave Web Browser
+Exec=/usr/bin/brave-browser-stable %U
+[Desktop Action new-window]
+Exec=/usr/bin/brave-browser-stable
+[Desktop Action new-private-window]
+Exec=/usr/bin/brave-browser-stable --incognito
+"""
+
+
+@linux_only
+def test_brave_uses_basic_password_store(tmp_path):
+    """Alle Exec-Zeilen bekommen den Schalter; Eintrag in /usr/local (bleibt bei Updates), Markierung gesetzt."""
+    share, local, conf, desk = (tmp_path / d for d in ("share", "local", "conf", "desk"))
+    share.mkdir()
+    desk.mkdir()
+    (share / "brave-browser.desktop").write_text(BRAVE_DESKTOP)
+    part = apps.BRAVE.install.split("apt-get install -y brave-browser\n", 1)[1]
+    part = (part.replace("/usr/share/applications", str(share)).replace("/usr/local/share/applications", str(local))
+            .replace(desktops.CONF_DIR, str(conf)))
+    r = subprocess.run(["bash", "-e"], input=part, text=True, capture_output=True,
+                       env=dict(os.environ, DESKTOP_DIR=str(desk)))
+    assert r.returncode == 0, r.stderr
+    out = (local / "brave-browser.desktop").read_text()
+    assert out.count("--password-store=basic") == 3 and "--incognito" in out
+    assert (desk / "brave-browser.desktop").read_text() == out
+    assert (conf / "brave-password-store-basic").exists()
+    assert (share / "brave-browser.desktop").read_text() == BRAVE_DESKTOP  # Paketdatei unverändert
+
+
+@linux_only
+@pytest.mark.parametrize("marker", [True, False])
+def test_mc_opener_follows_brave_setting(tmp_path, marker):
+    opener = MC.launcher_script().split("<<'EOF'\n", 1)[1].split("\nEOF\n", 1)[0]
+    if marker:
+        (tmp_path / "marker").touch()
+    opener = opener.replace(desktops.BRAVE_BASIC_MARKER, str(tmp_path / "marker"))
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "brave-browser").write_text('#!/bin/sh\necho "BRAVE $*"\n')
+    (bin_dir / "brave-browser").chmod(0o755)
+    r = subprocess.run(["sh"], input=opener, text=True, capture_output=True,
+                       env=dict(os.environ, PATH=f"{bin_dir}:/usr/bin:/bin"))
+    assert r.stdout.startswith("BRAVE ") and MC.URL in r.stdout
+    assert ("--password-store=basic" in r.stdout) == marker
