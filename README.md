@@ -11,7 +11,7 @@ Bony's Agents erstellt einen eigenen, vom Hauptsystem getrennten Rechner (eine v
 Maschine) mit **Debian 13 „Trixie“** und einem Desktop nach Wahl (Cinnamon, Xfce, KDE Plasma, GNOME, MATE
 oder LXQt). Darin sind fertig eingerichtet:
 
-- **Brave Browser** – aus dem offiziellen Brave-Repository
+- **Brave Browser** – aus dem offiziellen Brave-Repository; startet ohne Schlüsselbund-Abfrage (`--password-store=basic`, bei neu installiertem Brave)
 - **Telegram Desktop** – über Flathub
 - **KI-Werkzeuge nach Wahl**, frei kombinierbar – jeweils mit dem offiziellen Installer:
   - **Hermes Agent** – der selbstlernende KI-Agent von Nous Research (Standard)
@@ -77,7 +77,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.16.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.16.1` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
