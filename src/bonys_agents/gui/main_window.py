@@ -506,6 +506,10 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn = QPushButton("Desktop hinzufügen …")
         self.add_desktop_btn.setToolTip("Weiteren Desktop installieren und als Standard wählen – der Agent-PC muss "
                                         "laufen; der bisherige bleibt installiert")
+        self.wallpaper_btn = QPushButton("Hintergrundbild aktualisieren")
+        self.wallpaper_btn.setObjectName("Small")
+        self.wallpaper_btn.setToolTip("Neues Standard-Hintergrundbild in den laufenden Agent-PC bringen – nur, wenn "
+                                      "noch das alte aktiv ist (ein selbst gewähltes Bild bleibt, sonst Rückfrage)")
         self.help_btn = QPushButton("Hilfe anfordern …")
         self.help_btn.setToolTip("Schulung: den Kursleiter um Hilfe bitten – er sieht diesen Agent-PC nur, wenn du "
                                  "zustimmst")
@@ -609,6 +613,8 @@ class MainWindow(QMainWindow):
                 br.addWidget(extra)
                 if key == "Festplatte":
                     br.addWidget(self.independent_btn)
+                if key == "Desktop":
+                    br.addWidget(self.wallpaper_btn)
                 cl.addLayout(br)
             cl.addStretch(1)
             self.d_fields[key] = v
@@ -626,10 +632,6 @@ class MainWindow(QMainWindow):
         self.driver_btn.setObjectName("Small")
         self.driver_btn.setToolTip("Richtet im laufenden Agent-PC ein, dass die Auflösung dem Fenster folgt "
                                    "(für Agent-PCs von älteren Versionen; passiert auch bei „Agent-PC aktualisieren“)")
-        self.wallpaper_btn = QPushButton("Hintergrundbild aktualisieren")
-        self.wallpaper_btn.setObjectName("Small")
-        self.wallpaper_btn.setToolTip("Neues Standard-Hintergrundbild in den laufenden Agent-PC bringen – nur, wenn "
-                                      "noch das alte aktiv ist (ein selbst gewähltes Bild bleibt, sonst Rückfrage)")
         self.screen_note = QLabel()
         self.screen_note.setObjectName("Muted")
         self.screen_note.setWordWrap(True)
@@ -638,7 +640,6 @@ class MainWindow(QMainWindow):
         sr.addWidget(self.screen_mode)
         sr.addWidget(self.screen_size)
         sr.addWidget(self.driver_btn)
-        sr.addWidget(self.wallpaper_btn)
         cl.addLayout(sr)
         cl.addWidget(self.screen_note)
         cl.addStretch(1)

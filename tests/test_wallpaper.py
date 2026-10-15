@@ -14,7 +14,9 @@ from bonys_agents import cli, cloudinit, desktops, screen, wallpaper
 
 RES = Path(wallpaper.__file__).resolve().parent / "resources"
 OLD = next(iter(wallpaper.OLD_SHA256))
-pytestmark = pytest.mark.skipif(sys.platform == "win32" or not shutil.which("bash"), reason="braucht bash")
+# Die Gast-Skripte laufen im Agent-PC (Debian: GNU sed, bash) – ausführen lassen sie sich nur auf Linux
+linux_only = pytest.mark.skipif(not sys.platform.startswith("linux") or not shutil.which("bash"),
+                                reason="Gast-Skript braucht GNU-Werkzeuge wie im Agent-PC")
 
 
 def test_new_default_image_is_compact_and_old_one_is_gone():
@@ -50,6 +52,8 @@ def test_border_color_comes_from_the_image():
 # ---------------------------------------------------------------- Gast-Skript in einem Test-Wurzelordner
 @pytest.fixture
 def guest(tmp_path):
+    if not sys.platform.startswith("linux") or not shutil.which("bash"):
+        pytest.skip("Gast-Skript braucht GNU-Werkzeuge wie im Agent-PC (Debian)")
     root = tmp_path / "root"
     home = root / "home" / "agent"
     (root / Path(screen.WALLPAPER_JPG).parent.relative_to("/")).mkdir(parents=True)
@@ -145,6 +149,7 @@ def test_missing_image_is_installed(guest):
 
 
 # ---------------------------------------------------------------- Einbindung
+@linux_only
 def test_new_agent_pcs_and_clones_get_new_image():
     ud = cloudinit.user_data(cloudinit.GuestConfig(hostname="pc", username="agent", password="pw", apps=[]))
     assert cloudinit.wallpaper_b64() in ud and screen.WALLPAPER_JPG in ud
