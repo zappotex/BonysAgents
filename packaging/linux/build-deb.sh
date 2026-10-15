@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Baut das .deb-Paket von Bony's Agents.
+# Baut das .deb-Paket von Bony's Agents – je Edition (siehe docs/editionen.md):
 #
-#   packaging/linux/build-deb.sh            -> dist/bonys-agents_<version>_<arch>.deb
+#   packaging/linux/build-deb.sh               -> dist/bonys-agents_<version>_<arch>.deb             (Anwender)
+#   packaging/linux/build-deb.sh kursleiter    -> dist/bonys-agents-kursleiter_<version>_<arch>.deb  (Kursleiter)
+#
+# Beide installieren dieselben Dateien (/opt/bonys-agents, Befehle bonys-agents/bonys-agents-gui) und ersetzen
+# einander (Conflicts/Replaces, die Kursleiter-Version „Provides: bonys-agents“): Wechsel in beide Richtungen per
+# Doppelklick auf die .deb oder mit apt. Agent-PCs, Vorlagen und Einstellungen liegen im Benutzerordner und bleiben.
 #
 # Voraussetzung: Python 3.10+ mit venv, dpkg-deb. Das Paket enthält Python und Qt
 # bereits (PyInstaller), braucht auf dem Zielsystem also kein Python.
@@ -10,24 +15,42 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+EDITION="${1:-${BONYS_EDITION:-anwender}}"
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/bonys_agents/__init__.py)"
 HOMEPAGE="$(sed -n 's/^REPO_URL = "\(.*\)"/\1/p' src/bonys_agents/__init__.py)"
 ARCH="$(dpkg --print-architecture)"
-PKG="bonys-agents"
+APP="bonys-agents"   # gemeinsame Pfade beider Editionen (/opt, Befehle, Symbol, Paketquelle)
+case "$EDITION" in
+  anwender)
+    PKG="bonys-agents"; OTHER="bonys-agents-kursleiter"; NAME="Bony's Agents"; DIST="dist/bonys-agents"
+    RELATIONS="Conflicts: $OTHER
+Replaces: $OTHER" ;;
+  kursleiter)
+    PKG="bonys-agents-kursleiter"; OTHER="bonys-agents"; NAME="Bony's Agents Kursleiter"
+    DIST="dist/bonys-agents-kursleiter"
+    RELATIONS="Provides: bonys-agents (= $VERSION)
+Conflicts: $OTHER
+Replaces: $OTHER" ;;
+  *) echo "Unbekannte Edition: $EDITION (anwender | kursleiter)" >&2; exit 1 ;;
+esac
 STAGE="build/deb/${PKG}_${VERSION}_${ARCH}"
 OUT="dist/${PKG}_${VERSION}_${ARCH}.deb"
 
-echo "==> Baue $PKG $VERSION für $ARCH"
+echo "==> Baue $PKG $VERSION für $ARCH ($NAME)"
 
 # ---------- 1. Programm bündeln ----------
-if [ ! -x dist/bonys-agents/BonysAgents ] || [ "${REBUILD:-1}" = "1" ]; then
+if [ ! -x "$DIST/BonysAgents" ] || [ "${REBUILD:-1}" = "1" ]; then
   python3 -m venv build/venv
-  python3 packaging/fetch-novnc.py   # noVNC (MPL-2.0) für die Vorführung, feste Version mit Prüfsumme
+  if [ "$EDITION" = kursleiter ]; then
+    python3 packaging/fetch-novnc.py   # noVNC (MPL-2.0) für die Vorführung, feste Version mit Prüfsumme
+  fi
   build/venv/bin/pip install -q --upgrade pip
   build/venv/bin/pip install -q . pyinstaller
-  build/venv/bin/pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build/pyinstaller \
-    packaging/bonys-agents.spec
+  build/venv/bin/pyinstaller --noconfirm --log-level WARN --distpath dist --workpath "build/pyinstaller-$EDITION" \
+    packaging/bonys-agents.spec -- --edition "$EDITION"
 fi
+# Anwender: kein trainer/, kein noVNC – Kursleiter: beides (bricht sonst ab)
+build/venv/bin/python packaging/check-edition.py "$DIST" "$EDITION"
 
 # ---------- 2. Paketstruktur ----------
 rm -rf "$STAGE"
@@ -36,18 +59,19 @@ install -d "$STAGE/DEBIAN" "$STAGE/opt" "$STAGE/usr/bin" \
   "$STAGE/usr/share/icons/hicolor/256x256/apps" "$STAGE/usr/share/icons/hicolor/512x512/apps" \
   "$STAGE/usr/lib/udev/rules.d"
 
-cp -a dist/bonys-agents "$STAGE/opt/$PKG"
-ln -s "/opt/$PKG/bonys-agents" "$STAGE/usr/bin/bonys-agents"
-ln -s "/opt/$PKG/BonysAgents" "$STAGE/usr/bin/bonys-agents-gui"
+cp -a "$DIST" "$STAGE/opt/$APP"
+ln -s "/opt/$APP/bonys-agents" "$STAGE/usr/bin/bonys-agents"
+ln -s "/opt/$APP/BonysAgents" "$STAGE/usr/bin/bonys-agents-gui"
 
-install -m644 src/bonys_agents/resources/icon.png "$STAGE/usr/share/icons/hicolor/256x256/apps/$PKG.png"
-install -m644 src/bonys_agents/resources/logo.png "$STAGE/usr/share/icons/hicolor/512x512/apps/$PKG.png"
-install -m644 packaging/linux/bonys-agents.desktop "$STAGE/usr/share/applications/$PKG.desktop"
+install -m644 src/bonys_agents/resources/icon.png "$STAGE/usr/share/icons/hicolor/256x256/apps/$APP.png"
+install -m644 src/bonys_agents/resources/logo.png "$STAGE/usr/share/icons/hicolor/512x512/apps/$APP.png"
+sed "s/^Name=.*/Name=$NAME/" packaging/linux/bonys-agents.desktop > "$STAGE/usr/share/applications/$APP.desktop"
+chmod 644 "$STAGE/usr/share/applications/$APP.desktop"
 install -m644 packaging/linux/70-bonys-agents-kvm.rules "$STAGE/usr/lib/udev/rules.d/"
 
 # Bony's VPN ist ein eigenes Paket (bonys-vpn, https://github.com/zappotex/bonys-vpn) – hier nur „Suggests“.
 {
-  echo "Bony's Agents"
+  echo "$NAME"
   echo "Copyright (C) 2026 Bony"
   echo "Lizenz: GPL-3.0-or-later (vollständiger Text unten)."
   echo "Mitgelieferte Komponenten und ihre Lizenzen: /usr/share/doc/$PKG/THIRD-PARTY-LICENSES"
@@ -61,17 +85,18 @@ install -m644 README.md "$STAGE/usr/share/doc/$PKG/README.md"
 
 # Eigene Paketquelle für Updates über die Aktualisierungsverwaltung – nur, wenn der öffentliche
 # Signierschlüssel im Repository liegt (packaging/linux/bonys-agents-archive-keyring.asc, siehe docs/RELEASE.md).
-# Die Vorlage legt postinst nach /etc/apt/sources.list.d/, purge entfernt sie wieder.
+# Die Vorlage legt postinst nach /etc/apt/sources.list.d/, purge entfernt sie wieder. Beide Editionen nutzen
+# dieselbe Quelle und denselben Schlüssel.
 KEY_ASC="packaging/linux/bonys-agents-archive-keyring.asc"
 if [ -s "$KEY_ASC" ]; then
-  install -d "$STAGE/usr/share/keyrings" "$STAGE/usr/share/$PKG"
-  gpg --dearmor < "$KEY_ASC" > "$STAGE/usr/share/keyrings/$PKG.gpg"
-  chmod 644 "$STAGE/usr/share/keyrings/$PKG.gpg"
+  install -d "$STAGE/usr/share/keyrings" "$STAGE/usr/share/$APP"
+  gpg --dearmor < "$KEY_ASC" > "$STAGE/usr/share/keyrings/$APP.gpg"
+  chmod 644 "$STAGE/usr/share/keyrings/$APP.gpg"
   PY=build/venv/bin/python; [ -x "$PY" ] || PY=python3
   PYTHONPATH=src "$PY" -c "from bonys_agents import updates; print(updates.apt_sources_text(), end='')" \
-    > "$STAGE/usr/share/$PKG/$PKG.sources"
-  chmod 644 "$STAGE/usr/share/$PKG/$PKG.sources"
-  echo "==> Paketquelle: $(grep '^URIs:' "$STAGE/usr/share/$PKG/$PKG.sources")"
+    > "$STAGE/usr/share/$APP/$APP.sources"
+  chmod 644 "$STAGE/usr/share/$APP/$APP.sources"
+  echo "==> Paketquelle: $(grep '^URIs:' "$STAGE/usr/share/$APP/$APP.sources")"
 else
   echo "==> Hinweis: $KEY_ASC fehlt – das Paket richtet (noch) keine Paketquelle für Updates ein."
 fi
@@ -84,6 +109,22 @@ case "$ARCH" in
 esac
 SIZE_KB="$(du -sk "$STAGE" | cut -f1)"
 GLIBC="$(getconf GNU_LIBC_VERSION | cut -d' ' -f2)"  # Bundle läuft ab dieser glibc-Version
+
+if [ "$EDITION" = kursleiter ]; then
+  DESCRIPTION="Virtuelle Agent-PCs – Version für Kursleiter (Schulungen)
+ Bony's Agents Kursleiter enthält alles aus Bony's Agents und zusätzlich
+ die Funktionen für Schulungen: Vorlagen im Netzwerk freigeben, einen
+ Agent-PC live im Browser vorführen und Hilfe-Anfragen der Teilnehmer
+ annehmen. Teilnehmer brauchen nur das Paket bonys-agents. Ersetzt
+ bonys-agents (und umgekehrt) – Agent-PCs und Einstellungen bleiben."
+else
+  DESCRIPTION="Virtuelle Agent-PCs mit Brave, Telegram und Hermes Agent
+ Bony's Agents erstellt per Mausklick einen eigenen virtuellen Rechner
+ (Debian 13 mit Cinnamon-Desktop), in dem Brave, Telegram und der
+ KI-Agent Hermes fertig eingerichtet sind – sauber getrennt vom
+ eigentlichen System. Speicherort frei wählbar, z. B. auf einer externen SSD.
+ Für Kursleiter gibt es das Paket bonys-agents-kursleiter."
+fi
 
 cat > "$STAGE/DEBIAN/control" <<EOF
 Package: $PKG
@@ -105,12 +146,9 @@ Depends: $QEMU, qemu-utils, acl, python3, libc6 (>= $GLIBC), libegl1, libgl1, li
  libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1
 Recommends: qemu-system-gui, qemu-system-modules-spice, pkexec | policykit-1
 Suggests: bonys-vpn, remmina, remmina-plugin-rdp, remmina-plugin-spice, virt-viewer
+$RELATIONS
 Homepage: $HOMEPAGE
-Description: Virtuelle Agent-PCs mit Brave, Telegram und Hermes Agent
- Bony's Agents erstellt per Mausklick einen eigenen virtuellen Rechner
- (Debian 13 mit Cinnamon-Desktop), in dem Brave, Telegram und der
- KI-Agent Hermes fertig eingerichtet sind – sauber getrennt vom
- eigentlichen System. Speicherort frei wählbar, z. B. auf einer externen SSD.
+Description: $DESCRIPTION
 EOF
 
 cat > "$STAGE/DEBIAN/postinst" <<'EOF'
@@ -128,16 +166,23 @@ if [ "$1" = "configure" ]; then
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications || true
   command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t /usr/share/icons/hicolor || true
   # Paketquelle für Updates (Aktualisierungsverwaltung). Hat der Nutzer sie mit „Enabled: no“
-  # abgeschaltet, bleibt das so.
+  # abgeschaltet, bleibt das so – auch beim Wechsel der Edition (bonys-agents ↔ bonys-agents-kursleiter):
+  # Dann hat das alte Paket die Quelle entfernt und sich die Wahl gemerkt.
   SRC=/usr/share/bonys-agents/bonys-agents.sources
   DST=/etc/apt/sources.list.d/bonys-agents.sources
+  OFF=/var/lib/bonys-agents/apt-source-disabled
   if [ -f "$SRC" ] && [ -f /usr/share/keyrings/bonys-agents.gpg ]; then
     if [ -f "$DST" ] && grep -qiE '^[[:space:]]*Enabled:[[:space:]]*no' "$DST"; then
       :
+    elif [ -f "$OFF" ]; then
+      { cat "$SRC"; echo "Enabled: no"; } > "$DST"
+      chmod 644 "$DST"
     else
       install -m644 "$SRC" "$DST"
     fi
   fi
+  rm -f "$OFF"
+  rmdir /var/lib/bonys-agents 2>/dev/null || true
   # Ältere Installation aus install.sh hat im Startmenü und PATH Vorrang vor diesem Paket.
   for h in /root /home/*; do
     if [ -e "$h/.local/share/bonys-agents/app/bin/bonys-agents" ]; then
@@ -157,9 +202,18 @@ set -e
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications || true
 # Entfernen bzw. vollständig entfernen (purge): auch die Paketquelle für Updates. Schon beim
 # einfachen Entfernen, weil dann der Schlüssel unter /usr/share/keyrings fehlt und „apt update“
-# sonst einen Fehler meldet. Bei einem Update („upgrade“) bleibt sie.
+# sonst einen Fehler meldet. Bei einem Update („upgrade“) bleibt sie – und ebenso, wenn die andere
+# Edition den Schlüssel schon übernommen hat (Wechsel bonys-agents ↔ bonys-agents-kursleiter).
+DST=/etc/apt/sources.list.d/bonys-agents.sources
 case "$1" in
-  remove|purge) rm -f /etc/apt/sources.list.d/bonys-agents.sources ;;
+  remove|purge|disappear)
+    if [ ! -e /usr/share/keyrings/bonys-agents.gpg ] && [ -f "$DST" ]; then
+      if grep -qiE '^[[:space:]]*Enabled:[[:space:]]*no' "$DST"; then   # Wahl merken, falls gleich gewechselt wird
+        mkdir -p /var/lib/bonys-agents
+        touch /var/lib/bonys-agents/apt-source-disabled
+      fi
+      rm -f "$DST"
+    fi ;;
 esac
 exit 0
 EOF
@@ -181,7 +235,7 @@ chmod 755 "$STAGE/DEBIAN/preinst" "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm
 # ---------- 4. Rechte und Paket ----------
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE/opt" -type f -exec chmod 644 {} +
-chmod 755 "$STAGE/opt/$PKG/BonysAgents" "$STAGE/opt/$PKG/bonys-agents"
+chmod 755 "$STAGE/opt/$APP/BonysAgents" "$STAGE/opt/$APP/bonys-agents"
 find "$STAGE/opt" -type f \( -name "*.so*" -o -perm -u+x \) -exec chmod 755 {} + 2>/dev/null || true
 
 mkdir -p dist

@@ -3,7 +3,8 @@
 """noVNC (MPL-2.0) für die Live-Vorführung ins Paket holen – beim Bauen, nicht im Repository.
 
 Lädt das offizielle Release-Archiv von GitHub (feste Version, feste SHA-256), prüft die Prüfsumme und legt nur die
-Bibliothek (core/, vendor/pako/) samt Lizenztexten nach src/bonys_agents/resources/novnc/. Wiederholbar: ist die
+Bibliothek (core/, vendor/pako/) samt Lizenztexten nach
+src/bonys_agents/trainer/resources/novnc/ (nur in „Bony's Agents Kursleiter“). Wiederholbar: ist die
 richtige Version schon da, passiert nichts.
 
     python packaging/fetch-novnc.py            # holen bzw. prüfen
@@ -25,7 +26,7 @@ SHA256 = "b1003a11b6e6e8d8f7f5e5586daae7f8ca651d8aee0aa155ff9ac841c48f52c6"
 URL = f"https://github.com/novnc/noVNC/archive/refs/tags/v{VERSION}.tar.gz"
 
 ROOT = Path(__file__).resolve().parent.parent
-DEST = ROOT / "src" / "bonys_agents" / "resources" / "novnc"
+DEST = ROOT / "src" / "bonys_agents" / "trainer" / "resources" / "novnc"
 CACHE = ROOT / "build" / f"novnc-v{VERSION}.tar.gz"
 PREFIX = f"noVNC-{VERSION}/"
 KEEP_FILES = {"LICENSE.txt", "AUTHORS", "docs/LICENSE.MPL-2.0", "vendor/pako/LICENSE"}

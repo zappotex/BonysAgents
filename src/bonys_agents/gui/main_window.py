@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import (
-    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, host, remote,
+    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, edition, host,
+    remote,
     screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow):
         self._ticks = 0
         self._console_big = False
         self.entries: dict[str, vm.VM | vm.MissingVM] = {}
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(edition.NAME)
 
         central = Backdrop()
         self.setCentralWidget(central)
@@ -124,7 +125,7 @@ class MainWindow(QMainWindow):
         top.setSpacing(8)
         logo = ScaledLogo(48)
         logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)  # klein genug – lieber bricht der Untertitel um
-        title = QLabel(APP_NAME)
+        title = QLabel(edition.NAME)
         title.setObjectName("Title")
         title.setWordWrap(True)  # bei sehr großer Anzeige lieber zweizeilig als zu breit
         tagline = QLabel(TAGLINE)
@@ -132,7 +133,7 @@ class MainWindow(QMainWindow):
         tagline.setWordWrap(True)  # bei schmalem Fenster zweizeilig statt abgeschnitten
         self.about_btn = QPushButton("ⓘ")
         self.about_btn.setObjectName("Quiet")
-        self.about_btn.setToolTip(f"Über {APP_NAME}, Updates")
+        self.about_btn.setToolTip(f"Über {edition.NAME}, Updates")
         self.about_btn.setMenu(self._build_menu())
         title_row = QHBoxLayout()
         title_row.setSpacing(2)
@@ -178,7 +179,7 @@ class MainWindow(QMainWindow):
         self.update_banner.update_requested.connect(lambda info: start_update(self, info))
         outer.addWidget(self.update_banner)
         # Hilfe-Modus (Teilnehmer): gut sichtbar, wenn der Kursleiter zusieht oder steuert
-        from .course_ui import CourseHub, HelpBanner, HelpManager, ask_consent
+        from .course_ui import HelpBanner, HelpManager, ask_consent
 
         self.help_banner = HelpBanner()
         outer.addWidget(self.help_banner)
@@ -186,7 +187,10 @@ class MainWindow(QMainWindow):
         helpers.view_requested.connect(lambda name: ask_consent(self, name, "view"))
         helpers.control_requested.connect(lambda name: ask_consent(self, name, "control"))
         helpers.closed.connect(lambda name, reason: self.statusBar().showMessage(f"{name}: {reason}", 10000))
-        CourseHub.get().new_request.connect(self._help_request_arrived)
+        if edition.IS_TRAINER:
+            from bonys_agents.trainer.gui.helpdesk_dialog import CourseHub
+
+            CourseHub.get().new_request.connect(self._help_request_arrived)
         self._present_dialog = None
         self._helpdesk_dialog = None
         self._update_check: CheckWorker | None = None
@@ -253,8 +257,11 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> QMenu:
         menu = QMenu(self)
-        menu.addAction(f"Über {APP_NAME}", lambda: AboutDialog(self).exec())
+        menu.addAction(f"Über {edition.NAME}", lambda: AboutDialog(self).exec())
         menu.addAction("Hilfe (Anleitung)", lambda: open_url(f"{REPO_URL}#readme"))
+        if not edition.IS_TRAINER:
+            menu.addAction(f"Du möchtest selbst Schulungen geben? → {edition.NAMES[edition.KURSLEITER]}",
+                           lambda: open_url(edition.download_url()))
         menu.addSeparator()
         menu.addAction("Nach Updates suchen", lambda: self.check_updates(manual=True))
         st = updates.settings()
@@ -266,7 +273,8 @@ class MainWindow(QMainWindow):
         menu.addAction(pre)
         menu.addSeparator()
         menu.addAction("Alle Agent-PCs aktualisieren …", self.upgrade_all)
-        menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
+        if edition.IS_TRAINER:
+            menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
         menu.addSeparator()
         extras = menu.addMenu("Extras")
         if sys.platform.startswith("linux"):
@@ -501,8 +509,11 @@ class MainWindow(QMainWindow):
         self.help_btn = QPushButton("Hilfe anfordern …")
         self.help_btn.setToolTip("Schulung: den Kursleiter um Hilfe bitten – er sieht diesen Agent-PC nur, wenn du "
                                  "zustimmst")
-        self.present_btn = QPushButton("Vorführen …")
-        self.present_btn.setToolTip("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur ansehen)")
+        self.present_btn: QPushButton | None = None   # nur Kursleiter-Version
+        if edition.IS_TRAINER:
+            self.present_btn = QPushButton("Vorführen …")
+            self.present_btn.setToolTip("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur "
+                                        "ansehen)")
         self.add_apps_btn = QPushButton("Programme hinzufügen …")
         self.add_apps_btn.setToolTip("Fehlende Programme oder KI-Werkzeuge nachinstallieren – der Agent-PC muss laufen")
         for b in (self.move_btn, self.resize_btn, self.add_apps_btn, self.template_btn, self.independent_btn,
@@ -510,7 +521,8 @@ class MainWindow(QMainWindow):
             b.setObjectName("Small")
         for b in (self.start_btn, self.stop_btn, self.fullscreen_btn, self.ssh_btn, self.remote_btn, self.present_btn,
                   self.help_btn, self.upgrade_btn, self.template_btn, self.delete_btn):
-            row.addWidget(b)
+            if b is not None:
+                row.addWidget(b)
         hl.addSpacing(6)
         hl.addLayout(row)
 
@@ -713,7 +725,8 @@ class MainWindow(QMainWindow):
         self.add_apps_btn.clicked.connect(lambda: self.add_apps())
         self.add_desktop_btn.clicked.connect(self.add_desktop)
         self.template_btn.clicked.connect(self.save_template)
-        self.present_btn.clicked.connect(self.present_vm)
+        if self.present_btn is not None:
+            self.present_btn.clicked.connect(self.present_vm)
         self.help_btn.clicked.connect(self.request_help)
         self.independent_btn.clicked.connect(self.make_independent)
         self.upgrade_btn.clicked.connect(self.upgrade_vm)
@@ -1061,7 +1074,8 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn.setEnabled(status == "läuft" and not busy)
         self.delete_btn.setEnabled(not busy and not tpl_lock)
         self.upgrade_btn.setEnabled(status == "läuft" and not busy)
-        self.present_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
+        if self.present_btn is not None:
+            self.present_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
         self.help_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
 
         p = m.progress()
@@ -1300,8 +1314,8 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def present_vm(self) -> None:
-        """Nicht modal – der Kursleiter arbeitet nebenher weiter (Pause, Hilfe-Anfragen)."""
-        from .present_dialog import PresentDialog
+        """Nicht modal – der Kursleiter arbeitet nebenher weiter (Pause, Hilfe-Anfragen). Nur Kursleiter-Version."""
+        from bonys_agents.trainer.gui.present_dialog import PresentDialog
 
         m = self.current()
         if not m:
@@ -1319,7 +1333,7 @@ class MainWindow(QMainWindow):
         d.show()
 
     def show_helpdesk(self) -> None:
-        from .course_ui import HelpDeskDialog
+        from bonys_agents.trainer.gui.helpdesk_dialog import HelpDeskDialog
 
         d = self._helpdesk_dialog
         if d is None:

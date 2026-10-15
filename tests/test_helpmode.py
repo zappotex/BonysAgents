@@ -9,7 +9,10 @@ from types import SimpleNamespace
 import pytest
 from test_present import Client, FakeVNC, _novnc, _wait
 
-from bonys_agents import helpmode, present, rfb, share, storage, websocket
+from bonys_agents import helpmode, rfb, share, storage, websocket
+from bonys_agents.trainer import helpdesk, present
+
+pytestmark = pytest.mark.kursleiter
 
 
 class Machine:
@@ -60,7 +63,7 @@ def _teacher(srv, url: str) -> Client:
     token = url.split("#t=")[1]
     assert t.request("GET", f"/help/{sid}")[0] == 200
     st, _h, body = t.request("POST", "/bonys/v1/help/auth", {"s": sid, "t": token})
-    assert st == 200 and t.cookie.startswith(helpmode.COOKIE + "=")
+    assert st == 200 and t.cookie.startswith(helpdesk.COOKIE + "=")
     t.sid = sid
     return t
 
@@ -93,15 +96,22 @@ def test_wrong_code_and_fingerprint_are_refused(course):
     assert course.helpdesk.session_list() == []
 
 
+def test_protocol_mismatch_is_refused_with_clear_message(course, monkeypatch):
+    monkeypatch.setattr(share, "PROTOCOL", share.PROTOCOL + 1)   # Teilnehmer neuer als der Kursleiter
+    with pytest.raises(share.ProtocolMismatch, match="Der Kursleiter sollte Bony's Agents aktualisieren"):
+        helpmode.HelpClient(_target(course), Machine()).connect()
+    assert course.helpdesk.session_list() == []
+
+
 def test_request_appears_for_teacher(course):
     c, _m, _calls = _participant(course)
     c.request("Brave startet nicht")
-    assert _wait(lambda: course.helpdesk.session_list()[0].state == helpmode.WAITING)
+    assert _wait(lambda: course.helpdesk.session_list()[0].state == helpdesk.WAITING)
     s = course.helpdesk.session_list()[0]
     assert (s.name, s.vm, s.message) == ("Kim", "teilnehmer-pc", "Brave startet nicht")
     assert course.helpdesk.requests_total == 1
     c.cancel()
-    assert _wait(lambda: course.helpdesk.session_list()[0].state == helpmode.CONNECTED)
+    assert _wait(lambda: course.helpdesk.session_list()[0].state == helpdesk.CONNECTED)
 
 
 def test_no_picture_without_consent(course):
@@ -116,7 +126,7 @@ def test_no_picture_without_consent(course):
     with pytest.raises(share.WrongCode):
         helpmode._open_ws(_target(course), f"{helpmode.API}/tunnel?s={sid}&t=ausgedachtertunnel", {})
     c.allow_view(False)
-    assert _wait(lambda: _status(t)["state"] == helpmode.DENIED)
+    assert _wait(lambda: _status(t)["state"] == helpdesk.DENIED)
     assert _view_ws(t)[0] in (403, 409)
     assert m.vnc.received == []                              # der Agent-PC wurde nie verbunden
 
@@ -172,7 +182,7 @@ def test_participant_end_disconnects_immediately(course, tmp_path):
         while True:
             ws.recv()
     assert time.monotonic() - t0 < 1.5
-    assert _wait(lambda: _status(t)["state"] == helpmode.ENDED)
+    assert _wait(lambda: _status(t)["state"] == helpdesk.ENDED)
     assert _view_ws(t)[0] == 409               # kein Bild mehr ohne neue Zustimmung
     log = helpmode.log_file().read_text("utf-8")
     for entry in ("Ansehen erlaubt", "Kursleiter sieht zu", "Beendet (Teilnehmer)"):

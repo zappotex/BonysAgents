@@ -82,6 +82,9 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
 
 ### Stufe 3 – Live-Vorführung (A) und Hilfe-Modus (B) ✅ erledigt (0.18.0)
 
+Ab 0.19.0 liegen Server und Kursleiter-Dialoge in `trainer/` (`trainer/present.py`, `trainer/helpdesk.py`,
+`trainer/gui/…`, Seiten und noVNC unter `trainer/resources/`), siehe `docs/editionen.md`.
+
 **A – Vorführen** (`present.py`, `rfb.py`, `websocket.py`, `gui/present_dialog.py`, Seiten unter
 `resources/present/`):
 
@@ -218,5 +221,21 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
 - **2026-10-15**: Nachtrag Windows (CI): Vorführen-Fenster war 914 px breit (fünf Knöpfe in der festen Knopfzeile) →
   „Hilfe-Anfragen …“ und „Zuschauer entfernen“ unter die Zuschauerliste; VNC-Pfadtest plattformfest. Nutzer hat
   getestet („Test war gut“) → **Release v0.18.0 veröffentlicht** (alle Release-Jobs grün, APT-Quelle liefert 0.18.0).
-- **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
+- **2026-10-15 (Sitzung 3)** – Auftrag in drei Teilen (A Stufe 3 prüfen, B zwei Editionen, C neues Hintergrundbild),
+  Release erst nach Test und OK des Nutzers. Version wird 0.19.0.
+  - **Teil A erledigt:** Stufe 3 war vollständig umgesetzt und getestet – nichts fehlte. Die geforderten Fälle stehen
+    in `test_present.py` (Zuschauer-Eingaben verworfen, falscher Code abgelehnt/gesperrt) und `test_helpmode.py`
+    (ohne Zustimmung kein Bild, ohne zweite Zustimmung keine Steuerung). 409 Tests grün.
+  - **Teil B (Editionen) umgesetzt** (Details: `docs/editionen.md`): Kursleiter-Code in `src/bonys_agents/trainer/`
+    (`share_server.py` = Server-Teil aus `share.py`, `present.py`, `helpdesk.py` = HelpDesk aus `helpmode.py`,
+    `announce.py` = mDNS-Advertiser, `cli.py` = share/present, `gui/` = ShareDialog, PresentDialog,
+    CourseHub/HelpDeskDialog, `resources/present`, `resources/novnc`). Hauptpaket: `edition.py` (EDITION, IS_TRAINER),
+    `vncbridge.py` (pump_viewer), `share.py` (Protokoll `PROTOCOL=1`, `check_protocol`, Teilnehmer),
+    `helpmode.py` (nur HelpClient). Pakete: `packaging/editions.py`, Spec mit `-- --edition`, `check-edition.py`,
+    `build-deb.sh [anwender|kursleiter]`, `.iss` mit `/DEdition=` (gleiche AppId + InstallDelete), dmg mit
+    Laufwerksname, release.yml/ci.yml/apt-repo für beide. Tests: `--edition anwender|kursleiter`, Marker
+    `kursleiter`, `test_editions.py`, `test_share.py` (Teilnehmer) + `test_share_server.py` (Server).
+  - Nächste Schritte: Teil C (Hintergrundbild `Bilder/hintergrund_program_neu.png`), danach Gesamttest
+    (Wechsel der .deb nur nach Rückfrage wegen sudo), Version 0.19.0, Zusammenfassung an den Nutzer.
+- **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt (gehört nach `trainer/`); Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).

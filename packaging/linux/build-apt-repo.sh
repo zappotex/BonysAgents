@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Baut aus .deb-Dateien eine signierte APT-Paketquelle – gemeinsam für Bony's Agents und Bony's VPN.
+# Baut aus .deb-Dateien eine signierte APT-Paketquelle – gemeinsam für Bony's Agents (beide Editionen:
+# bonys-agents und bonys-agents-kursleiter) und Bony's VPN.
 # Der Workflow .github/workflows/apt-repo.yml veröffentlicht sie auf GitHub Pages
 # (https://<besitzer>.github.io/<repository>/apt/).
 #
@@ -24,7 +25,8 @@ debs=("$SRC"/*.deb)
 [ "${#debs[@]}" -gt 0 ] || { echo "Keine .deb in $SRC" >&2; exit 1; }
 for deb in "${debs[@]}"; do
   pkg="$(dpkg-deb -f "$deb" Package)"
-  case "$pkg" in bonys-agents|bonys-vpn|bonys-vpn-agentpc) ;; *) echo "Fremdes Paket: $pkg" >&2; exit 1 ;; esac
+  case "$pkg" in bonys-agents|bonys-agents-kursleiter|bonys-vpn|bonys-vpn-agentpc) ;;
+    *) echo "Fremdes Paket: $pkg" >&2; exit 1 ;; esac
   mkdir -p "$OUT/pool/main/b/$pkg"
   cp "$deb" "$OUT/pool/main/b/$pkg/"
 done

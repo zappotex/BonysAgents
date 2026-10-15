@@ -6,7 +6,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from bonys_agents import APP_NAME, COPYRIGHT, LICENSE_ID, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, license_location
+from bonys_agents import COPYRIGHT, LICENSE_ID, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, edition, license_location
 
 from . import style
 from .widgets import ScaledLogo, make_scrollable, open_url
@@ -21,7 +21,7 @@ def _href(name: str) -> str:
 class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Über {APP_NAME}")
+        self.setWindowTitle(f"Über {edition.NAME}")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 24, 28, 20)
@@ -29,10 +29,10 @@ class AboutDialog(QDialog):
 
         root.addWidget(ScaledLogo(160), 1)
 
-        title = QLabel(APP_NAME)
+        title = QLabel(edition.NAME)
         title.setObjectName("Title")
         title.setAlignment(Qt.AlignCenter)
-        version = QLabel(f"Version {__version__}")
+        version = QLabel(f"Version {__version__} · Edition {edition.LABEL}")
         version.setObjectName("Muted")
         version.setAlignment(Qt.AlignCenter)
         tagline = QLabel(TAGLINE)
@@ -54,6 +54,9 @@ class AboutDialog(QDialog):
             f'<a href="{_href("THIRD-PARTY-LICENSES")}" style="{link}">Mitgelieferte Komponenten</a><br>'
             f'YouTube: <a href="{YOUTUBE_CHANNEL_URL}" style="{link}">'
             f"{YOUTUBE_CHANNEL_URL.removeprefix('https://www.')}</a>"
+            + ("" if edition.IS_TRAINER else
+               f'<br><br><span style="font-size: small;">Du möchtest selbst Schulungen geben? → '
+               f'<a href="{edition.download_url()}" style="{link}">{edition.NAMES[edition.KURSLEITER]}</a></span>')
         )
         info.setWordWrap(True)
         info.setAlignment(Qt.AlignCenter)

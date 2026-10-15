@@ -23,7 +23,6 @@ import json
 import mimetypes
 import re
 import secrets
-import select
 import socket
 import ssl
 import threading
@@ -35,7 +34,9 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from bonys_agents import __version__, mdns, rfb, share, websocket
+from bonys_agents import __version__, rfb, share, vncbridge, websocket
+from bonys_agents.trainer import announce, share_server
+from bonys_agents.vncbridge import CLOSE_ERROR, MIN_FPS
 
 DEFAULT_PORT = 47120
 DEFAULT_TIMEOUT_MIN = 90
@@ -47,9 +48,8 @@ API = "/bonys/v1/present"
 REMOVED_BLOCK_SECONDS = 300
 VIEWER_STALE = 60          # Sekunden ohne Verbindung und ohne Statusabfrage → zählt nicht mehr mit
 FULL_FPS_VIEWERS = 8       # bis zu so vielen Zuschauern volle Bildrate, darüber anteilig weniger
-MIN_FPS = 1.0
 # WebSocket-Schließcodes, die die Seite versteht
-CLOSE_ENDED, CLOSE_PAUSED, CLOSE_IDLE, CLOSE_REMOVED, CLOSE_ERROR = 4000, 4001, 4002, 4003, 4010
+CLOSE_ENDED, CLOSE_PAUSED, CLOSE_IDLE, CLOSE_REMOVED = 4000, 4001, 4002, 4003   # CLOSE_ERROR: vncbridge
 
 WARNING = ("Alle Teilnehmer sehen alles, was im Agent-PC angezeigt wird. Nutze Pause, bevor du Passwörter oder "
            "Tokens eingibst.")
@@ -63,7 +63,12 @@ class PresentError(RuntimeError):
 
 
 def resources_dir() -> Path:
+    """Ressourcen des Kursleiter-Pakets (Seiten, noVNC) – gibt es in der Anwender-Version nicht."""
     return Path(__file__).resolve().parent / "resources"
+
+
+def logo_file() -> Path:
+    return Path(__file__).resolve().parent.parent / "resources" / "logo.png"
 
 
 def novnc_dir() -> Path | None:
@@ -96,9 +101,9 @@ class Viewer:
         return not self.removed and (self.connections > 0 or now - self.last < VIEWER_STALE)
 
 
-class Presentation(share.Guarded):
+class Presentation(share_server.Guarded):
     """Kurs-Server des Kursleiters: Vorführung eines Bildschirms (``connect_vnc()`` liefert eine neue Verbindung
-    zum lokalen VNC-Socket) und Hilfe-Schalter (``helpdesk``, siehe ``helpmode``). Ohne ``connect_vnc`` läuft nur
+    zum lokalen VNC-Socket) und Hilfe-Schalter (``helpdesk``). Ohne ``connect_vnc`` läuft nur
     der Hilfe-Schalter („gerade keine Vorführung“); ``set_screen``/``clear_screen`` starten bzw. beenden eine
     Vorführung, ohne dass sich Code oder Zertifikat ändern."""
 
@@ -128,19 +133,19 @@ class Presentation(share.Guarded):
         self.cpu_factor = 1.0
         self.cpu_percent = 0.0
         self.addresses_cache = self._addresses()
-        self.cert, key = share.make_certificate("Bony's Agents Vorführung", kind="ec",
+        self.cert, key = share_server.make_certificate("Bony's Agents Vorführung", kind="ec",
                                                 addresses=self.addresses_cache + ["127.0.0.1"],
                                                 names=[_hostname_local()] if _hostname_local() else [])
         self.fingerprint = hashlib.sha256(self.cert).hexdigest()
-        self._ctx = share.server_context(self.cert, key)
+        self._ctx = share_server.server_context(self.cert, key)
         del key
         self.advertise = advertise
-        self.advertiser: mdns.Advertiser | None = None
-        self.httpd: share._Server | None = None
+        self.advertiser: announce.Advertiser | None = None
+        self.httpd: share_server._Server | None = None
         self.started = 0.0
-        from bonys_agents import helpmode  # hier: helpmode braucht dieses Modul
+        from bonys_agents.trainer import helpdesk  # hier: helpdesk braucht dieses Modul
 
-        self.helpdesk = helpmode.HelpDesk(self)
+        self.helpdesk = helpdesk.HelpDesk(self)
 
     @property
     def has_screen(self) -> bool:
@@ -217,7 +222,7 @@ class Presentation(share.Guarded):
 
         Handler.pres = pres
         try:
-            httpd = share._Server((self.bind, self.port), Handler)
+            httpd = share_server._Server((self.bind, self.port), Handler)
         except OSError as e:
             raise PresentError(f"Port {self.port} ist belegt oder nicht erlaubt ({e.strerror or e}). Einen anderen "
                                f"Port wählen (z. B. {DEFAULT_PORT + 1}).") from e
@@ -230,7 +235,7 @@ class Presentation(share.Guarded):
                          daemon=True).start()
         threading.Thread(target=self._watch, name="vorfuehrung-ende", daemon=True).start()
         if self.advertise:
-            self.advertiser = mdns.Advertiser(
+            self.advertiser = announce.Advertiser(
                 f"Vorführung {self.title}", self.port, self.addresses(),
                 {"kind": "present", "name": self.title[:60], "creator": (_hostname() or "")[:60],
                  "fp": self.fingerprint, "v": "1"})
@@ -395,7 +400,7 @@ class Presentation(share.Guarded):
             v.connections += 1
         filt = rfb.ClientFilter(allow_input=lambda: False, quality=self.quality)
         try:
-            pump_viewer(tls, up, filt, lambda: self.close_reason(v), self.fps)
+            vncbridge.pump_viewer(tls, up, filt, lambda: self.close_reason(v), self.fps)
         finally:
             with self.lock:
                 v.connections -= 1
@@ -426,82 +431,6 @@ def _ws_close(tls: ssl.SSLSocket, code: int, reason: str) -> None:
     with contextlib.suppress(OSError, ValueError):
         tls.settimeout(2)
         tls.sendall(websocket.encode_frame(websocket.OP_CLOSE, websocket.close_payload(code, reason)))
-
-
-def pump_viewer(tls, up: socket.socket, filt: rfb.ClientFilter, should_close: Callable[[], tuple[int, str] | None],
-                fps: Callable[[], float] | None, client_side: bool = False) -> tuple[int, str] | None:
-    """Eine Schleife für beide Richtungen (ein Thread, kein gleichzeitiger Zugriff auf den TLS-Socket).
-
-    Gegenstelle → Agent-PC: WebSocket-Rahmen zerlegen, durch ``filt`` (verwirft Eingaben), FramebufferUpdateRequests
-    höchstens ``fps()`` mal pro Sekunde weitergeben (``fps=None``: ungebremst). Agent-PC → Gegenstelle: unverändert
-    als Binär-Rahmen. ``client_side``: wir sind der WebSocket-Client (Tunnel des Teilnehmers im Hilfe-Modus).
-    """
-    parser = websocket.FrameParser(expect_masked=not client_side)
-    pending: bytes | None = None
-    last_update = 0.0
-    up.settimeout(10)
-
-    def send(op: int, payload: bytes) -> None:
-        tls.settimeout(30)
-        tls.sendall(websocket.encode_frame(op, payload, mask=client_side))
-
-    try:
-        while True:
-            why = should_close()
-            if why:
-                send(websocket.OP_CLOSE, websocket.close_payload(*why))
-                return why
-            now = time.monotonic()
-            wait = 0.25
-            if pending is not None:
-                due = last_update + 1.0 / max(MIN_FPS, fps()) if fps else now
-                if now >= due:
-                    up.sendall(pending)
-                    pending, last_update = None, now
-                else:
-                    wait = min(wait, due - now)
-            readable = [tls] if tls.pending() else select.select([tls, up], [], [], wait)[0]
-            if tls in readable:
-                tls.settimeout(0.05)
-                try:
-                    data = tls.recv(65536)
-                except (TimeoutError, ssl.SSLWantReadError):
-                    data = None
-                if data == b"":
-                    return None
-                if data:
-                    for op, payload in parser.feed(data):
-                        if op == websocket.OP_CLOSE:
-                            send(websocket.OP_CLOSE, websocket.close_payload(1000))
-                            return websocket.parse_close(payload)
-                        if op == websocket.OP_PING:
-                            send(websocket.OP_PONG, payload)
-                        elif op == websocket.OP_BINARY:
-                            for kind, raw in filt.feed(payload):
-                                if kind == "update":
-                                    # nur die neueste Anfrage zählt – eine vollständige (nicht inkrementelle)
-                                    # bleibt aber vollständig
-                                    if pending is not None and pending[1] == 0:
-                                        raw = raw[:1] + b"\0" + raw[2:]
-                                    pending = raw
-                                else:
-                                    up.sendall(raw)
-            if up in readable:
-                data = up.recv(65536)
-                if not data:
-                    send(websocket.OP_CLOSE, websocket.close_payload(CLOSE_ERROR, "Bildschirm getrennt"))
-                    return CLOSE_ERROR, "Bildschirm getrennt"
-                send(websocket.OP_BINARY, data)
-    except rfb.ProtocolError as e:
-        with contextlib.suppress(OSError, ValueError):
-            send(websocket.OP_CLOSE, websocket.close_payload(1008, str(e)))
-        return 1008, str(e)
-    except websocket.WebSocketClosed as e:
-        with contextlib.suppress(OSError, ValueError):
-            send(websocket.OP_CLOSE, websocket.close_payload(e.code if e.code < 4000 else 1002))
-        return e.code, e.reason
-    except (OSError, ValueError, ssl.SSLError):
-        return None
 
 
 # ---------------------------------------------------------------- HTTP
@@ -611,7 +540,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path.startswith("/assets/") and path[8:] in _STATIC:
             name = path[8:]
-            self._file((resources_dir() / name) if name == "logo.png" else page_dir() / name)
+            self._file(logo_file() if name == "logo.png" else page_dir() / name)
             return
         if p.helpdesk.handle(self, "GET", path):
             return
@@ -624,8 +553,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(429 if why == "gesperrt" else 403, {"error": "Falscher Code." if why == "falsch" else
                                                                "Zu viele falsche Codes – bitte eine Minute warten."})
                 return
-            self._json(200, {"app": "bonys-agents", "api": 1, "kind": "present", "title": p.title,
-                             "version": __version__, "ends_in": int(p.remaining())})
+            self._json(200, {"app": "bonys-agents", "api": 1, "protocol": share_server.PROTOCOL, "kind": "present",
+                             "title": p.title, "version": __version__, "ends_in": int(p.remaining())})
             return
         if path == f"{API}/status":
             v = p.viewer(self._token())

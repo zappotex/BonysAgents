@@ -1,11 +1,13 @@
 name: Release
 
-# Ein Tag wie "v0.8.0" baut automatisch:
-#   - bonys-agents_<version>_amd64.deb / _arm64.deb   (Debian, Ubuntu, Mint …)
-#   - BonysAgents-Setup-<version>.exe                  (Windows-Installer)
-#   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64)
+# Ein Tag wie "v0.8.0" baut automatisch – je Edition (docs/editionen.md; Kursleiter-Dateien mit „-kursleiter“ bzw.
+# „-Kursleiter“ im Namen):
+#   - bonys-agents_<version>_amd64.deb / _arm64.deb   (Debian, Ubuntu, Mint …; bonys-agents-kursleiter_…)
+#   - BonysAgents-Setup-<version>.exe                  (Windows-Installer; BonysAgents-Kursleiter-Setup-…)
+#   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64; BonysAgents-Kursleiter-…)
 #   - BonysAgents-<version>-macos-intel.dmg            (macOS, Intel – x86_64)
-#   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen, signiert – die App prüft sie vor jedem Update)
+#   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen aller Dateien, signiert – die App prüft sie vor
+#                                                       jedem Update; Updates bleiben in der eigenen Edition)
 # hängt alles an eine GitHub-Release-Seite und veröffentlicht danach die signierte APT-Paketquelle
 # auf GitHub Pages (https://<besitzer>.github.io/<repository>/apt/) – gemeinsam mit Bony's VPN, siehe apt-repo.yml.
 # Ohne Tag (manuell über "Run workflow") entstehen die Dateien nur als Artefakte zum Testen.
@@ -42,33 +44,72 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: .deb bauen
-        run: packaging/linux/build-deb.sh
-      - name: Paket testweise installieren
+      - name: .deb bauen – beide Editionen (prüft dabei, dass die Anwender-Version kein trainer/ und kein noVNC enthält)
         run: |
+          packaging/linux/build-deb.sh anwender
+          packaging/linux/build-deb.sh kursleiter
+          ls -la dist/*.deb
+      - name: Paketinhalt prüfen – Anwender ohne Kursleiter-Teile, Kursleiter mit
+        run: |
+          A=$(ls dist/bonys-agents_*.deb); K=$(ls dist/bonys-agents-kursleiter_*.deb)
+          if dpkg-deb -c "$A" | grep -iE 'bonys_agents/trainer|novnc'; then echo "::error::Kursleiter-Teile im Anwender-Paket"; exit 1; fi
+          dpkg-deb -c "$K" | grep -q 'trainer/resources/novnc/core/rfb.js'
+          dpkg-deb -f "$K" Provides | grep -q '^bonys-agents (= '
+          dpkg-deb -f "$K" Conflicts | grep -qx 'bonys-agents'
+          dpkg-deb -f "$K" Replaces | grep -qx 'bonys-agents'
+          dpkg-deb -f "$A" Conflicts | grep -qx 'bonys-agents-kursleiter'
+          dpkg-deb -f "$A" Replaces | grep -qx 'bonys-agents-kursleiter'
+          for deb in "$A" "$K"; do
+            d=$(mktemp -d); dpkg-deb -x "$deb" "$d"
+            ed=$([ "$deb" = "$K" ] && echo kursleiter || echo anwender)
+            python3 packaging/check-edition.py "$d/opt/bonys-agents" "$ed"
+            grep -H '^Name=' "$d/usr/share/applications/bonys-agents.desktop"
+          done
+      - name: Paket testweise installieren und die Edition wechseln (Anwender → Kursleiter → Anwender)
+        run: |
+          A=$(ls dist/bonys-agents_*.deb); K=$(ls dist/bonys-agents-kursleiter_*.deb)
           sudo apt-get update
-          sudo apt-get install -y ./dist/*.deb
-          bonys-agents --version
+          sudo apt-get install -y "./$A"
+          bonys-agents --version | tee v.txt; grep -q '(Anwender)$' v.txt
           bonys-agents selftest
           QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
+          set +e; bonys-agents present irgendwas; rc=$?; set -e
+          [ "$rc" -eq 2 ] || { echo "::error::present in der Anwender-Version: $rc"; exit 1; }
           # Bony's VPN ist ein eigenes Paket: hier nur „Suggests“, keine Dateien davon
-          dpkg-deb -f dist/*.deb Suggests | grep -qw bonys-vpn
+          dpkg-deb -f "$A" Suggests | grep -qw bonys-vpn
           if dpkg -L bonys-agents | grep -qE 'bonys-vpn|polkit|systemd'; then echo "Dateien von Bony's VPN im Paket" >&2; exit 1; fi
+          # Daten, die beim Wechsel bleiben müssen
+          mkdir -p ~/.local/share/bonys-agents && echo bleibt > ~/.local/share/bonys-agents/wechsel-test
+          sudo apt-get install -y "./$K"        # ersetzt bonys-agents
+          ! dpkg-query -W -f='${db:Status-Status}' bonys-agents 2>/dev/null | grep -qx installed
+          bonys-agents --version | tee v.txt; grep -q '(Kursleiter)$' v.txt
+          bonys-agents present --help >/dev/null
+          grep -qx "Name=Bony's Agents Kursleiter" /usr/share/applications/bonys-agents.desktop
+          QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
+          sudo apt-get install -y "./$A"        # und zurück
+          ! dpkg-query -W -f='${db:Status-Status}' bonys-agents-kursleiter 2>/dev/null | grep -qx installed
+          bonys-agents --version | grep -q '(Anwender)$'
+          [ ! -e /opt/bonys-agents/_internal/bonys_agents/trainer ]
+          grep -qx bleibt ~/.local/share/bonys-agents/wechsel-test
+          # Paketquelle für Updates übersteht den Wechsel
+          test -f /etc/apt/sources.list.d/bonys-agents.sources
       # Neuere Systeme als die Bau-Basis: dort fielen mitgelieferte Bibliotheken zuerst auf
       # (QEMU: „libmount.so.1: version `MOUNT_2_40' not found“).
-      - name: In Debian 13 und Ubuntu 24.04 installieren und Selbsttest
+      - name: In Debian 13 und Ubuntu 24.04 installieren und Selbsttest (beide Editionen)
         run: |
           for image in debian:trixie ubuntu:24.04; do
-            echo "::group::$image"
-            docker run --rm -v "$PWD/dist:/dist:ro" "$image" bash -euxc '
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -qq
-              apt-get install -y -qq /dist/*.deb > /dev/null
-              bonys-agents --version
-              bonys-agents selftest
-              QT_QPA_PLATFORM=offscreen timeout 10 bonys-agents-gui || [ $? -eq 124 ]
-            '
-            echo "::endgroup::"
+            for pkg in bonys-agents_ bonys-agents-kursleiter_; do
+              echo "::group::$image $pkg"
+              docker run --rm -v "$PWD/dist:/dist:ro" -e PKG="$pkg" "$image" bash -euxc '
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update -qq
+                apt-get install -y -qq /dist/${PKG}*.deb > /dev/null
+                bonys-agents --version
+                bonys-agents selftest
+                QT_QPA_PLATFORM=offscreen timeout 10 bonys-agents-gui || [ $? -eq 124 ]
+              '
+              echo "::endgroup::"
+            done
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -82,36 +123,65 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Programm bündeln
+      - name: Programm bündeln – beide Editionen
+        shell: bash
         run: |
           python packaging/fetch-novnc.py
           pip install . pyinstaller
-          pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec
+          for ed in anwender kursleiter; do
+            pyinstaller --noconfirm --log-level WARN --workpath "build/pyinstaller-$ed" packaging/bonys-agents.spec -- --edition $ed
+          done
+          python packaging/check-edition.py dist/bonys-agents anwender
+          python packaging/check-edition.py dist/bonys-agents-kursleiter kursleiter
           dist/bonys-agents/bonys-agents.exe --version
+          dist/bonys-agents-kursleiter/bonys-agents.exe --version
       - name: Installer bauen
         shell: pwsh
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
           $v = python -c "import bonys_agents; print(bonys_agents.__version__)"
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=$v" packaging\windows\bonys-agents.iss
-      - name: Installer testweise still installieren
+          foreach ($ed in @("anwender", "kursleiter")) {
+            & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=$v" "/DEdition=$ed" packaging\windows\bonys-agents.iss
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          Get-ChildItem dist\*.exe
+      - name: Installer testweise still installieren und die Edition wechseln
         shell: pwsh
         run: |
-          $setup = Get-ChildItem dist\BonysAgents-Setup-*.exe | Select-Object -First 1
-          Start-Process $setup.FullName -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS="desktopicon"' -Wait
-          & "${env:ProgramFiles}\Bony's Agents\bonys-agents.exe" --version
+          $app = "${env:ProgramFiles}\Bony's Agents"
+          function Install($pattern) {
+            $setup = Get-ChildItem "dist\$pattern" | Select-Object -First 1
+            Start-Process $setup.FullName -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS="desktopicon"' -Wait
+          }
+          function Version() { (& "$app\bonys-agents.exe" --version) | Out-String }
+          Install "BonysAgents-Setup-*.exe"
+          if ((Version) -notmatch "\(Anwender\)") { throw "Anwender-Version erwartet: $(Version)" }
+          & "$app\bonys-agents.exe" present x; if ($LASTEXITCODE -ne 2) { throw "present in der Anwender-Version: $LASTEXITCODE" }
+          Install "BonysAgents-Kursleiter-Setup-*.exe"
+          if ((Version) -notmatch "\(Kursleiter\)") { throw "Kursleiter-Version erwartet: $(Version)" }
+          if (-not (Test-Path "$app\_internal\bonys_agents\trainer")) { throw "Kursleiter-Dateien fehlen" }
+          Install "BonysAgents-Setup-*.exe"
+          if ((Version) -notmatch "\(Anwender\)") { throw "Zurück auf Anwender erwartet: $(Version)" }
+          if (Test-Path "$app\_internal\bonys_agents\trainer") { throw "Kursleiter-Dateien nach dem Wechsel noch da" }
+          $keys = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall" | Get-ItemProperty | Where-Object { $_.DisplayName -like "Bony's Agents*" }
+          $keys | Select-Object DisplayName, DisplayVersion | Format-Table
+          if (@($keys).Count -ne 1) { throw "Erwartet genau einen Eintrag unter „Apps“, gefunden: $(@($keys).Count)" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: dist/BonysAgents-Setup-*.exe
+          path: dist/BonysAgents-*Setup-*.exe
 
   macos:
     # Zwei getrennte Builds statt universal2: PyInstaller schneidet dann jede Bibliothek auf den Chip zu
     # (halb so groß), und jede Variante wird auf echter Hardware ihrer Art getestet.
     # macos-15-intel ist der letzte Intel-Runner von GitHub (unterstützt bis August 2027).
+    # Je Chip beide Editionen. Die App heißt in beiden „Bony's Agents.app“ (gleiche Bundle-ID) – die eine ersetzt
+    # in „Programme“ die andere; die .dmg-Namen unterscheiden sich.
     strategy:
       fail-fast: false
       matrix:
+        runner: [macos-latest, macos-15-intel]
+        edition: [anwender, kursleiter]
         include:
           - runner: macos-latest
             arch: arm64
@@ -119,6 +189,14 @@ jobs:
           - runner: macos-15-intel
             arch: x86_64
             flavor: intel
+          - edition: anwender
+            prefix: BonysAgents
+            label: Anwender
+            volname: Bony's Agents
+          - edition: kursleiter
+            prefix: BonysAgents-Kursleiter
+            label: Kursleiter
+            volname: Bony's Agents Kursleiter
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -137,12 +215,15 @@ jobs:
       - name: App bauen
         run: |
           sw_vers; uname -m
-          python packaging/fetch-novnc.py
+          if [ "${{ matrix.edition }}" = kursleiter ]; then python packaging/fetch-novnc.py; fi
           pip install . pyinstaller
-          pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec
+          pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec -- --edition ${{ matrix.edition }}
+          python packaging/check-edition.py "dist/Bony's Agents.app" ${{ matrix.edition }}
           v=$(python -c "import bonys_agents; print(bonys_agents.__version__)")
           echo "VERSION=$v" >> "$GITHUB_ENV"
-          echo "DMG=dist/BonysAgents-$v-macos-${{ matrix.flavor }}.dmg" >> "$GITHUB_ENV"
+          echo "DMG=dist/${{ matrix.prefix }}-$v-macos-${{ matrix.flavor }}.dmg" >> "$GITHUB_ENV"
+          [ "$(plutil -extract CFBundleDisplayName raw "dist/Bony's Agents.app/Contents/Info.plist")" = "${{ matrix.volname }}" ]
+          [ "$(plutil -extract CFBundleIdentifier raw "dist/Bony's Agents.app/Contents/Info.plist")" = "io.github.bonys-agents" ]
           plutil -p "dist/Bony's Agents.app/Contents/Info.plist"
           # Sonst ist die App ein unsichtbarer Hintergrunddienst (bis 0.12.0 der Fall)
           [ "$(plutil -extract LSBackgroundOnly raw "dist/Bony's Agents.app/Contents/Info.plist")" = "false" ]
@@ -155,7 +236,7 @@ jobs:
           codesign -dv --verbose=2 "dist/Bony's Agents.app" 2>&1 | grep -E "^(Identifier|Format|Signature|Authority|TeamIdentifier)"
       - name: .dmg bauen
         run: |
-          packaging/macos/build-dmg.sh "dist/Bony's Agents.app" "$DMG"
+          packaging/macos/build-dmg.sh "dist/Bony's Agents.app" "$DMG" "${{ matrix.volname }}"
           if [ "$SIGN_IDENTITY" != "-" ]; then codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"; fi
           ls -la dist/*.dmg
       - name: Notarisieren (nur mit Apple-Secrets)
@@ -180,7 +261,7 @@ jobs:
           spctl --assess --type execute -vv "$APP" || echo "Gatekeeper: nicht notarisiert – beim ersten Start fragt macOS nach (siehe README)."
           file "$APP/Contents/MacOS/"*
           "$APP/Contents/MacOS/bonys-agents" --version | tee version.txt
-          grep -qx "bonys-agents $VERSION" version.txt
+          grep -qx "bonys-agents $VERSION (${{ matrix.label }})" version.txt
           # Desktop-App ohne Bildschirm: muss nach 5 s noch laufen (Alarm-Code 142) und ohne Stylesheet-Fehler
           set +e
           QT_QPA_PLATFORM=offscreen t 5 "$APP/Contents/MacOS/BonysAgents" > gui.log 2>&1; rc=$?
@@ -194,7 +275,7 @@ jobs:
           open "$APP"
           for i in $(seq 1 30); do pgrep -x BonysAgents >/dev/null && break; sleep 1; done
           sleep 8
-          mkdir -p shots && screencapture -x "shots/app-${{ matrix.flavor }}.png" || true
+          mkdir -p shots && screencapture -x "shots/app-${{ matrix.flavor }}-${{ matrix.edition }}.png" || true
           bg=$(perl -e 'alarm 20; exec {$ARGV[0]} @ARGV' osascript -e \
             'tell application "System Events" to get background only of first process whose name is "BonysAgents"' || echo "?")
           echo "background only: $bg"
@@ -203,7 +284,12 @@ jobs:
           osascript -e 'quit app "Bony'"'"'s Agents"' || pkill -x BonysAgents || true
       - name: Test – doctor vor QEMU
         run: '"$CLI" doctor || true'
+      - name: Test – Kursleiter-Befehle nur in der Kursleiter-Version
+        run: |
+          set +e; "$CLI" present irgendwas; rc=$?; set -e
+          if [ "${{ matrix.edition }}" = anwender ]; then [ "$rc" -eq 2 ]; else "$CLI" present --help > /dev/null; fi
       - name: Test – QEMU über Homebrew, doctor und Bootversuch eines Agent-PCs
+        if: matrix.edition == 'anwender'
         run: |
           brew install qemu
           "$CLI" doctor || true    # HVF fehlt auf den (virtualisierten) Runnern – das ist hier erwartet
@@ -211,12 +297,12 @@ jobs:
           "$CLI" selftest --boot
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.flavor }}
+          name: macos-${{ matrix.flavor }}-${{ matrix.edition }}
           path: dist/BonysAgents-*-macos-*.dmg
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshot-macos-${{ matrix.flavor }}
+          name: screenshot-macos-${{ matrix.flavor }}-${{ matrix.edition }}
           path: shots
 
   macos-compat:
@@ -232,13 +318,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: macos-applesilicon
+          name: macos-applesilicon-anwender
       - name: Installieren und starten
         run: |
           sw_vers; uname -m
           t() { perl -e 'alarm shift; exec {$ARGV[0]} @ARGV' "$@"; }
           MNT="$RUNNER_TEMP/dmg"
-          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" BonysAgents-*-macos-applesilicon.dmg
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" BonysAgents-[0-9]*-macos-applesilicon.dmg
           ditto "$MNT/Bony's Agents.app" "/Applications/Bony's Agents.app"
           hdiutil detach "$MNT"
           APP="/Applications/Bony's Agents.app"
@@ -303,8 +389,18 @@ jobs:
             out/SHA256SUMS
             out/SHA256SUMS.minisig
           body: |
+            **Welche Version brauche ich?**
+
+            | Du möchtest … | Version | Dateien |
+            |---|---|---|
+            | eigene Agent-PCs nutzen **oder an einer Schulung teilnehmen** (beitreten, Vorführung ansehen, Hilfe anfordern) | **Bony's Agents** | `bonys-agents_…deb`, `BonysAgents-Setup-….exe`, `BonysAgents-…-macos-….dmg` |
+            | selbst **Schulungen geben** (Vorlage im Netz freigeben, vorführen, Hilfe-Anfragen annehmen) | **Bony's Agents Kursleiter** | `bonys-agents-kursleiter_…deb`, `BonysAgents-Kursleiter-Setup-….exe`, `BonysAgents-Kursleiter-…-macos-….dmg` |
+
+            Teilnehmer brauchen nur die normale Version. Die Kursleiter-Version enthält alles aus der normalen. Wechseln geht
+            jederzeit in beide Richtungen – einfach die andere Version installieren; Agent-PCs, Vorlagen und Einstellungen bleiben.
+
             **Installieren – ganz ohne Terminal:**
-            - **Windows:** `BonysAgents-Setup-….exe` herunterladen und doppelklicken.
+            - **Windows:** `BonysAgents-Setup-….exe` (bzw. `BonysAgents-Kursleiter-Setup-….exe`) herunterladen und doppelklicken.
             - **Debian / Ubuntu / Linux Mint:** die passende `.deb`-Datei herunterladen und doppelklicken
               (öffnet die Softwareverwaltung) → „Installieren“. Für die meisten PCs: `amd64`.
               Spätere Updates kommen dann über die Aktualisierungsverwaltung.

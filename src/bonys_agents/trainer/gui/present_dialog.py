@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Schulungen: „Vorführen …“ – laufenden Agent-PC live im Browser der Teilnehmer zeigen (nur ansehen)."""
+"""Kursleiter: „Vorführen …“ – laufenden Agent-PC live im Browser der Teilnehmer zeigen (nur Kursleiter-Version)."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, host, present, rfb, share, vm
-
-from . import style
-from .share_dialogs import code_style, qr_pixmap
-from .widgets import make_scrollable
+from bonys_agents import APP_NAME, host, rfb, share, vm
+from bonys_agents.gui import style
+from bonys_agents.gui.share_dialogs import code_style, qr_pixmap
+from bonys_agents.gui.widgets import make_scrollable
+from bonys_agents.trainer import present, share_server
 
 
 class PresentDialog(QDialog):
@@ -24,7 +24,7 @@ class PresentDialog(QDialog):
     def __init__(self, machine: vm.VM, parent=None, restart: Callable[[], None] | None = None,
                  help_desk: Callable[[], None] | None = None):
         super().__init__(parent)
-        from .course_ui import CourseHub
+        from .helpdesk_dialog import CourseHub
 
         self.hub = CourseHub.get()
         self.m = machine
@@ -129,7 +129,7 @@ class PresentDialog(QDialog):
         self.events.setReadOnly(True)
         self.events.setMaximumHeight(style.px(80))
         root.addWidget(self.events)
-        self.firewall = QLabel(share.FIREWALL_HINTS.get(host.detect().os, "").format(port=present.DEFAULT_PORT))
+        self.firewall = QLabel(share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=present.DEFAULT_PORT))
         self.firewall.setWordWrap(True)
         self.firewall.setObjectName("Muted")
         root.addWidget(self.firewall)
@@ -159,7 +159,7 @@ class PresentDialog(QDialog):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._refresh)
         self.port.valueChanged.connect(lambda v: self.firewall.setText(
-            share.FIREWALL_HINTS.get(host.detect().os, "").format(port=v)))
+            share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=v)))
         self.start_btn.clicked.connect(self._start)
         self.stop_btn.clicked.connect(self._stop)
         self.pause_btn.clicked.connect(self._toggle_pause)

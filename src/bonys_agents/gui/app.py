@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
-from bonys_agents import APP_NAME, procutil
+from bonys_agents import APP_NAME, edition, procutil
 
 from . import style
 
@@ -21,7 +21,8 @@ def run() -> int:
     if QApplication.instance() is None:
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
+    app.setApplicationName(APP_NAME)   # gleich in beiden Editionen (Einstellungen bleiben beim Wechsel)
+    app.setApplicationDisplayName(edition.NAME)
     style.apply(app)
     app.setWindowIcon(QIcon(str(style.resource("logo.png"))))
 

@@ -1,19 +1,40 @@
-﻿; Inno-Setup-Skript für den Windows-Installer von Bony's Agents
+﻿; Inno-Setup-Skript für den Windows-Installer von Bony's Agents – beide Editionen (docs/editionen.md)
 ;
 ; Bauen (nach PyInstaller):
-;   iscc /DAppVersion=0.6.1 packaging\windows\bonys-agents.iss
-; Ergebnis: dist\BonysAgents-Setup-<Version>.exe
+;   iscc /DAppVersion=0.19.0 packaging\windows\bonys-agents.iss                        (Anwender)
+;   iscc /DAppVersion=0.19.0 /DEdition=kursleiter packaging\windows\bonys-agents.iss   (Kursleiter)
+; Ergebnis: dist\BonysAgents-Setup-<Version>.exe bzw. dist\BonysAgents-Kursleiter-Setup-<Version>.exe
+;
+; Wechsel zwischen den Editionen: Beide Installer haben dieselbe AppId. Für Windows ist es also EIN Programm –
+; eine Edition über die andere zu installieren ist wie ein Update: derselbe Ordner, ein einziger Eintrag unter
+; „Apps“ (Name und Version zeigen die Edition), ein Deinstallationsprogramm. [InstallDelete] räumt vorher die
+; Programmdateien der anderen Edition weg (sonst blieben z. B. die Kursleiter-Module liegen) und entfernt ihre
+; Verknüpfungen. Agent-PCs, Vorlagen und Einstellungen liegen im Benutzerordner und bleiben unberührt.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
-#define AppName "Bony's Agents"
+#ifndef Edition
+  #define Edition "anwender"
+#endif
+#if Edition == "kursleiter"
+  #define AppName "Bony's Agents Kursleiter"
+  #define OtherName "Bony's Agents"
+  #define DistDir "bonys-agents-kursleiter"
+  #define SetupBase "BonysAgents-Kursleiter-Setup-"
+#else
+  #define AppName "Bony's Agents"
+  #define OtherName "Bony's Agents Kursleiter"
+  #define DistDir "bonys-agents"
+  #define SetupBase "BonysAgents-Setup-"
+#endif
 #define AppExe "BonysAgents.exe"
 #define CliExe "bonys-agents.exe"
 #define Root "..\.."
 #define YouTubeUrl "https://www.youtube.com/@BonysAgents"
 
 [Setup]
+; Gleiche AppId in beiden Editionen – siehe oben
 AppId={{6E3B9C5A-1F4D-4B8E-9A21-B0A5E7C3D9F2}
 AppName={#AppName}
 AppVersion={#AppVersion}
@@ -30,7 +51,7 @@ LicenseFile={#Root}\LICENSE
 SetupIconFile={#Root}\src\bonys_agents\resources\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 OutputDir={#Root}\dist
-OutputBaseFilename=BonysAgents-Setup-{#AppVersion}
+OutputBaseFilename={#SetupBase}{#AppVersion}
 Compression=lzma2/ultra
 SolidCompression=yes
 WizardStyle=modern
@@ -49,8 +70,8 @@ Name: "de"; MessagesFile: "compiler:Languages\German.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-de.FinishedLabel=Bony's Agents ist jetzt installiert und im Startmenü zu finden.%n%nAuf YouTube zeige ich dir, wie du deinen ersten Agent-PC einrichtest: youtube.com/@BonysAgents
-en.FinishedLabel=Bony's Agents is now installed and can be found in the Start menu.%n%nOn YouTube I show you how to set up your first agent PC: youtube.com/@BonysAgents
+de.FinishedLabel={#AppName} ist jetzt installiert und im Startmenü zu finden.%n%nAuf YouTube zeige ich dir, wie du deinen ersten Agent-PC einrichtest: youtube.com/@BonysAgents
+en.FinishedLabel={#AppName} is now installed and can be found in the Start menu.%n%nOn YouTube I show you how to set up your first agent PC: youtube.com/@BonysAgents
 
 [CustomMessages]
 de.TaskDesktop=Verknüpfung auf dem &Desktop anlegen
@@ -61,8 +82,8 @@ de.StatusDeps=Richte QEMU und die Hardware-Beschleunigung ein – das kann einig
 en.StatusDeps=Setting up QEMU and hardware acceleration – this may take a few minutes …
 de.DepsFailed=QEMU konnte nicht automatisch eingerichtet werden. Bony's Agents zeigt beim Start, was fehlt, und kann es erneut versuchen.
 en.DepsFailed=QEMU could not be set up automatically. Bony's Agents will show what is missing on start and can retry.
-de.LaunchApp=Bony's Agents jetzt starten
-en.LaunchApp=Launch Bony's Agents now
+de.LaunchApp={#AppName} jetzt starten
+en.LaunchApp=Launch {#AppName} now
 de.OpenYouTube=Anleitungen auf YouTube ansehen (youtube.com/@BonysAgents)
 en.OpenYouTube=Watch the tutorials on YouTube (youtube.com/@BonysAgents)
 de.KeepData=Deine Agent-PCs wurden nicht gelöscht. Sie liegen weiterhin in deinem Benutzerordner bzw. auf den gewählten Laufwerken.
@@ -72,8 +93,14 @@ en.KeepData=Your agent PCs were not deleted. They remain in your user folder or 
 Name: "desktopicon"; Description: "{cm:TaskDesktop}"
 Name: "deps"; Description: "{cm:TaskDeps}"
 
+[InstallDelete]
+; Programmdateien der vorigen Installation (auch der anderen Edition) – Daten liegen woanders und bleiben
+Type: filesandordirs; Name: "{app}\_internal"
+Type: files; Name: "{autoprograms}\{#OtherName}.lnk"
+Type: files; Name: "{autodesktop}\{#OtherName}.lnk"
+
 [Files]
-Source: "{#Root}\dist\bonys-agents\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Root}\dist\{#DistDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Root}\THIRD-PARTY-LICENSES"; DestDir: "{app}"; DestName: "THIRD-PARTY-LICENSES.txt"; Flags: ignoreversion
 

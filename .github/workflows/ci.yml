@@ -25,8 +25,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 qemu-utils
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests
-      - run: pytest -q -v
+      - run: ruff check src tests packaging/editions.py packaging/check-edition.py
+      - name: Tests – Kursleiter-Version (alles)
+        run: pytest -q -v --edition kursleiter
+      - name: Tests – Anwender-Version (ohne bonys_agents.trainer)
+        run: pytest -q --edition anwender
 
   # Bony's VPN aus dem echten Release von zappotex/bonys-vpn (Signatur, SHA-256, apt):
   # Installationsschritt im Agent-PC (Debian 13, auch als Umstellung einer alten Fassung) und Knopf

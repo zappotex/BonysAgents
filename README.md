@@ -52,7 +52,20 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 
 ## Installation – ganz ohne Terminal
 
-Lade auf der **Releases-Seite** die Datei für dein System herunter:
+### Welche Version brauche ich?
+
+| Du möchtest … | Version |
+|---|---|
+| eigene Agent-PCs nutzen **oder an einer Schulung teilnehmen** (Kurs beitreten, Vorführung ansehen, Hilfe anfordern) | **Bony's Agents** |
+| selbst **Schulungen geben** (Vorlage im Netz freigeben, vorführen, Hilfe-Anfragen annehmen) | **Bony's Agents Kursleiter** |
+
+Teilnehmer brauchen nur die normale Version. Die Kursleiter-Version enthält alles aus der normalen; Dateien mit
+„Kursleiter“ im Namen (`bonys-agents-kursleiter_…deb`, `BonysAgents-Kursleiter-Setup-….exe`,
+`BonysAgents-Kursleiter-…-macos-….dmg`). Wechseln geht jederzeit in beide Richtungen – einfach die andere Version
+installieren, Agent-PCs, Vorlagen und Einstellungen bleiben. Details: [docs/editionen.md](docs/editionen.md).
+
+Lade auf der **[Releases-Seite](https://github.com/zappotex/BonysAgents/releases/latest)** die Datei für dein
+System herunter (hier die normale Version):
 
 | System | Datei | So geht's |
 |---|---|---|
@@ -77,10 +90,10 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 
 | Paket | Befehl |
 |---|---|
-| `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
-| Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
-| macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.18.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb`, mit `kursleiter` → `dist/bonys-agents-kursleiter_…deb` |
+| Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` und `dist\BonysAgents-Kursleiter-Setup-<version>.exe` |
+| macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec [-- --edition kursleiter]`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.19.0` anlegen – die Aktion *Release* baut beide Editionen: `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie (auch den Wechsel zwischen den Editionen), signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -416,6 +429,10 @@ bonys-agents make-independent neu       # verknüpften Agent-PC unabhängig mach
 ```
 
 ## Schulungen: Agent-PCs weitergeben
+
+> Freigeben, Vorführen und Hilfe-Anfragen annehmen gibt es in **Bony's Agents Kursleiter**. Teilnehmer
+> (Datei importieren, Kurs beitreten, Vorführung ansehen, Hilfe anfordern) brauchen nur die normale Version –
+> siehe [Welche Version brauche ich?](#welche-version-brauche-ich)
 
 Für Kurse und Workshops: Der Kursleiter richtet einen Agent-PC einmal ein, macht daraus eine **frische
 Vorlage** und gibt sie als **eine Datei** (`NAME-VERSION.bonys`) weiter – per USB-Stick, Netzlaufwerk oder
@@ -877,8 +894,13 @@ src/bonys_agents/
   vm.py          Lebenszyklus: anlegen, starten, stoppen, löschen, aktualisieren
   templates.py   Vorlagen: erstellen (über eine Überlagerung), klonen, verwalten
   bonysfile.py   Vorlagen weitergeben (.bonys): Frisch-Prüfung, Lizenzen, Manifest, Export/Import, Rezept
-  share.py       Schulung: Freigabe im Netzwerk (HTTPS, Code, Zertifikat je Freigabe, Warteschlange) und Beitreten
-  mdns.py        kleines mDNS/DNS-SD: Freigaben ankündigen und finden (_bonys-agents._tcp)
+  edition.py     Edition des Programms (Bony's Agents bzw. Bony's Agents Kursleiter, siehe docs/editionen.md)
+  share.py       Schulung (beide Editionen): Kurs-Protokoll und Version, Code, Fingerabdruck, Beitreten und Laden
+  helpmode.py    Hilfe-Modus beim Teilnehmer: Verbindung zum Kursleiter, Zustimmungen, Protokoll
+  rfb.py, websocket.py, vncbridge.py  Filter (Eingaben nur mit Erlaubnis), WebSocket, Brücke zum lokalen VNC
+  mdns.py        kleines mDNS/DNS-SD: Freigaben finden (_bonys-agents._tcp)
+  trainer/       nur Kursleiter-Version: Freigabe-Server (share_server), Vorführen (present, noVNC), Hilfe-Schalter
+                 (helpdesk), mDNS-Ankündigung (announce), Befehle share/present (cli), Dialoge (gui/)
   procutil.py    externe Programme mit sauberer Umgebung starten (ohne Bibliotheken des Bundles)
   selftest.py    Selbsttest: startet QEMU wie die App
   diagnose.py    Ursache erkennen, wenn QEMU während der Einrichtung endet
@@ -892,7 +914,8 @@ src/bonys_agents/
   cli.py         Kommandozeile
   gui/           Desktop-App (Qt / PySide6) inkl. Einrichtungs-Assistent und Reitern „VPN“ und „Mission Control“
 packaging/
-  bonys-agents.spec      PyInstaller-Bauplan (Programm inkl. Python & Qt)
+  bonys-agents.spec      PyInstaller-Bauplan (Programm inkl. Python & Qt), je Edition (editions.py)
+  check-edition.py       prüft ein gebautes Programm: Anwender ohne trainer/ und noVNC, Kursleiter mit
   linux/build-deb.sh     .deb-Paket
   linux/build-apt-repo.sh  signierte APT-Paketquelle (für GitHub Pages)
   windows/*.iss          Windows-Installer (Inno Setup)

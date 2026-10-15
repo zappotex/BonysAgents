@@ -3,6 +3,28 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.19.0 – Zwei Editionen: Bony's Agents und Bony's Agents Kursleiter (noch nicht veröffentlicht)
+
+### Neu
+- **Zwei Editionen aus einem Quellcode** (siehe [docs/editionen.md](docs/editionen.md)):
+  **Bony's Agents** für alle, die Agent-PCs nutzen, und für Teilnehmer von Schulungen (Kurs beitreten, Vorführung
+  im Browser öffnen, Hilfe anfordern), **Bony's Agents Kursleiter** zusätzlich mit Vorlage im Netzwerk freigeben,
+  Vorführen und Hilfe-Anfragen annehmen. Teilnehmer brauchen nur die normale Version.
+- In der normalen Version fehlen die Kursleiter-Funktionen ganz – kein Server-Code und kein noVNC im Paket. Unter
+  ⓘ und im „Über“-Fenster steht dezent „Du möchtest selbst Schulungen geben? → Bony's Agents Kursleiter“.
+- Wechsel zwischen den Editionen in beide Richtungen: einfach die andere Version installieren (.deb per Doppelklick
+  oder apt, Setup.exe, .dmg). Agent-PCs, Vorlagen, Bibliotheken und Einstellungen bleiben. Updates bleiben in der
+  eigenen Edition.
+- „Über“, `bonys-agents --version` und `bonys-agents doctor` zeigen die Edition.
+- **Kurs-Protokoll mit Version:** Passen Kursleiter und Teilnehmer nicht zusammen, sagt Bony's Agents verständlich,
+  wer aktualisieren sollte (Teilnehmer mit 0.17/0.18 bleiben kompatibel).
+
+### Geändert
+- `bonys-agents share` und `bonys-agents present` gibt es nur noch in der Kursleiter-Version; die normale Version
+  erklärt das (Rückgabe 2).
+- Pakete: `bonys-agents` und `bonys-agents-kursleiter` (.deb, beide in der APT-Paketquelle),
+  `BonysAgents-Setup-….exe` und `BonysAgents-Kursleiter-Setup-….exe`, je zwei .dmg pro Mac-Chip.
+
 ## 0.18.0 – Schulungen: Live-Vorführung und Hilfe-Modus
 
 ### Neu

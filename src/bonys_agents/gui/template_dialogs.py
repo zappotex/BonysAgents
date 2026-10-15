@@ -16,7 +16,9 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, apps, bonysfile, cloudinit, host, mission_control, storage, templates, vm, vpnlink
+from bonys_agents import (
+    APP_NAME, apps, bonysfile, cloudinit, edition, host, mission_control, storage, templates, vm, vpnlink,
+)
 
 from . import style
 from .widgets import FlowLayout, PathLabel, PercentBar, make_scrollable
@@ -671,12 +673,14 @@ class TemplatesDialog(QDialog):
         self.desc_btn = QPushButton("Beschreibung ändern …")
         self.export_btn = QPushButton("Weitergeben (.bonys) …")
         self.export_btn.setToolTip("Als eine Datei speichern – mit Frisch-Prüfung, ohne nicht weitergebbare Programme")
-        self.share_btn = QPushButton("Im Netzwerk freigeben …")
-        self.share_btn.setToolTip("Schulung: Teilnehmer im selben Netz bzw. VPN laden die Vorlage direkt von hier "
-                                  "(„Schulung beitreten“)")
+        self.share_btn: QPushButton | None = None   # nur Kursleiter-Version
+        if edition.IS_TRAINER:
+            self.share_btn = QPushButton("Im Netzwerk freigeben …")
+            self.share_btn.setToolTip("Schulung: Teilnehmer im selben Netz bzw. VPN laden die Vorlage direkt von "
+                                      "hier („Schulung beitreten“)")
         self.delete_btn = QPushButton("Löschen")
         self.delete_btn.setObjectName("Danger")
-        for b in (self.rename_btn, self.desc_btn, self.export_btn, self.share_btn, self.delete_btn):
+        for b in self._actions():
             actions.addWidget(b)
         right.addLayout(actions)
         body.addLayout(right, 1)
@@ -702,7 +706,8 @@ class TemplatesDialog(QDialog):
         self.rename_btn.clicked.connect(self._rename)
         self.desc_btn.clicked.connect(self._describe)
         self.export_btn.clicked.connect(self._export)
-        self.share_btn.clicked.connect(self._share)
+        if self.share_btn is not None:
+            self.share_btn.clicked.connect(self._share)
         self.delete_btn.clicked.connect(self._delete)
         self.import_btn.clicked.connect(self._import)
         self.close_btn.clicked.connect(self.reject)
@@ -724,6 +729,9 @@ class TemplatesDialog(QDialog):
             self.list.setCurrentRow(0)
         self._show()
 
+    def _actions(self) -> list[QPushButton]:
+        return [b for b in (self.rename_btn, self.desc_btn, self.export_btn, self.share_btn, self.delete_btn) if b]
+
     def current(self) -> templates.Template | None:
         it = self.list.currentItem()
         return self.items.get(it.data(Qt.UserRole)) if it else None
@@ -731,7 +739,7 @@ class TemplatesDialog(QDialog):
     def _show(self) -> None:
         t = self.current()
         busy = bool(self.worker and self.worker.isRunning())
-        for b in (self.rename_btn, self.desc_btn, self.export_btn, self.share_btn, self.delete_btn):
+        for b in self._actions():
             b.setEnabled(t is not None and not busy)
         self.import_btn.setEnabled(not busy)
         if t is None:
@@ -859,7 +867,7 @@ class TemplatesDialog(QDialog):
         self.reload(t.name)
 
     def _share(self) -> None:
-        from .share_dialogs import ShareDialog
+        from bonys_agents.trainer.gui.share_dialog import ShareDialog
 
         t = self.current()
         if t:

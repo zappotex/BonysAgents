@@ -74,7 +74,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p debs
-          gh release download -R "$AGENTS_REPO" --pattern 'bonys-agents_*.deb' --dir debs
+          # beide Editionen: bonys-agents und bonys-agents-kursleiter (ab 0.19)
+          gh release download -R "$AGENTS_REPO" --pattern 'bonys-agents_*.deb' --pattern 'bonys-agents-kursleiter_*.deb' --dir debs
           gh release download -R "$VPN_REPO" --pattern 'bonys-vpn*_all.deb' --dir debs \
             || echo "::notice::Noch kein Release von bonys-vpn."
           # Nur Pakete mit gültiger Prüfsumme aus dem signierten SHA256SUMS des jeweiligen Release

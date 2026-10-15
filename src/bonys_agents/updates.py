@@ -29,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bonys_agents import UPDATE_PUBLIC_KEY, UPDATE_REPO, __version__, procutil, signing, storage
+from bonys_agents import UPDATE_PUBLIC_KEY, UPDATE_REPO, __version__, edition, procutil, signing, storage
 from bonys_agents.procutil import clean_env, no_window_flags
 
 API_URL = "https://api.github.com"
@@ -40,7 +40,7 @@ SUMS_NAME = "SHA256SUMS"
 SIG_NAME = "SHA256SUMS.minisig"
 APT_SOURCES_FILE = Path("/etc/apt/sources.list.d/bonys-agents.sources")
 APT_KEYRING = "/usr/share/keyrings/bonys-agents.gpg"
-PACKAGE = "bonys-agents"
+PACKAGE = edition.PACKAGE   # Updates bleiben in der eigenen Edition (bonys-agents bzw. bonys-agents-kursleiter)
 _REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$")
 
 Opener = Callable[..., object]  # wie urllib.request.urlopen (für Tests austauschbar)
@@ -296,14 +296,15 @@ def download_verified(info: UpdateInfo, asset_name: str, dest_dir: Path, *, repo
 MAC_DMG_FLAVOR = {"aarch64": "applesilicon", "x86_64": "intel"}
 
 
-def asset_for(version: str, host_os: str, arch: str) -> str | None:
-    """Name der passenden Datei im Release – None, wenn es für dieses System keine gibt."""
+def asset_for(version: str, host_os: str, arch: str, ed: str = edition.EDITION) -> str | None:
+    """Name der passenden Datei im Release (für die eigene Edition) – None, wenn es für dieses System keine gibt."""
+    prefix = edition.FILE_PREFIX[ed]
     if host_os == "linux":
-        return f"{PACKAGE}_{version}_{'arm64' if arch == 'aarch64' else 'amd64'}.deb"
+        return f"{edition.PACKAGES[ed]}_{version}_{'arm64' if arch == 'aarch64' else 'amd64'}.deb"
     if host_os == "windows":
-        return f"BonysAgents-Setup-{version}.exe"
+        return f"{prefix}-Setup-{version}.exe"
     if host_os == "macos":
-        return f"BonysAgents-{version}-macos-{MAC_DMG_FLAVOR[arch]}.dmg"
+        return f"{prefix}-{version}-macos-{MAC_DMG_FLAVOR[arch]}.dmg"
     return None
 
 
@@ -317,7 +318,7 @@ def apt_sources_text(repo: str = UPDATE_REPO, keyring: str = APT_KEYRING) -> str
     """Paketquelle im deb822-Format für /etc/apt/sources.list.d/bonys-agents.sources."""
     return "\n".join([
         "# Bony's Agents – Updates über die Aktualisierungsverwaltung (Mint, Ubuntu, Debian).",
-        "# Angelegt vom Paket bonys-agents, entfernt bei „apt purge bonys-agents“.",
+        "# Angelegt vom Paket bonys-agents bzw. bonys-agents-kursleiter, entfernt beim Entfernen des Pakets.",
         "# Abschalten: die Zeile „Enabled: no“ ergänzen – sie bleibt bei Updates erhalten.",
         "Types: deb",
         f"URIs: {pages_url(repo)}",

@@ -200,8 +200,8 @@ def _fake_bundle(info):
 
 def _live_present(window, m, monkeypatch):
     """„Vorführen“ mit laufender Vorführung und Zuschauern (ohne echten Agent-PC, nur 127.0.0.1)."""
-    from bonys_agents import present
-    from bonys_agents.gui import present_dialog
+    from bonys_agents.trainer import present
+    from bonys_agents.trainer.gui import present_dialog
 
     nov = vm.vms_dir().parent / "bonys-test" / "novnc"
     (nov / "core").mkdir(parents=True, exist_ok=True)
@@ -229,22 +229,22 @@ def _live_helpdesk(window, m, monkeypatch):
     """„Hilfe-Anfragen“ mit laufendem Hilfe-Schalter und wartenden Teilnehmern (nur 127.0.0.1)."""
     import time
 
-    from bonys_agents import helpmode, present
-    from bonys_agents.gui import course_ui
+    from bonys_agents.trainer import helpdesk, present
+    from bonys_agents.trainer.gui import helpdesk_dialog
 
     nov = vm.vms_dir().parent / "bonys-test" / "novnc"
     (nov / "core").mkdir(parents=True, exist_ok=True)
     (nov / "core" / "rfb.js").write_text("")
-    hub = course_ui.CourseHub.get()
+    hub = helpdesk_dialog.CourseHub.get()
     srv = present.Presentation(port=0, bind="127.0.0.1", advertise=False, novnc=nov)
     srv.start()
     hub.adopt(srv)
     for i in range(5):
-        srv.helpdesk.sessions[str(i)] = helpmode.HelpSession(
+        srv.helpdesk.sessions[str(i)] = helpdesk.HelpSession(
             id=str(i), name=f"Teilnehmer mit langem Namen {i}", vm=f"agent-pc-{i}", address=f"192.168.1.{i}",
-            state=helpmode.WAITING, message="Hermes antwortet nicht mehr seit dem Update " * 2,
+            state=helpdesk.WAITING, message="Hermes antwortet nicht mehr seit dem Update " * 2,
             requested_at=time.time())
-    d = course_ui.HelpDeskDialog(window)
+    d = helpdesk_dialog.HelpDeskDialog(window)
     d.finished.connect(lambda *_: srv.stop())
     return d
 
@@ -263,11 +263,23 @@ def _dialogs(window, monkeypatch):
     info = host.detect()
     up = updates.UpdateInfo(version="9.9.9", tag="v9.9.9", notes="Neu\n" * 40)
     tpl, bundle, manifest = _fake_bundle(info)
-    from bonys_agents import share
-    from bonys_agents.gui import course_ui, present_dialog, share_dialogs
+    from bonys_agents import edition, share
+    from bonys_agents.gui import course_ui, share_dialogs
 
     monkeypatch.setattr(share, "discover", lambda timeout=2.5: [])  # keine echte Suche im Netz
+    trainer = {}
+    if edition.IS_TRAINER:
+        from bonys_agents.trainer.gui import helpdesk_dialog, present_dialog, share_dialog
+
+        trainer = {
+            "Im Netzwerk freigeben": lambda: share_dialog.ShareDialog(tpl, window),
+            "Vorführen": lambda: present_dialog.PresentDialog(m, window),
+            "Vorführen (läuft)": lambda: _live_present(window, m, monkeypatch),
+            "Hilfe-Anfragen": lambda: helpdesk_dialog.HelpDeskDialog(window),
+            "Hilfe-Anfragen (läuft)": lambda: _live_helpdesk(window, m, monkeypatch),
+        }
     return {
+        **trainer,
         "Neuer Agent-PC": lambda: create_dialog.CreateDialog(info, window),
         "Einrichtung": lambda: setup_dialog.SetupDialog(info, window),
         "Verschieben": lambda: move_dialog.MoveDialog(m, window),
@@ -276,12 +288,7 @@ def _dialogs(window, monkeypatch):
         "Vorlagen": lambda: template_dialogs.TemplatesDialog(window),
         "Weitergeben": lambda: template_dialogs.ExportDialog(tpl, window),
         "Importieren": lambda: template_dialogs.ImportDialog(bundle, manifest, window),
-        "Im Netzwerk freigeben": lambda: share_dialogs.ShareDialog(tpl, window),
         "Schulung beitreten": lambda: share_dialogs.JoinDialog(window),
-        "Vorführen": lambda: present_dialog.PresentDialog(m, window),
-        "Vorführen (läuft)": lambda: _live_present(window, m, monkeypatch),
-        "Hilfe-Anfragen": lambda: course_ui.HelpDeskDialog(window),
-        "Hilfe-Anfragen (läuft)": lambda: _live_helpdesk(window, m, monkeypatch),
         "Hilfe anfordern": lambda: course_ui.HelpRequestDialog(m, window),
         "Importieren (andere Architektur)": lambda: template_dialogs.ImportDialog(
             bundle, {**manifest, "arch": "arm64" if info.arch == "x86_64" else "amd64"}, window),

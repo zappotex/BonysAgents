@@ -12,7 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from bonys_agents import present, qemu, rfb, share, websocket
+from bonys_agents import qemu, rfb, share, websocket
+from bonys_agents.trainer import present
+
+pytestmark = pytest.mark.kursleiter
 
 CLIPBOARD_EXT = struct.unpack("!i", struct.pack("!I", 0xC0A1E5CE))[0]
 

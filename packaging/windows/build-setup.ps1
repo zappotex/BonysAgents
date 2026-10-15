@@ -1,4 +1,5 @@
-﻿# Baut den Windows-Installer (BonysAgents-Setup-<Version>.exe) auf einem Windows-PC.
+﻿# Baut die Windows-Installer beider Editionen (BonysAgents-Setup-<Version>.exe und
+# BonysAgents-Kursleiter-Setup-<Version>.exe) auf einem Windows-PC.
 #
 # Einfach build-setup.cmd doppelklicken. Fehlendes (Python, Inno Setup) wird
 # automatisch über winget installiert. Ergebnis liegt danach im Ordner "dist".
@@ -49,7 +50,7 @@ if (-not $iscc) {
     if (-not $iscc) { Fail "Inno Setup konnte nicht installiert werden." }
 }
 
-# ---------- Programm bündeln ----------
+# ---------- Programm bündeln (beide Editionen) ----------
 Say "Bündle das Programm (PyInstaller) …"
 & $py -m venv build\venv-win
 if ($LASTEXITCODE -ne 0) { Fail "venv fehlgeschlagen" }
@@ -58,19 +59,28 @@ if ($LASTEXITCODE -ne 0) { Fail "venv fehlgeschlagen" }
 if ($LASTEXITCODE -ne 0) { Fail "noVNC konnte nicht geladen werden" }
 & build\venv-win\Scripts\python.exe -m pip install -q . pyinstaller
 if ($LASTEXITCODE -ne 0) { Fail "pip install fehlgeschlagen" }
-& build\venv-win\Scripts\pyinstaller.exe --noconfirm --log-level WARN packaging\bonys-agents.spec
-if ($LASTEXITCODE -ne 0) { Fail "PyInstaller fehlgeschlagen" }
 
-# Kurztest des gebündelten Programms
-& dist\bonys-agents\bonys-agents.exe --version
-if ($LASTEXITCODE -ne 0) { Fail "Das gebündelte Programm startet nicht." }
+$outs = @()
+foreach ($edition in @("anwender", "kursleiter")) {
+    $dist = if ($edition -eq "kursleiter") { "bonys-agents-kursleiter" } else { "bonys-agents" }
+    Say "Edition: $edition"
+    & build\venv-win\Scripts\pyinstaller.exe --noconfirm --log-level WARN --workpath "build\pyinstaller-$edition" `
+        packaging\bonys-agents.spec -- --edition $edition
+    if ($LASTEXITCODE -ne 0) { Fail "PyInstaller fehlgeschlagen ($edition)" }
+    & build\venv-win\Scripts\python.exe packaging\check-edition.py "dist\$dist" $edition
+    if ($LASTEXITCODE -ne 0) { Fail "Die Edition $edition enthält nicht das Richtige." }
 
-# ---------- Installer ----------
-Say "Baue den Installer (Inno Setup) …"
-& $iscc /Q "/DAppVersion=$version" packaging\windows\bonys-agents.iss
-if ($LASTEXITCODE -ne 0) { Fail "Inno Setup fehlgeschlagen" }
+    # Kurztest des gebündelten Programms
+    & "dist\$dist\bonys-agents.exe" --version
+    if ($LASTEXITCODE -ne 0) { Fail "Das gebündelte Programm startet nicht ($edition)." }
+
+    Say "Baue den Installer (Inno Setup, $edition) …"
+    & $iscc /Q "/DAppVersion=$version" "/DEdition=$edition" packaging\windows\bonys-agents.iss
+    if ($LASTEXITCODE -ne 0) { Fail "Inno Setup fehlgeschlagen ($edition)" }
+}
 
 $out = Join-Path $Root "dist\BonysAgents-Setup-$version.exe"
 Write-Host "`nFertig: $out" -ForegroundColor Green
+Write-Host "       $(Join-Path $Root "dist\BonysAgents-Kursleiter-Setup-$version.exe")" -ForegroundColor Green
 Start-Process explorer.exe "/select,`"$out`""
 Read-Host "Enter zum Beenden"

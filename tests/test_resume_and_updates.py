@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from bonys_agents import apps, cloudinit, diagnose, procutil, signing, updates, vm
+from bonys_agents import apps, cloudinit, diagnose, edition, procutil, signing, updates, vm
 from bonys_agents import progress as pct
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -598,26 +598,37 @@ def test_apt_source_detection(tmp_path):
 def test_deb_package_sets_up_and_removes_source():
     deb = (ROOT / "packaging" / "linux" / "build-deb.sh").read_text("utf-8")
     assert "/etc/apt/sources.list.d/bonys-agents.sources" in deb
-    assert "remove|purge) rm -f /etc/apt/sources.list.d/bonys-agents.sources" in deb
-    assert '/usr/share/keyrings/$PKG.gpg' in deb and "apt_sources_text" in deb
+    assert "remove|purge|disappear)" in deb and 'rm -f "$DST"' in deb
+    # Beim Wechsel der Edition übernimmt die andere den Schlüssel – dann bleibt die Quelle (samt „Enabled: no“)
+    assert "if [ ! -e /usr/share/keyrings/bonys-agents.gpg ]" in deb and "apt-source-disabled" in deb
+    assert '/usr/share/keyrings/$APP.gpg' in deb and "apt_sources_text" in deb
+    # Beide Editionen ersetzen einander
+    assert 'Provides: bonys-agents (= $VERSION)' in deb and "Conflicts: $OTHER" in deb and "Replaces: $OTHER" in deb
 
 
 def test_install_scripts():
-    assert "apt-get install -y --only-upgrade bonys-agents" in updates.apt_upgrade_script()
+    assert f"apt-get install -y --only-upgrade {edition.PACKAGE}\n" in updates.apt_upgrade_script()
     assert "apt-get install -y '/tmp/x y/bonys-agents_0.9.0_amd64.deb'" in \
         updates.deb_install_script(PurePosixPath("/tmp/x y/bonys-agents_0.9.0_amd64.deb"))
-    assert updates.asset_for("0.9.0", "linux", "x86_64") == "bonys-agents_0.9.0_amd64.deb"
-    assert updates.asset_for("0.9.0", "linux", "aarch64") == "bonys-agents_0.9.0_arm64.deb"
-    assert updates.asset_for("0.9.0", "windows", "x86_64") == "BonysAgents-Setup-0.9.0.exe"
-    assert updates.asset_for("0.9.0", "macos", "aarch64") == "BonysAgents-0.9.0-macos-applesilicon.dmg"
-    assert updates.asset_for("0.9.0", "macos", "x86_64") == "BonysAgents-0.9.0-macos-intel.dmg"
+    a = "anwender"
+    assert updates.asset_for("0.9.0", "linux", "x86_64", a) == "bonys-agents_0.9.0_amd64.deb"
+    assert updates.asset_for("0.9.0", "linux", "aarch64", a) == "bonys-agents_0.9.0_arm64.deb"
+    assert updates.asset_for("0.9.0", "windows", "x86_64", a) == "BonysAgents-Setup-0.9.0.exe"
+    assert updates.asset_for("0.9.0", "macos", "aarch64", a) == "BonysAgents-0.9.0-macos-applesilicon.dmg"
+    assert updates.asset_for("0.9.0", "macos", "x86_64", a) == "BonysAgents-0.9.0-macos-intel.dmg"
+    k = "kursleiter"
+    assert updates.asset_for("0.9.0", "linux", "x86_64", k) == "bonys-agents-kursleiter_0.9.0_amd64.deb"
+    assert updates.asset_for("0.9.0", "windows", "x86_64", k) == "BonysAgents-Kursleiter-Setup-0.9.0.exe"
+    assert updates.asset_for("0.9.0", "macos", "aarch64", k) == "BonysAgents-Kursleiter-0.9.0-macos-applesilicon.dmg"
+    # Ohne Angabe: die eigene Edition – ein Update wechselt nie die Edition
+    assert updates.asset_for("0.9.0", "linux", "x86_64") == f"{edition.PACKAGE}_0.9.0_amd64.deb"
 
 
 def test_macos_update_loads_dmg_for_this_chip(signed_release, tmp_path, monkeypatch):
     """macOS: die .dmg zum Chip laden – nur mit gültiger Signatur und Prüfsumme – und im Finder öffnen."""
     info, routes, public, _deb, (secret, key_id) = signed_release
     dmg = b"neue App" * 500
-    name = "BonysAgents-0.9.0-macos-applesilicon.dmg"
+    name = updates.asset_for("0.9.0", "macos", "aarch64")   # die Datei der eigenen Edition
     sums = f"{hashlib.sha256(dmg).hexdigest()}  {name}\n".encode()
     routes = {f"{DL}/v0.9.0/{name}": dmg, f"{DL}/v0.9.0/SHA256SUMS": sums,
               f"{DL}/v0.9.0/SHA256SUMS.minisig": signing.sign(sums, secret, key_id, "Bony's Agents v0.9.0").encode()}
@@ -629,7 +640,7 @@ def test_macos_update_loads_dmg_for_this_chip(signed_release, tmp_path, monkeypa
     monkeypatch.setattr(updates.subprocess, "Popen", lambda cmd, **kw: opened.append(cmd))
     path = updates.install_macos(info, "aarch64", log=lambda s: None, opener=_opener(routes), dest_dir=tmp_path)
     assert path == tmp_path / name and path.read_bytes() == dmg and opened == [["open", str(path)]]
-    with pytest.raises(updates.UpdateError, match="keine Datei BonysAgents-0.9.0-macos-intel.dmg"):
+    with pytest.raises(updates.UpdateError, match=f"keine Datei {updates.asset_for('0.9.0', 'macos', 'x86_64')}"):
         updates.install_macos(info, "x86_64", log=lambda s: None, opener=_opener(routes), dest_dir=tmp_path)
 
 
