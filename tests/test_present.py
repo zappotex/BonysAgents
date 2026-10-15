@@ -136,7 +136,8 @@ def test_vnc_only_local_in_qemu_command(tmp_path):
                            disk=tmp_path / "d.qcow2", qmp_port=1, ssh_port=2, serial_log=tmp_path / "s",
                            pidfile=tmp_path / "p", vnc="unix:/run/user/1000/bonys-agents-1000/ab,c.vnc")
     cmd = qemu.build_command(spec)
-    assert cmd[cmd.index("-vnc") + 1] == "unix:/run/user/1000/bonys-agents-1000/ab,,c.vnc,share=force-shared,lossy=on"
+    sock = str(Path("/run/user/1000/bonys-agents-1000/ab,,c.vnc"))   # unter Windows mit „\\“ – dort gilt 127.0.0.1
+    assert cmd[cmd.index("-vnc") + 1] == f"unix:{sock},share=force-shared,lossy=on"
     assert qemu.vnc_option("127.0.0.1:3") == "127.0.0.1:3,share=force-shared,lossy=on"
     for bad in ("0.0.0.0:0", ":0", "192.168.1.2:1", "127.0.0.1:0,password=off"):
         with pytest.raises(ValueError):
