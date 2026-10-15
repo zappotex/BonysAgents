@@ -29,7 +29,7 @@ from pathlib import Path
 import psutil
 
 from bonys_agents import (
-    apps, cloudinit, desktops, diagnose, host, images, mission_control, qemu, remote, screen, storage, vpnlink,
+    apps, cloudinit, desktops, diagnose, host, images, mission_control, qemu, remote, screen, storage, vpnlink, x509,
 )
 from bonys_agents import progress as pct
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
@@ -125,6 +125,8 @@ def control_socket_path(vm_path: Path, kind: str) -> Path:
 # Steuerkanäle (QMP, Gast-Agent) und lokales SPICE über Unix-Sockets – unter Windows (Python ohne AF_UNIX) über
 # TCP an 127.0.0.1. TCP-Ports an 127.0.0.1 sind aus jedem Agent-PC über 10.0.2.2 erreichbar.
 UNIX_SOCKETS = sys.platform != "win32"
+# Dort stattdessen TLS mit Client-Zertifikat (x509.make_control_tls) – Ordner im Agent-PC-Ordner
+CONTROL_TLS_DIR = ".steuerung"
 
 
 def vms_dir() -> Path:
@@ -821,6 +823,11 @@ class VM:
             qmp_port, qga_port = qemu.free_port(), qemu.free_port()
         self.ensure_remote_ports()
         caps = qemu.capabilities(qemu_bin, storage.data_dir() / "qemu-capabilities.json")
+        # Ohne Unix-Sockets (Windows): Steuerkanäle über TLS mit Client-Zertifikat, neu bei jedem Start
+        tls_dir = self.path / CONTROL_TLS_DIR if not UNIX_SOCKETS and caps.get("tls") else None
+        if tls_dir:
+            shutil.rmtree(tls_dir, ignore_errors=True)
+            x509.make_control_tls(tls_dir)
         c = self.config
         spice_ok = caps["spice"]
         # SPICE-Fenster statt QEMU-Fenster: QEMU ohne eigenes Fenster, wir öffnen den Viewer.
@@ -862,6 +869,7 @@ class VM:
             name=qemu_window_title(self.name),
             cpus=c.cpus, ram_mb=c.ram_mb,
             disk=self.disk, qmp_port=qmp_port, ssh_port=ssh_port, qmp_socket=qmp_sock, qga_socket=qga_sock,
+            control_tls_dir=tls_dir,
             serial_log=self.console_log, pidfile=self.pidfile,
             seed_iso=self.seed_iso if self.seed_iso.exists() else None,
             firmware=firmware, headless=qemu_headless, qga_port=qga_port,
@@ -891,7 +899,8 @@ class VM:
         proc = subprocess.Popen(cmd, env=clean_env(), **kwargs)
         _children[proc.pid] = proc
         self.runtime_file.write_text(
-            json.dumps({"qmp": qemu.endpoint(qmp_sock, qmp_port), "qga": qemu.endpoint(qga_sock, qga_port),
+            json.dumps({"qmp": qemu.endpoint(qmp_sock, qmp_port, tls_dir),
+                        "qga": qemu.endpoint(qga_sock, qga_port, tls_dir),
                         "qmp_port": qmp_port, "ssh_port": ssh_port, "qga_port": qga_port, "accel": info.accel,
                         "spice_socket": str(spice_sock) if spice_sock else None,
                         "command": cmd, "started": time.time(), "pid": proc.pid,

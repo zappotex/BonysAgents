@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import pycdlib
 import pytest
 
-from bonys_agents import apps, cli, cloudinit, desktops, host, qemu, screen, vm
+from bonys_agents import apps, cli, cloudinit, desktops, host, qemu, screen, vm, x509
 
 
 # ---------- host ----------
@@ -1193,9 +1193,87 @@ def test_without_unix_sockets_spice_always_has_password(datadir, monkeypatch):
     assert m.config.spice_password and m.remote_info()["spice_password"] == m.config.spice_password
 
 
+def test_without_unix_sockets_control_channels_need_client_certificate(datadir, monkeypatch):
+    """Windows: QMP und Gast-Agent an 127.0.0.1 nur mit TLS und Client-Zertifikat (neu bei jedem Start)."""
+    monkeypatch.setattr(vm, "UNIX_SOCKETS", False)
+    m = _fake_vm(datadir)
+    m.config.provisioned = True
+    cmd = _start_fake(m, monkeypatch, caps={"spice": True, "audio": ["dsound"], "tls": True})
+    assert "-qmp" not in cmd
+    tls = next(a for a in cmd if a.startswith("tls-creds-x509,"))
+    assert "endpoint=server" in tls and "verify-peer=on" in tls
+    qmp = next(a for a in cmd if a.startswith("socket,id=qmp0,"))
+    qga = next(a for a in cmd if a.startswith("socket,id=qga0,"))
+    assert "host=127.0.0.1" in qmp and "tls-creds=bonysctl" in qmp and "tls-creds=bonysctl" in qga
+    assert cmd[cmd.index("-mon") + 1] == "chardev=qmp0,mode=readline"
+    rt = m.runtime()
+    assert rt["qmp"].startswith("tls:") and rt["qga"].startswith("tls:")
+    folder = m.path / vm.CONTROL_TLS_DIR
+    assert sorted(p.name for p in folder.iterdir()) == sorted(x509.CONTROL_FILES)
+    if os.name != "nt":
+        assert all(p.stat().st_mode & 0o777 == 0o600 for p in folder.iterdir())
+    first = (folder / "client-cert.pem").read_bytes()
+    _start_fake_again = _start_fake  # zweiter Start: neue Zertifikate
+    m.pidfile.unlink()
+    m.runtime_file.unlink()
+    _start_fake_again(m, monkeypatch, caps={"spice": True, "audio": ["dsound"], "tls": True})
+    assert (folder / "client-cert.pem").read_bytes() != first
+
+
+def test_control_tls_with_real_qemu(tmp_path):
+    """Echter QEMU (falls installiert und mit gnutls): mit Client-Zertifikat Zugang, ohne nicht."""
+    import shutil
+    import socket as socketmod
+    import ssl
+    import subprocess
+    import time
+    binary = shutil.which("qemu-system-x86_64") or shutil.which("qemu-system-aarch64")
+    if not binary:
+        pytest.skip("QEMU nicht installiert")
+    folder = tmp_path / "ctl"
+    x509.make_control_tls(folder)
+    port = qemu.free_port()
+    spec = _rspec(qmp_port=port, control_tls_dir=folder)
+    args = qemu._qmp_args(spec)
+    proc = subprocess.Popen([binary, "-S", "-nodefaults", "-machine", "none", "-display", "none", *args],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        deadline = time.time() + 10
+        while True:
+            if proc.poll() is not None:
+                err = proc.stderr.read().decode(errors="replace")
+                if "GNUTLS" in err.upper() or "tls" in err.lower():
+                    pytest.skip("QEMU ohne TLS-Unterstützung")
+                raise AssertionError(err)
+            try:
+                with qemu.QMP(qemu.endpoint(None, port, folder), timeout=2) as q:
+                    assert "prelaunch" in q.hmp("info status")
+                    assert "prelaunch" in q.hmp("info status")  # mehrere Befehle je Verbindung
+                break
+            except (ConnectionError, ssl.SSLError, TimeoutError):
+                if time.time() > deadline:
+                    raise
+                time.sleep(0.2)
+        # wie ein Programm im Agent-PC: ohne Client-Zertifikat keine QMP-Begrüßung
+        with socketmod.create_connection(("127.0.0.1", port), timeout=3) as raw:
+            raw.settimeout(2)
+            with pytest.raises((OSError, ssl.SSLError)):
+                ctx = ssl.create_default_context(cafile=str(folder / "ca-cert.pem"))
+                with ctx.wrap_socket(raw, server_hostname="127.0.0.1") as tls:
+                    tls.settimeout(2)
+                    assert not tls.recv(100), "QMP ohne Client-Zertifikat erreichbar"
+                    raise ConnectionResetError
+        with qemu.QMP(qemu.endpoint(None, port, folder), timeout=2) as q:  # neue Verbindung, dann beenden
+            q.execute("quit")
+        assert proc.wait(timeout=10) == 0
+    finally:
+        proc.kill()
+        proc.wait()
+
+
 def test_connect_local_only_to_this_computer(tmp_path):
     import socket as socketmod
-    for bad in (None, 0, "", "tcp:10.0.2.2:22", "tcp:192.168.1.5:4444", "tcp:127.0.0.1:0", True):
+    for bad in (None, 0, "", "tcp:10.0.2.2:22", "tcp:192.168.1.5:4444", "tcp:127.0.0.1:0", True, "tls:0:/x"):
         with pytest.raises(ConnectionRefusedError):
             qemu.connect_local(bad, timeout=0.5)
     path = tmp_path / "q.sock"

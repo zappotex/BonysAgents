@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bonys_agents import screen as screen_cfg
+from bonys_agents import x509
 from bonys_agents.procutil import clean_env, no_window_flags
 
 ARCH_BINARY = {"x86_64": "qemu-system-x86_64", "aarch64": "qemu-system-aarch64"}
@@ -104,6 +105,9 @@ class LaunchSpec:
     # VM hinaus. Gesetzt, gelten qmp_port/qga_port nicht.
     qmp_socket: Path | None = None
     qga_socket: Path | None = None
+    # Ohne Unix-Sockets (Windows): QMP und Gast-Agent über TCP mit TLS – QEMU lässt nur herein, wer ein
+    # Client-Zertifikat aus diesem Ordner hat (x509.make_control_tls). Ein Agent-PC hat es nicht.
+    control_tls_dir: Path | None = None
     # Fernzugriff
     rdp_addr: str | None = None            # RDP-Weiterleitung schon beim Start (None = aus)
     rdp_port: int | None = None            # Host-Port → Gast 3389 (xrdp)
@@ -167,8 +171,7 @@ def build_command(s: LaunchSpec) -> list[str]:
         "-device", "qemu-xhci",
         "-device", "usb-tablet",
         "-device", "usb-kbd",
-        "-qmp", (f"unix:{_esc(s.qmp_socket)},server=on,wait=off" if s.qmp_socket
-                 else f"tcp:127.0.0.1:{s.qmp_port},server=on,wait=off"),
+        *_qmp_args(s),
         "-serial", f"file:{s.serial_log}",
         "-pidfile", str(s.pidfile),
         # Anzeige-Einstellung für das Skript im Gast (bonys-screen)
@@ -183,6 +186,8 @@ def build_command(s: LaunchSpec) -> list[str]:
     if s.qga_socket or s.qga_port:
         # Kanal für qemu-guest-agent im Gast (nur von diesem Rechner aus erreichbar)
         where = f"path={_esc(s.qga_socket)}" if s.qga_socket else f"host=127.0.0.1,port={s.qga_port}"
+        if s.control_tls_dir and not s.qga_socket:
+            where += f",tls-creds={CONTROL_TLS}"
         cmd += [
             "-chardev", f"socket,id=qga0,{where},server=on,wait=off",
             "-device", f"virtserialport,chardev=qga0,name={GUEST_AGENT_CHANNEL}",
@@ -212,6 +217,22 @@ def build_command(s: LaunchSpec) -> list[str]:
     elif s.display:
         cmd += ["-display", s.display]
     return cmd
+
+
+CONTROL_TLS = "bonysctl"
+
+
+def _qmp_args(s: LaunchSpec) -> list[str]:
+    """QEMU-Steuerung: Unix-Socket, sonst TCP an 127.0.0.1 – mit TLS und Client-Zertifikat, wenn möglich."""
+    if s.qmp_socket:
+        return ["-qmp", f"unix:{_esc(s.qmp_socket)},server=on,wait=off"]
+    if s.control_tls_dir:
+        return ["-object", f"tls-creds-x509,id={CONTROL_TLS},dir={_esc(s.control_tls_dir)},endpoint=server,"
+                           "verify-peer=on",
+                "-chardev", f"socket,id=qmp0,host=127.0.0.1,port={s.qmp_port},server=on,wait=off,"
+                            f"tls-creds={CONTROL_TLS}",
+                "-mon", "chardev=qmp0,mode=readline"]  # Text-Monitor: QMP über TLS bricht in QEMU 8.2 ab
+    return ["-qmp", f"tcp:127.0.0.1:{s.qmp_port},server=on,wait=off"]
 
 
 def vnc_option(target: str) -> str:
@@ -278,13 +299,15 @@ def capabilities(qemu_bin: Path, cache_file: Path | None = None) -> dict:
     if cache_file:
         try:
             stored = json.loads(cache_file.read_text("utf-8"))
-            if stored.get("key") == key and "displays" in stored.get("caps", {}):
+            if stored.get("key") == key and "tls" in stored.get("caps", {}):
                 _caps_cache[key] = stored["caps"]
                 return stored["caps"]
         except (OSError, ValueError, KeyError):
             pass
     caps = {"spice": _probe_spice(qemu_bin), "audio": _audio_drivers(qemu_bin),
-            "displays": _help_list(qemu_bin, "-display")}
+            "displays": _help_list(qemu_bin, "-display"),
+            # TLS nur nötig, wo es keine Unix-Sockets gibt (Windows) – spart sonst den Probelauf
+            "tls": not hasattr(socket, "AF_UNIX") and _probe_tls(qemu_bin)}
     _caps_cache[key] = caps
     if cache_file:
         try:
@@ -338,6 +361,24 @@ def _probe_spice(qemu_bin: Path) -> bool:
         proc.kill()
         proc.wait()
         return True  # läuft = SPICE funktioniert
+
+
+def _probe_tls(qemu_bin: Path) -> bool:
+    """Kann dieser QEMU-Build TLS (gnutls)? „tls-creds-*“ steht auch ohne gnutls in der Liste – darum ausprobieren."""
+    cmd = [str(qemu_bin), "-S", "-nodefaults", "-machine", "none", "-display", "none", "-monitor", "none",
+           "-object", "tls-creds-anon,id=t,endpoint=server"]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                stdin=subprocess.DEVNULL, creationflags=no_window_flags(), env=clean_env())
+    except OSError:
+        return False
+    try:
+        proc.wait(timeout=1.5)
+        return False  # sofort beendet = ohne gnutls gebaut
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        return True
 
 
 def host_audio_driver(host_os: str, available: list[str]) -> str | None:
@@ -506,9 +547,13 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def endpoint(socket_path: Path | None, port: int | None) -> str:
-    """Adresse eines Steuerkanals für runtime.json: „unix:PFAD“ oder „tcp:127.0.0.1:PORT“."""
-    return f"unix:{socket_path}" if socket_path else f"tcp:127.0.0.1:{port or 0}"
+def endpoint(socket_path: Path | None, port: int | None, tls_dir: Path | None = None) -> str:
+    """Adresse eines Steuerkanals für runtime.json: „unix:PFAD“, „tls:PORT:ORDNER“ oder „tcp:127.0.0.1:PORT“."""
+    if socket_path:
+        return f"unix:{socket_path}"
+    if tls_dir:
+        return f"tls:{port or 0}:{tls_dir}"
+    return f"tcp:127.0.0.1:{port or 0}"
 
 
 def runtime_target(rt: dict, kind: str) -> str | int | None:
@@ -532,24 +577,75 @@ def connect_local(target: int | str | None, timeout: float = 5.0) -> socket.sock
             sock.close()
             raise
         return sock
-    if isinstance(target, str):
+    tls_dir = None
+    if isinstance(target, str) and target.startswith("tls:"):
+        port_text, _, folder = target[4:].partition(":")
+        port, tls_dir = (int(port_text) if port_text.isdigit() else 0), Path(folder)
+    elif isinstance(target, str):
         m = re.fullmatch(r"tcp:127\.0\.0\.1:(\d{1,5})", target)
         port = int(m.group(1)) if m else 0
     else:
         port = target if isinstance(target, int) and not isinstance(target, bool) else 0
     if not 0 < port < 65536:
         raise ConnectionRefusedError("Kein Steuerkanal bekannt (läuft der Agent-PC?)")
-    return socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    if tls_dir is None:
+        return sock
+    try:
+        return x509.control_client_context(tls_dir).wrap_socket(sock, server_hostname="127.0.0.1")
+    except (OSError, ValueError):
+        sock.close()
+        raise
+
+
+# Befehle, die Bony's Agents im Betrieb braucht – über den Text-Monitor (HMP) beim TLS-Kanal
+_HMP_COMMANDS = {
+    "system_powerdown": lambda a: "system_powerdown",
+    "quit": lambda a: "quit",
+    "expire_password": lambda a: f"expire_password {a['protocol']} {a['time']}",
+}
+_HMP_PROMPT = b"(qemu) "
+_ANSI = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class QMP:
-    """Minimaler Client für das QEMU Machine Protocol."""
+    """Minimaler Client für das QEMU Machine Protocol.
+
+    Beim TLS-Kanal (Windows, „tls:…“) spricht QEMU stattdessen den Text-Monitor (HMP): QMP über eine
+    TLS-Verbindung bricht in QEMU 8.2 nach dem ersten Befehl ab, HMP nicht. Nach außen gleich – ``execute`` kennt
+    dann die Befehle aus ``_HMP_COMMANDS`` und „human-monitor-command“.
+    """
 
     def __init__(self, target: int | str | None, timeout: float = 5.0):
         self.sock = connect_local(target, timeout)
         self.file = self.sock.makefile("rwb")
+        self.text = isinstance(target, str) and target.startswith("tls:")
+        if self.text:
+            self._until_prompt()  # Begrüßung
+            return
         self._read()  # Begrüßung
         self.execute("qmp_capabilities")
+
+    def _until_prompt(self) -> str:
+        buf = b""
+        while not _ANSI.sub(b"", buf).endswith(_HMP_PROMPT):
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("Monitor-Verbindung geschlossen")
+            buf += chunk
+            if len(buf) > 1_000_000:
+                raise ConnectionError("Monitor antwortet unerwartet")
+        text = _ANSI.sub(b"", buf)[: -len(_HMP_PROMPT)].replace(b"\r", b"")
+        return text.decode("utf-8", errors="replace")
+
+    def _text_command(self, line: str) -> str:
+        if "\n" in line or "\r" in line:
+            raise ValueError("Monitor-Befehl mit Zeilenumbruch")
+        self.sock.sendall(line.encode() + b"\n")
+        out = self._until_prompt()
+        # Der Monitor wiederholt die Eingabe – nur die Ausgabe danach zurückgeben
+        first, _, rest = out.partition("\n")
+        return rest if line in first else out
 
     def _read(self) -> dict:
         while True:
@@ -561,6 +657,20 @@ class QMP:
                 return msg
 
     def execute(self, command: str, **arguments) -> dict:
+        if self.text:
+            if command == "human-monitor-command":
+                return self._text_command(arguments["command-line"])
+            if command not in _HMP_COMMANDS:
+                raise RuntimeError(f"{command} geht über den TLS-Kanal nicht")
+            try:
+                out = self._text_command(_HMP_COMMANDS[command](arguments)).strip()
+            except ConnectionError:
+                if command == "quit":
+                    return {}  # QEMU beendet sich, bevor die Eingabeaufforderung kommt
+                raise
+            if out:
+                raise RuntimeError(out)
+            return {}
         payload = {"execute": command}
         if arguments:
             payload["arguments"] = arguments

@@ -9,8 +9,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 - **Agent-PCs kommen nicht mehr an die Steuerung von QEMU.** Bisher lauschten QEMU-Steuerung (QMP), Gast-Agent
   und SPICE (ohne Passwort) an 127.0.0.1 – und das ist aus jedem Agent-PC über 10.0.2.2 erreichbar. Ein Programm
   im Agent-PC (z. B. ein umgelenkter KI-Agent) hätte darüber Befehle auf deinem Rechner ausführen können. Unter
-  Linux und macOS laufen diese Kanäle jetzt über Unix-Sockets in einem Ordner, den nur dein Benutzer öffnen darf;
-  SPICE an einem Port (Heimnetz, Windows) gibt es nur noch mit Passwort. Laufende Agent-PCs einmal neu starten.
+  Linux und macOS laufen diese Kanäle jetzt über Unix-Sockets in einem Ordner, den nur dein Benutzer öffnen darf.
+  Unter Windows sind sie über TLS verschlüsselt und nur mit einem Zertifikat erreichbar, das Bony's Agents bei
+  jedem Start neu erzeugt (Ordner `.steuerung` im Agent-PC-Ordner). SPICE an einem Port (Heimnetz, Windows) gibt
+  es nur noch mit Passwort. Laufende Agent-PCs einmal neu starten.
 
 ## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
 
