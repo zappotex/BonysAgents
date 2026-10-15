@@ -35,6 +35,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
 ### Verbessert
+- **Nach einem Absturz kein falscher Agent-PC mehr „laufend“.** Ob ein Agent-PC läuft, prüft Bony's Agents jetzt
+  auch über die Festplatte in der Befehlszeile von QEMU und die Startzeit. Bisher konnte nach Absturz oder
+  Stromausfall die alte Prozessnummer zum QEMU eines *anderen* Agent-PCs gehören – „Ausschalten“ hätte dann den
+  anderen hart beendet.
 - **Verschieben auf ein anderes Laufwerk ist sicher gegen Stromausfall und zu frühes Abziehen.** Die Kopie wird
   vollständig auf das Ziel geschrieben (`fsync`) und ihre Festplatte geprüft (`qemu-img check`), bevor das
   Original gelöscht wird. Bisher konnte der Agent-PC verloren gehen, wenn das Laufwerk direkt danach abgezogen

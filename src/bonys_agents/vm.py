@@ -384,36 +384,30 @@ class VM:
             # QEMU löscht die pidfile schon beim Beenden, hält Ports (SPICE) aber noch kurz offen.
             # Bis der Prozess wirklich weg ist, gilt er weiter als laufend – sonst scheitert ein
             # sofortiger Neustart („binding socket to 127.0.0.1:5901 failed“).
-            return self._recorded_pid()
+            rt = self.runtime()
+            pid = rt.get("pid")
+            return pid if isinstance(pid, int) and self._is_my_qemu(pid, rt) else None
+        # Nach Absturz oder Stromausfall kann die alte PID längst einem anderen Prozess gehören – auch dem QEMU
+        # eines anderen Agent-PCs. Dann wäre „läuft“ falsch und „Ausschalten“ träfe den anderen.
+        return pid if self._is_my_qemu(pid, self.runtime()) else None
+
+    def _is_my_qemu(self, pid: int, rt: dict) -> bool:
+        """Läuft ``pid`` noch, und ist es QEMU mit genau dieser Festplatte (und nicht älter als der Start)?"""
         try:
             proc = psutil.Process(pid)
             if proc.status() == psutil.STATUS_ZOMBIE:
                 _reap(pid)  # beendet, nur noch nicht eingesammelt
-                return None
-            if proc.is_running() and "qemu" in proc.name().lower():
-                return pid
-        except psutil.Error:
-            pass
-        return None
-
-    def _recorded_pid(self) -> int | None:
-        """QEMU-Prozess laut runtime.json – nur wenn er noch läuft und wirklich zu diesem Agent-PC gehört."""
-        rt = self.runtime()
-        pid = rt.get("pid")
-        if not isinstance(pid, int):
-            return None
-        try:
-            proc = psutil.Process(pid)
-            if proc.status() == psutil.STATUS_ZOMBIE:
-                _reap(pid)
-                return None
-            if (proc.is_running() and "qemu" in proc.name().lower()
-                    and proc.create_time() >= float(rt.get("started", 0)) - 10
-                    and qemu._esc(self.disk) in " ".join(proc.cmdline())):
-                return pid
+                return False
+            if not proc.is_running() or "qemu" not in proc.name().lower():
+                return False
+            if f"file={qemu._esc(self.disk)}," not in " ".join(proc.cmdline()):
+                return False
+            started = rt.get("started")
+            if isinstance(started, (int, float)) and proc.create_time() < float(started) - 10:
+                return False  # Prozess ist älter als dieser Start – also ein anderer
+            return True
         except (psutil.Error, ValueError, TypeError):
-            pass
-        return None
+            return False
 
     def is_running(self) -> bool:
         return self.pid() is not None

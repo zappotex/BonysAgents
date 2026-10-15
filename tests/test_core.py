@@ -366,6 +366,7 @@ def _fake_create(monkeypatch, tmp_path):
     monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None: base)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(vm.qemu, "create_disk", lambda qi, b, disk, gb: disk.write_bytes(b"disk" * 1000))
+    monkeypatch.setattr(vm.qemu, "check_disk", lambda qi, disk: None)  # „/bin/true“ gibt es nicht überall
 
 
 def test_create_on_other_drive_and_find_again(datadir, monkeypatch, tmp_path):
@@ -1555,11 +1556,16 @@ def test_permanent_remote_opens_ports_at_start(datadir, monkeypatch):
 
 # ---------- Herunterfahren ----------
 def _copy_as_qemu(tmp_path) -> str:
-    """Ein Programm, dessen Prozessname „qemu“ enthält (pid() prüft das)."""
+    """Eine Shell, deren Prozessname „qemu“ enthält (pid() prüft das) – Aufruf über ``_qemu_args``."""
     import shutil
     exe = tmp_path / "qemu-fake"
-    shutil.copy(shutil.which("sleep"), exe)
+    shutil.copy(shutil.which("sh"), exe)
     return str(exe)
+
+
+def _qemu_args(exe: str, m, seconds: float) -> list[str]:
+    """Wartet ``seconds`` und trägt wie QEMU die Festplatte in der Befehlszeile (pid() prüft auch das)."""
+    return [exe, "-c", f"sleep {seconds}", f"if=none,id=disk0,file={qemu._esc(m.disk)},format=qcow2"]
 
 
 @pytest.mark.skipif(not hasattr(__import__("os"), "waitpid") or __import__("os").name != "posix",
@@ -1573,7 +1579,7 @@ def test_exited_qemu_child_is_not_running(datadir, tmp_path):
     m = _fake_vm(datadir)
     exe = _copy_as_qemu(tmp_path)
     # a) über das aufbewahrte Popen-Objekt (so startet die App QEMU)
-    proc = subprocess.Popen([exe, "0.2"], start_new_session=True)
+    proc = subprocess.Popen(_qemu_args(exe, m, 0.2), start_new_session=True)
     vm._children[proc.pid] = proc
     m.pidfile.write_text(str(proc.pid))
     assert m.is_running()
@@ -1582,12 +1588,33 @@ def test_exited_qemu_child_is_not_running(datadir, tmp_path):
     assert proc.returncode == 0 and proc.pid not in vm._children
     # b) ohne Popen-Objekt: Zombie erkennen und per waitpid einsammeln
     import os
-    pid = os.spawnv(os.P_NOWAIT, exe, [exe, "0.2"])
+    pid = os.spawnv(os.P_NOWAIT, exe, _qemu_args(exe, m, 0.2))
     m.pidfile.write_text(str(pid))
     time.sleep(0.6)
     assert psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
     assert not m.is_running()
     assert not psutil.pid_exists(pid)  # eingesammelt
+
+
+@pytest.mark.skipif(os.name != "posix", reason="nachgeahmtes QEMU über sh")
+def test_stale_pidfile_of_other_agent_pc_is_not_running(datadir, tmp_path):
+    """Nach Absturz/Stromausfall gehört die alte PID evtl. dem QEMU eines anderen Agent-PCs – A darf dann nicht
+    als „läuft“ gelten (sonst träfe „Ausschalten“ von A den Agent-PC B)."""
+    import subprocess
+    import time
+    a, b = _fake_vm(datadir, "pc-a"), _fake_vm(datadir, "pc-b")
+    exe = _copy_as_qemu(tmp_path)
+    proc = subprocess.Popen(_qemu_args(exe, b, 30), start_new_session=True)
+    try:
+        b.pidfile.write_text(str(proc.pid))
+        a.pidfile.write_text(str(proc.pid))  # veraltet, zufällig dieselbe Nummer
+        assert b.is_running() and not a.is_running()
+        # Prozess älter als der in runtime.json vermerkte Start → ebenfalls nicht seiner
+        b.runtime_file.write_text(json.dumps({"pid": proc.pid, "started": time.time() + 3600}))
+        assert not b.is_running()
+    finally:
+        proc.kill()
+        proc.wait()
 
 
 def test_stop_request_returns_immediately_with_countdown(live_vm, monkeypatch):

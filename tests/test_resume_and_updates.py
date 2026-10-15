@@ -335,16 +335,16 @@ def test_console_log_rotation(tmp_path):
     assert vm.rotate_log(log) is None  # leere Konsole nicht aufbewahren
 
 
-@pytest.mark.skipif(os.name != "posix", reason="nutzt eine Kopie von sleep als QEMU-Attrappe")
+@pytest.mark.skipif(os.name != "posix", reason="nutzt eine Kopie von sh als QEMU-Attrappe")
 def test_launch_rotates_console_and_records_pid(datadir, monkeypatch, tmp_path):
-    from test_core import _LINUX_HOST, _copy_as_qemu
+    from test_core import _LINUX_HOST, _copy_as_qemu, _qemu_args
     m = _fake_vm()
     m.console_log.write_text("alter Lauf\n")
     exe = _copy_as_qemu(tmp_path)
     monkeypatch.setattr(vm.host, "detect", lambda: _LINUX_HOST)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path(exe))
     monkeypatch.setattr(vm.qemu, "capabilities", lambda qb, cf=None: {"spice": False, "audio": [], "displays": []})
-    monkeypatch.setattr(vm.qemu, "build_command", lambda spec: [exe, "5"])
+    monkeypatch.setattr(vm.qemu, "build_command", lambda spec: _qemu_args(exe, m, 5))
     monkeypatch.setattr(vm.time, "sleep", lambda s: m.pidfile.write_text(str(vm._children and max(vm._children))))
     m._launch(headless=True)
     try:
@@ -762,15 +762,16 @@ def test_update_banner_and_menu():
     assert banner.isHidden()
 
 
-@pytest.mark.skipif(os.name != "posix" or not __import__("shutil").which("tail"), reason="POSIX-Prozesse")
+@pytest.mark.skipif(os.name != "posix" or not __import__("shutil").which("sh"), reason="POSIX-Prozesse")
 def test_qemu_counts_as_running_until_process_is_gone(datadir, tmp_path):
     """QEMU löscht die pidfile vor dem Ende – ein sofortiger Neustart mit Fenster scheiterte am SPICE-Port."""
     import shutil
     exe = tmp_path / "qemu-fake"
-    shutil.copy(shutil.which("tail"), exe)
+    shutil.copy(shutil.which("sh"), exe)
     m = _fake_vm()
     m.disk.write_bytes(b"")
-    proc = subprocess.Popen([str(exe), "-f", str(m.disk)])
+    # wie QEMU: die Festplatte steht als „file=…,“ in der Befehlszeile
+    proc = subprocess.Popen([str(exe), "-c", "sleep 30", f"if=none,id=disk0,file={vm.qemu._esc(m.disk)},format=qcow2"])
     try:
         m.runtime_file.write_text(json.dumps({"pid": proc.pid, "started": time.time()}))
         assert not m.pidfile.exists() and m.is_running()
