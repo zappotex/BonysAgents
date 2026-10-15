@@ -1659,6 +1659,27 @@ def _same_device(a: Path, b: Path) -> bool:
     return os.stat(a).st_dev == os.stat(b).st_dev
 
 
+def fsync_dir(path: Path) -> None:
+    """Ordnereintrag (neue/umbenannte Dateien darin) auf die Platte schreiben – unter Windows nicht möglich."""
+    if os.name == "nt":
+        return
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def fsync_tree(root: Path) -> None:
+    """Alle Dateien und Ordner unter ``root`` wirklich auf die Platte schreiben (nicht nur in den Cache)."""
+    for f in root.rglob("*"):
+        if f.is_file():
+            with f.open("rb+") as fh:
+                os.fsync(fh.fileno())
+    for d in [root, *(p for p in root.rglob("*") if p.is_dir())]:
+        fsync_dir(d)
+
+
 def move(name: str, target_library: Path, progress: ProgressFn | None = None) -> VM:
     """Agent-PC an einen anderen Speicherort verschieben (muss ausgeschaltet sein)."""
     machine = get(name)
@@ -1725,9 +1746,18 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
                     done += len(chunk)
                     if progress:
                         progress("move", done / total, f"Kopiere {done // host.MB} / {total // host.MB} MB …")
+                dst.flush()
+                os.fsync(dst.fileno())
             if out.stat().st_size != f.stat().st_size:
                 raise OSError(f"Kopie von {f.name} unvollständig")
+        # Die Quelle wird gleich gelöscht: vorher muss die Kopie wirklich auf dem Ziel stehen (Stromausfall,
+        # Laufwerk sofort abgezogen) und die Festplatte darin lesbar sein.
+        if progress:
+            progress("move", 0.99, "Schreibe alles auf das Ziel-Laufwerk und prüfe die Kopie …")
+        fsync_tree(tmp)
+        qemu.check_disk(qemu.find_binary("qemu-img", host.detect().os), tmp / "disk.qcow2")
         os.replace(tmp, dest)
+        fsync_dir(target_library)
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
@@ -1737,7 +1767,8 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
     storage.invalidate_cache()
     if progress:
         note = " – jetzt als unabhängige Kopie (die Vorlage liegt auf einem anderen Laufwerk)" if backing else ""
-        progress("done", 1.0, f"Verschoben nach {dest}{note}")
+        progress("done", 1.0, f"Verschoben nach {dest}{note}. Ein externes Laufwerk vor dem Abziehen bitte "
+                              "auswerfen.")
     return VM(dest)
 
 

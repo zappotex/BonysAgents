@@ -424,6 +424,31 @@ def test_move_between_locations(datadir, monkeypatch, tmp_path):
     assert back.path == tmp_path / "zurueck" / "wanderer" and back.disk.stat().st_size == size
 
 
+def test_move_syncs_and_checks_copy_before_deleting_source(datadir, monkeypatch, tmp_path):
+    _fake_create(monkeypatch, tmp_path)
+    m = vm.create("vorsichtig", "pw1234")
+    monkeypatch.setattr(vm, "_same_device", lambda a, b: False)
+    synced = []
+    real_fsync = os.fsync
+    monkeypatch.setattr(vm.os, "fsync", lambda fd: (synced.append(fd), real_fsync(fd)))
+
+    def broken(qemu_img, disk):
+        assert synced, "erst fsync, dann prüfen"
+        raise RuntimeError("Festplattenabbild disk.qcow2 ist beschädigt")
+
+    monkeypatch.setattr(vm.qemu, "check_disk", broken)
+    with pytest.raises(RuntimeError, match="beschädigt"):
+        vm.move("vorsichtig", tmp_path / "ziel")
+    assert m.disk.exists() and vm.get("vorsichtig").path == m.path  # Quelle unangetastet
+    assert not (tmp_path / "ziel" / "vorsichtig").exists()
+    assert not (tmp_path / "ziel" / ".vorsichtig.verschieben").exists()
+
+    monkeypatch.setattr(vm.qemu, "check_disk", lambda qemu_img, disk: None)
+    notes = []
+    moved = vm.move("vorsichtig", tmp_path / "ziel", progress=lambda ph, f, msg: notes.append(msg))
+    assert moved.disk.exists() and not m.path.exists() and "auswerfen" in notes[-1]
+
+
 def test_import_existing_folder(datadir, tmp_path):
     lib = tmp_path / "usb" / "BonysAgents"
     (lib / "alt").mkdir(parents=True)

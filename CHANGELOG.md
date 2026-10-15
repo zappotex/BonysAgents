@@ -35,6 +35,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
 ### Verbessert
+- **Verschieben auf ein anderes Laufwerk ist sicher gegen Stromausfall und zu frühes Abziehen.** Die Kopie wird
+  vollständig auf das Ziel geschrieben (`fsync`) und ihre Festplatte geprüft (`qemu-img check`), bevor das
+  Original gelöscht wird. Bisher konnte der Agent-PC verloren gehen, wenn das Laufwerk direkt danach abgezogen
+  wurde.
 - **Formatversion für Agent-PCs und Vorlagen.** `vm.json` trägt jetzt eine Formatversion. Einstellungen, die
   eine neuere Version von Bony's Agents ergänzt hat, bleiben beim Speichern erhalten (bisher gingen sie still
   verloren, z. B. mit einer SSD an einem Schulungs-PC mit älterer Version). Stammt ein Agent-PC oder eine
