@@ -29,6 +29,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   über die Suche im Netz nutzt, muss den Fingerabdruck jetzt immer mit dem Bildschirm des Kursleiters
   vergleichen. Bisher galt der Fingerabdruck aus der Suche als geprüft – im WLAN kann ihn aber jeder fälschen
   und sich als Kursleiter ausgeben. Ohne Rückfrage gilt nur der Link bzw. QR-Code des Kursleiters.
+- **Updates über die Aktualisierungsverwaltung (APT) sind lückenlos geprüft.** Die Paketquelle übernimmt ein
+  Paket nur noch, wenn die minisign-Signatur des Release stimmt (derselbe Schlüssel, den die App prüft), das
+  Paket in der signierten Prüfsummenliste steht und Name und Version zum Projekt passen. Ein Release wird nur
+  noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
 ### Verbessert
 - **Formatversion für Agent-PCs und Vorlagen.** `vm.json` trägt jetzt eine Formatversion. Einstellungen, die

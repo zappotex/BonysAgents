@@ -66,28 +66,21 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           ref: main
       - name: .deb aus den neuesten Releases beider Projekte laden
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p debs
-          # beide Editionen: bonys-agents und bonys-agents-kursleiter (ab 0.19)
-          gh release download -R "$AGENTS_REPO" --pattern 'bonys-agents_*.deb' --pattern 'bonys-agents-kursleiter_*.deb' --dir debs
-          gh release download -R "$VPN_REPO" --pattern 'bonys-vpn*_all.deb' --dir debs \
-            || echo "::notice::Noch kein Release von bonys-vpn."
-          # Nur Pakete mit gültiger Prüfsumme aus dem signierten SHA256SUMS des jeweiligen Release
-          for repo in "$AGENTS_REPO" "$VPN_REPO"; do
-            gh release download -R "$repo" --pattern SHA256SUMS --output "sums-${repo#*/}" 2>/dev/null || continue
-            (cd debs && grep -E '\.deb$' "../sums-${repo#*/}" | sha256sum -c --ignore-missing)
-          done
+          # Je Projekt: minisign-Signatur von SHA256SUMS (Schlüssel aus der App), Prüfsumme jeder .deb, erlaubte
+          # Paketnamen und Version = Tag – fehlt etwas, bricht der Workflow ab (packaging/linux/fetch-release-debs.sh)
+          a=$(packaging/linux/fetch-release-debs.sh "$AGENTS_REPO" "Bony's Agents" debs bonys-agents bonys-agents-kursleiter)
+          v=$(packaging/linux/fetch-release-debs.sh "$VPN_REPO" "Bony's VPN" debs bonys-vpn bonys-vpn-agentpc)
           ls -la debs
-          {
-            echo "bonys-agents $(gh release view -R "$AGENTS_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
-            echo "bonys-vpn $(gh release view -R "$VPN_REPO" --json tagName -q .tagName 2>/dev/null || echo -)"
-          } > versions.txt
+          printf 'bonys-agents %s\nbonys-vpn %s\n' "${a#* }" "${v#* }" > versions.txt
+          cat versions.txt
       - name: Signierte APT-Paketquelle bauen
         env:
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
@@ -106,9 +99,9 @@ jobs:
           # Gegenprobe: passt der Schlüssel zu dem, der in den Paketen steckt?
           gpg --batch --dearmor < packaging/linux/bonys-agents-archive-keyring.asc > "$RUNNER_TEMP/keyring.gpg"
           for suite in stable bonys-vpn; do gpgv --keyring "$RUNNER_TEMP/keyring.gpg" "site/apt/dists/$suite/InRelease"; done
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: site
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

@@ -11,8 +11,20 @@ weitergeben, niemals ins Repository) und einem *öffentlichen* Teil (darf jeder 
 | **minisign** | signiert die Liste der Prüfsummen (`SHA256SUMS`). Die App prüft das vor **jedem** Update – Linux und Windows. | GitHub-Secret `MINISIGN_SECRET_KEY` | in `src/bonys_agents/__init__.py` → `UPDATE_PUBLIC_KEY` |
 | **GPG** | signiert die APT-Paketquelle. `apt` prüft das, wenn die Aktualisierungsverwaltung (Mint, Ubuntu, Debian) Updates holt. | GitHub-Secrets `APT_GPG_PRIVATE_KEY` und `APT_GPG_PASSPHRASE` | Datei `packaging/linux/bonys-agents-archive-keyring.asc` |
 
-Fehlt etwas davon, baut die Pipeline trotzdem ein Release – nur eben ohne Signatur bzw. ohne
-Paketquelle (es erscheint eine Warnung). Die App installiert **nie** ein unsigniertes Update.
+Fehlt `MINISIGN_SECRET_KEY` (oder `UPDATE_PUBLIC_KEY`), bricht das Release ab – es wird nichts
+veröffentlicht. Fehlt der GPG-Schlüssel, bricht der Bau der Paketquelle ab. Die App installiert **nie** ein
+unsigniertes Update.
+
+Absicherung der Kette (ab 0.20):
+- Das Release läuft erst, wenn der Test-Job (ruff + pytest auf Linux, macOS, Windows) grün ist.
+- Die Paketquelle (`apt-repo.yml`) übernimmt eine `.deb` nur, wenn `SHA256SUMS.minisig` mit dem Schlüssel aus
+  der App passt, der vertrauenswürdige Kommentar genau „Bony's Agents v…“ bzw. „Bony's VPN v…“ lautet, die
+  Datei in `SHA256SUMS` steht und Paketname und Version zum jeweiligen Projekt und Tag passen
+  (`packaging/linux/fetch-release-debs.sh`, lokal ausführbar).
+- Workflows haben nur Leserechte; `contents: write` nur der Job „release“. Apple-Secrets stehen nur in den
+  Schritten „Signieren“ und „Notarisieren“. Actions sind auf Commit-SHA festgelegt (Kommentar = Version).
+- **Einmalig von Hand in GitHub:** Settings → Rules → Rulesets → neues Tag-Ruleset für `v*`
+  („Restrict creations/updates/deletions“, nur du als Bypass) – dann kann niemand sonst ein Release auslösen.
 
 ---
 
