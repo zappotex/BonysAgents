@@ -235,7 +235,17 @@ Ab 0.19.0 liegen Server und Kursleiter-Dialoge in `trainer/` (`trainer/present.p
     `build-deb.sh [anwender|kursleiter]`, `.iss` mit `/DEdition=` (gleiche AppId + InstallDelete), dmg mit
     Laufwerksname, release.yml/ci.yml/apt-repo für beide. Tests: `--edition anwender|kursleiter`, Marker
     `kursleiter`, `test_editions.py`, `test_share.py` (Teilnehmer) + `test_share_server.py` (Server).
-  - Nächste Schritte: Teil C (Hintergrundbild `Bilder/hintergrund_program_neu.png`), danach Gesamttest
+  - Teil B committet (339bd24), Tests: Kursleiter 424, Anwender 373 grün; beide .deb lokal gebaut und geprüft.
+  - **Teil C (Hintergrundbild) umgesetzt:** Bild 1536×1024 (3:2), PNG ohne Transparenz, 1,3 MB → JPEG 179 KB
+    (`resources/wallpaper.jpg`, nicht hochgerechnet), Randfarbe `#010101` (`desktops.WALLPAPER_BORDER`). Altes Bild
+    (SHA-256 cd4e20c6…, identisch in 0.3–0.18) nur noch als Prüfsumme in `wallpaper.OLD_SHA256`. Neues Modul
+    `wallpaper.py` (Gast-Skript check/auto/force, Test-Präfix `BONYS_WP_ROOT`), `vm.guest_run(via_stdin=True)`
+    (Skript > 128 KB), CLI `wallpaper NAME [--check|--force]`, Knopf in der Detailansicht, Klon-Erststart
+    (`/usr/local/sbin/bonys-wallpaper-update`). Echt getestet: agent-pc-3 (Cinnamon) live umgestellt, Klon `wp-test`
+    aus `vorlage-agent-pc-1` bekam das Bild beim ersten Start, Xfce darin (alter Zustand nachgestellt) live
+    umgestellt, eigenes Xfce-Bild blieb. README zeigt keinen Agent-PC-Hintergrund – nichts zu tauschen.
+    Test-Agent-PC `wp-test` kann gelöscht werden.
+  - Nächste Schritte: Gesamttest
     (Wechsel der .deb nur nach Rückfrage wegen sudo), Version 0.19.0, Zusammenfassung an den Nutzer.
 - **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt (gehört nach `trainer/`); Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).

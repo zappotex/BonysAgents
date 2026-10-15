@@ -626,6 +626,10 @@ class MainWindow(QMainWindow):
         self.driver_btn.setObjectName("Small")
         self.driver_btn.setToolTip("Richtet im laufenden Agent-PC ein, dass die Auflösung dem Fenster folgt "
                                    "(für Agent-PCs von älteren Versionen; passiert auch bei „Agent-PC aktualisieren“)")
+        self.wallpaper_btn = QPushButton("Hintergrundbild aktualisieren")
+        self.wallpaper_btn.setObjectName("Small")
+        self.wallpaper_btn.setToolTip("Neues Standard-Hintergrundbild in den laufenden Agent-PC bringen – nur, wenn "
+                                      "noch das alte aktiv ist (ein selbst gewähltes Bild bleibt, sonst Rückfrage)")
         self.screen_note = QLabel()
         self.screen_note.setObjectName("Muted")
         self.screen_note.setWordWrap(True)
@@ -634,6 +638,7 @@ class MainWindow(QMainWindow):
         sr.addWidget(self.screen_mode)
         sr.addWidget(self.screen_size)
         sr.addWidget(self.driver_btn)
+        sr.addWidget(self.wallpaper_btn)
         cl.addLayout(sr)
         cl.addWidget(self.screen_note)
         cl.addStretch(1)
@@ -720,6 +725,7 @@ class MainWindow(QMainWindow):
         self.screen_mode.activated.connect(self._set_screen)
         self.screen_size.activated.connect(self._set_screen)
         self.driver_btn.clicked.connect(lambda: self._update_driver())
+        self.wallpaper_btn.clicked.connect(lambda: self._update_wallpaper())
         self.move_btn.clicked.connect(self.move_vm)
         self.resize_btn.clicked.connect(self.resize_vm)
         self.add_apps_btn.clicked.connect(lambda: self.add_apps())
@@ -802,6 +808,46 @@ class MainWindow(QMainWindow):
             if w.error is None and w.result:
                 self.statusBar().showMessage(f"{m.name}: {w.result}", 10000)
             self.refresh_detail()
+
+        w.failed.connect(failed)
+        w.finished.connect(done)
+        self._keep(w)
+
+    def _update_wallpaper(self, password: str | None = None, force: bool = False) -> None:
+        from bonys_agents import wallpaper
+
+        m = self.current()
+        if not m:
+            return
+        self.wallpaper_btn.setEnabled(False)
+        self.statusBar().showMessage(f"Hintergrundbild in „{m.name}“ wird aktualisiert …")
+        w = TaskWorker(lambda: wallpaper.update(m, force=force, password=password))
+
+        def failed(msg: str) -> None:
+            self.statusBar().clearMessage()
+            if isinstance(w.error, vm.NeedsPassword):
+                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                                              QLineEdit.Password)
+                if ok and pw:
+                    self._update_wallpaper(pw, force)
+                return
+            QMessageBox.warning(self, APP_NAME, msg)
+
+        def done() -> None:
+            self.refresh_detail()
+            s = w.result
+            if w.error is not None or s is None:
+                return
+            if s.done == "nachfragen":
+                self.statusBar().clearMessage()
+                ask = QMessageBox.question(
+                    self, APP_NAME, f"{wallpaper.describe(s)}\n\nTrotzdem auf das neue Standard-Hintergrundbild "
+                    "umstellen? Dein Bild wird dann in den Einstellungen ersetzt (die Datei selbst bleibt).",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if ask == QMessageBox.Yes:
+                    self._update_wallpaper(password, force=True)
+                return
+            self.statusBar().showMessage(f"{m.name}: {wallpaper.describe(s)}", 10000)
 
         w.failed.connect(failed)
         w.finished.connect(done)
@@ -1054,6 +1100,7 @@ class MainWindow(QMainWindow):
         self.screen_size.setCurrentText(size)
         self.screen_size.setVisible(mode != screen.AUTO)
         self.driver_btn.setEnabled(status == "läuft" and not busy)
+        self.wallpaper_btn.setEnabled(status == "läuft" and not busy and not c.first_boot_pending)
         self.screen_note.setText("gilt ab dem nächsten Start" if m.screen_pending() else
                                  "SPICE-Fenster: Remmina/remote-viewer passt die Auflösung an"
                                  if c.display == "spice" else "")

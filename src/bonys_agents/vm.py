@@ -564,21 +564,28 @@ class VM:
         return True
 
     def guest_run(self, script: str, password: str | None = None, ssh_prompt: bool = False,
-                  timeout: float = 120) -> str:
+                  timeout: float = 120, via_stdin: bool = False) -> str:
         """Befehl als root im Gast – über den QEMU Guest Agent, notfalls per SSH.
 
         SSH braucht das Passwort des Agent-PCs: entweder ``password`` oder ``ssh_prompt``
         (ssh fragt im Terminal). Sonst NeedsPassword, damit die Oberfläche fragen kann.
+        ``via_stdin``: Bash-Skript über die Standardeingabe statt als Argument – für große Skripte (ein einzelnes
+        Argument darf unter Linux höchstens 128 KB lang sein), z. B. mit eingebettetem Bild.
         """
         try:
             with qemu.GuestAgent(self.runtime().get("qga_port") or 0, timeout=5) as ga:
-                rc, out = ga.run(script, timeout=timeout)
+                if via_stdin:
+                    rc, o, e = ga.exec("/bin/bash", ["-s"], stdin=script.encode("utf-8"), timeout=timeout)
+                    out = o + e
+                else:
+                    rc, out = ga.run(script, timeout=timeout)
         except qemu.GuestAgentError:
             if not password and not ssh_prompt:
                 raise NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
                                     "des Agent-PCs gebraucht.") from None
-            rc = self._ssh(SSH_SUDO_SCRIPT, script, password)
-            out = ""
+            lines: list[str] = []
+            rc = self._ssh(SSH_SUDO_SCRIPT, script, password, log=lines.append)
+            out = "\n".join(lines)
             if rc == 255:
                 raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?") from None
         if rc != 0:

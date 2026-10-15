@@ -12,12 +12,11 @@ import io
 import json
 import os
 from dataclasses import dataclass, field
-from importlib import resources
 from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, mission_control, screen, vpnlink
+from bonys_agents import desktops, mission_control, screen, vpnlink, wallpaper
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -67,9 +66,8 @@ def desktop_folder(locale: str) -> str:
 
 
 def wallpaper_b64() -> str:
-    """Desktop-Hintergrund des Agent-PCs (dasselbe Bild wie in der App), base64-kodiert."""
-    data = (resources.files("bonys_agents") / "resources" / "wallpaper.jpg").read_bytes()
-    return base64.b64encode(data).decode("ascii")
+    """Standard-Hintergrundbild des Agent-PCs (``wallpaper``), base64-kodiert."""
+    return base64.b64encode(wallpaper.data()).decode("ascii")
 
 
 def provision_script(cfg: GuestConfig) -> str:
@@ -433,6 +431,7 @@ def _write_iso(path: Path, files: dict[str, bytes]) -> None:
 
 # ---------------------------------------------------------------- Vorlagen
 CLONE_SCRIPT = "/usr/local/sbin/bonys-clone-firstboot"
+CLONE_WALLPAPER_SCRIPT = "/usr/local/sbin/bonys-wallpaper-update"
 HOSTKEY_SERVICE = "bonys-ssh-hostkeys.service"
 
 
@@ -689,7 +688,11 @@ systemctl restart ssh.service >/dev/null 2>&1 || true
 command -v make-ssl-cert >/dev/null && make-ssl-cert generate-default-snakeoil --force-overwrite || true
 [ -x /usr/sbin/xrdp-keygen ] && xrdp-keygen xrdp auto >/dev/null 2>&1 || true
 [ -x {GROWROOT_SCRIPT} ] && {GROWROOT_SCRIPT} >/dev/null 2>&1 || true
-{vpn_part}sync
+{vpn_part}# Hintergrundbild: Agent-PCs aus alten Vorlagen bzw. .bonys-Dateien bekommen das neue Standardbild – aber nur,
+# wenn sie noch das alte hatten (selbst gewählte Bilder bleiben)
+[ -x {CLONE_WALLPAPER_SCRIPT} ] && {CLONE_WALLPAPER_SCRIPT} >/dev/null 2>&1 || true
+rm -f {CLONE_WALLPAPER_SCRIPT} {wallpaper.STAGED}
+sync
 echo "{READY_MARKER}" > {GUEST_CONSOLE}
 """
 
@@ -705,7 +708,12 @@ def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.Vp
         "chpasswd": {"expire": False, "users": [{"name": username, "password": password, "type": "text"}]},
         "growpart": {"mode": "auto", "devices": ["/"]},
         "resize_rootfs": True,
-        "write_files": [{"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script(vpn)}],
+        "write_files": [
+            {"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script(vpn)},
+            {"path": CLONE_WALLPAPER_SCRIPT, "permissions": "0755",
+             "content": "#!/bin/bash\n" + wallpaper.guest_script(username, "auto")},
+            {"path": wallpaper.STAGED, "permissions": "0644", "encoding": "b64", "content": wallpaper_b64()},
+        ],
         "runcmd": [[CLONE_SCRIPT]],
     }
     return "#cloud-config\n" + json.dumps(doc, indent=2, ensure_ascii=False) + "\n"

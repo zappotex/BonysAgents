@@ -19,6 +19,12 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 - **Kurs-Protokoll mit Version:** Passen Kursleiter und Teilnehmer nicht zusammen, sagt Bony's Agents verständlich,
   wer aktualisieren sollte (Teilnehmer mit 0.17/0.18 bleiben kompatibel).
 
+- **Neues Hintergrundbild für Agent-PCs** (beide Editionen, alle Desktops und der Anmeldebildschirm; das Bild im
+  Programmfenster bleibt): skaliert und unverzerrt, die Randfarbe stammt aus dem Bild. Bestehende Agent-PCs:
+  Detailansicht → „Hintergrundbild aktualisieren“ bzw. `bonys-agents wallpaper NAME [--force]` – umgestellt wird
+  nur, wenn noch das alte Standardbild aktiv ist; ein selbst gewähltes Bild bleibt (sonst Rückfrage). Agent-PCs aus
+  alten Vorlagen bzw. `.bonys`-Dateien bekommen es beim ersten Start automatisch, sofern sie das alte hatten.
+
 ### Geändert
 - `bonys-agents share` und `bonys-agents present` gibt es nur noch in der Kursleiter-Version; die normale Version
   erklärt das (Rückgabe 2).

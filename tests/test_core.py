@@ -7,7 +7,7 @@ from pathlib import Path, PurePosixPath
 import pycdlib
 import pytest
 
-from bonys_agents import apps, cli, cloudinit, host, qemu, screen, vm
+from bonys_agents import apps, cli, cloudinit, desktops, host, qemu, screen, vm
 
 
 # ---------- host ----------
@@ -206,7 +206,7 @@ def test_wallpaper_in_cloud_init():
     assert f"picture-uri='file://{cloudinit.WALLPAPER_PATH}'" in script
     # skaliert: ganzes Bild sichtbar, Seitenverhältnis bleibt, Rand in der App-Farbe
     assert "picture-options='scaled'" in script
-    assert "primary-color='#0b1117'" in script and "color-shading-type='solid'" in script
+    assert f"primary-color='{desktops.WALLPAPER_BORDER}'" in script and "color-shading-type='solid'" in script
     # nirgends sonst gestreckt/gezoomt (kein gsettings set, kein dconf, das den Override aushebelt)
     assert "stretched" not in script and "'zoom'" not in script
     assert "gsettings set org.cinnamon.desktop.background" not in script and "dconf write" not in script

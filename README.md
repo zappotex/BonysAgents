@@ -37,7 +37,7 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Speicherort frei wählbar – z. B. eine externe SSD; Agent-PCs werden auf jedem Laufwerk automatisch wiedergefunden
 - Fertige Installer: `.deb` für die Paketverwaltung und Setup.exe für Windows
 - Fernzugriff per RDP (xrdp, mit Ton) und SPICE (echter Bildschirm, Ton, Zwischenablage) – standardmäßig aus, per Knopf sofort an (bis zum Herunterfahren oder dauerhaft), mit Remmina-Profilen
-- Eigenes Hintergrundbild im Agent-PC (Desktop und Anmeldebildschirm, unverzerrt), Git und Build-Werkzeuge vorinstalliert
+- Eigenes Hintergrundbild im Agent-PC (Desktop und Anmeldebildschirm, unverzerrt, in allen sechs Desktops), Git und Build-Werkzeuge vorinstalliert – ältere Agent-PCs bekommen das neue Bild per Knopf „Hintergrundbild aktualisieren“ (ein selbst gewähltes Bild bleibt)
 - Die Auflösung folgt dem QEMU-Fenster wie bei VirtualBox mit Gasterweiterungen – vergrößern, verkleinern, maximieren, Vollbild (Start in 800×600); „Herunterfahren“ wirkt sofort, ohne Rückfrage im Agent-PC
 - Updates per Knopfdruck – für die App selbst (signiert und geprüft) und für die Agent-PCs (siehe „Updates“)
 - Unterbrochene Einrichtung (QEMU beendet, Neustart, Speichermangel) läuft beim nächsten Start dort weiter, wo sie war
@@ -221,6 +221,7 @@ bonys-agents screen mein-agent             # Bildschirm-Einstellung anzeigen
 bonys-agents screen mein-agent fixed --size 1600x900   # feste Auflösung (scale = Bild skalieren, auto = Standard)
 bonys-agents fullscreen mein-agent         # QEMU-Fenster als Vollbild (zurück mit Strg+Alt+F)
 bonys-agents display-driver mein-agent     # Anzeige-Treiber in älteren Agent-PCs nachrüsten
+bonys-agents wallpaper mein-agent          # neues Standard-Hintergrundbild (--check: nur anzeigen, --force: auch eigenes ersetzen)
 bonys-agents list                          # alle Agent-PCs
 bonys-agents status mein-agent             # Details, Fortschritt, SSH-Befehl
 bonys-agents logs mein-agent               # Konsolenausgabe

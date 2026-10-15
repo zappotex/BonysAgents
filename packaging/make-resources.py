@@ -27,9 +27,19 @@ def save_jpeg_under(img: Image.Image, path: Path, max_kb: int) -> None:
     raise SystemExit(f"{path.name}: auch mit niedriger Qualität größer als {max_kb} KB")
 
 
+def border_color(img: Image.Image, frame: int = 4) -> str:
+    """Mittlere Farbe des äußeren Rahmens (``frame`` Pixel) als #rrggbb."""
+    w, h = img.size
+    px = []
+    for box in ((0, 0, w, frame), (0, h - frame, w, h), (0, frame, frame, h - frame), (w - frame, frame, w, h - frame)):
+        px += list(img.crop(box).getdata())
+    return "#" + "".join(f"{round(sum(p[i] for p in px) / len(px)):02x}" for i in range(3))
+
+
 def main() -> None:
     logo = Image.open(SRC / "logo.jpg").convert("RGB")
     banner = Image.open(SRC / "hintergrund_program.png").convert("RGB")
+    agent_bg = Image.open(SRC / "hintergrund_program_neu.png").convert("RGB")
 
     logo.resize((512, 512), Image.LANCZOS).save(OUT / "logo.png", optimize=True)
     logo.resize((256, 256), Image.LANCZOS).save(OUT / "icon.png", optimize=True)
@@ -45,9 +55,14 @@ def main() -> None:
         bg = bg.resize((1920, round(bg.height * 1920 / bg.width)), Image.LANCZOS)
     save_jpeg_under(bg, OUT / "background.jpg", 400)
 
-    # Desktop-Hintergrund im Agent-PC: genau 1920 px breit, nicht abgedunkelt.
-    wp = banner.resize((1920, round(banner.height * 1920 / banner.width)), Image.LANCZOS)
-    save_jpeg_under(wp, OUT / "wallpaper.jpg", 500)
+    # Desktop-Hintergrund im Agent-PC (ab 0.19): eigenes, dunkleres Bild – höchstens 3840 px breit, nie
+    # hochgerechnet, kompakt. Die Randfarbe (dort, wo das skalierte Bild den Bildschirm nicht füllt) kommt aus dem
+    # Bild selbst und steht in desktops.WALLPAPER_BORDER (ein Test prüft, dass beides zusammenpasst).
+    wp = agent_bg
+    if wp.width > 3840:
+        wp = wp.resize((3840, round(wp.height * 3840 / wp.width)), Image.LANCZOS)
+    save_jpeg_under(wp, OUT / "wallpaper.jpg", 300)
+    print(f"Randfarbe des Agent-PC-Hintergrunds: {border_color(wp)}  (→ desktops.WALLPAPER_BORDER)")
 
     # Inno-Setup-Assistent (WizardStyle=modern): Seitenbild 164x314, kleines Bild 55x55 – je 100 % und 200 %.
     # Nachtblauer Verlauf (Farben der App) mit dem ganzen Logo – der Schriftzug passt so vollständig hinein.

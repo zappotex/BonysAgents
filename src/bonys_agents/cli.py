@@ -1104,6 +1104,27 @@ def _print_qr(text: str) -> None:
         pass
 
 
+def cmd_wallpaper(args) -> int:
+    """Neues Standard-Hintergrundbild in einen laufenden Agent-PC bringen – eigene Bilder nur mit --force."""
+    from bonys_agents import wallpaper
+
+    m = vm.get(args.name)
+    if args.check:
+        s = wallpaper.check(m, ssh_prompt=True)
+        print({wallpaper.CURRENT: "Neues Standardbild aktiv.", wallpaper.OLD: "Noch das alte Standardbild.",
+               wallpaper.FOREIGN: "Die Bilddatei ist keines unserer Standardbilder.",
+               wallpaper.MISSING: "Kein Standardbild vorhanden."}.get(s.state, s.state))
+        for c in s.custom:
+            print(f"  Eigenes Bild – {c}")
+        return 0
+    s = wallpaper.update(m, force=args.force, ssh_prompt=True)
+    print(wallpaper.describe(s))
+    if s.done == "nachfragen":
+        print(f"Nichts geändert. Trotzdem auf das neue Standardbild umstellen: bonys-agents wallpaper {m.name} --force")
+        return 1
+    return 0
+
+
 def cmd_join(args) -> int:
     """Einer Schulung beitreten: Vorlage vom Kursleiter-Rechner laden (setzt fort), prüfen, importieren."""
     from bonys_agents import bonysfile, share
@@ -1341,6 +1362,12 @@ def build_parser() -> argparse.ArgumentParser:
     jn.add_argument("--dir", metavar="ORDNER", help="Wohin laden (Standard: Datenordner/schulung)")
     _import_options(jn)
     jn.set_defaults(func=cmd_join)
+    wp = sub.add_parser("wallpaper", help="Neues Standard-Hintergrundbild in einen laufenden Agent-PC bringen "
+                                          "(nur, wenn noch das alte aktiv ist)")
+    wp.add_argument("name")
+    wp.add_argument("--force", action="store_true", help="Auch umstellen, wenn ein eigenes Bild gewählt ist")
+    wp.add_argument("--check", action="store_true", help="Nur anzeigen, welches Bild aktiv ist")
+    wp.set_defaults(func=cmd_wallpaper)
     mi = sub.add_parser("make-independent", help="Verknüpften Agent-PC in eine unabhängige Kopie umwandeln")
     mi.add_argument("name")
     mi.set_defaults(func=cmd_make_independent)
