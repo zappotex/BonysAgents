@@ -64,6 +64,9 @@ def analysis(script):
         hiddenimports=HIDDEN,
         excludes=EXCLUDES,
         noarchive=False,
+        # pycdlib (LGPL-2.1) als lose .py-Dateien in _internal/pycdlib – austauschbar (LGPL-2.1 §6), nicht im
+        # Archiv der Programmdatei. packaging/check-edition.py prüft das.
+        module_collection_mode={"pycdlib": "py"},
     )
     if not TRAINER:   # Sicherheitsnetz: kein Modul aus trainer/ in der Anwender-Version
         a.pure = [m for m in a.pure if not editions.is_trainer_path(m[0])]

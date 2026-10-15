@@ -26,7 +26,8 @@ deren Texte folgen weiter unten.
 Qt, PySide6, Shiboken6 und pycdlib (LGPL) werden als eigenständige, austauschbare
 Bibliotheken mitgeliefert (im Programmordner, z. B. /opt/bonys-agents/_internal
 bzw. C:\Program Files\Bony's Agents\_internal) und können durch eigene,
-kompatible Versionen ersetzt werden. Der Quelltext von Bony's Agents ist unter
+kompatible Versionen ersetzt werden. pycdlib liegt dort als Quelltext im Ordner
+pycdlib/ (lose .py-Dateien) – zum Austauschen einfach diesen Ordner ersetzen. Der Quelltext von Bony's Agents ist unter
 https://github.com/zappotex/BonysAgents verfügbar; die Quelltexte von Qt und
 PySide6 unter https://download.qt.io und https://code.qt.io, der von pycdlib
 unter https://github.com/clalancette/pycdlib.

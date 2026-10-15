@@ -7,7 +7,8 @@
 
 Anwender: weder Dateien noch Python-Module aus ``bonys_agents.trainer``, kein noVNC – nicht nur ausgeblendet.
 Kursleiter: trainer-Module, Seiten der Vorführung und noVNC sind da. In beiden Fällen steht die Edition fest im
-Programm (``bonys_agents._edition``). Durchsucht werden alle Dateien und die Modul-Archive (PYZ) in den Programmen.
+Programm (``bonys_agents._edition``), und pycdlib (LGPL) liegt als lose, austauschbare .py-Dateien daneben.
+Durchsucht werden alle Dateien und die Modul-Archive (PYZ) in den Programmen.
 Ohne PyInstaller (z. B. für ein entpacktes .deb ohne Bau-Umgebung) werden nur die Dateien geprüft.
 """
 
@@ -65,6 +66,11 @@ def check(root: Path, edition: str) -> list[str]:
         if mods and not {"bonys_agents.trainer.present", "bonys_agents.trainer.share_server",
                          "bonys_agents.trainer.helpdesk", "bonys_agents.trainer.gui.present_dialog"} <= set(mods):
             problems.append("Kursleiter-Module fehlen im Programm")
+    # LGPL-2.1 §6: pycdlib muss austauschbar als lose Dateien daliegen, nicht im Archiv der Programmdatei
+    if not any(f.endswith("pycdlib/pycdlib.py") for f in all_files):
+        problems.append("pycdlib fehlt als lose Datei (…/pycdlib/pycdlib.py) – module_collection_mode in der .spec?")
+    if any(m == "pycdlib" or m.startswith("pycdlib.") for m in mods):
+        problems.append("pycdlib steckt im Archiv der Programmdatei (PYZ) – muss austauschbar daneben liegen")
     if mods:
         if not edition_code:
             problems.append("bonys_agents._edition fehlt im Programm")

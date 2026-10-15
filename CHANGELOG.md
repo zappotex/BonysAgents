@@ -34,6 +34,11 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   Paket in der signierten Prüfsummenliste steht und Name und Version zum Projekt passen. Ein Release wird nur
   noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
+### Lizenzen
+- **pycdlib (LGPL-2.1) ist austauschbar mitgeliefert.** Die Bibliothek liegt jetzt als lose Quelltext-Dateien im
+  Programmordner (`_internal/pycdlib/`) statt im Archiv der Programmdatei – wie es die LGPL verlangt. Der Paketbau
+  prüft das.
+
 ### Verbessert
 - **Einrichtung „fertig mit Fehlern“ statt still „fertig“.** Scheitert bei der Ersteinrichtung ein Schritt (z. B.
   die Installation einer App oder die Übernahme der WireGuard-Konfiguration), zeigt Bony's Agents das jetzt im
