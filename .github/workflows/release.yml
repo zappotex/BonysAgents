@@ -54,7 +54,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 qemu-utils
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests packaging/editions.py packaging/check-edition.py
+      - run: ruff check src tests packaging/editions.py packaging/check-edition.py packaging/collect-licenses.py
       - name: Tests – Kursleiter-Version (alles)
         run: pytest -q --edition kursleiter
       - name: Tests – Anwender-Version (ohne bonys_agents.trainer)
@@ -154,6 +154,8 @@ jobs:
           for ed in anwender kursleiter; do
             pyinstaller --noconfirm --log-level WARN --workpath "build/pyinstaller-$ed" packaging/bonys-agents.spec -- --edition $ed
           done
+          python packaging/collect-licenses.py dist/bonys-agents
+          python packaging/collect-licenses.py dist/bonys-agents-kursleiter
           python packaging/check-edition.py dist/bonys-agents anwender
           python packaging/check-edition.py dist/bonys-agents-kursleiter kursleiter
           dist/bonys-agents/bonys-agents.exe --version
@@ -240,6 +242,7 @@ jobs:
           if [ "${{ matrix.edition }}" = kursleiter ]; then python packaging/fetch-novnc.py; fi
           pip install . pyinstaller
           pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec -- --edition ${{ matrix.edition }}
+          python packaging/collect-licenses.py "dist/Bony's Agents.app"
           python packaging/check-edition.py "dist/Bony's Agents.app" ${{ matrix.edition }}
           v=$(python -c "import bonys_agents; print(bonys_agents.__version__)")
           echo "VERSION=$v" >> "$GITHUB_ENV"

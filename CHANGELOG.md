@@ -38,6 +38,11 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 - **pycdlib (LGPL-2.1) ist austauschbar mitgeliefert.** Die Bibliothek liegt jetzt als lose Quelltext-Dateien im
   Programmordner (`_internal/pycdlib/`) statt im Archiv der Programmdatei – wie es die LGPL verlangt. Der Paketbau
   prüft das.
+- **Alle Lizenztexte liegen bei.** Jedes Paket enthält jetzt den Ordner `licenses` mit den Lizenztexten aller
+  tatsächlich mitgelieferten Teile – beim Bauen aus dem Inhalt gesammelt: Python (mit den Drittteilen seines
+  Builds), OpenSSL (Windows/macOS), Qt und alle seine Drittkomponenten (harfbuzz, PCRE2, libpng …), ICU, jedes
+  Python-Paket und unter Linux jede gebündelte Systembibliothek (z. B. OpenSSL, Kerberos, libjpeg). Bisher fehlten
+  viele davon, und die Liste nannte teils Bibliotheken, die gar nicht dabei waren.
 
 ### Verbessert
 - **Einrichtung „fertig mit Fehlern“ statt still „fertig“.** Scheitert bei der Ersteinrichtung ein Schritt (z. B.

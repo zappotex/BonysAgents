@@ -53,6 +53,7 @@ if [ ! -x "$DIST/BonysAgents" ] || [ "${REBUILD:-1}" = "1" ]; then
     packaging/bonys-agents.spec -- --edition "$EDITION"
 fi
 # Anwender: kein trainer/, kein noVNC – Kursleiter: beides (bricht sonst ab)
+build/venv/bin/python packaging/collect-licenses.py "$DIST"   # Lizenztexte aus dem tatsächlichen Inhalt
 build/venv/bin/python packaging/check-edition.py "$DIST" "$EDITION"
 
 # ---------- 2. Paketstruktur ----------

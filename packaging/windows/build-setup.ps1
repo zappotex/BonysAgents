@@ -67,6 +67,8 @@ foreach ($edition in @("anwender", "kursleiter")) {
     & build\venv-win\Scripts\pyinstaller.exe --noconfirm --log-level WARN --workpath "build\pyinstaller-$edition" `
         packaging\bonys-agents.spec -- --edition $edition
     if ($LASTEXITCODE -ne 0) { Fail "PyInstaller fehlgeschlagen ($edition)" }
+    & build\venv-win\Scripts\python.exe packaging\collect-licenses.py "dist\$dist"
+    if ($LASTEXITCODE -ne 0) { Fail "Lizenztexte ließen sich nicht sammeln ($edition)" }
     & build\venv-win\Scripts\python.exe packaging\check-edition.py "dist\$dist" $edition
     if ($LASTEXITCODE -ne 0) { Fail "Die Edition $edition enthält nicht das Richtige." }
 

@@ -66,6 +66,8 @@ def check(root: Path, edition: str) -> list[str]:
         if mods and not {"bonys_agents.trainer.present", "bonys_agents.trainer.share_server",
                          "bonys_agents.trainer.helpdesk", "bonys_agents.trainer.gui.present_dialog"} <= set(mods):
             problems.append("Kursleiter-Module fehlen im Programm")
+    if not any(f.endswith("licenses/INDEX.txt") for f in all_files):
+        problems.append("Lizenztexte fehlen (licenses/INDEX.txt) – packaging/collect-licenses.py ausführen")
     # LGPL-2.1 §6: pycdlib muss austauschbar als lose Dateien daliegen, nicht im Archiv der Programmdatei
     if not any(f.endswith("pycdlib/pycdlib.py") for f in all_files):
         problems.append("pycdlib fehlt als lose Datei (…/pycdlib/pycdlib.py) – module_collection_mode in der .spec?")

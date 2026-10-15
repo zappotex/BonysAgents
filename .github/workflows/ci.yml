@@ -30,7 +30,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 qemu-utils
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests packaging/editions.py packaging/check-edition.py
+      - run: ruff check src tests packaging/editions.py packaging/check-edition.py packaging/collect-licenses.py
       - name: Tests – Kursleiter-Version (alles)
         run: pytest -q -v --edition kursleiter
       - name: Tests – Anwender-Version (ohne bonys_agents.trainer)
