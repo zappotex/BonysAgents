@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
         top.setSpacing(8)
         logo = ScaledLogo(48)
         logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)  # klein genug – lieber bricht der Untertitel um
-        title = QLabel(edition.NAME)
+        title = QLabel(APP_NAME)
         title.setObjectName("Title")
         title.setWordWrap(True)  # bei sehr großer Anzeige lieber zweizeilig als zu breit
         tagline = QLabel(TAGLINE)
@@ -143,6 +143,12 @@ class MainWindow(QMainWindow):
         tcol = QVBoxLayout()
         tcol.setSpacing(0)
         tcol.addLayout(title_row)
+        if edition.IS_TRAINER:
+            # Eigene kleine Zeile statt „Bony's Agents Kursleiter“ im Titel – der lange Titel machte das Fenster
+            # bei großer Anzeige zu breit
+            ed = QLabel(edition.LABEL)
+            ed.setObjectName("Tagline")
+            tcol.addWidget(ed)
         tcol.addWidget(tagline)
         tcol.addStretch(1)
         top.addWidget(logo, 0, Qt.AlignTop)
