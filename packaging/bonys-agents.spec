@@ -25,7 +25,7 @@ EDITION = editions.parse(sys.argv)
 TRAINER = EDITION == "kursleiter"
 DIST_NAME = editions.DIST_NAMES[EDITION]
 DISPLAY_NAME = editions.DISPLAY_NAMES[EDITION]
-print(f"==> Edition: {EDITION} ({DISPLAY_NAME}) → dist/{DIST_NAME}")
+print(f"==> Edition: {EDITION} ({DISPLAY_NAME}) -> dist/{DIST_NAME}")
 if TRAINER and not (ROOT / "src" / "bonys_agents" / "trainer" / "resources" / "novnc" / "core" / "rfb.js").is_file():
     raise SystemExit("noVNC fehlt – erst python packaging/fetch-novnc.py ausführen.")
 
