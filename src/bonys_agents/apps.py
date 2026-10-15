@@ -70,7 +70,7 @@ BRAVE = AppSpec(
     launcher="brave-browser.desktop",
     version="dpkg-query -W -f='${Version}' brave-browser",
     install=r"""
-curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg \
+curl -fsSL --retry 3 --max-time 120 -o /usr/share/keyrings/brave-browser-archive-keyring.gpg \
   https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
   > /etc/apt/sources.list.d/brave-browser-release.list
@@ -199,7 +199,7 @@ else:
 EOF
 read -r VER FILE URL SHA < "$TMP/asset"
 echo "Lade Obsidian $VER ($FILE) …"
-curl -fSL --retry 3 -o "$TMP/$FILE" "$URL"
+curl -fSL --retry 3 --max-time 1800 -o "$TMP/$FILE" "$URL"
 if [ "$SHA" != "-" ]; then
   echo "$SHA  $TMP/$FILE" | sha256sum -c -
 else
@@ -369,7 +369,7 @@ ARCH="$(dpkg --print-architecture)"
 case "$ARCH" in amd64|arm64) ;; *) echo "Docker gibt es hier nur für amd64 und arm64 (gefunden: $ARCH)." >&2; exit 1 ;; esac
 CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
 TMP="$(mktemp -d)"
-curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$TMP/docker.asc" '""" + DOCKER_KEY_URL + r"""'
+curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --max-time 120 -o "$TMP/docker.asc" '""" + DOCKER_KEY_URL + r"""'
 FPR="$(gpg --batch --show-keys --with-colons "$TMP/docker.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
 if [ "$FPR" != '""" + DOCKER_KEY_FINGERPRINT + r"""' ]; then
   echo "FEHLER: Der Schlüssel der Docker-Paketquelle hat einen unerwarteten Fingerabdruck – nichts installiert." >&2
@@ -418,13 +418,13 @@ HERMES = AppSpec(
     version='PATH="$HOME/.local/bin:$PATH" hermes --version',
     launcher="hermes-agent.desktop",
     install=r"""
-su - "$AGENT_USER" -c 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash' </dev/null \
+su - "$AGENT_USER" -c 'curl -fsSL --retry 3 --max-time 120 https://hermes-agent.nousresearch.com/install.sh | bash' </dev/null \
   || echo "WARNUNG: Hermes-Installation fehlgeschlagen – im Terminal erneut ausführen."
 cat > /usr/local/bin/bonys-hermes <<'EOF'
 #!/bin/bash
 # Hermes Agent starten (fehlt er, mit dem offiziellen Installer nachholen)
 export PATH="$HOME/.local/bin:$PATH"
-command -v hermes >/dev/null || curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+command -v hermes >/dev/null || curl -fsSL --retry 3 --max-time 120 https://hermes-agent.nousresearch.com/install.sh | bash
 hermes
 exec bash
 EOF
@@ -455,12 +455,12 @@ OPENCLAW = AppSpec(
     launcher="openclaw.desktop",
     # Eigener Updater; geht der nicht, aktualisiert der offizielle Installer (ohne Ersteinrichtung)
     update='export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$PATH"; openclaw update '
-           '|| curl -fsSL https://openclaw.ai/install-cli.sh | bash -s -- --no-onboard',
+           '|| curl -fsSL --retry 3 --max-time 120 https://openclaw.ai/install-cli.sh | bash -s -- --no-onboard',
     # Offizieller rootless Installer: Node.js und OpenClaw unter ~/.openclaw, ohne Ersteinrichtung.
     # Den Gateway-Dienst richtet erst „openclaw onboard“ ein – unser Starter verhindert das (--no-install-daemon).
     install=ENSURE_PATH + r"""
 apt-get install -y xz-utils
-su - "$AGENT_USER" -c 'curl -fsSL https://openclaw.ai/install-cli.sh | OPENCLAW_NO_ONBOARD=1 bash -s -- --no-onboard' </dev/null \
+su - "$AGENT_USER" -c 'curl -fsSL --retry 3 --max-time 120 https://openclaw.ai/install-cli.sh | OPENCLAW_NO_ONBOARD=1 bash -s -- --no-onboard' </dev/null \
   || echo "WARNUNG: OpenClaw-Installation fehlgeschlagen – im Terminal erneut ausführen."
 ensure_path .openclaw/bin
 cat > /usr/local/bin/bonys-openclaw <<'EOF'
@@ -470,7 +470,7 @@ export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$PATH"
 MARKER="$HOME/.openclaw/.bonys-eingerichtet"
 if ! command -v openclaw >/dev/null; then
   echo "OpenClaw fehlt – installiere …"
-  curl -fsSL https://openclaw.ai/install-cli.sh | bash -s -- --no-onboard
+  curl -fsSL --retry 3 --max-time 120 https://openclaw.ai/install-cli.sh | bash -s -- --no-onboard
 fi
 if [ ! -f "$MARKER" ]; then
   echo "Ersteinrichtung von OpenClaw – Modell wählen und anmelden."
@@ -517,7 +517,7 @@ rm -rf "$AGENT_HOME/.local/bin/claude" "$AGENT_HOME/.local/share/claude" "$AGENT
     # Offizieller Installer, unverändert: legt ~/.local/bin/claude an. Keine Zugangsdaten –
     # angemeldet wird beim ersten Start über den offiziellen Weg im Browser des Agent-PCs.
     install=ENSURE_PATH + r"""
-su - "$AGENT_USER" -c 'curl -fsSL https://claude.ai/install.sh | bash' </dev/null \
+su - "$AGENT_USER" -c 'curl -fsSL --retry 3 --max-time 120 https://claude.ai/install.sh | bash' </dev/null \
   || echo "WARNUNG: Claude-Code-Installation fehlgeschlagen – im Terminal erneut ausführen."
 ensure_path .local/bin
 install -d -o "$AGENT_USER" -g "$AGENT_USER" "$AGENT_HOME/Projekte"
@@ -528,7 +528,7 @@ export PATH="$HOME/.local/bin:$PATH"
 mkdir -p "$HOME/Projekte" && cd "$HOME/Projekte" || exit 1
 if ! command -v claude >/dev/null; then
   echo "Claude Code fehlt – installiere mit dem offiziellen Installer …"
-  curl -fsSL https://claude.ai/install.sh | bash
+  curl -fsSL --retry 3 --max-time 120 https://claude.ai/install.sh | bash
 fi
 claude
 exec bash

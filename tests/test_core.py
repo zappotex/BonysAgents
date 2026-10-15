@@ -806,7 +806,8 @@ def test_ai_tools_install_as_agent_user_not_root(app_id, installer):
 
 def test_claude_code_unchanged_installer_path_and_shortcut():
     snippet = apps.APPS["claude-code"].install
-    assert "su - \"$AGENT_USER\" -c 'curl -fsSL https://claude.ai/install.sh | bash'" in snippet
+    url = "https://claude.ai/install.sh"
+    assert f"su - \"$AGENT_USER\" -c 'curl -fsSL --retry 3 --max-time 120 {url} | bash'" in snippet
     assert "ensure_path .local/bin" in snippet and '"$AGENT_HOME/Projekte"' in snippet
     assert "Icon=utilities-terminal" in snippet and 'cd "$HOME/Projekte"' in snippet
 
@@ -1556,16 +1557,18 @@ def test_permanent_remote_opens_ports_at_start(datadir, monkeypatch):
 
 # ---------- Herunterfahren ----------
 def _copy_as_qemu(tmp_path) -> str:
-    """Eine Shell, deren Prozessname „qemu“ enthält (pid() prüft das) – Aufruf über ``_qemu_args``."""
+    """Kopie von sleep, deren Prozessname „qemu“ enthält (pid() prüft das). Nicht sh: unter macOS startet
+    /bin/sh eine andere Shell, der Prozessname wäre dann „bash“."""
     import shutil
     exe = tmp_path / "qemu-fake"
-    shutil.copy(shutil.which("sh"), exe)
+    shutil.copy(shutil.which("sleep"), exe)
     return str(exe)
 
 
 def _qemu_args(exe: str, m, seconds: float) -> list[str]:
-    """Wartet ``seconds`` und trägt wie QEMU die Festplatte in der Befehlszeile (pid() prüft auch das)."""
-    return [exe, "-c", f"sleep {seconds}", f"if=none,id=disk0,file={qemu._esc(m.disk)},format=qcow2"]
+    """argv für ``executable=exe``: wartet ``seconds``; die Festplatte steht wie bei QEMU in der Befehlszeile
+    (hier in argv[0] – sleep nimmt keine weiteren Argumente, psutil liefert argv[0] mit)."""
+    return [f"qemu-fake if=none,id=disk0,file={qemu._esc(m.disk)},format=qcow2", str(seconds)]
 
 
 @pytest.mark.skipif(not hasattr(__import__("os"), "waitpid") or __import__("os").name != "posix",
@@ -1579,7 +1582,7 @@ def test_exited_qemu_child_is_not_running(datadir, tmp_path):
     m = _fake_vm(datadir)
     exe = _copy_as_qemu(tmp_path)
     # a) über das aufbewahrte Popen-Objekt (so startet die App QEMU)
-    proc = subprocess.Popen(_qemu_args(exe, m, 0.2), start_new_session=True)
+    proc = subprocess.Popen(_qemu_args(exe, m, 0.2), executable=exe, start_new_session=True)
     vm._children[proc.pid] = proc
     m.pidfile.write_text(str(proc.pid))
     assert m.is_running()
@@ -1596,7 +1599,7 @@ def test_exited_qemu_child_is_not_running(datadir, tmp_path):
     assert not psutil.pid_exists(pid)  # eingesammelt
 
 
-@pytest.mark.skipif(os.name != "posix", reason="nachgeahmtes QEMU über sh")
+@pytest.mark.skipif(os.name != "posix", reason="nachgeahmtes QEMU über sleep")
 def test_stale_pidfile_of_other_agent_pc_is_not_running(datadir, tmp_path):
     """Nach Absturz/Stromausfall gehört die alte PID evtl. dem QEMU eines anderen Agent-PCs – A darf dann nicht
     als „läuft“ gelten (sonst träfe „Ausschalten“ von A den Agent-PC B)."""
@@ -1604,7 +1607,7 @@ def test_stale_pidfile_of_other_agent_pc_is_not_running(datadir, tmp_path):
     import time
     a, b = _fake_vm(datadir, "pc-a"), _fake_vm(datadir, "pc-b")
     exe = _copy_as_qemu(tmp_path)
-    proc = subprocess.Popen(_qemu_args(exe, b, 30), start_new_session=True)
+    proc = subprocess.Popen(_qemu_args(exe, b, 30), executable=exe, start_new_session=True)
     try:
         b.pidfile.write_text(str(proc.pid))
         a.pidfile.write_text(str(proc.pid))  # veraltet, zufällig dieselbe Nummer

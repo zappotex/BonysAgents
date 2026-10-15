@@ -188,15 +188,21 @@ def load_conf(path: Path | str, name: str | None = None, autoconnect: bool = Fal
     return VpnSetup(name=name, data=data, autoconnect=autoconnect, killswitch=killswitch, endpoint=info.endpoint)
 
 
+# Meldung an die App, wenn die Übernahme scheitert – Format wie cloudinit.FAILED_MARKER (dort kein Import:
+# cloudinit importiert dieses Modul)
+FAILED_LINE = "BONYS-FAILED 0/0 vpn-conf WireGuard-Konfiguration übernehmen"
+
+
 def guest_import_script(setup: VpnSetup, helper: str = GUEST_HELPER, done_file: str = DONE_FILE,
-                        legacy_helper: str = LEGACY_HELPER) -> str:
+                        legacy_helper: str = LEGACY_HELPER, console: str | None = None) -> str:
     """POSIX-Shell (als root im Gast, am Ende der Einrichtung): Konfiguration aus dem Seed-ISO übernehmen.
 
     Der Inhalt steht nirgends im Skript. Der Helfer liest ihn von der Standardeingabe und schreibt
     ihn nur nach /etc/wireguard (600). Das ISO wird nur lesend eingehängt. Ausgaben des Helfers gehen
     nach /dev/null, damit nichts davon in Konsole oder Protokoll landet. Vorlagen aus Bony's Agents 0.14 haben
     noch die alte Fassung unter /usr/local – dann deren Helfer (umgestellt wird beim ersten Start).
-    ``helper``/``done_file``/``legacy_helper`` nur für Tests.
+    ``console``: Fehlermeldung für die App zusätzlich dorthin (beim ersten Start aus einer Vorlage geht die
+    Ausgabe sonst nicht auf die serielle Konsole). ``helper``/``done_file``/``legacy_helper`` nur für Tests.
     """
     done = shlex.quote(done_file)
     pick = f'VPN_H={shlex.quote(helper)}; [ -x "$VPN_H" ] || VPN_H={shlex.quote(legacy_helper)}'
@@ -235,6 +241,7 @@ def guest_import_script(setup: VpnSetup, helper: str = GUEST_HELPER, done_file: 
         '    echo "Bony\'s VPN: Konfiguration übernommen."',
         "  else",
         '    echo "WARNUNG: Die WireGuard-Konfiguration ließ sich nicht übernehmen – später im Agent-PC importieren."',
+        f'    echo "{FAILED_LINE}"' + (f" | tee -a {shlex.quote(console)} >/dev/null" if console else ""),
         "  fi",
         "fi",
     ]

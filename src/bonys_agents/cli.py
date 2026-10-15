@@ -454,6 +454,9 @@ def cmd_status(args) -> int:
     shown = [a + (f" {(c.app_info.get(a) or {}).get('version')}" if (c.app_info.get(a) or {}).get("version") else "")
              for a in c.apps]
     print(f"Apps:    {', '.join(shown)}\nOrdner:  {m.path}")
+    if c.setup_failed:
+        print(f"Einrichtung mit Fehlern: {', '.join(c.setup_failed)} – fehlende Programme nachinstallieren mit "
+              f"„bonys-agents install {c.name} APP“, Einzelheiten: bonys-agents logs {c.name}")
     if m.is_linked():
         print(f"Vorlage: {c.template or '?'} (verknüpft: {m.backing_file()})")
     elif c.template:

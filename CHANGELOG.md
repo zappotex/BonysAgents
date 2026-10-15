@@ -35,6 +35,11 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
 ### Verbessert
+- **Einrichtung „fertig mit Fehlern“ statt still „fertig“.** Scheitert bei der Ersteinrichtung ein Schritt (z. B.
+  die Installation einer App oder die Übernahme der WireGuard-Konfiguration), zeigt Bony's Agents das jetzt im
+  Hauptfenster und bei `bonys-agents status` an. Die App gilt dann nicht als installiert, „Programme hinzufügen …“
+  bietet sie wieder an. Jede App wird nach der Installation geprüft, Downloads von Fremd-Installern haben ein
+  Zeitlimit mit Wiederholung, und ein hängender Schritt wird nach 4 Stunden abgebrochen statt ewig zu warten.
 - **Nach einem Absturz kein falscher Agent-PC mehr „laufend“.** Ob ein Agent-PC läuft, prüft Bony's Agents jetzt
   auch über die Festplatte in der Befehlszeile von QEMU und die Startzeit. Bisher konnte nach Absturz oder
   Stromausfall die alte Prozessnummer zum QEMU eines *anderen* Agent-PCs gehören – „Ausschalten“ hätte dann den

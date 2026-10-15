@@ -22,6 +22,12 @@ from bonys_agents.apps import APT_WAIT, AppSpec
 READY_MARKER = "BONYS-AGENTS-READY"
 STEP_MARKER = "BONYS-STEP"
 RESUME_MARKER = "BONYS-RESUME"
+# Fehlgeschlagener Einrichtungsschritt: „BONYS-FAILED <n>/<gesamt> <schlüssel> <titel>“ (Schlüssel = App-ID,
+# „vpn-conf“ oder „-“). Die App zeigt dann „fertig mit Fehlern“ und trägt die App nicht als installiert ein.
+FAILED_MARKER = "BONYS-FAILED"
+# Höchstdauer je Schritt – ein hängender Fremd-Installer soll die Einrichtung nicht ewig blockieren
+# (großzügig: unter Emulation einer fremden Architektur dauert alles ein Vielfaches)
+STEP_TIMEOUT = "4h"
 STATE_DIR = "/var/lib/bonys-agents"
 PROVISION_SCRIPT = "/usr/local/sbin/bonys-provision.sh"
 PROVISION_SERVICE = "bonys-provision.service"
@@ -126,7 +132,10 @@ systemctl enable bonys-growroot.service
         (f"{desk.name}-Desktop mit automatischer Anmeldung", desktops.install_script(desk, locale=cfg.locale)),
     ]
     for app in cfg.apps:
-        steps.append((f"{app.name} installieren", app.install + favorite_snippet(app)))
+        # Erst als installiert werten, wenn die App wirklich da ist (wie beim Nachinstallieren)
+        verify = (f'\nsu - "$AGENT_USER" -c {_q(app.check)} </dev/null >/dev/null 2>&1 '
+                  f'|| {{ echo "FEHLER: {app.name} wurde nach der Installation nicht gefunden."; exit 1; }}\n')
+        steps.append((f"{app.name} installieren", app.install + favorite_snippet(app) + verify, app.id))
     # Ganz am Ende, nach allen Downloads: Ein eingeschalteter Kill-Switch sperrt ohne Tunnel das Internet.
     finish = vpnlink.guest_import_script(cfg.vpn) if cfg.vpn else ""
     return render_provision(steps, cfg.username, cfg.locale, finish=finish)
@@ -140,13 +149,15 @@ def favorite_snippet(app: AppSpec) -> str:
     return f"\nmkdir -p {desktops.CONF_DIR}\ngrep -qx {name} {fav} 2>/dev/null || echo {name} >> {fav}\n"
 
 
-def render_provision(steps: list[tuple[str, str]], username: str, locale: str = "de_DE.UTF-8", *,
+def render_provision(steps: list[tuple], username: str, locale: str = "de_DE.UTF-8", *,
                      state_dir: str = STATE_DIR, log_file: str = "/var/log/bonys-agents.log",
                      home_base: str = "/home", apt_lock_conf: str = "/etc/apt/apt.conf.d/90-bonys-agents-lock",
-                     console: str = GUEST_CONSOLE, finish: str = "") -> str:
-    """Einrichtungsskript aus (Titel, Bash-Code)-Schritten. Pfade nur für Tests änderbar.
+                     console: str = GUEST_CONSOLE, finish: str = "", step_timeout: str = STEP_TIMEOUT) -> str:
+    """Einrichtungsskript aus (Titel, Bash-Code[, Schlüssel])-Schritten. Pfade nur für Tests änderbar.
 
-    ``finish``: Bash-Code nach allen Schritten, vor „fertig“ (muss selbst wiederholbar sein).
+    Schlüssel: App-ID des Schritts (für die Fehlermeldung an die App), sonst „-“.
+    ``finish``: Bash-Code nach allen Schritten, vor „fertig“ (muss selbst wiederholbar sein und Fehler selbst
+    mit ``FAILED_MARKER`` melden).
     """
     total = len(steps)
     parts = [
@@ -177,7 +188,8 @@ def render_provision(steps: list[tuple[str, str]], username: str, locale: str = 
         "done",
         f'[ -n "$ANY_DONE" ] && [ -n "$FIRST" ] && echo "{RESUME_MARKER} Schritt $FIRST"',
     ]
-    for i, (title, body) in enumerate(steps, start=1):
+    for i, (title, body, *rest) in enumerate(steps, start=1):
+        key = rest[0] if rest else "-"
         delim = f"BONYS_STEP_{i}"
         step_file = f"$STATE/step-{i}.sh"
         parts += [
@@ -190,8 +202,8 @@ def render_provision(steps: list[tuple[str, str]], username: str, locale: str = 
             # Eigene Bash mit -e: bricht der Schritt ab, läuft die Einrichtung mit dem nächsten weiter.
             # sync VOR der Markierung: Sonst kann nach einem harten Abbruch „erledigt“ auf der Platte
             # stehen, während die im Schritt geschriebenen Dateien noch leer sind (ext4 schreibt verzögert).
-            f'  if bash -e "{step_file}" </dev/null; then sync; touch "$STATE/step-{i}.done"; sync; '
-            f"else echo \"WARNUNG: Schritt '{title}' fehlgeschlagen\"; fi",
+            f'  if timeout {step_timeout} bash -e "{step_file}" </dev/null; then sync; touch "$STATE/step-{i}.done"; '
+            f'sync; else echo "{FAILED_MARKER} {i}/{total} {key} {title}"; fi',
             "fi",
         ]
     if finish:
@@ -679,7 +691,7 @@ echo "BONYS-GENERALIZED"
 
 def clone_firstboot_script(vpn: vpnlink.VpnSetup | None = None) -> str:
     """Läuft beim ersten Start eines Agent-PCs aus einer Vorlage (runcmd, einmal je Instanz)."""
-    vpn_part = vpnlink.guest_import_script(vpn) if vpn else ""
+    vpn_part = vpnlink.guest_import_script(vpn, console=GUEST_CONSOLE) if vpn else ""
     return f"""#!/bin/sh
 # Von Bony's Agents erzeugt – erster Start eines Agent-PCs aus einer Vorlage.
 ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1 || ssh-keygen -A

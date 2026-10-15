@@ -70,6 +70,8 @@ HINT_TEMPLATE_LOCK = ("Aus diesem Agent-PC wird gerade eine Vorlage erstellt. Bi
                       "starten (das Original bleibt dabei unverändert).")
 HINT_STOPPING = ("Der Agent-PC fährt herunter. Reagiert er nicht, kannst du ihn sofort ausschalten – "
                  f"nach {vm.STOP_TIMEOUT} Sekunden geschieht das automatisch.")
+HINT_SETUP_FAILED = ("Bei der Einrichtung ist etwas schiefgegangen: {steps}. Fehlende Programme über "
+                     "„Programme hinzufügen …“ nachinstallieren – Einzelheiten im Protokoll.")
 REMOTE_MARK = "  ⇄"  # hinter dem Namen in der Liste: Fernzugriff ist an
 
 
@@ -1042,6 +1044,8 @@ class MainWindow(QMainWindow):
             notice = HINT_TEMPLATE_MISSING
         elif tpl_lock and not notice:
             notice = HINT_TEMPLATE_LOCK
+        elif c.setup_failed and not notice and not (hidden_setup or aborted or about_to_start or stopping):
+            notice = HINT_SETUP_FAILED.format(steps=", ".join(f"„{t}“" for t in c.setup_failed))
         self.hint.setVisible(hidden_setup or aborted or about_to_start or stopping or bool(notice))
         self.hint.setProperty("tone", "danger" if aborted or notice and not tpl_lock else "")
         self.hint.style().unpolish(self.hint)

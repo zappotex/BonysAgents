@@ -211,6 +211,7 @@ VM_RULES: dict[str, Callable] = {
     "setup_title": _text(200),
     "template": lambda s: s == "" or NAME_RE.match(s),
     "format_version": lambda n: n >= 1,
+    "setup_failed": lambda xs: len(xs) <= 50 and all(_text(200)(x) for x in xs),
 }
 
 
@@ -298,6 +299,8 @@ class VMConfig:
     reinstall: list[str] = field(default_factory=list)
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
     format_version: int = VM_FORMAT   # fehlt bis 0.19 = 1
+    # Bei der Ersteinrichtung fehlgeschlagene Schritte (Titel) – Hinweis „fertig mit Fehlern“, bis behoben
+    setup_failed: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -440,6 +443,7 @@ class VM:
             ready = True
         if ready and not c.provisioned:
             c.provisioned = True
+            self._record_failed_steps(text)
             self._save_status()
             self._remove_seed()  # erst jetzt: Das Seed-ISO enthält das Passwort, wird aber bis READY gebraucht
         resumed = False
@@ -452,6 +456,20 @@ class VM:
         percent = pct.setup_percent(text, c.apps, ready, c.first_boot_pending, running=self.is_running(),
                                     resume_step=c.setup_step, desktop=c.desktop)
         return Progress(step, total, title, ready, percent, resumed, resume_step)
+
+    def _record_failed_steps(self, text: str) -> None:
+        """Fehlgeschlagene Schritte aus der Konsole merken; deren Apps gelten nicht als installiert."""
+        c = self.config
+        failed: dict[str, str] = {}
+        for m in re.finditer(rf'(?<!"){cloudinit.FAILED_MARKER} \d+/\d+ (\S+) ([^\n]*)', text):
+            failed[m.group(2).strip()] = m.group(1)
+        if not failed:
+            return
+        c.setup_failed = list(failed)
+        broken = set(failed.values())
+        c.apps = [a for a in c.apps if a not in broken]
+        for a in broken:
+            c.app_info.pop(a, None)
 
     def eta_seconds(self, percent: float) -> float | None:
         """Grobe Restzeit der Einrichtung – gemessen ab dem letzten Start von QEMU."""
@@ -1217,6 +1235,8 @@ class VM:
         if app_id == mission_control.APP_ID:
             info["version"] = mission_control.VERSION
         c.app_info[app_id] = info
+        if app_id in apps.APPS:  # Hinweis „fertig mit Fehlern“ für diese App erledigt
+            c.setup_failed = [t for t in c.setup_failed if t != f"{apps.APPS[app_id].name} installieren"]
         self.save()
 
     def install_app(self, app_id: str, password: str | None = None,

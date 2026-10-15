@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -14,7 +15,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from bonys_agents import apps, cloudinit, diagnose, edition, procutil, signing, updates, vm
+from bonys_agents import apps, cloudinit, diagnose, edition, procutil, signing, updates, vm, vpnlink
 from bonys_agents import progress as pct
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -164,19 +165,21 @@ def test_selftest_real_qemu_if_installed():
 
 
 # =========================================================== B) Wiederaufnahme der Einrichtung
-def _sandbox_script(tmp_path, steps):
+def _sandbox_script(tmp_path, steps, **kw):
     """Einrichtungsskript, das ohne root in einem Testordner läuft (Systembefehle als Attrappen)."""
     bindir = tmp_path / "bin"
     bindir.mkdir(exist_ok=True)
     for name, body in {"systemctl": "echo systemctl \"$@\" >> \"$CALLS\"", "dpkg": "exit 0",
-                       "python3": "exit 1", "blkid": "exit 0", "chown": "exit 0"}.items():
+                       "python3": "exit 1", "blkid": "exit 0", "chown": "exit 0",
+                       # macOS hat kein „timeout“ (im Debian-Gast gibt es das) – dann ohne Zeitlimit
+                       **({} if shutil.which("timeout") else {"timeout": 'shift; exec "$@"'})}.items():
         f = bindir / name
         f.write_text(f"#!/bin/sh\n{body}\n")
         f.chmod(0o755)
     script = cloudinit.render_provision(
         steps, "agent", state_dir=str(tmp_path / "state"), log_file=str(tmp_path / "bonys-agents.log"),
         home_base=str(tmp_path / "home"), apt_lock_conf=str(tmp_path / "apt-lock.conf"),
-        console=str(tmp_path / "ttyS0"),
+        console=str(tmp_path / "ttyS0"), **kw,
     )
     path = tmp_path / "provision.sh"
     path.write_text(script)
@@ -193,7 +196,9 @@ def test_resume_after_abort_in_step_3_skips_steps_1_and_2(tmp_path):
     ran = tmp_path / "ran"
     steps = [(f"Schritt {i}", f"\necho {i} >> {ran}\n") for i in (1, 2)]
     # Schritt 3 bricht beim ersten Mal hart ab (wie ein beendetes QEMU) – beim zweiten Mal läuft er durch
-    steps.append(("Schritt 3", f"\necho 3 >> {ran}\nif [ ! -f {tmp_path}/2.lauf ]; then kill -9 $PPID; fi\n"))
+    # (Eltern-Prozess ist „timeout“ – getroffen werden muss das Einrichtungsskript darüber)
+    kill = ('P=$PPID; [ "$(ps -o comm= -p $P)" = timeout ] && P=$(ps -o ppid= -p $P | tr -d " "); kill -9 $P')
+    steps.append(("Schritt 3", f"\necho 3 >> {ran}\nif [ ! -f {tmp_path}/2.lauf ]; then {kill}; fi\n"))
     steps.append(("Schritt 4", f"\necho 4 >> {ran}\n"))
     script, env = _sandbox_script(tmp_path, steps)
 
@@ -222,12 +227,38 @@ def test_resume_after_abort_in_step_3_skips_steps_1_and_2(tmp_path):
 
 @pytest.mark.skipif(os.name != "posix", reason="Bash-Skript")
 def test_failed_step_is_retried_after_restart_and_setup_continues(tmp_path):
-    steps = [("A", "\nfalse\n"), ("B", "\ntrue\n")]
+    steps = [("A", "\nfalse\n", "brave"), ("B", "\ntrue\n")]
     script, env = _sandbox_script(tmp_path, steps)
     out = _run(script, env)
-    assert "WARNUNG: Schritt 'A' fehlgeschlagen" in out and cloudinit.READY_MARKER in out
+    assert f"{cloudinit.FAILED_MARKER} 1/2 brave A" in out and cloudinit.READY_MARKER in out
+    assert cloudinit.FAILED_MARKER + " 2/2" not in out
     assert not (tmp_path / "state" / "step-1.done").exists()
     assert (tmp_path / "state" / "step-2.done").exists()
+
+
+@pytest.mark.skipif(os.name != "posix" or not shutil.which("timeout"), reason="Bash-Skript mit timeout")
+def test_hanging_step_is_stopped_and_reported(tmp_path):
+    steps = [("Hängt", "\nsleep 30\n", "hermes"), ("Danach", "\ntrue\n")]
+    script, env = _sandbox_script(tmp_path, steps, step_timeout="1")
+    out = _run(script, env)
+    assert f"{cloudinit.FAILED_MARKER} 1/2 hermes Hängt" in out and cloudinit.READY_MARKER in out
+
+
+def test_failed_steps_are_recorded_and_apps_not_marked_installed(datadir):
+    m = _fake_vm()
+    m.config.apps = ["brave", "telegram", "hermes"]
+    m.config.app_info = {"hermes": {"installed": "x"}}
+    m.save()
+    vpn_echo = f'echo "{vpnlink.FAILED_LINE}"'  # Skript-Quelltext auf der Konsole zählt nicht
+    m.console_log.write_text(
+        f"BONYS-STEP 3/5 Hermes Agent installieren\n{cloudinit.FAILED_MARKER} 3/5 hermes Hermes Agent installieren\n"
+        f"{vpn_echo}\n{vpnlink.FAILED_LINE}\n{cloudinit.READY_MARKER}\n")
+    assert m.progress().ready
+    m = vm.VM(m.path)
+    assert m.config.setup_failed == ["Hermes Agent installieren", "WireGuard-Konfiguration übernehmen"]
+    assert m.config.apps == ["brave", "telegram"] and "hermes" not in m.config.app_info
+    m._mark_installed("hermes")  # „Programme hinzufügen“ hat es nachgeholt
+    assert vm.VM(m.path).config.setup_failed == ["WireGuard-Konfiguration übernehmen"]
 
 
 def test_provision_service_definition():
@@ -335,16 +366,16 @@ def test_console_log_rotation(tmp_path):
     assert vm.rotate_log(log) is None  # leere Konsole nicht aufbewahren
 
 
-@pytest.mark.skipif(os.name != "posix", reason="nutzt eine Kopie von sh als QEMU-Attrappe")
+@pytest.mark.skipif(os.name != "posix", reason="nutzt eine Kopie von sleep als QEMU-Attrappe")
 def test_launch_rotates_console_and_records_pid(datadir, monkeypatch, tmp_path):
-    from test_core import _LINUX_HOST, _copy_as_qemu, _qemu_args
+    from test_core import _LINUX_HOST, _copy_as_qemu
     m = _fake_vm()
     m.console_log.write_text("alter Lauf\n")
     exe = _copy_as_qemu(tmp_path)
     monkeypatch.setattr(vm.host, "detect", lambda: _LINUX_HOST)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path(exe))
     monkeypatch.setattr(vm.qemu, "capabilities", lambda qb, cf=None: {"spice": False, "audio": [], "displays": []})
-    monkeypatch.setattr(vm.qemu, "build_command", lambda spec: _qemu_args(exe, m, 5))
+    monkeypatch.setattr(vm.qemu, "build_command", lambda spec: [exe, "5"])
     monkeypatch.setattr(vm.time, "sleep", lambda s: m.pidfile.write_text(str(vm._children and max(vm._children))))
     m._launch(headless=True)
     try:
@@ -762,16 +793,14 @@ def test_update_banner_and_menu():
     assert banner.isHidden()
 
 
-@pytest.mark.skipif(os.name != "posix" or not __import__("shutil").which("sh"), reason="POSIX-Prozesse")
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-Prozesse")
 def test_qemu_counts_as_running_until_process_is_gone(datadir, tmp_path):
     """QEMU löscht die pidfile vor dem Ende – ein sofortiger Neustart mit Fenster scheiterte am SPICE-Port."""
-    import shutil
-    exe = tmp_path / "qemu-fake"
-    shutil.copy(shutil.which("sh"), exe)
+    from test_core import _copy_as_qemu, _qemu_args
+    exe = _copy_as_qemu(tmp_path)
     m = _fake_vm()
     m.disk.write_bytes(b"")
-    # wie QEMU: die Festplatte steht als „file=…,“ in der Befehlszeile
-    proc = subprocess.Popen([str(exe), "-c", "sleep 30", f"if=none,id=disk0,file={vm.qemu._esc(m.disk)},format=qcow2"])
+    proc = subprocess.Popen(_qemu_args(exe, m, 30), executable=exe)  # Festplatte steht in der Befehlszeile
     try:
         m.runtime_file.write_text(json.dumps({"pid": proc.pid, "started": time.time()}))
         assert not m.pidfile.exists() and m.is_running()
