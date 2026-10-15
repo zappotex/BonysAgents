@@ -156,7 +156,7 @@ jobs:
           if (Test-Path "$app\_internal\bonys_agents\trainer") { throw "Kursleiter-Dateien nach dem Wechsel noch da" }
           $keys = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall" | Get-ItemProperty | Where-Object { $_.DisplayName -like "Bony's Agents*" }
           $keys | Select-Object DisplayName, DisplayVersion | Format-Table
-          if (@($keys).Count -ne 1) { throw "Erwartet genau einen Eintrag unter „Apps“, gefunden: $(@($keys).Count)" }
+          if (@($keys).Count -ne 1) { throw "Erwartet genau einen Eintrag unter Apps, gefunden: $(@($keys).Count)" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-setup
