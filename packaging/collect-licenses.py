@@ -122,14 +122,15 @@ def fetch_qt(repo: str, version: str, dest: Path) -> Path:
     if not d.exists():
         _git("clone", "-q", "--filter=blob:none", "--no-checkout", "--depth", "1", "--branch", f"v{version}",
              f"https://github.com/qt/{repo}.git", str(d))
-    _git("-C", str(d), "sparse-checkout", "set", "--no-cone", "**/qt_attribution.json", "/LICENSES/")
+    base = ["**/qt_attribution.json", "/LICENSES/"]
+    _git("-C", str(d), "sparse-checkout", "set", "--no-cone", *base)
     _git("-C", str(d), "checkout", "-q")
     wanted = []
     for f, e in qt_entries(d):
         for lf in _as_list(e.get("LicenseFile")):
             wanted.append("/" + (f.parent / lf).relative_to(d).as_posix())
-    if wanted:
-        _git("-C", str(d), "sparse-checkout", "add", "--no-cone", *wanted)
+    if wanted:  # noch einmal „set“ mit allem – ältere git (Windows/macOS) kennen „add --no-cone“ nicht
+        _git("-C", str(d), "sparse-checkout", "set", "--no-cone", *base, *wanted)
         _git("-C", str(d), "checkout", "-q")
     return d
 
@@ -169,8 +170,17 @@ def qt_attributions(src: Path, title: str) -> str:
     return "\n".join(parts) + "\n"
 
 
+def qt_version() -> str:
+    """Version der eingebauten Qt-Bibliotheken (PySide6 6.8.0.2 bringt z. B. Qt 6.8.0 mit)."""
+    try:
+        from PySide6.QtCore import qVersion
+        return qVersion()
+    except ImportError:
+        return ".".join(md.version("shiboken6").split(".")[:3])
+
+
 def qt_and_icu(content: Path, out: Path, tmp: Path) -> tuple[str, Path]:
-    version = md.version("shiboken6")
+    version = qt_version()
     names = [p.name for p in content.rglob("*") if p.is_file()]
     repos = ["qtbase"] + (["qtsvg"] if any("Qt6Svg" in n or "QtSvg" in n for n in names) else []) \
         + (["qtwayland"] if any("Qt6Wayland" in n for n in names) else [])
