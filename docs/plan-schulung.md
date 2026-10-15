@@ -264,6 +264,12 @@ Ab 0.19.0 liegen Server und Kursleiter-Dialoge in `trainer/` (`trainer/present.p
     `edition-data.tar.gz`, postinst packt aus) → dpkg entfernt das andere Paket selbst („komplett ersetzt“).
     `packaging/linux/check-debs.sh`, CI prüft zusätzlich mit python-apt in beide Richtungen. Neue Anwender-.deb ist
     installiert, python-apt nimmt die Kursleiter-.deb an.
-  - **Wartet auf Test und OK des Nutzers**, danach Tag v0.19.0 (CI vorher abwarten).
+- **2026-10-15**: Nutzer hat getestet („alles funktioniert“) → **Release v0.19.0 veröffentlicht**: 10 Dateien (je
+  Edition .deb amd64/arm64, Setup.exe, .dmg Apple-Chip/Intel), SHA256SUMS mit gültiger Signatur, APT-Quelle liefert
+  bonys-agents und bonys-agents-kursleiter 0.19.0. Vorher in der CI gefunden und behoben: Knopf „Hintergrundbild
+  aktualisieren“ ins Feld Desktop und „Kursleiter“ als eigene kleine Zeile unter dem Titel (Hauptfenster bei 150 %
+  unter Windows sonst zu breit), Gast-Skript-Tests nur unter Linux (BSD-sed), Pfeil im Bauplan (Windows cp1252),
+  typografische Anführungszeichen im PowerShell-Testskript. Release-Workflow vorher ohne Tag (workflow_dispatch)
+  durchlaufen lassen – empfehlenswert nach Änderungen an release.yml.
 - **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt (gehört nach `trainer/`); Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).
