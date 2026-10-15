@@ -58,6 +58,7 @@ STATUS_ABORTED = "Einrichtung abgebrochen"
 STATUS_READY_FOR_DESKTOP = "startet mit Desktop"
 STATUS_STOPPING = "wird heruntergefahren"
 STATUS_TEMPLATE_MISSING = "nicht verfügbar – Vorlage fehlt"
+STATUS_BROKEN = "beschädigt"   # vm.json (und vm.json.bak) unlesbar oder ungültig
 # Liegt im Ordner eines Agent-PCs, solange daraus eine Vorlage entsteht (Inhalt: PID des Prozesses)
 TEMPLATE_LOCK = "vorlage-wird-erstellt.lock"
 
@@ -141,18 +142,7 @@ NEWER_FORMAT = ("„{name}“ wurde mit einer neueren Version von Bony's Agents 
                 "aktualisieren – bis dahin kann diese Version ihn nur anzeigen.")
 
 
-def write_json(path: Path, data: dict) -> None:
-    """JSON atomar schreiben: erst eine Nachbardatei (mit PID im Namen) vollständig auf die Platte, dann ersetzen."""
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write(json.dumps(data, indent=2, ensure_ascii=False))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+write_json = storage.write_json  # atomar, siehe dort
 
 
 # ---------- Angaben aus vm.json / template.json prüfen ----------
@@ -321,7 +311,7 @@ class VM:
 
     def __init__(self, path: Path):
         self.path = path
-        data = json.loads((path / "vm.json").read_text("utf-8"))
+        data = storage.read_json(path / "vm.json")  # kaputt → vm.json.bak
         if isinstance(data, dict) and data.pop("remote_lan", False):  # bis 0.6: „Heimnetz“ = jetzt „dauerhaft“
             data["remote_permanent"] = True
         self.config = VMConfig(**checked_fields(VMConfig, data, VM_RULES, f"{path.name}/vm.json"))
@@ -376,7 +366,7 @@ class VM:
     def save(self) -> None:
         if self.newer_format():
             raise RuntimeError(NEWER_FORMAT.format(name=self.name))
-        write_json(self.path / "vm.json", {**self._unknown, **asdict(self.config)})
+        write_json(self.path / "vm.json", {**self._unknown, **asdict(self.config)}, backup=True)
 
     # ---------- Zustand ----------
     def pid(self) -> int | None:
@@ -424,7 +414,7 @@ class VM:
     def _update_runtime(self, **values) -> None:
         rt = self.runtime()
         rt.update(values)
-        self.runtime_file.write_text(json.dumps(rt), "utf-8")
+        write_json(self.runtime_file, rt)
 
     def progress(self) -> Progress:
         """Liest den Einrichtungsfortschritt aus der seriellen Konsole des Gasts."""
@@ -1048,16 +1038,15 @@ class VM:
             kwargs["start_new_session"] = True
         proc = subprocess.Popen(cmd, env=clean_env(), **kwargs)
         _children[proc.pid] = proc
-        self.runtime_file.write_text(
-            json.dumps({"qmp": qemu.endpoint(qmp_sock, qmp_port, tls_dir),
+        write_json(
+            self.runtime_file, {"qmp": qemu.endpoint(qmp_sock, qmp_port, tls_dir),
                         "qga": qemu.endpoint(qga_sock, qga_port, tls_dir),
                         "qmp_port": qmp_port, "ssh_port": ssh_port, "qga_port": qga_port, "accel": info.accel,
                         "spice_socket": str(spice_sock) if spice_sock else None,
                         "command": cmd, "started": time.time(), "pid": proc.pid,
                         "remote_on": remote_on, "spice_lan": spice_lan,
                         "rdp_port": c.rdp_port, "spice_port": c.spice_port if spice_ok else None,
-                        "audio": audio, "screen_setting": screen_setting, "vnc": vnc}),
-            "utf-8",
+                        "audio": audio, "screen_setting": screen_setting, "vnc": vnc},
         )
         # Kurz warten: scheitert QEMU sofort (z. B. falsche Option), Fehler melden.
         for _ in range(30):
@@ -1595,13 +1584,20 @@ def _wait_for_port(port: int, timeout: float = 8.0) -> None:
 # ---------- Sammlung ----------
 @dataclass
 class MissingVM:
-    """Ein bekannter Agent-PC, dessen Laufwerk gerade nicht da ist."""
+    """Ein bekannter Agent-PC, dessen Laufwerk gerade nicht da ist – oder dessen vm.json sich nicht lesen lässt."""
 
     name: str
     path: Path
 
+    def broken(self) -> bool:
+        """Ordner und vm.json sind da, aber unlesbar/ungültig (nicht: Laufwerk fehlt)."""
+        try:
+            return (self.path / "vm.json").is_file()
+        except OSError:
+            return False
+
     def status(self) -> str:
-        return "nicht verfügbar"
+        return STATUS_BROKEN if self.broken() else "nicht verfügbar"
 
 
 def _scan(library: Path) -> list[Path]:

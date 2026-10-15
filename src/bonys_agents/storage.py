@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -59,15 +61,70 @@ def old_user_install() -> Path | None:
     return app
 
 
+# ---------------------------------------------------------------- JSON-Dateien
+def _bak(path: Path) -> Path:
+    return path.with_name(path.name + ".bak")
+
+
+def write_json(path: Path, data, backup: bool = False) -> None:
+    """JSON atomar schreiben: erst eine Nachbardatei (PID und Thread im Namen – zwei Prozesse kommen sich nicht in
+    die Quere) vollständig auf die Platte, dann ersetzen. Ein Absturz hinterlässt nie eine halbe Datei.
+
+    ``backup``: die bisherige Fassung (nur wenn sie gültig ist) vorher als ``NAME.bak`` aufheben.
+    """
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False))
+            f.flush()
+            os.fsync(f.fileno())
+        if backup:
+            try:
+                json.loads(path.read_text("utf-8"))
+                shutil.copyfile(path, _bak(path))
+            except (OSError, ValueError):
+                pass  # keine oder kaputte Fassung – die vorhandene .bak behalten
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def read_json(path: Path):
+    """JSON lesen; ist die Datei kaputt (z. B. abgebrochen geschrieben), die ``.bak`` nehmen. Sonst ValueError."""
+    path = Path(path)
+    try:
+        return json.loads(path.read_text("utf-8"))
+    except ValueError as first:
+        try:
+            return json.loads(_bak(path).read_text("utf-8"))
+        except (OSError, ValueError):
+            raise first from None
+
+
 # ---------------------------------------------------------------- Einstellungen
 def _settings_file() -> Path:
     return data_dir() / "settings.json"
 
 
 def load_settings() -> dict:
+    f = _settings_file()
     try:
-        s = json.loads(_settings_file().read_text("utf-8"))
-    except (OSError, ValueError):
+        s = read_json(f)
+        if not isinstance(s, dict):
+            raise ValueError("kein Objekt")
+    except OSError:
+        s = {}
+    except ValueError:
+        # Nicht still alles vergessen: kaputte Datei aufheben, mit leeren Einstellungen weitermachen
+        broken = f.with_name(f"settings.beschaedigt-{time.strftime('%Y%m%d-%H%M%S')}.json")
+        try:
+            os.replace(f, broken)
+            print(f"Bony's Agents: {f} war beschädigt – aufgehoben als {broken.name}; Speicherorte bitte neu "
+                  "hinzufügen (Agent-PCs auf eingesteckten Laufwerken werden automatisch gefunden).", file=sys.stderr)
+        except OSError:
+            pass
         s = {}
     s.setdefault("default_location", None)
     s.setdefault("locations", [])
@@ -78,9 +135,7 @@ def load_settings() -> dict:
 def save_settings(s: dict) -> None:
     f = _settings_file()
     f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(s, indent=2, ensure_ascii=False), "utf-8")
-    os.replace(tmp, f)
+    write_json(f, s, backup=True)
 
 
 def preferred_library() -> Path:

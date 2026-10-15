@@ -54,6 +54,11 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   Vorlage aus einer neueren Formatversion, zeigt Bony's Agents sie nur an und bittet um ein Update, statt sie
   zu verändern. `vm.json` wird außerdem atomar geschrieben – ein Absturz beim Speichern hinterlässt keine halbe
   Datei mehr.
+- **Einstellungsdateien gehen nicht mehr verloren.** `vm.json`, `runtime.json` und die Programmeinstellungen
+  (`settings.json`) werden atomar geschrieben; von `vm.json` und `settings.json` bleibt die vorige Fassung als
+  `.bak`, die bei einer kaputten Datei automatisch genutzt wird. Eine unlesbare `settings.json` wird nicht mehr
+  still durch leere Einstellungen ersetzt, sondern aufgehoben. Ein Agent-PC mit unlesbarer `vm.json` heißt jetzt
+  „beschädigt“ statt „nicht verfügbar“ (es fehlt kein Laufwerk).
 
 ## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
 

@@ -1869,3 +1869,51 @@ def test_vm_json_keeps_unknown_fields_and_newer_format_is_read_only(datadir, mon
     with pytest.raises(RuntimeError, match="neueren Version"):
         newer.start()
     assert json.loads((m.path / "vm.json").read_text("utf-8")) == saved  # unverändert
+
+
+# ---------- Atomare JSON-Dateien, .bak, beschädigte Dateien ----------
+def test_write_json_keeps_valid_backup_and_read_falls_back(tmp_path):
+    from bonys_agents import storage
+    f = tmp_path / "x.json"
+    storage.write_json(f, {"v": 1}, backup=True)
+    storage.write_json(f, {"v": 2}, backup=True)
+    assert json.loads(f.read_text()) == {"v": 2} and json.loads((tmp_path / "x.json.bak").read_text()) == {"v": 1}
+    assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+    f.write_text('{"v": 3')  # halb geschrieben (z. B. alte Version, Stromausfall)
+    assert storage.read_json(f) == {"v": 1}
+    storage.write_json(f, {"v": 4}, backup=True)  # kaputte Fassung überschreibt die gute .bak nicht
+    assert json.loads((tmp_path / "x.json.bak").read_text()) == {"v": 1}
+    (tmp_path / "x.json.bak").unlink()
+    f.write_text("kaputt")
+    with pytest.raises(ValueError):
+        storage.read_json(f)
+
+
+def test_broken_settings_are_kept_not_silently_dropped(datadir, capsys):
+    from bonys_agents import storage
+    storage.add_location(datadir / "ssd" / "BonysAgents")
+    storage.add_location(datadir / "usb" / "BonysAgents")  # zweites Speichern: .bak mit der ersten Fassung
+    f = storage._settings_file()
+    f.write_text("{kaputt")
+    assert storage.load_settings()["locations"]  # aus settings.json.bak
+    (f.with_name("settings.json.bak")).unlink()
+    f.write_text("{kaputt")
+    assert storage.load_settings()["locations"] == []
+    kept = list(f.parent.glob("settings.beschaedigt-*.json"))
+    assert len(kept) == 1 and kept[0].read_text() == "{kaputt"
+    assert "beschädigt" in capsys.readouterr().err
+
+
+def test_broken_vm_json_uses_backup_or_shows_broken(datadir, monkeypatch, tmp_path):
+    _fake_create(monkeypatch, tmp_path)
+    m = vm.create("heil", "pw1234", cpus=1, ram_mb=2048)
+    m.config.cpus = 2
+    m.save()  # legt vm.json.bak an
+    (m.path / "vm.json").write_text('{"name": "heil", "ar')
+    assert vm.get("heil").config.cpus == 1  # Fassung vor dem letzten Speichern
+    (m.path / "vm.json.bak").unlink()
+    (m.path / "vm.json").write_text("kaputt")
+    entry = next(e for e in vm.list_all() if e.name == "heil")
+    assert isinstance(entry, vm.MissingVM) and entry.status() == vm.STATUS_BROKEN
+    gone = vm.MissingVM("weg", tmp_path / "fehlt" / "weg")
+    assert gone.status() == "nicht verfügbar"

@@ -72,6 +72,12 @@ HINT_STOPPING = ("Der Agent-PC fährt herunter. Reagiert er nicht, kannst du ihn
                  f"nach {vm.STOP_TIMEOUT} Sekunden geschieht das automatisch.")
 HINT_SETUP_FAILED = ("Bei der Einrichtung ist etwas schiefgegangen: {steps}. Fehlende Programme über "
                      "„Programme hinzufügen …“ nachinstallieren – Einzelheiten im Protokoll.")
+MISSING_TEXT = ("Das Laufwerk ist gerade nicht erreichbar. Steck die SSD/Festplatte ein – der Agent-PC taucht dann "
+                "automatisch wieder auf, auch unter einem anderen Laufwerksbuchstaben.")
+BROKEN_TEXT = ("Die Einstellungsdatei vm.json dieses Agent-PCs ist beschädigt oder enthält unzulässige Angaben – die "
+               "Festplatte (disk.qcow2) im Ordner ist davon nicht betroffen. Liegt dort eine vm.json.bak, wird sie "
+               "automatisch genutzt. Sonst den Ordner bitte nicht löschen, sondern Hilfe holen "
+               "(github.com/zappotex/BonysAgents/issues) – die Datei lässt sich meist reparieren.")
 REMOTE_MARK = "  ⇄"  # hinter dem Namen in der Liste: Fernzugriff ist an
 
 
@@ -923,11 +929,10 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(24, 22, 24, 22)
         self.m_name = QLabel()
         self.m_name.setObjectName("Title")
-        status = QLabel("●  nicht verfügbar")
+        self.m_status = status = QLabel("●  nicht verfügbar")
         status.setStyleSheet(f"color: {style.MUTED};")
         self.m_path = PathLabel(prefix="Lag zuletzt in: ")
-        self.m_text = QLabel("Das Laufwerk ist gerade nicht erreichbar. Steck die SSD/Festplatte ein – der Agent-PC "
-                             "taucht dann automatisch wieder auf, auch unter einem anderen Laufwerksbuchstaben.")
+        self.m_text = QLabel(MISSING_TEXT)
         self.m_text.setWordWrap(True)
         row = QHBoxLayout()
         again = QPushButton("Erneut suchen")
@@ -986,7 +991,7 @@ class MainWindow(QMainWindow):
             desk = "" if missing else f"  ·  {desktops.name(e.config.desktop)}"
             item.setText(e.name + desk + (REMOTE_MARK if remote_on else ""))
             item.setForeground(QColor(style.MUTED if missing else style.TEXT))
-            tip = f"Nicht verfügbar – liegt auf {e.path}" if missing else str(e.path)
+            tip = (f"{e.status().capitalize()} – {e.path}" if missing else str(e.path))
             item.setToolTip(tip + ("\nFernzugriff ist an" if remote_on else ""))
             # Herunterfahren überwachen: nach STOP_TIMEOUT Sekunden hart ausschalten
             waited = None if missing else e.stopping_for()
@@ -1026,6 +1031,10 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentIndex(2)
             self.m_name.setText(entry.name)
             self.m_path.set_path(entry.path)
+            broken = entry.broken()
+            self.m_status.setText(f"●  {entry.status()}")
+            self.m_status.setStyleSheet(f"color: {style.DANGER if broken else style.MUTED};")
+            self.m_text.setText(BROKEN_TEXT if broken else MISSING_TEXT)
             return
         m = entry
         self.stack.setCurrentIndex(1)

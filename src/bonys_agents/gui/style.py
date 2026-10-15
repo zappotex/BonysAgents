@@ -128,6 +128,7 @@ STATUS_COLORS = {
     "wird heruntergefahren": WARN,
     "gestoppt": MUTED,
     "nicht verfügbar – Vorlage fehlt": DANGER,
+    "beschädigt": DANGER,
 }
 
 STYLESHEET = f"""
