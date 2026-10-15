@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vorführung – Bony's Agents</title>
+<link rel="stylesheet" href="/assets/present.css">
+<script type="module" src="/assets/join.js"></script>
+</head>
+<body class="join">
+<main class="card">
+  <img src="/assets/logo.png" alt="" class="logo">
+  <h1>Vorführung ansehen</h1>
+  <p class="muted" id="title">Der Kursleiter zeigt seinen Agent-PC. Du kannst nur zuschauen.</p>
+  <form id="form" autocomplete="off">
+    <label for="name">Dein Name</label>
+    <input id="name" name="name" maxlength="40" required placeholder="z. B. Alex">
+    <label for="code">Code</label>
+    <input id="code" name="code" maxlength="12" required placeholder="z. B. 4711-BONY" autocapitalize="characters"
+           spellcheck="false">
+    <button type="submit" id="go">Zuschauen</button>
+  </form>
+  <p id="msg" class="msg" role="status"></p>
+  <p class="muted small">Der Browser warnt vor dem Zertifikat, weil es nur für diese Vorführung erzeugt wurde.
+    Vergleiche den Fingerabdruck in den Zertifikatsdetails mit dem auf dem Bildschirm des Kursleiters.
+    Ton ist nicht dabei.</p>
+</main>
+</body>
+</html>

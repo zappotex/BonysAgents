@@ -20,6 +20,8 @@ deren Texte folgen weiter unten.
   platformdirs                      4.12.3    MIT
   pycdlib                           1.21.0    LGPL-2.1-only
   PyInstaller-Bootloader            6.22.3    GPL-2.0-or-later mit Bootloader-Ausnahme
+  noVNC (Bibliothek core/)          1.7.0     MPL-2.0 (Mozilla Public License 2.0)
+  pako (zlib für noVNC, vendor/)    1.0.3     MIT
 
 Qt, PySide6, Shiboken6 und pycdlib (LGPL) werden als eigenständige, austauschbare
 Bibliotheken mitgeliefert (im Programmordner, z. B. /opt/bonys-agents/_internal
@@ -905,6 +907,21 @@ OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+
+==============================================================================
+noVNC – Mozilla Public License 2.0 (MPL-2.0)
+Gilt für: noVNC 1.7.0, Ordner bonys_agents/resources/novnc/core (Live-Vorführung
+im Browser der Teilnehmer). Unverändert aus dem offiziellen Release
+https://github.com/novnc/noVNC/releases/tag/v1.7.0 übernommen; die Dateien sind
+selbst der Quelltext (JavaScript). Copyright (C) The noVNC authors (siehe
+resources/novnc/AUTHORS). Der vollständige Lizenztext liegt im Paket unter
+bonys_agents/resources/novnc/docs/LICENSE.MPL-2.0 und unter
+https://mozilla.org/MPL/2.0/; die Lizenzübersicht von noVNC unter
+bonys_agents/resources/novnc/LICENSE.txt.
+
+pako (vendor/pako, zlib-Dekompression für noVNC) – MIT-Lizenz,
+Copyright (C) 2014-2016 by Vitaly Puzrin; Text unter
+bonys_agents/resources/novnc/vendor/pako/LICENSE.
 
 ==============================================================================
 PyInstaller-Bootloader – GPL-2.0-or-later mit Bootloader-Ausnahme

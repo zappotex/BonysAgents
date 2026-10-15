@@ -198,6 +198,33 @@ def _fake_bundle(info):
     return tpl, file, m
 
 
+def _live_present(window, m, monkeypatch):
+    """„Vorführen“ mit laufender Vorführung und Zuschauern (ohne echten Agent-PC, nur 127.0.0.1)."""
+    from bonys_agents import present
+    from bonys_agents.gui import present_dialog
+
+    nov = vm.vms_dir().parent / "bonys-test" / "novnc"
+    (nov / "core").mkdir(parents=True, exist_ok=True)
+    (nov / "core" / "rfb.js").write_text("")
+    monkeypatch.setattr(present, "novnc_dir", lambda: nov)
+    monkeypatch.setattr(type(m), "is_running", lambda self: True)
+    monkeypatch.setattr(type(m), "vnc_available", lambda self: True)
+    monkeypatch.setattr(present, "for_vm", lambda machine, port=0, **kw: present.Presentation(
+        machine.name, lambda: None, port=0, bind="127.0.0.1", advertise=False, novnc=nov, **kw))
+    monkeypatch.setattr(present_dialog.QMessageBox, "exec", lambda self: present_dialog.QMessageBox.Ok)
+    monkeypatch.setattr(present_dialog.QMessageBox, "question", lambda *a, **k: present_dialog.QMessageBox.Yes)
+    d = present_dialog.PresentDialog(m, window)
+    d._start()
+    p = d.pres
+    for i in range(6):
+        p.viewers[str(i)] = present.Viewer(id=str(i), token_hash=str(i), name=f"Teilnehmerin Nummer {i}",
+                                           address=f"192.168.178.{100 + i}", dropped_input=i)
+    p.set_paused(True)
+    d._refresh()
+    d.finished.connect(lambda *_: p.stop())
+    return d
+
+
 def _dialogs(window, monkeypatch):
     from bonys_agents import host
     from bonys_agents.gui import (
@@ -213,7 +240,7 @@ def _dialogs(window, monkeypatch):
     up = updates.UpdateInfo(version="9.9.9", tag="v9.9.9", notes="Neu\n" * 40)
     tpl, bundle, manifest = _fake_bundle(info)
     from bonys_agents import share
-    from bonys_agents.gui import share_dialogs
+    from bonys_agents.gui import present_dialog, share_dialogs
 
     monkeypatch.setattr(share, "discover", lambda timeout=2.5: [])  # keine echte Suche im Netz
     return {
@@ -227,6 +254,8 @@ def _dialogs(window, monkeypatch):
         "Importieren": lambda: template_dialogs.ImportDialog(bundle, manifest, window),
         "Im Netzwerk freigeben": lambda: share_dialogs.ShareDialog(tpl, window),
         "Schulung beitreten": lambda: share_dialogs.JoinDialog(window),
+        "Vorführen": lambda: present_dialog.PresentDialog(m, window),
+        "Vorführen (läuft)": lambda: _live_present(window, m, monkeypatch),
         "Importieren (andere Architektur)": lambda: template_dialogs.ImportDialog(
             bundle, {**manifest, "arch": "arm64" if info.arch == "x86_64" else "amd64"}, window),
         "Programme": lambda: install_dialog.InstallAppsDialog(m, window),

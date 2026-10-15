@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QDialog, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
@@ -18,7 +18,11 @@ from bonys_agents import APP_NAME, bonysfile, host, share, storage, templates
 
 from . import style
 from .template_dialogs import ExportDialog, FnWorker, open_bonys_file
-from .widgets import PercentBar, make_scrollable
+from .widgets import PercentBar, make_scrollable, open_url
+
+
+def code_style() -> str:
+    return f"font-size: {style.px(30)}px; font-weight: bold; letter-spacing: 3px;"
 
 
 def qr_pixmap(text: str, size: int = 220) -> QPixmap | None:
@@ -94,11 +98,8 @@ class ShareDialog(QDialog):
         left = QVBoxLayout()
         self.code = QLabel()
         self.code.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        font = QFont(self.code.font())
-        font.setPointSizeF(font.pointSizeF() * 2.2)
-        font.setBold(True)
-        font.setLetterSpacing(QFont.AbsoluteSpacing, 2)
-        self.code.setFont(font)
+        # Schrift per Stylesheet – das App-Stylesheet überschreibt setFont() bei QLabel
+        self.code.setStyleSheet(code_style())
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -244,7 +245,7 @@ class ShareDialog(QDialog):
             self.timer.stop()
             self.status.setText(s.stop_reason)
             self.stop_btn.setVisible(False)
-            self.code.setStyleSheet("text-decoration: line-through;")
+            self.code.setStyleSheet(code_style() + " text-decoration: line-through;")
             return
         left = s.remaining()
         done = sum(1 for p in people if p.status == "fertig")
@@ -289,8 +290,9 @@ class JoinDialog(QDialog):
         title = QLabel("Schulung beitreten")
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Lädt die Vorlage direkt vom Rechner des Kursleiters. Im selben Netz wird die Freigabe meist "
-                       "automatisch gefunden. Im VPN (z. B. Bony's VPN) oder wenn nichts erscheint: Adresse und Code "
+        intro = QLabel("Lädt die Vorlage direkt vom Rechner des Kursleiters bzw. öffnet seine Live-Vorführung im "
+                       "Browser. Im selben Netz wird beides meist automatisch gefunden. Im VPN (z. B. Bony's VPN) "
+                       "oder wenn nichts erscheint: Adresse und Code "
                        "eingeben – oder den Link aus dem QR-Code („bonys://…“) einfügen.")
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
@@ -371,12 +373,16 @@ class JoinDialog(QDialog):
         self.worker = None
         self._busy(False)
         for f in items:
-            it = QListWidgetItem(f"{f.txt.get('name', '?')} {f.txt.get('version', '')} – von "
-                                 f"{f.txt.get('creator') or '?'} · {f.address}")
+            if f.txt.get("kind") == "present":
+                text = f"▶ Live-Vorführung: {f.txt.get('name', '?')} – von {f.txt.get('creator') or '?'} · {f.address}"
+            else:
+                text = (f"{f.txt.get('name', '?')} {f.txt.get('version', '')} – von "
+                        f"{f.txt.get('creator') or '?'} · {f.address}")
+            it = QListWidgetItem(text)
             it.setData(Qt.UserRole, (f.address, f.txt.get("fp", "")))
             self.found.addItem(it)
-        self.status.setText(f"{len(items)} Freigabe(n) gefunden – auswählen und Code eingeben." if items else
-                            "Keine Freigabe gefunden. Im VPN geht die Suche nicht – Adresse und Code eingeben.")
+        self.status.setText(f"{len(items)} gefunden – auswählen und Code eingeben." if items else
+                            "Nichts gefunden. Im VPN geht die Suche nicht – Adresse und Code eingeben.")
         if len(items) == 1:
             self.found.setCurrentRow(0)
 
@@ -412,9 +418,27 @@ class JoinDialog(QDialog):
         self.status.setText(f"Verbinde mit {target.netloc} …")
         self.worker = FnWorker(lambda progress: share.fetch_info(target))
         self.worker.done.connect(self._connected)
-        self.worker.failed.connect(lambda msg: self._error(msg))
+        self.worker.failed.connect(self._connect_failed)
         self._busy(True)
         self.worker.start()
+
+    def _connect_failed(self, msg: str) -> None:
+        err = self.worker.error if self.worker else None
+        if isinstance(err, share.IsPresentation):
+            self.worker = None
+            self._busy(False)
+            self._open_presentation(err)
+            return
+        self._error(msg)
+
+    def _open_presentation(self, p: share.IsPresentation) -> None:
+        """Live-Vorführung im Standardbrowser öffnen – Code (und Name) stehen hinter „#“, gehen also nicht ins Netz."""
+        self.status.setStyleSheet("")
+        self.status.setText(
+            f"„{p.title}“ ist eine Live-Vorführung – sie öffnet sich im Browser. Der Browser warnt vor dem Zertifikat "
+            f"(es gilt nur für diese Vorführung): „Erweitert“ → „Weiter“. Fingerabdruck zum Vergleichen: "
+            f"{share.short_fingerprint(p.fingerprint)}")
+        open_url(p.url(share._client_name()))
 
     def _connected(self, info: share.RemoteInfo) -> None:
         self.worker = None

@@ -50,6 +50,8 @@ path = "src/bonys_agents/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bonys_agents"]
+# noVNC (MPL-2.0) steht nicht im Repository – packaging/fetch-novnc.py holt es vor dem Bauen
+artifacts = ["src/bonys_agents/resources/novnc/"]
 
 # Lizenztexte ins Paket – das „Über“-Fenster öffnet sie auch im installierten Programm (.deb, Windows, macOS).
 [tool.hatch.build.targets.wheel.force-include]

@@ -1162,13 +1162,46 @@ def _print_qr(text: str) -> None:
         pass
 
 
+def cmd_present(args) -> int:
+    """Agent-PC live im Browser der Teilnehmer zeigen (nur ansehen) – bis Strg+C, Zeitablauf oder Ausschalten."""
+    from bonys_agents import present, share
+
+    m = vm.get(args.name)
+    try:
+        p = present.for_vm(m, port=args.port, timeout_min=args.timeout, max_viewers=args.max_viewers,
+                           quality=args.quality)
+        p.start()
+    except present.PresentError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print()
+    print(present.describe(p))
+    print(f"\n  Link mit Code (QR-Code): {p.url()}\n")
+    _print_qr(p.url())
+    print("Firewall: " + share.FIREWALL_HINTS.get(host.detect().os, "").format(port=p.port))
+    print("\nStrg+C beendet die Vorführung. Pause: in der Desktop-App („Vorführen …“).\n")
+    shown = 0
+    try:
+        while not p.stopped.wait(2):
+            with p.lock:
+                new_events = p.events[shown:]
+                shown = len(p.events)
+            for line in new_events:
+                print(line, flush=True)
+    except KeyboardInterrupt:
+        p.stop("Vorführung beendet (Strg+C).")
+    for line in p.events[shown:]:
+        print(line)
+    return 0
+
+
 def cmd_join(args) -> int:
     """Einer Schulung beitreten: Vorlage vom Kursleiter-Rechner laden (setzt fort), prüfen, importieren."""
     from bonys_agents import bonysfile, share
 
     if not args.address:
         print("Suche Freigaben im Netz (mDNS) …")
-        found = share.discover()
+        found = [f for f in share.discover() if f.txt.get("kind") != "present"]
         if not found:
             print("Keine Freigabe gefunden. In VPN-Netzen geht die Suche nicht – dann Adresse und Code angeben: "
                   "bonys-agents join ADRESSE CODE", file=sys.stderr)
@@ -1391,6 +1424,16 @@ def build_parser() -> argparse.ArgumentParser:
     jn.add_argument("--dir", metavar="ORDNER", help="Wohin laden (Standard: Datenordner/schulung)")
     _import_options(jn)
     jn.set_defaults(func=cmd_join)
+    pr = sub.add_parser("present", help="Schulung: laufenden Agent-PC live im Browser der Teilnehmer zeigen "
+                                        "(nur ansehen)")
+    pr.add_argument("name")
+    pr.add_argument("--port", type=int, default=47120, help="Port (Standard: 47120)")
+    pr.add_argument("--timeout", type=int, default=90, metavar="MIN",
+                    help="Vorführung endet automatisch nach MIN Minuten (Standard: 90)")
+    pr.add_argument("--max-viewers", type=int, default=30, metavar="N", help="Höchstens N Zuschauer (Standard: 30)")
+    pr.add_argument("--quality", choices=["low", "medium", "high"], default="medium",
+                    help="Bildqualität und -rate: low (5 Bilder/s), medium (10, Standard – gut fürs WLAN), high (20)")
+    pr.set_defaults(func=cmd_present)
     mi = sub.add_parser("make-independent", help="Verknüpften Agent-PC in eine unabhängige Kopie umwandeln")
     mi.add_argument("name")
     mi.set_defaults(func=cmd_make_independent)

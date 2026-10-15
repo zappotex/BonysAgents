@@ -22,6 +22,7 @@ echo "==> Baue $PKG $VERSION für $ARCH"
 # ---------- 1. Programm bündeln ----------
 if [ ! -x dist/bonys-agents/BonysAgents ] || [ "${REBUILD:-1}" = "1" ]; then
   python3 -m venv build/venv
+  python3 packaging/fetch-novnc.py   # noVNC (MPL-2.0) für die Vorführung, feste Version mit Prüfsumme
   build/venv/bin/pip install -q --upgrade pip
   build/venv/bin/pip install -q . pyinstaller
   build/venv/bin/pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build/pyinstaller \

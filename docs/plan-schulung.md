@@ -80,15 +80,59 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
 - **CLI**: `bonys-agents share NAME [--port P] [--timeout MIN] [--max-downloads N]`,
   `bonys-agents join ADRESSE CODE [--fingerprint FP] [--create NAME]`.
 
-### Stufe 3 – Live-Vorführung (Ausblick)
+### Stufe 3 – Live-Vorführung (A) ✅ erledigt (0.18.0) und Hilfe-Modus (B) – offen
 
-- Kursleiter zeigt seinen Agent-PC live: noVNC im Browser der Teilnehmer, **nur ansehen** (VNC view-only,
-  eigener Code wie bei der Freigabe, nur im LAN/VPN, zeitlich begrenzt).
-- **Hilfe-Modus**: Der Kursleiter darf den Agent-PC eines Teilnehmers ansehen bzw. steuern – nur nach
-  ausdrücklicher Zustimmung des Teilnehmers für genau diese Sitzung, jederzeit beendbar, gut sichtbar
-  angezeigt.
+**A – Vorführen** (`present.py`, `rfb.py`, `websocket.py`, `gui/present_dialog.py`, Seiten unter
+`resources/present/`):
 
-### Stufe 4 – Kursleiter-Dashboard (Ausblick)
+- **VNC nur lokal:** QEMU startet jeden Agent-PC zusätzlich mit `-vnc unix:PFAD,share=force-shared,lossy=on`
+  (Socket in `$XDG_RUNTIME_DIR/bonys-agents-UID/` bzw. Temp-Ordner, Ordner 0700; Windows: `127.0.0.1:N`,
+  Port 5900–5999). VNC lässt sich zur Laufzeit **nicht** hinzufügen (QMP `display-update` braucht ein schon
+  vorhandenes VNC, geprüft in QEMU 8.2 `ui/vnc.c`) – laufende Agent-PCs aus älteren Versionen brauchen einen
+  Neustart (Dialog: „Jetzt neu starten“). `runtime.json` → `vnc`, `VM.vnc_available()/vnc_connect()`.
+- **noVNC 1.7.0** (MPL-2.0) holt `packaging/fetch-novnc.py` beim Bauen aus dem GitHub-Release (feste SHA-256),
+  nur `core/`, `vendor/pako/` und Lizenztexte nach `src/bonys_agents/resources/novnc/` (gitignored, im Wheel per
+  hatch `artifacts`). Eingebunden in build-deb.sh, build-setup.ps1, release.yml (Windows/macOS).
+- **Server:** HTTPS wie Stufe 2 (`share.Guarded`: Code, 5 Fehlversuche → 1 min Sperre, 100 → Ende, Zeitlimit),
+  Zertifikat aber **ECDSA P-256** (Browser können kein Ed25519; reines Python in `share.make_certificate(kind="ec")`,
+  mit subjectAltName). Standardport **47120**. Startseite `/` (Name + Code, Code kommt aus dem QR-Code hinter `#`),
+  `POST /bonys/v1/present/join` → Cookie (HttpOnly, Secure, SameSite=Strict; gespeichert nur als SHA-256),
+  `/view`, `/novnc/core|vendor/*.js` (nur mit Cookie), `GET /bonys/v1/present/status`, WebSocket
+  `/bonys/v1/present/ws` (Origin muss passen), `GET /bonys/v1/info` (mit Code, `kind: present` – „Kurs beitreten“
+  erkennt so Vorführungen). CSP ohne Inline-Skripte. mDNS wie Stufe 2 mit `kind=present`.
+- **Zuschauen serverseitig erzwungen** (`rfb.ClientFilter`): Handshake nur Sicherheitstyp None, ClientInit immer
+  „geteilt“; durch gehen nur SetPixelFormat, SetEncodings (Weißliste ohne Extended Clipboard, QEMU-Tastatur/-Ton,
+  XVP, Fence, ContinuousUpdates; JPEG-Qualität/Kompression setzt der Proxy) und FramebufferUpdateRequest.
+  Key/Pointer nur, wenn `allow_input()` (für B), ClientCutText/XVP/QEMU-Nachrichten immer verworfen, Unbekanntes
+  beendet die Verbindung. QEMU schickt seine Zwischenablage nur an Clients mit Extended Clipboard
+  (`ui/vnc-clipboard.c`) – also auch nichts in Gegenrichtung.
+- **Proxy-Schleife** je Zuschauer in einem Thread mit `select` (TLS-Sockets nie aus zwei Threads),
+  FramebufferUpdateRequests gedrosselt auf die Bildrate (low 5, medium 10, high 20 Bilder/s; über 8 Zuschauern
+  anteilig weniger; CPU des Prozesses > 80 % → weniger), zusammengefasst (eine vollständige Anfrage bleibt
+  vollständig).
+- **Pause** trennt alle Zuschauer vom VNC (WebSocket-Code 4001) und lässt keine neuen zu – kein einziges Bild,
+  auch nicht die Antwort auf eine schon gestellte Anfrage. Die Seite zeigt „Gleich geht's weiter“ und verbindet
+  danach neu. Entfernen: 4003, Adresse 5 min gesperrt. Ende: 4000 (Zeit, Agent-PC aus, Kursleiter).
+- **Teilnehmer in Bony's Agents:** „Kurs beitreten“ listet Vorführungen (mDNS) und öffnet sie im Browser; auch
+  beim Eintippen der Adresse (`share.IsPresentation`).
+- **CLI:** `bonys-agents present NAME [--port P] [--timeout MIN] [--max-viewers N] [--quality low|medium|high]`.
+
+**B – Hilfe-Modus** (noch offen, Vorgaben aus dem Auftrag):
+
+- Teilnehmer (der Schulung beigetreten) → „Hilfe anfordern“ (optional Nachricht) beim eigenen Agent-PC →
+  Kursleiter sieht Liste „Hilfe-Anfragen“ mit Benachrichtigung (Name, Nachricht, Zeit, „Ansehen“).
+- Ansehen erst nach Zustimmung des Teilnehmers („Erlauben/Ablehnen“), „Steuerung übernehmen“ nur mit **zweiter**
+  Zustimmung; Teilnehmer kann jederzeit beenden oder auf „nur ansehen“ zurückstufen; gut sichtbarer Hinweis
+  beim Teilnehmer (wenn möglich auch im Agent-PC).
+- Technik: Verbindung **vom Teilnehmer zum Kursleiter** (ausgehend, HTTPS/WebSocket, Code + Fingerabdruck wie
+  Stufe 2), tunnelt den lokalen VNC-Socket des Teilnehmers; Eingaben prüft **der Teilnehmer** (gleicher
+  `rfb.ClientFilter` mit `allow_input` = „Steuerung erlaubt“). Zwischenablage nie, nur der Agent-PC sichtbar.
+  Beim Kursleiter Ansicht im Browser (noVNC) bzw. aus Bony's Agents heraus.
+- Protokoll beim Teilnehmer: wann wer zugesehen/gesteuert hat (ohne Bildinhalte).
+- Bausteine sind da: `websocket.FrameParser`/`Connection(client=True)`, `rfb.ClientFilter(allow_input=…)`,
+  `present.pump_viewer` (Schleife Browser ↔ VNC) als Vorlage für die Brücke Kursleiter-Browser ↔ Tunnel.
+
+### Stufe 4 – Kursleiter-Dashboard (nächster Schritt nach Stufe 3)
 
 - Übersicht aller Teilnehmer-Agent-PCs (Status, Fortschritt), Einladung per Code.
 - „Alle auf Anfang zurücksetzen“ (Agent-PC aus der Vorlage neu erstellen bzw. Snapshot zurückspielen –
@@ -112,6 +156,8 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
   erwarteten Namen (kein Pfad-Trick), Manifest-Werte werden geprüft (Name, Architektur, Apps nur bekannte IDs).
 - Netzwerk (Stufe 2): nur lesend, nur mit Code, nur solange freigegeben, Zertifikat pro Freigabe, nichts
   dauerhaft an der Firewall öffnen.
+- Vorführung (Stufe 3): VNC nie im Netz, nur lokal; Eingaben der Zuschauer verwirft der Proxy (nicht nur noVNC);
+  Pause = keine Verbindung zum Bildschirm; Server nur, solange die Vorführung läuft.
 - Vor jedem Befehl mit `sudo` nachfragen.
 
 ## Stand
@@ -135,5 +181,21 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
   - Testdaten liegen in `/media/zappotex/bonysagent/BonysAgents/_schulung-test/` (Agent-PCs `kurs-pc`,
     `kurs-pc-2`, Vorlagen `kurs-import`, `kurs-join`) – können gelöscht werden.
 - **2026-10-15**: Stufe 1 und 2 vom Nutzer getestet und abgenommen, veröffentlicht als Release v0.17.0.
-- **Offen / Ideen**: Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im .deb, Datei-Argument der
-  App); Stufe 3 und 4.
+- **2026-10-15 (Sitzung 2)**: **Stufe 3 A (Vorführen) umgesetzt**, Version 0.18.0 (noch nicht veröffentlicht –
+  erst nach Test und OK des Nutzers).
+  - Tests: `tests/test_present.py` (Filter mit echten RFB-Nachrichten, auch byteweise; WebSocket-Rahmen;
+    VNC nur lokal; Server: Code/Ratenbegrenzung, fremde Origin, Pfad-Tricks, Eingaben kommen nie an,
+    Bildrate, Pause, Entfernen, Höchstzahl, Ende bei Ausschalten/Zeitablauf, ECDSA-Zertifikat),
+    `test_share.py` (Adressen ohne Docker-Brücken, VPN erkannt), Dialoge in `test_gui_layout.py`.
+  - **Echter Test (lokal, ein Rechner)**: `agent-pc-3` mit neuem Code gestartet (Socket 0700), Vorführung per
+    CLI und Dialog, Zuschauer: Chrome (headless, gesteuert per DevTools) über die LAN-Adresse. Bild live;
+    Angriff mit rohen RFB-Nachrichten am noVNC-view_only vorbei (Rechtsklick, Strg+Alt+T, Tippen, Zwischenablage,
+    QEMU-Taste, XVP-Reset) → nichts passiert, „34 Eingaben verworfen“; Gegenprobe direkt am Socket öffnet das
+    Kontextmenü. Pause/Weiter (Seite verbindet neu), Entfernen. Last: 30 simulierte Zuschauer mit
+    Vollbild-Anfragen → Proxy-Prozess < 10 % CPU, Bildrate automatisch 2,7/s je Zuschauer; Engpass ist dann das
+    Kodieren in QEMU (ein VNC-Arbeits-Thread für alle Zuschauer) – Idee: bei sehr vielen Zuschauern ein
+    gemeinsamer Bild-Strom (würde Neu-Kodieren im Proxy brauchen).
+  - Noch offen für den Nutzer: zweites Gerät (Handy/Laptop) im WLAN, echte Browser-Zertifikatswarnung
+    (Safari/iOS: WebSocket zu selbstsignierten Zertifikaten), Windows/macOS.
+- **Offen / Ideen**: Stufe 3 B (Hilfe-Modus), Stufe 4; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
+  .deb, Datei-Argument der App).

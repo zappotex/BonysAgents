@@ -485,13 +485,15 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn = QPushButton("Desktop hinzufügen …")
         self.add_desktop_btn.setToolTip("Weiteren Desktop installieren und als Standard wählen – der Agent-PC muss "
                                         "laufen; der bisherige bleibt installiert")
+        self.present_btn = QPushButton("Vorführen …")
+        self.present_btn.setToolTip("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur ansehen)")
         self.add_apps_btn = QPushButton("Programme hinzufügen …")
         self.add_apps_btn.setToolTip("Fehlende Programme oder KI-Werkzeuge nachinstallieren – der Agent-PC muss laufen")
         for b in (self.move_btn, self.resize_btn, self.add_apps_btn, self.template_btn, self.independent_btn,
                   self.add_desktop_btn):
             b.setObjectName("Small")
-        for b in (self.start_btn, self.stop_btn, self.fullscreen_btn, self.ssh_btn, self.remote_btn, self.upgrade_btn,
-                  self.template_btn, self.delete_btn):
+        for b in (self.start_btn, self.stop_btn, self.fullscreen_btn, self.ssh_btn, self.remote_btn, self.present_btn,
+                  self.upgrade_btn, self.template_btn, self.delete_btn):
             row.addWidget(b)
         hl.addSpacing(6)
         hl.addLayout(row)
@@ -695,6 +697,7 @@ class MainWindow(QMainWindow):
         self.add_apps_btn.clicked.connect(lambda: self.add_apps())
         self.add_desktop_btn.clicked.connect(self.add_desktop)
         self.template_btn.clicked.connect(self.save_template)
+        self.present_btn.clicked.connect(self.present_vm)
         self.independent_btn.clicked.connect(self.make_independent)
         self.upgrade_btn.clicked.connect(self.upgrade_vm)
         self.resume_btn.clicked.connect(lambda: self._clear_notice() or self._run(lambda m: m.start(headless=True)))
@@ -1041,6 +1044,7 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn.setEnabled(status == "läuft" and not busy)
         self.delete_btn.setEnabled(not busy and not tpl_lock)
         self.upgrade_btn.setEnabled(status == "läuft" and not busy)
+        self.present_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
 
         p = m.progress()
         show = (running and not p.ready) or (c.first_boot_pending and (running or about_to_start))
@@ -1275,6 +1279,15 @@ class MainWindow(QMainWindow):
 
     def show_templates(self) -> None:
         TemplatesDialog(self).exec()
+        self.refresh()
+
+    def present_vm(self) -> None:
+        from .present_dialog import PresentDialog
+
+        m = self.current()
+        if not m:
+            return
+        PresentDialog(m, self, restart=lambda: self._run(lambda x: (x.stop(), x.start()))).exec()
         self.refresh()
 
     def join_training(self) -> None:

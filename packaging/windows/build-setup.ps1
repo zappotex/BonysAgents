@@ -54,6 +54,8 @@ Say "Bündle das Programm (PyInstaller) …"
 & $py -m venv build\venv-win
 if ($LASTEXITCODE -ne 0) { Fail "venv fehlgeschlagen" }
 & build\venv-win\Scripts\python.exe -m pip install -q --upgrade pip
+& build\venv-win\Scripts\python.exe packaging\fetch-novnc.py
+if ($LASTEXITCODE -ne 0) { Fail "noVNC konnte nicht geladen werden" }
 & build\venv-win\Scripts\python.exe -m pip install -q . pyinstaller
 if ($LASTEXITCODE -ne 0) { Fail "pip install fehlgeschlagen" }
 & build\venv-win\Scripts\pyinstaller.exe --noconfirm --log-level WARN packaging\bonys-agents.spec

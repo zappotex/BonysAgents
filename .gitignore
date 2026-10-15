@@ -14,3 +14,6 @@ dist-win/
 # Fremde Installer, die nicht ins Repository gehören
 Software/
 .claude/settings.local.json
+
+# noVNC wird beim Bauen geholt (packaging/fetch-novnc.py)
+src/bonys_agents/resources/novnc/

@@ -260,3 +260,20 @@ def test_cli_parses_share_and_join():
     assert (a.address, a.code, a.create) == ("192.168.1.5:47110", "4711-BONY", "pc-1")
     a = p.parse_args(["join"])
     assert a.address is None
+
+
+def test_local_addresses_skip_bridges_and_mark_vpn(monkeypatch):
+    import socket as so
+    from types import SimpleNamespace as NS
+
+    import psutil
+
+    def a(ip, mask="255.255.255.0"):
+        return NS(family=so.AF_INET, address=ip, netmask=mask)
+    monkeypatch.setattr(psutil, "net_if_addrs", lambda: {
+        "lo": [a("127.0.0.1", "255.0.0.0")], "eno1": [a("192.168.178.5")], "docker0": [a("172.17.0.1")],
+        "br-1a2b": [a("172.18.0.1")], "virbr0": [a("192.168.122.1")], "wg0": [a("10.8.0.2")],
+        "kurs_vpn": [a("10.20.30.2", "255.255.255.255")]})
+    addrs = share.local_addresses()
+    assert addrs == ["192.168.178.5", "10.8.0.2", "10.20.30.2"]
+    assert [share.address_kind(x) for x in addrs] == ["LAN", "VPN", "VPN"]

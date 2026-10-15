@@ -114,6 +114,9 @@ class LaunchSpec:
     # Nullen auf der Festplatte als „Null-Cluster“ speichern statt als Daten (Arbeitskopie für Vorlagen:
     # das Überschreiben des freien Platzes kostet so keinen Platz)
     zero_unmap: bool = False
+    # Bildschirm zusätzlich per VNC – NUR lokal: „unix:PFAD“ (Linux/macOS) bzw. „127.0.0.1:N“ (Windows).
+    # Für Schulungen (Vorführen, Hilfe-Modus); den Weg ins Netz übernimmt der Proxy in Bony's Agents.
+    vnc: str | None = None
 
 
 def _esc(p: Path) -> str:
@@ -189,6 +192,8 @@ def build_command(s: LaunchSpec) -> list[str]:
             "-chardev", "spicevmc,id=vdagent,name=vdagent",
             "-device", "virtserialport,chardev=vdagent,name=com.redhat.spice.0",
         ]
+    if s.vnc:
+        cmd += ["-vnc", vnc_option(s.vnc)]
     if s.audio:
         cmd += ["-audiodev", f"{s.audio},id=snd0", "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=snd0"]
     if s.headless:
@@ -196,6 +201,34 @@ def build_command(s: LaunchSpec) -> list[str]:
     elif s.display:
         cmd += ["-display", s.display]
     return cmd
+
+
+def vnc_option(target: str) -> str:
+    """Wert für „-vnc“. Nie eine Adresse im Netz: nur Unix-Socket oder 127.0.0.1.
+
+    share=force-shared: mehrere Zuschauer gleichzeitig, keiner wirft den anderen hinaus. lossy=on: JPEG
+    (Tight) für Zuschauer im WLAN. Zwischenablage schickt QEMU nur an Clients mit „Extended Clipboard“ –
+    das filtert der Proxy heraus (``rfb``).
+    """
+    if target.startswith("unix:"):
+        where = "unix:" + _esc(Path(target[5:]))
+    elif re.fullmatch(r"127\.0\.0\.1:\d{1,2}", target):
+        where = target
+    else:
+        raise ValueError(f"VNC nur lokal (unix:… oder 127.0.0.1:N), nicht {target}")
+    return f"{where},share=force-shared,lossy=on"
+
+
+def free_vnc_display(first: int = 5900, last: int = 5999) -> int:
+    """Freie VNC-Anzeigenummer an 127.0.0.1 (Port = 5900 + N) – für Windows ohne Unix-Socket."""
+    for port in range(first, last + 1):
+        with socket.socket() as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port - 5900
+    raise RuntimeError("Kein freier VNC-Port zwischen 5900 und 5999")
 
 
 def _netdev(s: LaunchSpec) -> str:

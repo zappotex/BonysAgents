@@ -82,6 +82,20 @@ class FingerprintMismatch(ShareError):
     pass
 
 
+class IsPresentation(ShareError):
+    """Unter der Adresse läuft keine Freigabe, sondern eine Live-Vorführung – im Browser öffnen."""
+
+    def __init__(self, target: Target, title: str, fingerprint: str):
+        super().__init__(f"Unter {target.netloc} läuft die Vorführung „{title}“ – sie öffnet sich im Browser.")
+        self.target = target
+        self.title = title
+        self.fingerprint = fingerprint
+
+    def url(self, name: str = "") -> str:
+        frag = f"code={quote(self.target.code)}" + (f"&name={quote(name)}" if name else "")
+        return f"https://{self.target.netloc}/#{frag}"
+
+
 # ---------------------------------------------------------------- Code, Adresse, Fingerabdruck
 def new_code() -> str:
     """Zufälliger, kurzer, gut vorlesbarer Code: 4 Ziffern, Bindestrich, 4 Buchstaben (z. B. 4711-BONY)."""
@@ -149,17 +163,40 @@ def share_link(host: str, port: int, code: str, fingerprint: str) -> str:
     return f"bonys://{h}:{port}?code={quote(code)}&fp={fingerprint}"
 
 
+# Virtuelle Netze dieses Rechners (Docker, VMs) – dort sitzt kein Teilnehmer
+_VIRTUAL_IF = ("docker", "br-", "veth", "virbr", "vmnet", "vboxnet", "lxc", "lxd", "podman", "cni", "flannel")
+_VPN_IF = ("wg", "tun", "tap", "tailscale", "utun", "zt", "ppp", "nordlynx", "proton", "mullvad", "bonys")
+_vpn_addresses: set[str] = set()
+
+
+def _is_tunnel(name: str, netmask: str | None) -> bool:
+    """Tunnel-Schnittstelle (WireGuard, OpenVPN …) auch bei frei gewähltem Namen: Linux meldet sie ohne
+    Hardware-Adresse (Typ 65534), WireGuard-Adressen haben meist die Maske /32."""
+    if netmask == "255.255.255.255":
+        return True
+    try:
+        return Path(f"/sys/class/net/{name}/type").read_text().strip() == "65534"
+    except (OSError, ValueError):
+        return False
+
+
 def local_addresses() -> list[str]:
-    """IPv4-Adressen dieses Rechners (ohne Loopback), VPN-Adressen (z. B. WireGuard) eingeschlossen."""
+    """IPv4-Adressen dieses Rechners (ohne Loopback und Docker-/VM-Brücken), VPN-Adressen (z. B. WireGuard)
+    eingeschlossen."""
     out: list[str] = []
     try:
         import psutil
 
-        for _name, addrs in psutil.net_if_addrs().items():
+        for name, addrs in psutil.net_if_addrs().items():
+            low = name.lower()
+            if low.startswith(_VIRTUAL_IF):
+                continue
             for a in addrs:
                 if a.family == socket.AF_INET and not a.address.startswith("127.") \
                         and not a.address.startswith("169.254."):
                     out.append(a.address)
+                    if low.startswith(_VPN_IF) or "wireguard" in low or _is_tunnel(name, a.netmask):
+                        _vpn_addresses.add(a.address)
     except Exception:  # noqa: BLE001 – dann wenigstens die Standard-Route
         pass
     if not out:
@@ -174,7 +211,7 @@ def address_kind(addr: str) -> str:
         ip = ipaddress.ip_address(addr)
     except ValueError:
         return ""
-    if ip in ipaddress.ip_network("100.64.0.0/10"):
+    if addr in _vpn_addresses or ip in ipaddress.ip_network("100.64.0.0/10"):
         return "VPN"
     return "LAN" if ip.is_private else "öffentlich"
 
@@ -201,25 +238,115 @@ def _time(t: datetime) -> bytes:
     return _der(0x17, t.strftime("%y%m%d%H%M%SZ").encode())
 
 
-def make_certificate(common_name: str = "Bony's Agents Freigabe", days: int = 2) -> tuple[bytes, bytes]:
-    """Selbstsigniertes X.509-Zertifikat → (Zertifikat DER, privater Schlüssel PKCS#8 DER)."""
-    seed = secrets.token_bytes(32)
-    pub = signing.ed25519_public_key(seed)
-    alg = _seq(_ED25519)
+def _oid(dotted: str) -> bytes:
+    parts = [int(x) for x in dotted.split(".")]
+    out = bytes([40 * parts[0] + parts[1]])
+    for n in parts[2:]:
+        chunk = [n & 0x7F]
+        while n > 0x7F:
+            n >>= 7
+            chunk.append(0x80 | (n & 0x7F))
+        out += bytes(reversed(chunk))
+    return _der(0x06, out)
+
+
+def _int(n: int) -> bytes:
+    return _der(0x02, n.to_bytes(n.bit_length() // 8 + 1, "big"))
+
+
+# NIST P-256 (secp256r1) – Browser können kein Ed25519 im TLS-Zertifikat, deshalb ECDSA für die Seiten im Browser
+_P = 2**256 - 2**224 + 2**192 + 2**96 - 1
+_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+_G = (0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296,
+      0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5)
+
+
+def _ec_add(a, b):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if a[0] == b[0] and (a[1] + b[1]) % _P == 0:
+        return None
+    if a == b:
+        m = (3 * a[0] * a[0] - 3) * pow(2 * a[1], -1, _P) % _P
+    else:
+        m = (b[1] - a[1]) * pow(b[0] - a[0], -1, _P) % _P
+    x = (m * m - a[0] - b[0]) % _P
+    return x, (m * (a[0] - x) - a[1]) % _P
+
+
+def _ec_mul(k: int, point=_G):
+    out = None
+    while k:
+        if k & 1:
+            out = _ec_add(out, point)
+        point = _ec_add(point, point)
+        k >>= 1
+    return out
+
+
+def _ecdsa_sign(d: int, data: bytes) -> bytes:
+    h = int.from_bytes(hashlib.sha256(data).digest(), "big")
+    while True:
+        k = secrets.randbelow(_N - 1) + 1
+        r = _ec_mul(k)[0] % _N
+        sig = pow(k, -1, _N) * (h + r * d) % _N
+        if r and sig:
+            return _seq(_int(r), _int(sig))
+
+
+def make_certificate(common_name: str = "Bony's Agents Freigabe", days: int = 2, *, kind: str = "ed25519",
+                     addresses: list[str] | tuple[str, ...] = (), names: list[str] | tuple[str, ...] = (),
+                     ) -> tuple[bytes, bytes]:
+    """Selbstsigniertes X.509-Zertifikat → (Zertifikat DER, privater Schlüssel PKCS#8 DER).
+
+    ``kind``: „ed25519“ (Freigabe, Gegenstelle ist Bony's Agents) oder „ec“ (ECDSA P-256 – für Seiten, die im
+    Browser geöffnet werden). ``addresses``/``names`` landen als subjectAltName im Zertifikat.
+    """
+    if kind == "ec":
+        d = secrets.randbelow(_N - 1) + 1
+        x, y = _ec_mul(d)
+        point = b"\4" + x.to_bytes(32, "big") + y.to_bytes(32, "big")
+        spki = _seq(_seq(_oid("1.2.840.10045.2.1"), _oid("1.2.840.10045.3.1.7")), _der(0x03, b"\0" + point))
+        alg = _seq(_oid("1.2.840.10045.4.3.2"))
+
+        def sign(data: bytes) -> bytes:
+            return _ecdsa_sign(d, data)
+        key = _seq(_der(0x02, b"\0"), _seq(_oid("1.2.840.10045.2.1"), _oid("1.2.840.10045.3.1.7")),
+                   _der(0x04, _seq(_der(0x02, b"\1"), _der(0x04, d.to_bytes(32, "big")),
+                                   _der(0xA1, _der(0x03, b"\0" + point)))))
+    else:
+        seed = secrets.token_bytes(32)
+        alg = _seq(_ED25519)
+        spki = _seq(alg, _der(0x03, b"\0" + signing.ed25519_public_key(seed)))
+
+        def sign(data: bytes) -> bytes:
+            return signing.ed25519_sign(seed, data)
+        key = _seq(_der(0x02, b"\0"), alg, _der(0x04, _der(0x04, seed)))
     name = _seq(_der(0x31, _seq(_der(0x06, bytes.fromhex("550403")), _der(0x0C, common_name.encode()))))
     now = datetime.now(timezone.utc)
     serial = int.from_bytes(secrets.token_bytes(16), "big") >> 1 or 1
+    alt = b""
+    for a in addresses:
+        with contextlib.suppress(ValueError):
+            alt += _der(0x87, ipaddress.ip_address(a).packed)
+    for n in names:
+        if re.fullmatch(r"[A-Za-z0-9.-]{1,253}", n):
+            alt += _der(0x82, n.encode())
+    exts = _seq(_oid("2.5.29.37"), _der(0x04, _seq(_oid("1.3.6.1.5.5.7.3.1"))))  # nur Server-Authentifizierung
+    if alt:
+        exts += _seq(_oid("2.5.29.17"), _der(0x04, _seq(alt)))
     tbs = _seq(
         _der(0xA0, _der(0x02, b"\x02")),                                  # Version 3
         _der(0x02, serial.to_bytes((serial.bit_length() + 8) // 8, "big")),
         alg, name,
         _seq(_time(now - timedelta(hours=1)), _time(now + timedelta(days=days))),
         name,
-        _seq(alg, _der(0x03, b"\0" + pub)),
+        spki,
+        _der(0xA3, _seq(exts)),
     )
-    cert = _seq(tbs, alg, _der(0x03, b"\0" + signing.ed25519_sign(seed, tbs)))
-    key = _seq(_der(0x02, b"\0"), alg, _der(0x04, _der(0x04, seed)))
-    return cert, key
+    return _seq(tbs, alg, _der(0x03, b"\0" + sign(tbs))), key
 
 
 def _pem(label: str, der: bytes) -> str:
@@ -322,35 +449,77 @@ class Participant:
         return (self.total - self.done) / self.speed
 
 
-class Share:
+class Guarded:
+    """Gemeinsame Basis der Schulungs-Server (Freigabe, Vorführung): Code mit Ratenbegrenzung, Ereignisliste,
+    Zeitlimit. Unterklassen setzen ``stop()`` um."""
+
+    def __init__(self, code: str | None = None, timeout_min: int = DEFAULT_TIMEOUT_MIN):
+        self.code = normalize_code(code) if code else new_code()
+        self.timeout_min = max(1, int(timeout_min))
+        self.events: list[str] = []
+        self.lock = threading.Lock()
+        self.fails: dict[str, list[float]] = {}
+        self.fails_total = 0
+        self.deadline = 0.0
+        self.stopped = threading.Event()
+        self.stop_reason = ""
+
+    def remaining(self) -> float:
+        return max(0.0, self.deadline - time.monotonic()) if self.deadline else 0.0
+
+    def _event(self, text: str) -> None:
+        with self.lock:
+            self.events.append(f"{datetime.now().strftime('%H:%M:%S')} {text}")
+            del self.events[:-200]
+
+    def stop(self, reason: str = "Beendet.") -> None:
+        raise NotImplementedError
+
+    def locked(self, addr: str) -> bool:
+        now = time.monotonic()
+        with self.lock:
+            return len([t for t in self.fails.get(addr, []) if now - t < LOCK_SECONDS]) >= MAX_FAILS_PER_ADDR
+
+    def check_code(self, addr: str, code: str) -> str | None:
+        """None = in Ordnung, sonst Grund für die Ablehnung („gesperrt“/„falsch“)."""
+        now = time.monotonic()
+        with self.lock:
+            recent = [t for t in self.fails.get(addr, []) if now - t < LOCK_SECONDS]
+            self.fails[addr] = recent
+            if len(recent) >= MAX_FAILS_PER_ADDR:
+                return "gesperrt"
+            if hmac.compare_digest(normalize_code(code).encode(), self.code.encode()):
+                return None
+            recent.append(now)
+            self.fails_total += 1
+            too_many = self.fails_total >= MAX_FAILS_TOTAL
+        self._event(f"Falscher Code von {addr}.")
+        if too_many:
+            self.stop("Zu viele falsche Codes – zur Sicherheit beendet.")
+        return "falsch"
+
+
+class Share(Guarded):
     """Freigabe einer .bonys-Datei. ``start()`` … ``stop()``; Status über ``participants`` und ``events``."""
 
     def __init__(self, file: Path, *, port: int = DEFAULT_PORT, timeout_min: int = DEFAULT_TIMEOUT_MIN,
                  max_downloads: int = DEFAULT_MAX_DOWNLOADS, code: str | None = None, sha256: str | None = None,
                  bind: str = "", advertise: bool = True):
+        super().__init__(code, timeout_min)
         self.file = Path(file)
         self.manifest = bonysfile.read_manifest(self.file)
         self.size = self.file.stat().st_size
         self.sha256 = sha256 or file_sha256(self.file)
         self.port = port
         self.bind = bind
-        self.timeout_min = max(1, int(timeout_min))
         self.max_downloads = max(1, int(max_downloads))
-        self.code = normalize_code(code) if code else new_code()
         self.cert, key = make_certificate()
         self.fingerprint = hashlib.sha256(self.cert).hexdigest()
         self._ctx = server_context(self.cert, key)
         del key
         self.participants: dict[str, Participant] = {}
-        self.events: list[str] = []
-        self.lock = threading.Lock()
         self.active = 0
         self.waiting: list[str] = []
-        self.fails: dict[str, list[float]] = {}
-        self.fails_total = 0
-        self.deadline = 0.0
-        self.stopped = threading.Event()
-        self.stop_reason = ""
         self.advertise = advertise
         self.advertiser: mdns.Advertiser | None = None
         self.httpd: ThreadingHTTPServer | None = None
@@ -362,14 +531,6 @@ class Share:
 
     def link(self, host: str | None = None) -> str:
         return share_link(host or (self.addresses() or ["127.0.0.1"])[0], self.port, self.code, self.fingerprint)
-
-    def remaining(self) -> float:
-        return max(0.0, self.deadline - time.monotonic()) if self.deadline else 0.0
-
-    def _event(self, text: str) -> None:
-        with self.lock:
-            self.events.append(f"{datetime.now().strftime('%H:%M:%S')} {text}")
-            del self.events[:-200]
 
     # ---------- Lebenszyklus ----------
     def start(self) -> None:
@@ -425,24 +586,6 @@ class Share:
         self._event(reason)
 
     # ---------- Zugriff ----------
-    def check_code(self, addr: str, code: str) -> str | None:
-        """None = in Ordnung, sonst Grund für die Ablehnung („gesperrt“/„falsch“)."""
-        now = time.monotonic()
-        with self.lock:
-            recent = [t for t in self.fails.get(addr, []) if now - t < LOCK_SECONDS]
-            self.fails[addr] = recent
-            if len(recent) >= MAX_FAILS_PER_ADDR:
-                return "gesperrt"
-            if hmac.compare_digest(normalize_code(code).encode(), self.code.encode()):
-                return None
-            recent.append(now)
-            self.fails_total += 1
-            too_many = self.fails_total >= MAX_FAILS_TOTAL
-        self._event(f"Falscher Code von {addr}.")
-        if too_many:
-            self.stop("Zu viele falsche Codes – Freigabe zur Sicherheit beendet.")
-        return "falsch"
-
     def participant(self, addr: str, name: str) -> Participant:
         name = re.sub(r"[^\w .-]", "", name or "")[:40] or addr
         key = f"{addr}|{name}"
@@ -678,6 +821,8 @@ def fetch_info(target: Target) -> RemoteInfo:
         raise ShareError(f"Antwort des Kursleiter-Rechners nicht verstanden: {e}") from e
     finally:
         conn.close()
+    if isinstance(data, dict) and data.get("kind") == "present":
+        raise IsPresentation(target, str(data.get("title", ""))[:60], fp)
     m = bonysfile.validate_manifest(data.get("manifest"))
     f = data.get("file") or {}
     if not isinstance(f.get("size"), int) or not re.fullmatch(r"[0-9a-f]{64}", str(f.get("sha256", ""))):

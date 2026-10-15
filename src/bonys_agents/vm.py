@@ -7,6 +7,8 @@ CLI und Desktop-App nutzen beide ausschließlich diese Schnittstelle.
 from __future__ import annotations
 
 import base64
+import contextlib
+import hashlib
 import json
 import os
 import re
@@ -97,6 +99,20 @@ def _reap(pid: int) -> None:
 
 def data_dir() -> Path:
     return storage.data_dir()
+
+
+def vnc_socket_path(vm_path: Path) -> Path:
+    """Ort des VNC-Sockets: im Laufzeitordner des Benutzers (nicht beim Agent-PC – exFAT/NTFS können keine
+    Sockets), in einem Unterordner, den nur dieser Benutzer öffnen darf. Kurz genug für sun_path (108 Zeichen)."""
+    base = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / f"bonys-agents-{os.getuid()}"
+    base.mkdir(mode=0o700, exist_ok=True)
+    st = base.lstat()
+    if not base.is_dir() or base.is_symlink() or st.st_uid != os.getuid():
+        raise OSError(f"{base} gehört nicht diesem Benutzer")
+    if st.st_mode & 0o077:
+        base.chmod(0o700)
+    key = hashlib.sha256(str(Path(vm_path).resolve()).encode()).hexdigest()[:16]
+    return base / f"{key}.vnc"
 
 
 def vms_dir() -> Path:
@@ -639,6 +655,37 @@ class VM:
             raise RuntimeError(f"Vollbild ließ sich nicht umschalten ({e}).\n\n{hint}") from None
         return "Vollbild umgeschaltet – zurück mit Strg+Alt+F."
 
+    # ---------- Bildschirm per VNC (nur lokal – für Schulungen: Vorführen, Hilfe-Modus) ----------
+    def _vnc_target(self) -> str:
+        """„unix:PFAD“ (Linux/macOS: Socket in einem nur für diesen Benutzer lesbaren Ordner) bzw. „127.0.0.1:N“."""
+        if sys.platform == "win32":
+            return f"127.0.0.1:{qemu.free_vnc_display()}"
+        return "unix:" + str(vnc_socket_path(self.path))
+
+    def vnc_available(self) -> bool:
+        """Läuft der Agent-PC mit lokalem VNC? (Agent-PCs, die vor Version 0.18 gestartet wurden: erst nach
+        einem Neustart.)"""
+        return self.is_running() and bool(self.runtime().get("vnc"))
+
+    def vnc_connect(self, timeout: float = 5.0) -> socket.socket:
+        """Verbindung zum lokalen VNC-Bildschirm dieses Agent-PCs (RFB, ohne Passwort – nur lokal erreichbar)."""
+        target = self.runtime().get("vnc") if self.is_running() else None
+        if not target:
+            raise RuntimeError(f"„{self.name}“ zeigt seinen Bildschirm noch nicht für Schulungen – einmal neu starten.")
+        if target.startswith("unix:"):
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            try:
+                sock.connect(target[5:])
+            except OSError:
+                sock.close()
+                raise
+        else:
+            host_part, display = target.rsplit(":", 1)
+            sock = socket.create_connection((host_part, 5900 + int(display)), timeout=timeout)
+        sock.settimeout(None)
+        return sock
+
     def capabilities(self) -> dict:
         qemu_bin = qemu.find_binary(qemu.ARCH_BINARY[self.config.arch], host.detect().os)
         return qemu.capabilities(qemu_bin, storage.data_dir() / "qemu-capabilities.json")
@@ -722,6 +769,13 @@ class VM:
         audio = "spice" if spice_ok and qemu_headless else qemu.host_audio_driver(info.os, caps["audio"])
         screen_mode, screen_size = self.screen_settings()
         screen_setting = screen.guest_setting(screen_mode, screen_size)
+        try:
+            vnc = self._vnc_target()
+        except (OSError, RuntimeError):
+            vnc = None  # Agent-PC startet trotzdem – nur Vorführen/Hilfe gehen dann nicht
+        if vnc and vnc.startswith("unix:"):
+            with contextlib.suppress(OSError):
+                os.unlink(vnc[5:])
         spec = qemu.LaunchSpec(
             # Fremde Architektur (z. B. amd64-Vorlage auf einem Mac mit Apple-Chip): nur Emulation (TCG), sehr langsam
             qemu_bin=qemu_bin, arch=c.arch, accel=info.accel if c.arch == info.arch else "tcg",
@@ -738,6 +792,7 @@ class VM:
             extra_forwards=() if self.restrict_net else mission_control.launch_forwards(self),
             spice_addr=REMOTE_ADDR if spice_lan else "127.0.0.1",
             spice_port=c.spice_port if spice_ok else None, spice_password_file=pw_file, audio=audio,
+            vnc=vnc,
         )
         cmd = qemu.build_command(spec)
         # Feste Ports (SPICE, RDP) kurz frei werden lassen, z. B. direkt nach dem Ausschalten
@@ -759,7 +814,7 @@ class VM:
                         "command": cmd, "started": time.time(), "pid": proc.pid,
                         "remote_on": remote_on, "spice_lan": spice_lan,
                         "rdp_port": c.rdp_port, "spice_port": c.spice_port if spice_ok else None,
-                        "audio": audio, "screen_setting": screen_setting}),
+                        "audio": audio, "screen_setting": screen_setting, "vnc": vnc}),
             "utf-8",
         )
         # Kurz warten: scheitert QEMU sofort (z. B. falsche Option), Fehler melden.

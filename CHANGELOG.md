@@ -3,6 +3,33 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.18.0 – Schulungen: Live-Vorführung
+
+### Neu
+- **Vorführen:** Den Bildschirm eines laufenden Agent-PCs live im Browser der Teilnehmer zeigen (Laptop, Tablet,
+  Handy – dort muss nichts installiert sein). Detailansicht → „Vorführen …“ bzw. `bonys-agents present NAME`.
+  Code, Adressen, QR-Code (Code schon eingetragen), Fingerabdruck, Liste der Zuschauer, „Pause“ (alle sehen nur
+  „Gleich geht's weiter“ – kein Bild, bis „Weiter“), „Zuschauer entfernen“, „Vorführung beenden“. Qualität und
+  Bildrate wählbar (Standard: fürs WLAN), höchstens 30 Zuschauer (einstellbar), endet nach 90 Minuten
+  (einstellbar) und wenn der Agent-PC ausgeschaltet wird. Vor dem Start der Hinweis, vor Passwörtern und Tokens
+  zu pausieren.
+- **Nur ansehen – im Server erzwungen:** Bony's Agents prüft jede Nachricht vom Browser zum Agent-PC und lässt
+  nur durch, was für das Bild nötig ist. Tastatur, Maus, Zwischenablage und Steuerbefehle der Zuschauer kommen nie
+  an (die Browser-Ansicht – noVNC – läuft zusätzlich im Nur-ansehen-Modus).
+- **Teilnehmer im Browser:** Name und Code eingeben, Bild passt sich dem Fenster an, Vollbild, Statusanzeige
+  (verbunden/Pause/beendet), verbindet sich nach kurzen WLAN-Aussetzern selbst wieder. „Kurs beitreten“ in
+  Bony's Agents zeigt laufende Vorführungen ebenfalls an und öffnet sie im Browser.
+- Bildrate sinkt automatisch bei vielen Zuschauern oder hoher Rechenlast.
+
+### Geändert
+- Agent-PCs stellen ihren Bildschirm zusätzlich **nur lokal** per VNC bereit (Unix-Socket, den nur dein Benutzer
+  öffnen darf; unter Windows 127.0.0.1) – Voraussetzung fürs Vorführen. Agent-PCs, die noch mit einer älteren
+  Version laufen, einmal neu starten („Jetzt neu starten“ im Vorführen-Fenster).
+- Adressen bei Freigabe und Vorführung: Docker- und VM-Netze dieses Rechners werden nicht mehr angezeigt,
+  VPN-Adressen (z. B. WireGuard über den NetworkManager) als „VPN“ gekennzeichnet.
+- Der Freigabe-Code steht wieder groß im Freigabe-Fenster.
+- Mitgeliefert: noVNC 1.7.0 (MPL-2.0), beim Bauen aus dem offiziellen Release mit Prüfsumme geholt.
+
 ## 0.17.1
 
 ### Behoben

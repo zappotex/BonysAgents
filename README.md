@@ -80,7 +80,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.17.1` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.18.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -525,8 +525,62 @@ bonys-agents join 192.168.1.5:47110 4711-BONY [--create teilnehmer-pc]
 bonys-agents join "bonys://192.168.1.5:47110?code=4711-BONY&fp=…"   # Link aus dem QR-Code
 ```
 
-Ausblick (siehe `docs/plan-schulung.md`): Live-Vorführung im Browser (nur ansehen), Hilfe-Modus mit
-Zustimmung, Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
+## Schulungen: Vorführen und Helfen
+
+### Vorführen (Kursleiter zeigt seinen Agent-PC)
+
+Der Kursleiter zeigt den Bildschirm seines Agent-PCs **live im Browser** der Teilnehmer – auf Laptop, Tablet
+oder Handy, ohne dass dort etwas installiert sein muss. Die Teilnehmer können **nur zuschauen**.
+
+**Kursleiter:** Agent-PC starten → in der Detailansicht **„Vorführen …“** → Qualität, höchstens Zuschauer
+(Standard 30), Dauer (Standard 90 Minuten) und Port (Standard **47120**) wählen → „Vorführung starten“. Vorher
+erscheint der Hinweis: *Alle Teilnehmer sehen alles, was im Agent-PC angezeigt wird. Nutze Pause, bevor du
+Passwörter oder Tokens eingibst.* Danach zeigt das Fenster:
+
+- den **Code** (z. B. `4711-BONY`) und die **Adresse(n)** zum Eintippen im Browser (`https://192.168.1.5:47120`),
+- einen **QR-Code** – mit der Handy-Kamera scannen, der Code ist dann schon eingetragen,
+- den **Fingerabdruck** des Zertifikats,
+- die **Zuschauer** (Name, Adresse, verbunden/getrennt, wie oft jemand vergeblich tippen oder klicken wollte),
+- **„Pause“**: Alle Zuschauer sehen sofort nur noch „Gleich geht's weiter …“ und bekommen **kein einziges Bild**,
+  bis „Weiter“ – vorher Passwörter, Tokens oder private Nachrichten eingeben,
+- **„Zuschauer entfernen“** (die Adresse ist danach 5 Minuten gesperrt) und **„Vorführung beenden“**.
+
+Die Vorführung endet von selbst nach der eingestellten Zeit und sobald der Agent-PC ausgeschaltet wird.
+
+**Teilnehmer:** Im Browser die angezeigte Adresse öffnen (oder den QR-Code scannen), Name und Code eingeben –
+fertig. Das Bild passt sich der Fenstergröße an, „⛶“ schaltet auf Vollbild, oben rechts steht der Status
+(verbunden, Pause, beendet). Bricht das WLAN kurz ab, verbindet sich die Seite selbst wieder. Wer Bony's Agents
+installiert hat, findet laufende Vorführungen auch unter **„Kurs beitreten“** – sie öffnen sich im Browser.
+
+**Der Browser warnt vor dem Zertifikat** („Verbindung nicht privat“) – das ist bei einem eigenen Zertifikat für
+jede Vorführung normal: „Erweitert“ → „Weiter zu …“. Wer sicher gehen will, vergleicht den Fingerabdruck in den
+Zertifikatsdetails des Browsers mit dem auf dem Bildschirm des Kursleiters.
+
+**Ton ist nicht dabei** – im Raum sprechen oder zusätzlich z. B. [Jitsi Meet](https://meet.jit.si) nutzen.
+
+**Qualität:** „mittel“ (10 Bilder/s) passt fürs WLAN, „niedrig“ (5) für langsame Netze, „hoch“ (20) für Kabel.
+Ab 9 Zuschauern senkt Bony's Agents die Bildrate anteilig, bei hoher Rechenlast ebenfalls (Anzeige im Fenster).
+
+**Sicherheit:**
+
+- **Zuschauen wird erzwungen, nicht nur angezeigt:** Bony's Agents liest jede Nachricht vom Browser zum
+  Agent-PC und lässt nur durch, was für das Bild nötig ist. Tastatur, Maus, Zwischenablage, Neustart-Befehle
+  und alles Unbekannte werden verworfen (die Browser-Ansicht läuft zusätzlich im Nur-ansehen-Modus). Auch in
+  der Gegenrichtung kommt keine Zwischenablage an.
+- Der Bildschirm des Agent-PCs ist nur **lokal** erreichbar (QEMU-VNC über einen Unix-Socket, den nur dein
+  Benutzer öffnen darf; unter Windows nur über 127.0.0.1) – ins Netz geht er ausschließlich verschlüsselt über
+  Bony's Agents, nur mit Code und nur, solange die Vorführung läuft.
+- Wie bei der Freigabe: eigenes Zertifikat für jede Vorführung, 5 falsche Codes → eine Minute gesperrt, zu viele
+  insgesamt → die Vorführung endet. Firewall-Hinweise wie oben, nur mit Port 47120.
+- Agent-PCs, die vor Version 0.18 gestartet wurden, müssen **einmal neu gestartet** werden („Jetzt neu
+  starten“ im Fenster) – erst dann stellt QEMU den Bildschirm lokal bereit.
+
+```bash
+bonys-agents present kurs-pc [--port 47120] [--timeout 90] [--max-viewers 30] [--quality low|medium|high]
+```
+
+Ausblick (siehe `docs/plan-schulung.md`): Hilfe-Modus (Kursleiter sieht bzw. steuert einen Teilnehmer-Agent-PC –
+nur mit Zustimmung), Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
 
 ## Fernzugriff (RDP und SPICE)
 
@@ -723,6 +777,7 @@ eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browse
 | Hermes Agent | ja | MIT |
 | OpenClaw | ja | MIT |
 | xrdp (Fernzugriff), Remmina | ja | Apache-2.0, GPL-2.0-or-later |
+| [noVNC](https://github.com/novnc/noVNC) 1.7.0 (Browser-Ansicht beim Vorführen, im Paket mitgeliefert, Lizenztexte unter `resources/novnc/`) | ja | MPL-2.0 (pako: MIT) |
 | WireGuard (wireguard-tools, Apps für Windows und macOS) | ja | GPL-2.0, MIT |
 | **Claude Code** | **nein** | proprietär (Anthropic). Nutzung braucht ein kostenpflichtiges Claude-Abo oder API-Guthaben |
 | **Obsidian** | **nein** | proprietär, für die private Nutzung kostenlos |

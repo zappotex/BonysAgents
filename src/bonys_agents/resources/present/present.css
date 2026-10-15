@@ -1,0 +1,33 @@
+:root { color-scheme: dark; --bg: #0f1218; --card: #1a1f29; --fg: #e8ecf3; --muted: #9aa4b5; --accent: #4f8cff;
+        --ok: #3ccf7a; --warn: #f2b84b; --bad: #ff6b6b; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+             font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+body.join { display: flex; align-items: center; justify-content: center; padding: 16px; }
+.card { background: var(--card); border-radius: 14px; padding: 28px; width: 100%; max-width: 420px; }
+.logo { width: 64px; height: 64px; display: block; margin-bottom: 8px; }
+h1 { font-size: 22px; margin: 4px 0 8px; }
+label { display: block; margin: 14px 0 4px; font-weight: 600; }
+input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #333b4a; background: #11151c;
+        color: var(--fg); font-size: 17px; }
+#code { letter-spacing: 2px; text-transform: uppercase; }
+button { cursor: pointer; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 16px; color: #fff;
+         background: var(--accent); }
+form button { width: 100%; margin-top: 18px; }
+.msg { min-height: 1.4em; color: var(--bad); }
+body.view { overflow: hidden; background: #000; }
+#screen { position: fixed; inset: 0; }
+.bar { position: fixed; top: 8px; right: 8px; display: flex; gap: 10px; align-items: center; padding: 6px 10px;
+       background: rgba(15, 18, 24, .82); border-radius: 10px; font-size: 14px; opacity: .9; z-index: 5; }
+.bar button { padding: 4px 10px; font-size: 14px; background: #2b3343; }
+.state::before { content: "●"; margin-right: 6px; color: var(--muted); }
+.state.live::before { color: var(--ok); }
+.state.paused::before { color: var(--warn); }
+.state.ended::before, .state.lost::before { color: var(--bad); }
+.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+           background: var(--bg); z-index: 4; text-align: center; padding: 16px; }
+.overlay[hidden] { display: none; }
+.overlay h1 { font-size: 34px; }
+.overlay a { color: var(--accent); }
