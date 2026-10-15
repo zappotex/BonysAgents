@@ -6,10 +6,18 @@ Nur in „Bony's Agents Kursleiter“ – ``bonys_agents.cli`` hängt die Befehl
 
 from __future__ import annotations
 
+import contextlib
+import signal
 import sys
 
 from bonys_agents import host, vm
 from bonys_agents.cli import _print_qr, _template_progress
+
+
+def _ignore_further_interrupts() -> None:
+    """Ein zweites Strg+C mitten im Aufräumen (Server stoppen, mDNS abmelden) brächte halbe Zustände."""
+    with contextlib.suppress(ValueError, OSError):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 def register(sub) -> None:
@@ -88,6 +96,7 @@ def cmd_share(args) -> int:
                                          + (f" {p.percent:.0f} %" if p.status == "lädt" else f" (Platz {p.queue})")
                                          for p in busy), flush=True)
     except KeyboardInterrupt:
+        _ignore_further_interrupts()
         s.stop("Freigabe beendet (Strg+C).")
     for line in s.events[shown:]:
         print(line)
@@ -123,6 +132,7 @@ def cmd_present(args) -> int:
             for line in new_events:
                 print(line, flush=True)
     except KeyboardInterrupt:
+        _ignore_further_interrupts()
         p.stop("Vorführung beendet (Strg+C).")
     for line in p.events[shown:]:
         print(line)

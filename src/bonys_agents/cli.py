@@ -1147,7 +1147,13 @@ def cmd_join(args) -> int:
     target = share.parse_target(args.address, args.code or "", args.fingerprint or "")
     if not target.code:
         target.code = share.normalize_code(input("Freigabe-Code (z. B. 4711-BONY): "))
-    info = share.fetch_info(target)
+    try:
+        info = share.fetch_info(target)
+    except share.IsPresentation as e:
+        print(f"Unter {target.netloc} läuft keine Freigabe, sondern die Vorführung „{e.title}“ – im Browser öffnen:")
+        print(f"  {e.url()}")
+        print(f"  Fingerabdruck zum Vergleichen: {share.short_fingerprint(e.fingerprint)}")
+        return 0
     print(f"Verbunden mit {target.netloc}. Fingerabdruck: {share.short_fingerprint(info.fingerprint)}")
     if not target.fingerprint:
         print(f"   ganz: {share.format_fingerprint(info.fingerprint)}")

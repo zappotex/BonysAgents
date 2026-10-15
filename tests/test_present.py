@@ -454,3 +454,11 @@ def test_cli_parses_present():
     args = cli.build_parser().parse_args(["present", "kurs-pc", "--port", "5000", "--timeout", "30",
                                           "--max-viewers", "12", "--quality", "low"])
     assert (args.name, args.port, args.timeout, args.max_viewers, args.quality) == ("kurs-pc", 5000, 30, 12, "low")
+
+
+def test_cli_join_shows_browser_address_of_presentation(pres, capsys):
+    from bonys_agents import cli
+
+    assert cli.main(["join", f"127.0.0.1:{pres.port}", pres.code, "--fingerprint", pres.fingerprint]) == 0
+    out = capsys.readouterr().out
+    assert "Vorführung „kurs-pc“" in out and f"https://127.0.0.1:{pres.port}/#code={pres.code}" in out

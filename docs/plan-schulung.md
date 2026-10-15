@@ -245,7 +245,19 @@ Ab 0.19.0 liegen Server und Kursleiter-Dialoge in `trainer/` (`trainer/present.p
     aus `vorlage-agent-pc-1` bekam das Bild beim ersten Start, Xfce darin (alter Zustand nachgestellt) live
     umgestellt, eigenes Xfce-Bild blieb. README zeigt keinen Agent-PC-Hintergrund – nichts zu tauschen.
     Test-Agent-PC `wp-test` kann gelöscht werden.
-  - Nächste Schritte: Gesamttest
-    (Wechsel der .deb nur nach Rückfrage wegen sudo), Version 0.19.0, Zusammenfassung an den Nutzer.
+  - Teil C committet (7bf0b7e). **Gesamttest (Version 0.19.0, beide .deb gebaut):** Anwender-.deb installiert (Update
+    von 0.18) → Agent-PC `gesamttest` aus Vorlage erstellt, neues Bild sichtbar → Kursleiter-.deb (ersetzt
+    bonys-agents, Agent-PCs auch laufende da, `present` da, Startmenü „Bony's Agents Kursleiter“, Paketquelle bleibt)
+    → Zusammenspiel: Kursleiter führt `gesamttest` vor, gebaute Anwender-Version erkennt die Vorführung, Browser-
+    Zuschauer (curl) „live“, Hilfe-Anfrage aus Anwender-Code ohne trainer/ kommt beim Kursleiter an; Kursleiter gibt
+    `vorlage-agent-pc-1` frei, Anwender-Version lädt und importiert sie als `kurs-gesamttest-019` → zurück auf
+    Anwender (Kursleiter-Teile weg, alles andere da). Tests: Kursleiter 435, Anwender 383, ruff sauber.
+  - Dabei gefunden und behoben: `join` auf eine Vorführung meldete „Fehler“ statt die Browser-Adresse; ein zweites
+    Strg+C beim Beenden von share/present konnte „release unlocked lock“ auslösen (weitere Strg+C werden beim
+    Aufräumen jetzt ignoriert).
+  - Testdaten (können gelöscht werden): Agent-PCs `wp-test` (Xfce), `gesamttest`, Vorlage `kurs-gesamttest-019`.
+    Installiert ist bonys-agents 0.19.0 (Anwender); bonys-agents-kursleiter steht noch als „config-files“ (harmlos,
+    `sudo apt purge bonys-agents-kursleiter` räumt es weg).
+  - **Wartet auf Test und OK des Nutzers**, danach Tag v0.19.0 (CI vorher abwarten).
 - **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt (gehört nach `trainer/`); Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).
