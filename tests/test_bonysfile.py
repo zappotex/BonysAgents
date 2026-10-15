@@ -394,6 +394,17 @@ def test_import_rejects_tampered_disk(datadir, tmp_path):
     assert not any((tmp_path / "lib" / "_templates").iterdir())
 
 
+def test_import_rejects_external_data_file(datadir, monkeypatch, tmp_path):
+    # qcow2 Version 3 mit gesetztem Bit „externe Datendatei“ – qemu-img darf sie gar nicht erst öffnen
+    disk = (b"QFI\xfb" + (3).to_bytes(4, "big")).ljust(72, b"\0") + (1 << 2).to_bytes(8, "big")
+    disk = disk.ljust(100, b"\0") + (104).to_bytes(4, "big") + b"\0" * 8
+    monkeypatch.setattr(qemu, "check_disk", lambda *a: pytest.fail("qemu-img check vor der Kopfprüfung"))
+    monkeypatch.setattr(qemu, "find_binary", lambda name, os_: Path("/bin/true"))
+    with pytest.raises(ValueError, match="externe Datendatei"):
+        bonysfile.import_bundle(_bundle(tmp_path, disk), location=tmp_path / "lib")
+    assert not any((tmp_path / "lib" / "_templates").iterdir())
+
+
 def test_import_rejects_truncated_and_foreign_files(datadir, tmp_path):
     f = _bundle(tmp_path)
     f.write_bytes(f.read_bytes()[:3000])

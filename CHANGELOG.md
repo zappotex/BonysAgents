@@ -13,6 +13,12 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   Unter Windows sind sie über TLS verschlüsselt und nur mit einem Zertifikat erreichbar, das Bony's Agents bei
   jedem Start neu erzeugt (Ordner `.steuerung` im Agent-PC-Ordner). SPICE an einem Port (Heimnetz, Windows) gibt
   es nur noch mit Passwort. Laufende Agent-PCs einmal neu starten.
+- **Festplatten aus fremden Quellen können keine Dateien deines Rechners mehr lesen.** Eine präparierte
+  qcow2-Festplatte (in einer `.bonys`-Datei, einer alten Vorlagen-Datei oder auf einem fremden Laufwerk) konnte
+  auf eine beliebige Datei deines Rechners zeigen, z. B. einen SSH-Schlüssel – der Agent-PC hätte sie als
+  Festplatte gesehen. Bony's Agents prüft den Kopf jeder solchen Festplatte jetzt selbst, bevor QEMU oder
+  qemu-img sie öffnen: keine externe Datendatei, beim Import keine Backing-Datei, beim Start nur Vorlagen im
+  qcow2-Format ohne Protokoll-Angaben wie `json:` oder `nbd:`.
 
 ## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
 

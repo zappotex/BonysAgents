@@ -541,6 +541,89 @@ def backing_file(disk: Path) -> Path | None:
     return p if p.is_absolute() else disk.parent / p
 
 
+_QCOW2_DATA_FILE_BIT = 1 << 2      # incompatible_features: Daten liegen in einer externen Datei
+_EXT_DATA_FILE = 0x44415441        # Kopf-Erweiterung „Name der externen Datei“
+_EXT_BACKING_FORMAT = 0xE2792ACA   # Kopf-Erweiterung „Format der Backing-Datei“
+_PROTOCOL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]+:")  # json:, nbd:, http: … (nicht „C:“)
+
+
+def _qcow2_header(disk: Path) -> dict:
+    """Die sicherheitsrelevanten Teile des qcow2-Kopfs – ValueError, wenn es kein qcow2 ist."""
+    with open(disk, "rb") as f:
+        head = f.read(104)
+        if len(head) < 72 or head[:4] != b"QFI\xfb":
+            raise ValueError(f"{disk.name} ist kein qcow2-Festplattenabbild.")
+        version = int.from_bytes(head[4:8], "big")
+        if version not in (2, 3):
+            raise ValueError(f"{disk.name}: unbekannte qcow2-Version {version}.")
+        offset, size = int.from_bytes(head[8:16], "big"), int.from_bytes(head[16:20], "big")
+        backing = None
+        if offset and size:
+            if size > 1023:
+                raise ValueError(f"{disk.name}: ungültiger Verweis auf eine Backing-Datei.")
+            f.seek(offset)
+            backing = f.read(size).decode("utf-8", errors="replace")
+        incompatible, ext_start = 0, 72
+        if version == 3:
+            if len(head) < 104:
+                raise ValueError(f"{disk.name}: qcow2-Kopf ist zu kurz.")
+            incompatible = int.from_bytes(head[72:80], "big")
+            ext_start = int.from_bytes(head[100:104], "big")
+        extensions: dict[int, bytes] = {}
+        f.seek(ext_start)
+        for _ in range(64):
+            raw = f.read(8)
+            if len(raw) < 8:
+                break
+            typ, length = int.from_bytes(raw[:4], "big"), int.from_bytes(raw[4:], "big")
+            if typ == 0:
+                break
+            if length > 65536:
+                raise ValueError(f"{disk.name}: ungültige qcow2-Kopferweiterung.")
+            extensions[typ] = f.read(length)
+            f.seek((8 - length % 8) % 8, os.SEEK_CUR)
+    return {"backing": backing, "incompatible": incompatible, "extensions": extensions}
+
+
+def check_disk_safe(disk: Path, allow_backing: bool = False, require_qcow2: bool = True) -> None:
+    """Festplatte darf nur aus sich selbst (und ggf. einer Vorlage) lesen – ValueError sonst.
+
+    Abgelehnt werden eine externe Datendatei (``data_file``, könnte auf beliebige Dateien des Rechners zeigen),
+    Backing-Verweise mit Protokoll (``json:``, ``nbd:`` …), Backing-Formate außer qcow2 und – ohne
+    ``allow_backing`` – jede Backing-Datei. Bei erlaubter Backing-Datei wird die ganze Kette geprüft;
+    jede Datei darin muss ein qcow2-Abbild sein. Läuft ohne qemu-img, also bevor QEMU die Datei öffnet.
+    ``require_qcow2=False``: ist ``disk`` selbst kein qcow2, nichts prüfen (QEMU öffnet sie nur als qcow2).
+    """
+    seen: set[Path] = set()
+    current = Path(disk)
+    if not require_qcow2:
+        with open(disk, "rb") as f:
+            if f.read(4) != b"QFI\xfb":
+                return
+    for _ in range(16):
+        h = _qcow2_header(current)
+        if h["incompatible"] & _QCOW2_DATA_FILE_BIT or _EXT_DATA_FILE in h["extensions"]:
+            raise ValueError(f"{current.name} verweist auf eine externe Datendatei – so eine Festplatte "
+                             "könnte Dateien deines Rechners lesen und wird nicht verwendet.")
+        name = h["backing"]
+        if name is None:
+            return
+        if not allow_backing:
+            raise ValueError(f"{current.name} ist nicht eigenständig (verweist auf {name}).")
+        fmt = h["extensions"].get(_EXT_BACKING_FORMAT)
+        if "\0" in name or _PROTOCOL_RE.match(name) or (fmt is not None and fmt.rstrip(b"\0") != b"qcow2"):
+            raise ValueError(f"{current.name} hat einen unzulässigen Verweis auf eine Backing-Datei: {name}")
+        p = Path(name)
+        nxt = (p if p.is_absolute() else current.parent / p).resolve()
+        if nxt in seen:
+            raise ValueError(f"{current.name}: Backing-Dateien verweisen im Kreis.")
+        seen.add(nxt)
+        if not nxt.exists():
+            return  # fehlende Vorlage meldet der Aufrufer verständlicher
+        current = nxt
+    raise ValueError(f"{disk.name}: zu viele verschachtelte Backing-Dateien.")
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))

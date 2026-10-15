@@ -802,9 +802,8 @@ def import_bundle(file: Path, location: Path | None = None, name: str | None = N
         if progress:
             progress("import", 0.96, "Prüfe die Festplatte (qemu-img check) …")
         qemu_img = qemu.find_binary("qemu-img", host.detect().os)
+        qemu.check_disk_safe(part / DISK)  # vor qemu-img: kein data_file, kein Backing
         qemu.check_disk(qemu_img, part / DISK)
-        if qemu.backing_file(part / DISK) is not None:
-            raise ValueError("Die Festplatte in der Datei ist nicht eigenständig.")
         vsize = qemu.virtual_size(qemu_img, part / DISK)
         rec = m.get("recommended", {})
         disk_gb = max(int(rec.get("disk_gb", 0)), -(-vsize // storage.GB))

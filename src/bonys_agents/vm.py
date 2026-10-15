@@ -379,6 +379,9 @@ class VM:
         if self.template_missing():
             raise RuntimeError(f"„{self.name}“ ist mit einer Vorlage verknüpft, die nicht erreichbar ist:\n"
                                f"{self.backing_file()}\nIst das Laufwerk eingesteckt?")
+        if self.disk.exists():
+            # Agent-PC kann von einem fremden Laufwerk stammen: keine Verweise auf Dateien des Rechners
+            qemu.check_disk_safe(self.disk, allow_backing=True, require_qcow2=False)
 
     def make_independent(self, progress: Callable[[float], None] | None = None) -> None:
         """Verknüpften Agent-PC in eine unabhängige Festplatte umwandeln (übernimmt die Daten der Vorlage)."""
@@ -1768,6 +1771,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
                            "komprimiert, entpackt deutlich mehr).")
     qemu_img = qemu.find_binary("qemu-img", info.os)
     qemu.find_binary(qemu.ARCH_BINARY[tpl.arch], info.os)
+    qemu.check_disk_safe(tpl.disk)  # Vorlage kann von einem fremden Laufwerk stammen
 
     cfg = VMConfig(
         name=name, arch=tpl.arch,

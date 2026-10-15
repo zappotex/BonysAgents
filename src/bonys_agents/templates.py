@@ -513,9 +513,8 @@ def import_file(file: Path, location: Path | None = None, name: str | None = Non
                                  f"Importiere … {done // host.MB} / {disk.size // host.MB} MB")
             if progress:
                 progress("import", 1.0, "Prüfe die Vorlage (qemu-img check) …")
+            qemu.check_disk_safe(part / "disk.qcow2")  # vor qemu-img: kein data_file, kein Backing
             qemu.check_disk(qemu.find_binary("qemu-img", host.detect().os), part / "disk.qcow2")
-            if qemu.backing_file(part / "disk.qcow2") is not None:
-                raise ValueError("Die Festplatte in der Vorlagen-Datei ist nicht eigenständig.")
             info.path, info.name = part, name
             info.size = (part / "disk.qcow2").stat().st_size
             info.save()

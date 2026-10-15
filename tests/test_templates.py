@@ -141,6 +141,80 @@ def test_backing_file_parser_without_qemu_img(tmp_path):
     assert qemu.backing_file(tmp_path / "fehlt.qcow2") is None
 
 
+def _qcow2(backing: bytes = b"", incompatible: int = 0, extensions: tuple = ()) -> bytes:
+    """qcow2-Kopf (Version 3) mit Kopf-Erweiterungen und Backing-Namen – genug für ``check_disk_safe``."""
+    exts = b""
+    for typ, data in extensions:
+        exts += typ.to_bytes(4, "big") + len(data).to_bytes(4, "big") + data + b"\0" * ((8 - len(data) % 8) % 8)
+    exts += b"\0" * 8
+    offset = 104 + len(exts) if backing else 0
+    head = (b"QFI\xfb" + (3).to_bytes(4, "big") + offset.to_bytes(8, "big") + len(backing).to_bytes(4, "big"))
+    head = head.ljust(72, b"\0") + incompatible.to_bytes(8, "big") + b"\0" * 16 + (4).to_bytes(4, "big")
+    return head + (104).to_bytes(4, "big") + exts + backing
+
+
+def test_check_disk_safe_rejects_external_data_file(tmp_path):
+    disk = tmp_path / "disk.qcow2"
+    disk.write_bytes(_qcow2())
+    qemu.check_disk_safe(disk)  # eigenständig: in Ordnung
+    disk.write_bytes(_qcow2(incompatible=1 << 2))
+    with pytest.raises(ValueError, match="externe Datendatei"):
+        qemu.check_disk_safe(disk)
+    disk.write_bytes(_qcow2(extensions=((0x44415441, b"/home/x/.ssh/id_ed25519"),)))
+    with pytest.raises(ValueError, match="externe Datendatei"):
+        qemu.check_disk_safe(disk, allow_backing=True)
+    for bad in (b"kein qcow2", b"QFI\xfb" + b"\0" * 100):
+        disk.write_bytes(bad)
+        with pytest.raises(ValueError):
+            qemu.check_disk_safe(disk)
+
+
+def test_check_disk_safe_backing_chain(tmp_path):
+    tpl = tmp_path / "_templates" / "basis" / "disk.qcow2"
+    tpl.parent.mkdir(parents=True)
+    tpl.write_bytes(_qcow2())
+    disk = tmp_path / "vm" / "disk.qcow2"
+    disk.parent.mkdir()
+    fmt = ((0xE2792ACA, b"qcow2"),)
+    disk.write_bytes(_qcow2(b"../_templates/basis/disk.qcow2", extensions=fmt))
+    with pytest.raises(ValueError, match="nicht eigenständig"):
+        qemu.check_disk_safe(disk)
+    qemu.check_disk_safe(disk, allow_backing=True)
+    # Die Vorlage selbst darf nicht auf eine externe Datendatei zeigen
+    tpl.write_bytes(_qcow2(incompatible=1 << 2))
+    with pytest.raises(ValueError, match="externe Datendatei"):
+        qemu.check_disk_safe(disk, allow_backing=True)
+    # Backing auf eine beliebige Datei des Rechners (kein qcow2), mit Protokoll oder als raw
+    secret = tmp_path / "id_ed25519"
+    secret.write_text("geheim")
+    for backing, ext in ((str(secret).encode(), ()), (b'json:{"driver":"file","filename":"/etc/shadow"}', ()),
+                         (b"nbd://10.0.2.2/x", ()), (b"../_templates/basis/disk.qcow2", ((0xE2792ACA, b"raw"),))):
+        disk.write_bytes(_qcow2(backing, extensions=ext))
+        with pytest.raises(ValueError):
+            qemu.check_disk_safe(disk, allow_backing=True)
+    # Kreis
+    disk.write_bytes(_qcow2(b"disk.qcow2"))
+    with pytest.raises(ValueError, match="Kreis"):
+        qemu.check_disk_safe(disk, allow_backing=True)
+
+
+@needs_qemu_img
+def test_check_disk_safe_with_real_data_file(tmp_path):
+    secret = tmp_path / "id_ed25519"
+    secret.write_bytes(b"geheim" * 1000)
+    disk = tmp_path / "disk.qcow2"
+    subprocess.run([QEMU_IMG, "create", "-q", "-f", "qcow2", "-o", f"data_file={secret},data_file_raw=on",
+                    str(disk), "1M"], check=True)
+    with pytest.raises(ValueError, match="externe Datendatei"):
+        qemu.check_disk_safe(disk, allow_backing=True)
+    plain = tmp_path / "plain.qcow2"
+    subprocess.run([QEMU_IMG, "create", "-q", "-f", "qcow2", str(plain), "1M"], check=True)
+    overlay = tmp_path / "vm" / "disk.qcow2"
+    qemu.create_overlay(Path(QEMU_IMG), plain, overlay, relative=True)
+    qemu.check_disk_safe(plain)
+    qemu.check_disk_safe(overlay, allow_backing=True)
+
+
 # ---------- echte Abbilder mit qemu-img ----------
 def _use_real_qemu_img(monkeypatch):
     monkeypatch.setattr(qemu, "find_binary",
