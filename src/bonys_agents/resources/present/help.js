@@ -4,11 +4,9 @@
 let RFB = null;
 
 const frag = new URLSearchParams(location.hash.slice(1));
-const sid = frag.get("s") || sessionStorage.getItem("bonys-help-s") || "";
+const sid = (location.pathname.match(/^\/help\/([0-9a-f]{8})$/) || [])[1] || "";
 const token = frag.get("t");
-if (frag.get("s")) sessionStorage.setItem("bonys-help-s", sid);
-if (location.hash) history.replaceState(null, "", "/help/");
-// „Ansehen“ erneut gewählt, Browser nutzt diesen Tab: nur der Teil hinter „#“ ändert sich – dann neu laden
+if (location.hash) history.replaceState(null, "", location.pathname);   // Schlüssel nicht stehen lassen
 window.addEventListener("hashchange", () => location.reload());
 
 const screenEl = document.getElementById("screen");

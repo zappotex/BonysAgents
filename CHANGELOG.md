@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## 0.18.0 – Schulungen: Live-Vorführung
+## 0.18.0 – Schulungen: Live-Vorführung und Hilfe-Modus
 
 ### Neu
 - **Vorführen:** Den Bildschirm eines laufenden Agent-PCs live im Browser der Teilnehmer zeigen (Laptop, Tablet,
@@ -20,6 +20,13 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   (verbunden/Pause/beendet), verbindet sich nach kurzen WLAN-Aussetzern selbst wieder. „Kurs beitreten“ in
   Bony's Agents zeigt laufende Vorführungen ebenfalls an und öffnet sie im Browser.
 - Bildrate sinkt automatisch bei vielen Zuschauern oder hoher Rechenlast.
+- **Hilfe-Modus:** Teilnehmer wählen beim Agent-PC „Hilfe anfordern …“, der Kursleiter sieht die Anfragen unter
+  „Kursleitung: Hilfe-Anfragen …“ (mit Hinweiston). Ansehen erst nach Zustimmung des Teilnehmers, Steuern nur nach
+  einer zweiten Zustimmung; „Nur ansehen“ und „Beenden“ wirken sofort, gut sichtbarer Hinweis beim Teilnehmer
+  (und als Benachrichtigung im Agent-PC). Die Verbindung geht vom Teilnehmer aus (klappt hinter Firewall/NAT und
+  über VPN), nur der Agent-PC ist sichtbar, die Zwischenablage nie. Protokoll beim Teilnehmer ohne Bildinhalte.
+- Vorführung und Hilfe-Schalter nutzen einen gemeinsamen Kurs-Server mit einem Code; das Vorführen-Fenster ist
+  nicht mehr modal.
 
 ### Geändert
 - Agent-PCs stellen ihren Bildschirm zusätzlich **nur lokal** per VNC bereit (Unix-Socket, den nur dein Benutzer

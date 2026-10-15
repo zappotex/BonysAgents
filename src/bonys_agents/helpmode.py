@@ -149,7 +149,8 @@ class HelpDesk:
         if ask:
             s.send({"type": "view_request"})
             self._event(f"Ansehen bei {s.name} angefragt – wartet auf Zustimmung.")
-        return f"https://127.0.0.1:{self.server.port}/help/#s={sid}&t={quote(token)}"
+        # Sitzung im Pfad: jede Ansicht ist eine eigene Seite (ein offener Tab lädt bei nur anderem „#…“ nicht neu)
+        return f"https://127.0.0.1:{self.server.port}/help/{sid}#t={quote(token)}"
 
     def request_control(self, sid: str) -> None:
         s = self.get(sid)
@@ -265,7 +266,7 @@ class HelpDesk:
     # ---------- HTTP ----------
     def handle(self, h, method: str, path: str) -> bool:
         """Anfragen unter /help/ und /bonys/v1/help/ beantworten. False = nicht zuständig."""
-        if path in ("/help", "/help/"):
+        if path in ("/help", "/help/") or re.fullmatch(r"/help/[0-9a-f]{8}", path):
             if method != "GET":
                 return False
             if not self._local(h):

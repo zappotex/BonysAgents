@@ -56,8 +56,9 @@ def _participant(srv, **kw):
 
 def _teacher(srv, url: str) -> Client:
     t = Client(srv)
-    sid = url.split("#s=")[1].split("&")[0]
-    token = url.split("&t=")[1]
+    sid = url.split("/help/")[1].split("#")[0]
+    token = url.split("#t=")[1]
+    assert t.request("GET", f"/help/{sid}")[0] == 200
     st, _h, body = t.request("POST", "/bonys/v1/help/auth", {"s": sid, "t": token})
     assert st == 200 and t.cookie.startswith(helpmode.COOKIE + "=")
     t.sid = sid

@@ -80,7 +80,7 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
 - **CLI**: `bonys-agents share NAME [--port P] [--timeout MIN] [--max-downloads N]`,
   `bonys-agents join ADRESSE CODE [--fingerprint FP] [--create NAME]`.
 
-### Stufe 3 – Live-Vorführung (A) ✅ erledigt (0.18.0) und Hilfe-Modus (B) – offen
+### Stufe 3 – Live-Vorführung (A) und Hilfe-Modus (B) ✅ erledigt (0.18.0)
 
 **A – Vorführen** (`present.py`, `rfb.py`, `websocket.py`, `gui/present_dialog.py`, Seiten unter
 `resources/present/`):
@@ -117,7 +117,7 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
   beim Eintippen der Adresse (`share.IsPresentation`).
 - **CLI:** `bonys-agents present NAME [--port P] [--timeout MIN] [--max-viewers N] [--quality low|medium|high]`.
 
-**B – Hilfe-Modus** (noch offen, Vorgaben aus dem Auftrag):
+**B – Hilfe-Modus** (umgesetzt, siehe Stand; Vorgaben aus dem Auftrag):
 
 - Teilnehmer (der Schulung beigetreten) → „Hilfe anfordern“ (optional Nachricht) beim eigenen Agent-PC →
   Kursleiter sieht Liste „Hilfe-Anfragen“ mit Benachrichtigung (Name, Nachricht, Zeit, „Ansehen“).
@@ -197,16 +197,23 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
     gemeinsamer Bild-Strom (würde Neu-Kodieren im Proxy brauchen).
   - Noch offen für den Nutzer: zweites Gerät (Handy/Laptop) im WLAN, echte Browser-Zertifikatswarnung
     (Safari/iOS: WebSocket zu selbstsignierten Zertifikaten), Windows/macOS.
-- **2026-10-15 (Sitzung 2, Fortsetzung)**: **Stufe 3 B (Hilfe-Modus) großteils umgesetzt, noch nicht fertig
-  getestet** (Zwischenstand-Commit). Neu: `helpmode.py` (HelpDesk im Kurs-Server, HelpClient beim Teilnehmer,
-  Protokoll `schulung/hilfe-protokoll.log`), `websocket.Mailbox/serve`, `Presentation` ohne Bildschirm =
-  Hilfe-Schalter (ein Code für Vorführung und Hilfe, `set_screen/clear_screen`, `keep_running`),
-  `resources/present/help.html|help.js`, `gui/course_ui.py` (CourseHub, HelpDeskDialog, HelpManager,
-  HelpRequestDialog, HelpBanner, Zustimmungsdialoge), `VM.guest_notify`, Knopf „Hilfe anfordern …“, Menü
-  „Kursleitung: Hilfe-Anfragen …“, Vorführen-Fenster nicht mehr modal. Tests: `tests/test_helpmode.py` (8, grün),
-  GUI-Layout (18, grün). Echter Test: Anfrage, Zustimmung, Ansicht im Browser klappen mit frischem Tab;
-  **offen**: Kursleiter-Ansicht in einem schon offenen Tab zeigte „Beendet“ (hashchange/Neu-Laden prüfen),
-  Steuern per Browser-Maus noch nicht echt bestätigt, volle Testsuite nach B nicht erneut gelaufen,
-  README-Abschnitt „Helfen“, CHANGELOG, .deb bauen/installieren.
-- **Offen / Ideen**: Stufe 3 B fertigstellen (siehe oben), Stufe 4; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
+- **2026-10-15 (Sitzung 2, Fortsetzung)**: **Stufe 3 B (Hilfe-Modus) umgesetzt** (ebenfalls 0.18.0).
+  - Neu: `helpmode.py` (HelpDesk im Kurs-Server, HelpClient beim Teilnehmer, Protokoll
+    `schulung/hilfe-protokoll.log`), `websocket.Mailbox/serve` (Brücke Kursleiter-Browser ↔ Tunnel ohne
+    gleichzeitigen TLS-Zugriff), `Presentation` ohne Bildschirm = Hilfe-Schalter (ein Code für beides,
+    `set_screen/clear_screen`, `keep_running`), Seite `/help/<Sitzung>#t=Schlüssel` (`help.html|help.js`, nur von
+    127.0.0.1; Sitzung im Pfad, weil ein offener Tab bei nur anderem `#…` nicht neu lädt; noVNC wird erst nach der
+    Anmeldung geladen), `gui/course_ui.py` (CourseHub, HelpDeskDialog, HelpManager, HelpRequestDialog,
+    HelpBanner, Zustimmungsdialoge), `VM.guest_notify` (notify-send im Gast über den Gast-Agent), Knopf
+    „Hilfe anfordern …“, Menü „Kursleitung: Hilfe-Anfragen …“, Vorführen-Fenster nicht mehr modal.
+  - Tests: `tests/test_helpmode.py` (falscher Code/Fingerabdruck, Ratenbegrenzung, ohne Zustimmung kein Bild und
+    kein Tunnel, Steuerung erst nach zweiter Zustimmung, „nur ansehen“ sofort, Beenden trennt < 1,5 s, Protokoll
+    ohne Bildinhalte, Kursleiter-Ansicht nur lokal, gemeinsamer Server), GUI-Layout. Gesamt: 409 bestanden.
+  - **Echter Test (ein Rechner)**: Teilnehmer `agent-pc-3` verbindet sich über die LAN-Adresse, Anfrage erscheint,
+    Zustimmung → Kursleiter-Ansicht in Chrome zeigt den Agent-PC; Rechtsklick des Kursleiters ohne Steuerung →
+    nichts, nach zweiter Zustimmung → Kontextmenü öffnet sich, nach „Nur ansehen“ → wieder nichts; Beenden trennt
+    die Ansicht. Gefunden und behoben: Deadlock beim Zurückstufen, noVNC-Laden ohne Schlüssel, Tab-Wiederverwendung.
+  - Noch offen für den Nutzer: zweiter Rechner bzw. zweites Benutzerkonto, Zustimmungsdialoge in der echten App,
+    Benachrichtigung im Agent-PC (notify-send im Gast nicht geprüft).
+- **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).

@@ -579,8 +579,37 @@ Ab 9 Zuschauern senkt Bony's Agents die Bildrate anteilig, bei hoher Rechenlast 
 bonys-agents present kurs-pc [--port 47120] [--timeout 90] [--max-viewers 30] [--quality low|medium|high]
 ```
 
-Ausblick (siehe `docs/plan-schulung.md`): Hilfe-Modus (Kursleiter sieht bzw. steuert einen Teilnehmer-Agent-PC –
-nur mit Zustimmung), Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
+### Helfen (Kursleiter sieht den Agent-PC eines Teilnehmers)
+
+Hängt ein Teilnehmer fest, kann der Kursleiter dessen Agent-PC ansehen – und mit einer zweiten Erlaubnis auch
+steuern. **Ohne Zustimmung des Teilnehmers sieht der Kursleiter nichts.**
+
+**Kursleiter:** Menü hinter dem ⓘ → **„Kursleitung: Hilfe-Anfragen …“** → „Hilfe-Schalter starten“ (läuft schon
+eine Vorführung, gilt derselbe Code). Das Fenster zeigt Code, Adresse, Fingerabdruck und einen Link zum
+Weitergeben. Neue Anfragen erscheinen mit Hinweiston in der Liste (Name, Agent-PC, Nachricht, Zeit).
+**„Ansehen“** fragt beim Teilnehmer nach; sobald er zustimmt, zeigt der Browser seinen Agent-PC (auf diesem
+Rechner, mit einmaliger Zertifikatswarnung). Dort gibt es **„Steuerung anfragen“** (zweite Rückfrage beim
+Teilnehmer), „Nur ansehen“ und „Beenden“.
+
+**Teilnehmer:** Beim eigenen Agent-PC **„Hilfe anfordern …“** → Kurs auswählen (im selben Netz wird er gefunden,
+sonst den Link vom Kursleiter einfügen oder Adresse und Code eingeben), optional eine kurze Nachricht. Möchte der
+Kursleiter zusehen, fragt Bony's Agents: **„Erlauben“ oder „Ablehnen“**. Fürs Steuern kommt eine eigene, zweite
+Frage. Solange jemand zusieht oder steuert, steht oben im Fenster ein farbiger Hinweis mit **„Nur ansehen“** und
+**„Beenden“** – beides wirkt sofort. Im Agent-PC erscheint zusätzlich eine Desktop-Benachrichtigung (wenn möglich).
+
+**Sicherheit:**
+
+- Die Verbindung geht **vom Teilnehmer zum Kursleiter** (verschlüsselt, mit Code und Fingerabdruck). Der
+  Teilnehmer muss keine Ports öffnen – das klappt auch hinter Firewalls, NAT und über VPN.
+- Sichtbar ist **nur der Agent-PC**, nie der übrige Bildschirm des Teilnehmers. Die **Zwischenablage wird nie
+  übertragen.**
+- Ob Tastatur und Maus des Kursleiters ankommen, entscheidet **der Rechner des Teilnehmers** – nur nach seiner
+  zweiten Zustimmung und nur, bis er „Nur ansehen“ oder „Beenden“ wählt.
+- Die Ansicht beim Kursleiter ist nur auf seinem eigenen Rechner erreichbar, mit einem Schlüssel je Ansicht.
+- Beim Teilnehmer wird festgehalten, wann wer zugesehen bzw. gesteuert hat (ohne Bildinhalte):
+  `~/.local/share/bonys-agents/schulung/hilfe-protokoll.log` (Windows/macOS: im Datenordner von Bony's Agents).
+
+Ausblick (siehe `docs/plan-schulung.md`): Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
 
 ## Fernzugriff (RDP und SPICE)
 
