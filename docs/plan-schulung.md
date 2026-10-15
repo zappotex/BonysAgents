@@ -197,5 +197,16 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
     gemeinsamer Bild-Strom (würde Neu-Kodieren im Proxy brauchen).
   - Noch offen für den Nutzer: zweites Gerät (Handy/Laptop) im WLAN, echte Browser-Zertifikatswarnung
     (Safari/iOS: WebSocket zu selbstsignierten Zertifikaten), Windows/macOS.
-- **Offen / Ideen**: Stufe 3 B (Hilfe-Modus), Stufe 4; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
+- **2026-10-15 (Sitzung 2, Fortsetzung)**: **Stufe 3 B (Hilfe-Modus) großteils umgesetzt, noch nicht fertig
+  getestet** (Zwischenstand-Commit). Neu: `helpmode.py` (HelpDesk im Kurs-Server, HelpClient beim Teilnehmer,
+  Protokoll `schulung/hilfe-protokoll.log`), `websocket.Mailbox/serve`, `Presentation` ohne Bildschirm =
+  Hilfe-Schalter (ein Code für Vorführung und Hilfe, `set_screen/clear_screen`, `keep_running`),
+  `resources/present/help.html|help.js`, `gui/course_ui.py` (CourseHub, HelpDeskDialog, HelpManager,
+  HelpRequestDialog, HelpBanner, Zustimmungsdialoge), `VM.guest_notify`, Knopf „Hilfe anfordern …“, Menü
+  „Kursleitung: Hilfe-Anfragen …“, Vorführen-Fenster nicht mehr modal. Tests: `tests/test_helpmode.py` (8, grün),
+  GUI-Layout (18, grün). Echter Test: Anfrage, Zustimmung, Ansicht im Browser klappen mit frischem Tab;
+  **offen**: Kursleiter-Ansicht in einem schon offenen Tab zeigte „Beendet“ (hashchange/Neu-Laden prüfen),
+  Steuern per Browser-Maus noch nicht echt bestätigt, volle Testsuite nach B nicht erneut gelaufen,
+  README-Abschnitt „Helfen“, CHANGELOG, .deb bauen/installieren.
+- **Offen / Ideen**: Stufe 3 B fertigstellen (siehe oben), Stufe 4; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).

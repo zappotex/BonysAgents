@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilfe – Bony's Agents</title>
+<link rel="stylesheet" href="/assets/present.css">
+<script type="module" src="/assets/help.js"></script>
+</head>
+<body class="view">
+<div id="screen"></div>
+<div id="overlay" class="overlay">
+  <div class="overlay-box">
+    <h1 id="overlay-title">Warte auf Zustimmung …</h1>
+    <p id="overlay-text" class="muted">Der Teilnehmer wird gefragt, ob du seinen Agent-PC ansehen darfst.</p>
+  </div>
+</div>
+<div id="bar" class="bar">
+  <span id="state" class="state">Verbinde …</span>
+  <span id="info" class="muted"></span>
+  <button id="control" type="button" hidden>Steuerung anfragen</button>
+  <button id="release" type="button" hidden>Nur ansehen</button>
+  <button id="stop" type="button">Beenden</button>
+</div>
+</body>
+</html>

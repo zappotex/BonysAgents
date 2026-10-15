@@ -8,10 +8,16 @@ im Hilfe-Modus). Nachrichten werden auf ``MAX_PAYLOAD`` begrenzt, Fragmente zusa
 from __future__ import annotations
 
 import base64
+import collections
+import contextlib
 import hashlib
 import os
+import select
+import socket
+import ssl
 import struct
 import threading
+from collections.abc import Callable
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 OP_CONT, OP_TEXT, OP_BINARY, OP_CLOSE, OP_PING, OP_PONG = 0x0, 0x1, 0x2, 0x8, 0x9, 0xA
@@ -240,3 +246,93 @@ def parse_close(payload: bytes) -> tuple[int, str]:
     if len(payload) < 2:
         return 1005, ""
     return struct.unpack("!H", payload[:2])[0], payload[2:].decode("utf-8", errors="replace")
+
+
+class Mailbox:
+    """Postfach für eine ``select``-Schleife: andere Threads legen Nachrichten ab und wecken die Schleife über ein
+    Socket-Paar. Einträge: (Opcode, Nutzdaten) zum Senden oder („close“, Code, Grund)."""
+
+    def __init__(self):
+        self._items: collections.deque = collections.deque()
+        self._lock = threading.Lock()
+        self._r, self._w = socket.socketpair()
+        self._r.setblocking(False)
+        self._w.setblocking(False)
+
+    def fileno(self) -> int:
+        return self._r.fileno()
+
+    def put(self, item: tuple) -> None:
+        with self._lock:
+            self._items.append(item)
+        with contextlib.suppress(OSError):
+            self._w.send(b"\0")
+
+    def send_text(self, text: str) -> None:
+        self.put((OP_TEXT, text.encode("utf-8")))
+
+    def close_with(self, code: int, reason: str = "") -> None:
+        self.put(("close", code, reason))
+
+    def take(self) -> list[tuple]:
+        with contextlib.suppress(OSError):
+            while self._r.recv(4096):
+                pass
+        with self._lock:
+            items = list(self._items)
+            self._items.clear()
+        return items
+
+    def dispose(self) -> None:
+        for s in (self._r, self._w):
+            with contextlib.suppress(OSError):
+                s.close()
+
+
+def serve(tls, mailbox: Mailbox, on_message: Callable[[int, bytes], None],
+          should_close: Callable[[], tuple[int, str] | None] = lambda: None, client_side: bool = False,
+          poll: float = 0.25) -> tuple[int, str] | None:
+    """WebSocket-Schleife in einem Thread: liest vom TLS-Socket (→ ``on_message``) und schickt, was im Postfach
+    liegt. Nur dieser Thread benutzt den Socket. Gibt (Code, Grund) des Endes zurück (None = Abbruch)."""
+    parser = FrameParser(expect_masked=not client_side)
+
+    def send(op: int, payload: bytes) -> None:
+        tls.settimeout(30)
+        tls.sendall(encode_frame(op, payload, mask=client_side))
+
+    try:
+        while True:
+            why = should_close()
+            if why:
+                send(OP_CLOSE, close_payload(*why))
+                return why
+            for item in mailbox.take():
+                if item[0] == "close":
+                    send(OP_CLOSE, close_payload(item[1], item[2]))
+                    return item[1], item[2]
+                send(item[0], item[1])
+            readable = [tls] if tls.pending() else select.select([tls, mailbox], [], [], poll)[0]
+            if tls not in readable:
+                continue
+            tls.settimeout(0.05)
+            try:
+                data = tls.recv(65536)
+            except (TimeoutError, ssl.SSLWantReadError):
+                continue
+            if not data:
+                return None
+            for op, payload in parser.feed(data):
+                if op == OP_CLOSE:
+                    with contextlib.suppress(OSError, ValueError):
+                        send(OP_CLOSE, close_payload(1000))
+                    return parse_close(payload)
+                if op == OP_PING:
+                    send(OP_PONG, payload)
+                elif op in (OP_TEXT, OP_BINARY):
+                    on_message(op, payload)
+    except WebSocketClosed as e:
+        with contextlib.suppress(OSError, ValueError):
+            send(OP_CLOSE, close_payload(e.code if e.code < 4000 else 1002))
+        return e.code, e.reason
+    except (OSError, ValueError, ssl.SSLError):
+        return None

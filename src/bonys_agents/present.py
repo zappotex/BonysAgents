@@ -49,7 +49,7 @@ VIEWER_STALE = 60          # Sekunden ohne Verbindung und ohne Statusabfrage →
 FULL_FPS_VIEWERS = 8       # bis zu so vielen Zuschauern volle Bildrate, darüber anteilig weniger
 MIN_FPS = 1.0
 # WebSocket-Schließcodes, die die Seite versteht
-CLOSE_ENDED, CLOSE_PAUSED, CLOSE_REMOVED, CLOSE_ERROR = 4000, 4001, 4003, 4010
+CLOSE_ENDED, CLOSE_PAUSED, CLOSE_IDLE, CLOSE_REMOVED, CLOSE_ERROR = 4000, 4001, 4002, 4003, 4010
 
 WARNING = ("Alle Teilnehmer sehen alles, was im Agent-PC angezeigt wird. Nutze Pause, bevor du Passwörter oder "
            "Tokens eingibst.")
@@ -97,9 +97,12 @@ class Viewer:
 
 
 class Presentation(share.Guarded):
-    """Vorführung eines Bildschirms. ``connect_vnc()`` liefert eine neue Verbindung zum lokalen VNC-Socket."""
+    """Kurs-Server des Kursleiters: Vorführung eines Bildschirms (``connect_vnc()`` liefert eine neue Verbindung
+    zum lokalen VNC-Socket) und Hilfe-Schalter (``helpdesk``, siehe ``helpmode``). Ohne ``connect_vnc`` läuft nur
+    der Hilfe-Schalter („gerade keine Vorführung“); ``set_screen``/``clear_screen`` starten bzw. beenden eine
+    Vorführung, ohne dass sich Code oder Zertifikat ändern."""
 
-    def __init__(self, title: str, connect_vnc: Callable[[], socket.socket], *,
+    def __init__(self, title: str = "", connect_vnc: Callable[[], socket.socket] | None = None, *,
                  is_alive: Callable[[], bool] = lambda: True, port: int = DEFAULT_PORT,
                  timeout_min: int = DEFAULT_TIMEOUT_MIN, max_viewers: int = DEFAULT_MAX_VIEWERS,
                  quality: str = DEFAULT_QUALITY, code: str | None = None, bind: str = "",
@@ -110,9 +113,10 @@ class Presentation(share.Guarded):
         self.novnc = novnc if novnc is not None else novnc_dir()
         if self.novnc is None:
             raise PresentError("noVNC fehlt in dieser Installation (beim Bauen: python packaging/fetch-novnc.py).")
-        self.title = title
+        self.title = title or f"Kurs auf {_hostname() or 'diesem Rechner'}"
         self.connect_vnc = connect_vnc
         self.is_alive = is_alive
+        self.keep_running = False   # True: Hilfe-Schalter in Benutzung – Ende der Vorführung beendet den Server nicht
         self.port = port
         self.bind = bind
         self.max_viewers = max(1, int(max_viewers))
@@ -134,6 +138,38 @@ class Presentation(share.Guarded):
         self.advertiser: mdns.Advertiser | None = None
         self.httpd: share._Server | None = None
         self.started = 0.0
+        from bonys_agents import helpmode  # hier: helpmode braucht dieses Modul
+
+        self.helpdesk = helpmode.HelpDesk(self)
+
+    @property
+    def has_screen(self) -> bool:
+        return self.connect_vnc is not None
+
+    def set_screen(self, title: str, connect_vnc: Callable[[], socket.socket], *,
+                   is_alive: Callable[[], bool] = lambda: True, quality: str | None = None,
+                   max_viewers: int | None = None) -> None:
+        """Vorführung (neu) beginnen – Zuschauer, die schon da sind, sehen das neue Bild ohne neuen Code."""
+        if quality is not None:
+            if quality not in rfb.QUALITY:
+                raise ValueError(f"Qualität: {', '.join(rfb.QUALITY)}")
+            self.quality = quality
+        if max_viewers is not None:
+            self.max_viewers = max(1, int(max_viewers))
+        self.title = title
+        self.is_alive = is_alive
+        self.paused = False
+        self.connect_vnc = connect_vnc
+        self._event(f"Vorführung „{title}“ beginnt.")
+
+    def clear_screen(self, reason: str = "Vorführung beendet.") -> None:
+        """Vorführung beenden, Server (Hilfe-Schalter) läuft weiter. Zuschauer sehen „gerade keine Vorführung“."""
+        if self.connect_vnc is None:
+            return
+        self.connect_vnc = None
+        self.paused = False
+        self.is_alive = lambda: True
+        self._event(reason)
 
     # ---------- Anzeige ----------
     def _addresses(self) -> list[str]:
@@ -201,7 +237,8 @@ class Presentation(share.Guarded):
             if not self.advertiser.start():
                 self._event(self.advertiser.error)
                 self.advertiser = None
-        self._event(f"Vorführung gestartet auf Port {self.port} (endet nach {self.timeout_min} min).")
+        what = "Vorführung" if self.has_screen else "Hilfe-Schalter"
+        self._event(f"{what} gestartet auf Port {self.port} (endet nach {self.timeout_min} min).")
 
     def _watch(self) -> None:
         try:
@@ -222,9 +259,12 @@ class Presentation(share.Guarded):
                     alive = self.is_alive()
                 except Exception:  # noqa: BLE001
                     alive = False
-                if not alive:
-                    self.stop("Der Agent-PC wurde ausgeschaltet – Vorführung beendet.")
-                    return
+                if not alive and self.has_screen:
+                    if self.keep_running:
+                        self.clear_screen("Der Agent-PC wurde ausgeschaltet – Vorführung beendet.")
+                    else:
+                        self.stop("Der Agent-PC wurde ausgeschaltet – Vorführung beendet.")
+                        return
                 if proc is not None:
                     with contextlib.suppress(Exception):
                         self._adjust_cpu(proc.cpu_percent(None))
@@ -246,6 +286,7 @@ class Presentation(share.Guarded):
             return
         self.stop_reason = reason
         self.stopped.set()
+        self.helpdesk.close_all()
         if self.advertiser:
             self.advertiser.stop()
             self.advertiser = None
@@ -318,26 +359,34 @@ class Presentation(share.Guarded):
             return "unknown"
         if v.removed:
             return "removed"
+        if not self.has_screen:
+            return "idle"
         return "paused" if self.paused else "live"
 
     def status(self, v: Viewer | None) -> dict:
         return {"state": self.state_for(v), "title": self.title, "viewers": self.viewer_count(),
                 "ends_in": int(self.remaining()), "name": v.name if v else "", "version": __version__,
-                "message": "Gleich geht's weiter …" if self.paused else ""}
+                "message": "Gleich geht's weiter …" if self.paused else
+                           ("Gerade keine Vorführung – gleich geht's los." if not self.has_screen else "")}
 
     def close_reason(self, v: Viewer) -> tuple[int, str] | None:
         if self.stopped.is_set():
             return CLOSE_ENDED, "beendet"
         if v.removed:
             return CLOSE_REMOVED, "entfernt"
+        if not self.has_screen:
+            return CLOSE_IDLE, "keine Vorführung"
         if self.paused:
             return CLOSE_PAUSED, "pause"
         return None
 
     def serve_viewer(self, tls: ssl.SSLSocket, v: Viewer) -> None:
         """Proxy-Schleife: Browser (WebSocket, TLS) ↔ lokaler VNC-Socket. Kehrt zurück, wenn die Verbindung endet."""
+        connect = self.connect_vnc
         try:
-            up = self.connect_vnc()
+            if connect is None:
+                raise OSError("keine Vorführung")
+            up = connect()
         except OSError as e:
             self._event(f"{v.name}: Bildschirm nicht erreichbar ({e}).")
             _ws_close(tls, CLOSE_ERROR, "kein Bild")
@@ -380,20 +429,21 @@ def _ws_close(tls: ssl.SSLSocket, code: int, reason: str) -> None:
 
 
 def pump_viewer(tls, up: socket.socket, filt: rfb.ClientFilter, should_close: Callable[[], tuple[int, str] | None],
-                fps: Callable[[], float]) -> tuple[int, str] | None:
+                fps: Callable[[], float] | None, client_side: bool = False) -> tuple[int, str] | None:
     """Eine Schleife für beide Richtungen (ein Thread, kein gleichzeitiger Zugriff auf den TLS-Socket).
 
-    Browser → Agent-PC: WebSocket-Rahmen zerlegen, durch ``filt`` (verwirft Eingaben), FramebufferUpdateRequests
-    höchstens ``fps()`` mal pro Sekunde weitergeben. Agent-PC → Browser: unverändert als Binär-Rahmen.
+    Gegenstelle → Agent-PC: WebSocket-Rahmen zerlegen, durch ``filt`` (verwirft Eingaben), FramebufferUpdateRequests
+    höchstens ``fps()`` mal pro Sekunde weitergeben (``fps=None``: ungebremst). Agent-PC → Gegenstelle: unverändert
+    als Binär-Rahmen. ``client_side``: wir sind der WebSocket-Client (Tunnel des Teilnehmers im Hilfe-Modus).
     """
-    parser = websocket.FrameParser(expect_masked=True)
+    parser = websocket.FrameParser(expect_masked=not client_side)
     pending: bytes | None = None
     last_update = 0.0
     up.settimeout(10)
 
     def send(op: int, payload: bytes) -> None:
         tls.settimeout(30)
-        tls.sendall(websocket.encode_frame(op, payload))
+        tls.sendall(websocket.encode_frame(op, payload, mask=client_side))
 
     try:
         while True:
@@ -404,7 +454,7 @@ def pump_viewer(tls, up: socket.socket, filt: rfb.ClientFilter, should_close: Ca
             now = time.monotonic()
             wait = 0.25
             if pending is not None:
-                due = last_update + 1.0 / max(MIN_FPS, fps())
+                due = last_update + 1.0 / max(MIN_FPS, fps()) if fps else now
                 if now >= due:
                     up.sendall(pending)
                     pending, last_update = None, now
@@ -455,7 +505,7 @@ def pump_viewer(tls, up: socket.socket, filt: rfb.ClientFilter, should_close: Ca
 
 
 # ---------------------------------------------------------------- HTTP
-_STATIC = {"present.css", "join.js", "view.js", "logo.png"}
+_STATIC = {"present.css", "join.js", "view.js", "help.js", "logo.png"}
 _TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
           ".png": "image/png", ".html": "text/html; charset=utf-8", ".json": "application/json"}
 
@@ -518,12 +568,15 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, body, ctype)
 
     def _token(self) -> str | None:
+        return self._token_named(COOKIE)
+
+    def _token_named(self, name: str) -> str | None:
         raw = self.headers.get("Cookie", "")
         try:
             c = SimpleCookie(raw)
         except CookieError:
             return None
-        m = c.get(COOKIE)
+        m = c.get(name)
         return m.value if m else None
 
     def _same_origin(self) -> bool:
@@ -560,6 +613,8 @@ class _Handler(BaseHTTPRequestHandler):
             name = path[8:]
             self._file((resources_dir() / name) if name == "logo.png" else page_dir() / name)
             return
+        if p.helpdesk.handle(self, "GET", path):
+            return
         if path == "/favicon.ico":
             self._send(204, b"", "image/x-icon")
             return
@@ -584,7 +639,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._file(page_dir() / "view.html")
             return
         if path.startswith("/novnc/"):
-            if v is None or v.removed:
+            if (v is None or v.removed) and not p.helpdesk.viewer_cookie_ok(self):
                 self._json(403, {"error": "Bitte zuerst beitreten."})
                 return
             f = _safe_file(p.novnc, path[7:])
@@ -601,6 +656,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         p = self.pres
         path = urlsplit(self.path).path
+        if p.helpdesk.handle(self, "POST", path):
+            return
         if path not in (f"{API}/join", f"{API}/leave"):
             self._json(404, {"error": "Nicht gefunden."})
             return
@@ -635,10 +692,25 @@ class _Handler(BaseHTTPRequestHandler):
 
     do_PUT = do_DELETE = do_PATCH = _method_not_allowed  # noqa: N815
 
+    def is_websocket(self) -> bool:
+        return self.headers.get("Upgrade", "").lower() == "websocket" and bool(self.headers.get("Sec-WebSocket-Key"))
+
+    def accept_websocket(self) -> None:
+        """Antwort 101 – danach gehört der Socket der WebSocket-Schleife."""
+        self.send_response(101)
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", websocket.accept_key(self.headers.get("Sec-WebSocket-Key", "")))
+        protocols = [x.strip() for x in self.headers.get("Sec-WebSocket-Protocol", "").split(",") if x.strip()]
+        if "binary" in protocols:
+            self.send_header("Sec-WebSocket-Protocol", "binary")
+        self.end_headers()
+        self.wfile.flush()
+        self.close_connection = True
+
     def _websocket(self, v: Viewer | None) -> None:
         p = self.pres
-        key = self.headers.get("Sec-WebSocket-Key", "")
-        if self.headers.get("Upgrade", "").lower() != "websocket" or not key:
+        if not self.is_websocket():
             self._json(400, {"error": "WebSocket erwartet."})
             return
         if not self._same_origin():
@@ -648,19 +720,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(403, {"error": "Bitte zuerst beitreten."})
             return
         why = p.close_reason(v)
-        if why:  # Pause/entfernt/beendet: gar nicht erst verbinden
+        if why:  # Pause/entfernt/beendet/keine Vorführung: gar nicht erst verbinden
             self._json(409, {"error": why[1], "state": p.state_for(v)})
             return
-        self.send_response(101)
-        self.send_header("Upgrade", "websocket")
-        self.send_header("Connection", "Upgrade")
-        self.send_header("Sec-WebSocket-Accept", websocket.accept_key(key))
-        protocols = [x.strip() for x in self.headers.get("Sec-WebSocket-Protocol", "").split(",") if x.strip()]
-        if "binary" in protocols:
-            self.send_header("Sec-WebSocket-Protocol", "binary")
-        self.end_headers()
-        self.wfile.flush()
-        self.close_connection = True
+        self.accept_websocket()
         p.serve_viewer(self.connection, v)
 
 

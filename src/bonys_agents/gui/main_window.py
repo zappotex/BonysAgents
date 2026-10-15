@@ -177,6 +177,18 @@ class MainWindow(QMainWindow):
         self.update_banner = UpdateBanner()
         self.update_banner.update_requested.connect(lambda info: start_update(self, info))
         outer.addWidget(self.update_banner)
+        # Hilfe-Modus (Teilnehmer): gut sichtbar, wenn der Kursleiter zusieht oder steuert
+        from .course_ui import CourseHub, HelpBanner, HelpManager, ask_consent
+
+        self.help_banner = HelpBanner()
+        outer.addWidget(self.help_banner)
+        helpers = HelpManager.get()
+        helpers.view_requested.connect(lambda name: ask_consent(self, name, "view"))
+        helpers.control_requested.connect(lambda name: ask_consent(self, name, "control"))
+        helpers.closed.connect(lambda name, reason: self.statusBar().showMessage(f"{name}: {reason}", 10000))
+        CourseHub.get().new_request.connect(self._help_request_arrived)
+        self._present_dialog = None
+        self._helpdesk_dialog = None
         self._update_check: CheckWorker | None = None
 
         # ---------- Inhalt: Liste | Details, Aufteilung per Ziehen ----------
@@ -254,6 +266,7 @@ class MainWindow(QMainWindow):
         menu.addAction(pre)
         menu.addSeparator()
         menu.addAction("Alle Agent-PCs aktualisieren …", self.upgrade_all)
+        menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
         menu.addSeparator()
         extras = menu.addMenu("Extras")
         if sys.platform.startswith("linux"):
@@ -485,6 +498,9 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn = QPushButton("Desktop hinzufügen …")
         self.add_desktop_btn.setToolTip("Weiteren Desktop installieren und als Standard wählen – der Agent-PC muss "
                                         "laufen; der bisherige bleibt installiert")
+        self.help_btn = QPushButton("Hilfe anfordern …")
+        self.help_btn.setToolTip("Schulung: den Kursleiter um Hilfe bitten – er sieht diesen Agent-PC nur, wenn du "
+                                 "zustimmst")
         self.present_btn = QPushButton("Vorführen …")
         self.present_btn.setToolTip("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur ansehen)")
         self.add_apps_btn = QPushButton("Programme hinzufügen …")
@@ -493,7 +509,7 @@ class MainWindow(QMainWindow):
                   self.add_desktop_btn):
             b.setObjectName("Small")
         for b in (self.start_btn, self.stop_btn, self.fullscreen_btn, self.ssh_btn, self.remote_btn, self.present_btn,
-                  self.upgrade_btn, self.template_btn, self.delete_btn):
+                  self.help_btn, self.upgrade_btn, self.template_btn, self.delete_btn):
             row.addWidget(b)
         hl.addSpacing(6)
         hl.addLayout(row)
@@ -698,6 +714,7 @@ class MainWindow(QMainWindow):
         self.add_desktop_btn.clicked.connect(self.add_desktop)
         self.template_btn.clicked.connect(self.save_template)
         self.present_btn.clicked.connect(self.present_vm)
+        self.help_btn.clicked.connect(self.request_help)
         self.independent_btn.clicked.connect(self.make_independent)
         self.upgrade_btn.clicked.connect(self.upgrade_vm)
         self.resume_btn.clicked.connect(lambda: self._clear_notice() or self._run(lambda m: m.start(headless=True)))
@@ -1045,6 +1062,7 @@ class MainWindow(QMainWindow):
         self.delete_btn.setEnabled(not busy and not tpl_lock)
         self.upgrade_btn.setEnabled(status == "läuft" and not busy)
         self.present_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
+        self.help_btn.setEnabled(status == "läuft" and not c.first_boot_pending and not stopping)
 
         p = m.progress()
         show = (running and not p.ready) or (c.first_boot_pending and (running or about_to_start))
@@ -1282,13 +1300,47 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def present_vm(self) -> None:
+        """Nicht modal – der Kursleiter arbeitet nebenher weiter (Pause, Hilfe-Anfragen)."""
         from .present_dialog import PresentDialog
 
         m = self.current()
         if not m:
             return
-        PresentDialog(m, self, restart=lambda: self._run(lambda x: (x.stop(), x.start()))).exec()
-        self.refresh()
+        d = self._present_dialog
+        if d is not None and d.isVisible():
+            d.raise_()
+            d.activateWindow()
+            return
+        d = PresentDialog(m, self, restart=lambda: self._run(lambda x: (x.stop(), x.start())),
+                          help_desk=self.show_helpdesk)
+        d.setAttribute(Qt.WA_DeleteOnClose)
+        d.finished.connect(lambda *_: setattr(self, "_present_dialog", None))
+        self._present_dialog = d
+        d.show()
+
+    def show_helpdesk(self) -> None:
+        from .course_ui import HelpDeskDialog
+
+        d = self._helpdesk_dialog
+        if d is None:
+            d = self._helpdesk_dialog = HelpDeskDialog(self)
+        d.show()
+        d.raise_()
+        d.activateWindow()
+
+    def _help_request_arrived(self, text: str) -> None:
+        self.statusBar().showMessage(text, 30000)
+        QApplication.alert(self, 0)
+        QApplication.beep()
+        self.show_helpdesk()
+
+    def request_help(self) -> None:
+        from .course_ui import HelpRequestDialog
+
+        m = self.current()
+        if not m:
+            return
+        HelpRequestDialog(m, self, restart=lambda: self._run(lambda x: (x.stop(), x.start()))).exec()
 
     def join_training(self) -> None:
         from .share_dialogs import JoinDialog

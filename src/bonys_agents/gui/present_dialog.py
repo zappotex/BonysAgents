@@ -21,10 +21,15 @@ from .widgets import make_scrollable
 class PresentDialog(QDialog):
     """Kursleiter: Vorführung starten – Code, Adressen, QR-Code, Zuschauer, Pause, Entfernen, Beenden."""
 
-    def __init__(self, machine: vm.VM, parent=None, restart: Callable[[], None] | None = None):
+    def __init__(self, machine: vm.VM, parent=None, restart: Callable[[], None] | None = None,
+                 help_desk: Callable[[], None] | None = None):
         super().__init__(parent)
+        from .course_ui import CourseHub
+
+        self.hub = CourseHub.get()
         self.m = machine
         self.restart = restart
+        self.help_desk = help_desk
         self.pres: present.Presentation | None = None
         self.setWindowTitle("Vorführen")
         root = QVBoxLayout(self)
@@ -123,6 +128,10 @@ class PresentDialog(QDialog):
         root.addWidget(self.status)
 
         buttons = QHBoxLayout()
+        self.help_btn = QPushButton("Hilfe-Anfragen …")
+        self.help_btn.setToolTip("Teilnehmer, die Hilfe angefordert haben – gleicher Code wie die Vorführung")
+        self.help_btn.setVisible(help_desk is not None)
+        buttons.addWidget(self.help_btn)
         self.remove_btn = QPushButton("Zuschauer entfernen")
         self.remove_btn.setToolTip("Ausgewählten Zuschauer trennen – von seiner Adresse aus 5 Minuten gesperrt")
         buttons.addWidget(self.remove_btn)
@@ -153,7 +162,17 @@ class PresentDialog(QDialog):
         self.remove_btn.clicked.connect(self._remove)
         self.close_btn.clicked.connect(self.reject)
         self.restart_btn.clicked.connect(self._restart)
+        if help_desk is not None:
+            self.help_btn.clicked.connect(help_desk)
         self._check_ready()
+        running = self.hub.running()
+        if running is not None:   # Kurs-Server läuft schon (Hilfe-Schalter) – Code und Port bleiben
+            self.port.setValue(running.port)
+            self.port.setEnabled(False)
+            self.minutes.setEnabled(False)
+            if running.has_screen and running.title == machine.name:
+                self.pres = running
+                self._show_live()
 
     # ---------- vor dem Start ----------
     def _check_ready(self) -> None:
@@ -194,15 +213,28 @@ class PresentDialog(QDialog):
         if box.exec() != QMessageBox.Ok:
             return
         try:
-            p = present.for_vm(self.m, port=self.port.value(), timeout_min=self.minutes.value(),
-                               max_viewers=self.viewers.value(), quality=self.quality.currentData())
-            p.start()
+            running = self.hub.running()
+            if running is not None:
+                if not self.m.vnc_available():
+                    raise present.NeedsRestart("Der Agent-PC zeigt seinen Bildschirm noch nicht – neu starten.")
+                running.set_screen(self.m.name, self.m.vnc_connect, is_alive=self.m.is_running,
+                                   quality=self.quality.currentData(), max_viewers=self.viewers.value())
+                p = running
+            else:
+                p = present.for_vm(self.m, port=self.port.value(), timeout_min=self.minutes.value(),
+                                   max_viewers=self.viewers.value(), quality=self.quality.currentData())
+                p.start()
+                self.hub.adopt(p)
         except (OSError, ValueError, present.PresentError) as e:
             self.status.setText(f"Fehler: {e}")
             self.status.setStyleSheet(f"color: {style.DANGER};")
             self._check_ready()
             return
         self.pres = p
+        self._show_live()
+
+    def _show_live(self) -> None:
+        p = self.pres
         self.settings_box.setVisible(False)
         self.start_btn.setVisible(False)
         for w in (self.code, self.info, self.table, self.events, self.remove_btn, self.pause_btn, self.stop_btn):
@@ -251,9 +283,11 @@ class PresentDialog(QDialog):
         self.pause_btn.setObjectName("Primary" if p.paused else "")
         self.pause_btn.style().unpolish(self.pause_btn)
         self.pause_btn.style().polish(self.pause_btn)
-        if p.stopped.is_set():
+        if p.stopped.is_set() or not p.has_screen:
             self.timer.stop()
-            self.status.setText(p.stop_reason)
+            self.pause_banner.setVisible(False)
+            self.status.setText(p.stop_reason if p.stopped.is_set() else "Vorführung beendet – der Hilfe-Schalter "
+                                "läuft weiter (gleicher Code).")
             for w in (self.stop_btn, self.pause_btn, self.remove_btn):
                 w.setVisible(False)
             self.code.setStyleSheet(code_style() + " text-decoration: line-through;")
@@ -280,13 +314,16 @@ class PresentDialog(QDialog):
             self.pres.remove_viewer(item.data(Qt.UserRole))
             self._refresh()
 
+    def _live(self) -> bool:
+        return bool(self.pres) and not self.pres.stopped.is_set() and self.pres.has_screen
+
     def _stop(self) -> None:
-        if self.pres and not self.pres.stopped.is_set():
-            self.pres.stop("Vorführung beendet.")
+        if self._live():
+            self.hub.end_presentation()
             self._refresh()
 
     def reject(self) -> None:
-        if self.pres and not self.pres.stopped.is_set():
+        if self._live():
             if QMessageBox.question(self, APP_NAME, "Vorführung beenden?") != QMessageBox.Yes:
                 return
             self._stop()

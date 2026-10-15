@@ -10,6 +10,7 @@ let stored = "";
 try { stored = localStorage.getItem("bonys-name") || ""; } catch (e) { /* privat */ }
 nameInput.value = frag.get("name") || stored;
 if (location.hash) history.replaceState(null, "", "/");  // Code nicht in der Adresszeile stehen lassen
+window.addEventListener("hashchange", () => location.reload());  // neuer QR-Code im selben Tab
 (nameInput.value ? codeInput : nameInput).focus();
 
 fetch("/bonys/v1/present/status", { credentials: "same-origin" }).then(r => r.json()).then(s => {

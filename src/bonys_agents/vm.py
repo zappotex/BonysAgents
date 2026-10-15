@@ -13,6 +13,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -583,6 +584,20 @@ class VM:
         if rc != 0:
             raise RuntimeError(f"Befehl im Agent-PC fehlgeschlagen (Code {rc}): {out.strip()[-300:]}")
         return out
+
+    def guest_notify(self, title: str, text: str) -> bool:
+        """Hinweis auf dem Bildschirm im Agent-PC (Desktop-Benachrichtigung) – nur über den Gast-Agent, ohne
+        Passwort-Rückfrage. False, wenn es nicht ging (z. B. Gast-Agent nicht bereit, notify-send fehlt)."""
+        user = shlex.quote(self.config.username)
+        script = (f"U={user}; ID=$(id -u \"$U\") || exit 1; "
+                  f"runuser -u \"$U\" -- env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$ID/bus "
+                  f"notify-send -u critical -a \"Bony's Agents\" {shlex.quote(title)} {shlex.quote(text)}")
+        try:
+            with qemu.GuestAgent(self.runtime().get("qga_port") or 0, timeout=3) as ga:
+                rc, _out = ga.run(script, timeout=10)
+        except (qemu.GuestAgentError, RuntimeError, OSError):
+            return False
+        return rc == 0
 
     def set_display(self, mode: str) -> None:
         if mode not in ("qemu", "spice"):

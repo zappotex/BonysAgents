@@ -82,6 +82,10 @@ async function poll(afterDisconnect = false) {
     if (rfb) rfb.disconnect();
     setState("paused", "Pause");
     showOverlay(s.message || "Gleich geht's weiter …", "Der Kursleiter hat kurz pausiert.");
+  } else if (s.state === "idle") {
+    if (rfb) rfb.disconnect();
+    setState("paused", "Keine Vorführung");
+    showOverlay("Gerade keine Vorführung", "Sobald der Kursleiter etwas zeigt, erscheint es hier von selbst.");
   } else if (s.state === "live") {
     if (!rfb) {
       if (afterDisconnect) {
