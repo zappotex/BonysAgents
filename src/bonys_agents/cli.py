@@ -483,9 +483,9 @@ def remote_state_text(r: dict) -> str:
 def _print_remote(m: vm.VM) -> None:
     r = m.remote_info()
     print(f"Fernzugriff: {remote_state_text(r)}")
-    if r["spice_port"]:
+    if r["spice_local"]:
         where = "aus dem Heimnetz (mit Passwort)" if r["spice_lan"] else "nur an diesem Rechner"
-        print(f"  SPICE spice://127.0.0.1:{r['spice_port']} – {where}")
+        print(f"  SPICE {r['spice_local']} – {where}")
     if not r["active"]:
         if not r["rdp_installed"]:
             print("  RDP: xrdp fehlt im Agent-PC (bonys-agents install NAME xrdp)")

@@ -271,9 +271,8 @@ class RemotePanel(QWidget):
                 self.grid.addWidget(extra, row, col)
             row += 1
 
-        if r["spice_port"]:
-            local = f"spice://127.0.0.1:{r['spice_port']}"
-            add("SPICE", f"{local}  (an diesem Rechner)", local)
+        if r["spice_local"]:
+            add("SPICE", f"{r['spice_local']}  (an diesem Rechner)", r["spice_local"])
         if r["active"]:
             addrs = r["addresses"] or []
             if not addrs:

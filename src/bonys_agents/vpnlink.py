@@ -283,7 +283,7 @@ def _guest(machine: VM, argv: list[str], stdin: bytes | None = None, password: s
     if not machine.is_running():
         raise VpnError(f"„{machine.name}“ läuft nicht.")
     try:
-        with qemu.GuestAgent(machine.runtime().get("qga_port") or 0, timeout=5) as ga:
+        with qemu.GuestAgent(qemu.runtime_target(machine.runtime(), "qga"), timeout=5) as ga:
             rc, out, err = ga.exec(argv[0], argv[1:], stdin=stdin if stdin is not None else b"", timeout=timeout)
     except qemu.GuestAgentError:
         if not password and not ssh_prompt:

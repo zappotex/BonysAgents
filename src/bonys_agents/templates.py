@@ -204,7 +204,7 @@ def _wait_guest_agent(copy: _WorkVM, progress: ProgressFn | None, timeout: float
             err = copy.qemu_log.read_text("utf-8", errors="replace")[-1500:] if copy.qemu_log.exists() else ""
             raise RuntimeError("Die Arbeitskopie hat sich beim Starten beendet.\n" + err)
         try:
-            with qemu.GuestAgent(copy.runtime().get("qga_port") or 0, timeout=3) as ga:
+            with qemu.GuestAgent(copy.qga_endpoint(), timeout=3) as ga:
                 ga.execute("guest-ping")
                 return True
         except (qemu.GuestAgentError, RuntimeError):
@@ -218,7 +218,7 @@ def _run_in_copy(copy: _WorkVM, script: str, password: str | None, has_agent: bo
                  what: str = "Verallgemeinern", poll: Callable[[], None] | None = None) -> str:
     """Skript als root in der Arbeitskopie (Gast-Agent, sonst SSH). ``poll`` siehe ``GuestAgent.exec``."""
     if has_agent:
-        with qemu.GuestAgent(copy.runtime()["qga_port"], timeout=10) as ga:
+        with qemu.GuestAgent(copy.qga_endpoint(), timeout=10) as ga:
             rc, out = ga.run(script, timeout=timeout, shell="/bin/bash", poll=poll)
         if rc != 0:
             raise RuntimeError(f"{what} fehlgeschlagen (Code {rc}): {out.strip()[-600:]}")

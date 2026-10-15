@@ -1260,7 +1260,8 @@ class MainWindow(QMainWindow):
         for m in machines:
             if vpnlink.APP_ID not in m.config.apps or m.config.first_boot_pending or not m.is_running():
                 continue
-            key = (m.name, int(m.runtime().get("qmp_port") or 0))
+            rt = m.runtime()
+            key = (m.name, int(rt.get("pid") or rt.get("qmp_port") or 0))  # einmal je Start
             if key not in self._vpn_checked and m.progress().ready:
                 todo.append((key, m))
         if not todo:

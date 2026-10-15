@@ -99,12 +99,18 @@ class LaunchSpec:
     screen: tuple[int, int] = SCREEN       # bevorzugte Auflösung beim Start = Größe des QEMU-Fensters
     screen_setting: str = screen_cfg.AUTO  # an den Gast (fw_cfg): auto, scale:BxH oder fixed:BxH
     qga_port: int | None = None            # QEMU Guest Agent (Befehle im Gast ohne SSH)
+    # Steuerkanäle als Unix-Socket (Linux/macOS) statt TCP: Aus dem Agent-PC ist 127.0.0.1 des Hosts über
+    # 10.0.2.2 erreichbar (QEMU-Benutzernetz) – ein TCP-Port für QMP oder den Gast-Agent wäre ein Weg aus der
+    # VM hinaus. Gesetzt, gelten qmp_port/qga_port nicht.
+    qmp_socket: Path | None = None
+    qga_socket: Path | None = None
     # Fernzugriff
     rdp_addr: str | None = None            # RDP-Weiterleitung schon beim Start (None = aus)
     rdp_port: int | None = None            # Host-Port → Gast 3389 (xrdp)
     spice_addr: str = "127.0.0.1"          # 0.0.0.0 = SPICE aus dem Heimnetz erreichbar
     spice_port: int | None = None          # None = kein SPICE
-    spice_password_file: Path | None = None  # nötig, sobald nicht nur 127.0.0.1
+    spice_password_file: Path | None = None  # nötig, sobald SPICE an einem TCP-Port lauscht
+    spice_socket: Path | None = None       # SPICE nur an diesem Rechner: Unix-Socket statt Port (Linux/macOS)
     audio: str | None = None               # audiodev-Treiber (spice, pipewire, pa, dsound, coreaudio …)
     # Netz abschotten: kein Internet und kein Zugriff auf den Host – nur die SSH-Weiterleitung bleibt
     # (z. B. beim Verallgemeinern für eine Vorlage, damit keine Sitzung des Originals online geht).
@@ -161,7 +167,8 @@ def build_command(s: LaunchSpec) -> list[str]:
         "-device", "qemu-xhci",
         "-device", "usb-tablet",
         "-device", "usb-kbd",
-        "-qmp", f"tcp:127.0.0.1:{s.qmp_port},server=on,wait=off",
+        "-qmp", (f"unix:{_esc(s.qmp_socket)},server=on,wait=off" if s.qmp_socket
+                 else f"tcp:127.0.0.1:{s.qmp_port},server=on,wait=off"),
         "-serial", f"file:{s.serial_log}",
         "-pidfile", str(s.pidfile),
         # Anzeige-Einstellung für das Skript im Gast (bonys-screen)
@@ -171,21 +178,25 @@ def build_command(s: LaunchSpec) -> list[str]:
         # Seed-ISO ohne bootindex: wird nie gestartet, cloud-init findet es über die Kennung „cidata“
         cmd += ["-drive", f"if=none,id=seed0,file={_esc(s.seed_iso)},format=raw,readonly=on",
                 "-device", "virtio-blk-pci,drive=seed0"]
-    if s.qga_port or s.spice_port:
+    if s.qga_socket or s.qga_port or s.spice_socket or s.spice_port:
         cmd += ["-device", "virtio-serial-pci"]
-    if s.qga_port:
+    if s.qga_socket or s.qga_port:
         # Kanal für qemu-guest-agent im Gast (nur von diesem Rechner aus erreichbar)
+        where = f"path={_esc(s.qga_socket)}" if s.qga_socket else f"host=127.0.0.1,port={s.qga_port}"
         cmd += [
-            "-chardev", f"socket,id=qga0,host=127.0.0.1,port={s.qga_port},server=on,wait=off",
+            "-chardev", f"socket,id=qga0,{where},server=on,wait=off",
             "-device", f"virtserialport,chardev=qga0,name={GUEST_AGENT_CHANNEL}",
         ]
-    if s.spice_port:
-        spice = f"port={s.spice_port},addr={s.spice_addr}"
-        if s.spice_password_file:
+    if s.spice_socket or s.spice_port:
+        if s.spice_socket:
+            # Nur dieser Benutzer kann den Socket öffnen (Ordner 0700) – ohne Passwort, kein Weg aus dem Gast
+            spice = f"unix=on,addr={_esc(s.spice_socket)},disable-ticketing=on"
+        elif s.spice_password_file:
             cmd += ["-object", f"secret,id=spicepw,file={_esc(s.spice_password_file)}"]
-            spice += ",password-secret=spicepw"
+            spice = f"port={s.spice_port},addr={s.spice_addr},password-secret=spicepw"
         else:
-            spice += ",disable-ticketing=on"
+            # Ein TCP-Port ohne Passwort wäre aus jedem Agent-PC über 10.0.2.2 erreichbar
+            raise ValueError("SPICE an einem TCP-Port nur mit Passwort")
         cmd += [
             "-spice", spice,
             # Kanal für spice-vdagent im Gast: Zwischenablage und automatische Bildschirmgröße
@@ -495,11 +506,47 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+def endpoint(socket_path: Path | None, port: int | None) -> str:
+    """Adresse eines Steuerkanals für runtime.json: „unix:PFAD“ oder „tcp:127.0.0.1:PORT“."""
+    return f"unix:{socket_path}" if socket_path else f"tcp:127.0.0.1:{port or 0}"
+
+
+def runtime_target(rt: dict, kind: str) -> str | int | None:
+    """Adresse des Steuerkanals ``kind`` („qmp“ oder „qga“) aus runtime.json – bis 0.19 nur eine Portnummer."""
+    return rt.get(kind) or rt.get(f"{kind}_port")
+
+
+def connect_local(target: int | str | None, timeout: float = 5.0) -> socket.socket:
+    """Verbindung zu einem lokalen Steuerkanal: „unix:PFAD“, „tcp:127.0.0.1:PORT“ oder (bis 0.19) eine Portnummer.
+
+    Nie zu einer anderen Adresse als 127.0.0.1 – runtime.json könnte von einem fremden Laufwerk stammen.
+    """
+    if isinstance(target, str) and target.startswith("unix:"):
+        if not hasattr(socket, "AF_UNIX"):
+            raise ConnectionRefusedError("Unix-Sockets gibt es auf diesem System nicht")
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(target[5:])
+        except OSError:
+            sock.close()
+            raise
+        return sock
+    if isinstance(target, str):
+        m = re.fullmatch(r"tcp:127\.0\.0\.1:(\d{1,5})", target)
+        port = int(m.group(1)) if m else 0
+    else:
+        port = target if isinstance(target, int) and not isinstance(target, bool) else 0
+    if not 0 < port < 65536:
+        raise ConnectionRefusedError("Kein Steuerkanal bekannt (läuft der Agent-PC?)")
+    return socket.create_connection(("127.0.0.1", port), timeout=timeout)
+
+
 class QMP:
     """Minimaler Client für das QEMU Machine Protocol."""
 
-    def __init__(self, port: int, timeout: float = 5.0):
-        self.sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    def __init__(self, target: int | str | None, timeout: float = 5.0):
+        self.sock = connect_local(target, timeout)
         self.file = self.sock.makefile("rwb")
         self._read()  # Begrüßung
         self.execute("qmp_capabilities")
@@ -563,9 +610,9 @@ class GuestAgentError(RuntimeError):
 class GuestAgent:
     """Minimaler Client für qemu-guest-agent – führt Befehle als root im Gast aus."""
 
-    def __init__(self, port: int, timeout: float = 5.0):
+    def __init__(self, target: int | str | None, timeout: float = 5.0):
         try:
-            self.sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+            self.sock = connect_local(target, timeout)
             self.file = self.sock.makefile("rwb")
             self._sync()
         except (OSError, ValueError) as e:

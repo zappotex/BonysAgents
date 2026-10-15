@@ -103,8 +103,14 @@ def data_dir() -> Path:
 
 
 def vnc_socket_path(vm_path: Path) -> Path:
-    """Ort des VNC-Sockets: im Laufzeitordner des Benutzers (nicht beim Agent-PC – exFAT/NTFS können keine
-    Sockets), in einem Unterordner, den nur dieser Benutzer öffnen darf. Kurz genug für sun_path (108 Zeichen)."""
+    """Ort des VNC-Sockets (siehe ``control_socket_path``)."""
+    return control_socket_path(vm_path, "vnc")
+
+
+def control_socket_path(vm_path: Path, kind: str) -> Path:
+    """Ort eines lokalen Sockets (vnc, qmp, qga, spice): im Laufzeitordner des Benutzers (nicht beim Agent-PC –
+    exFAT/NTFS können keine Sockets), in einem Unterordner, den nur dieser Benutzer öffnen darf. Kurz genug für
+    sun_path (104 bzw. 108 Zeichen)."""
     base = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()) / f"bonys-agents-{os.getuid()}"
     base.mkdir(mode=0o700, exist_ok=True)
     st = base.lstat()
@@ -113,7 +119,12 @@ def vnc_socket_path(vm_path: Path) -> Path:
     if st.st_mode & 0o077:
         base.chmod(0o700)
     key = hashlib.sha256(str(Path(vm_path).resolve()).encode()).hexdigest()[:16]
-    return base / f"{key}.vnc"
+    return base / f"{key}.{kind}"
+
+
+# Steuerkanäle (QMP, Gast-Agent) und lokales SPICE über Unix-Sockets – unter Windows (Python ohne AF_UNIX) über
+# TCP an 127.0.0.1. TCP-Ports an 127.0.0.1 sind aus jedem Agent-PC über 10.0.2.2 erreichbar.
+UNIX_SOCKETS = sys.platform != "win32"
 
 
 def vms_dir() -> Path:
@@ -511,7 +522,7 @@ class VM:
             script = ("systemctl enable --now xrdp" if permanent
                       else "systemctl disable xrdp xrdp-sesman >/dev/null 2>&1; systemctl start xrdp")
             self.guest_run(script, password=password, ssh_prompt=ssh_prompt)
-            with qemu.QMP(self.runtime()["qmp_port"]) as q:
+            with qemu.QMP(self.qmp_endpoint()) as q:
                 q.hostfwd_remove(rule)  # falls schon da (z. B. dauerhaft → nur bis zum Herunterfahren)
                 q.hostfwd_add(rule)
             if permanent:
@@ -523,7 +534,7 @@ class VM:
                 return "Fernzugriff dauerhaft an. RDP geht sofort, SPICE aus dem Heimnetz ab dem nächsten Start."
             return "Fernzugriff an – " + ("dauerhaft." if permanent else "bis zum Herunterfahren.")
         # Aus: erst die Tür nach außen zu, dann xrdp im Gast stoppen
-        with qemu.QMP(self.runtime()["qmp_port"]) as q:
+        with qemu.QMP(self.qmp_endpoint()) as q:
             q.hostfwd_remove(rule)
         c.remote_permanent = False
         self.save()
@@ -534,13 +545,13 @@ class VM:
             # verfallen lassen, dann kommt niemand mehr hinein. Nicht beim SPICE-Fenster: das braucht den Zugang.
             if c.display == "spice":
                 return "Fernzugriff aus. SPICE bleibt bis zum Herunterfahren erreichbar (mit Passwort)."
-            with qemu.QMP(self.runtime()["qmp_port"]) as q:
+            with qemu.QMP(self.qmp_endpoint()) as q:
                 q.execute("expire_password", protocol="spice", time="now")
         return "Fernzugriff ausgeschaltet."
 
     def _guest_boot_id(self) -> str:
         try:
-            with qemu.GuestAgent(self.runtime()["qga_port"], timeout=3) as ga:
+            with qemu.GuestAgent(self.qga_endpoint(), timeout=3) as ga:
                 return ga.run("cat /proc/sys/kernel/random/boot_id", timeout=10)[1].strip()
         except (qemu.GuestAgentError, RuntimeError, KeyError, TypeError):
             return ""
@@ -558,7 +569,7 @@ class VM:
         boot_id = self._guest_boot_id()
         if not boot_id or boot_id == rt["remote_boot_id"]:
             return False  # gleiche Sitzung – oder Gast gerade nicht erreichbar
-        with qemu.QMP(rt["qmp_port"]) as q:
+        with qemu.QMP(self.qmp_endpoint()) as q:
             q.hostfwd_remove(qemu.rdp_forward(REMOTE_ADDR, self.config.rdp_port))
         self._update_runtime(remote_on=False)
         return True
@@ -573,7 +584,7 @@ class VM:
         Argument darf unter Linux höchstens 128 KB lang sein), z. B. mit eingebettetem Bild.
         """
         try:
-            with qemu.GuestAgent(self.runtime().get("qga_port") or 0, timeout=5) as ga:
+            with qemu.GuestAgent(self.qga_endpoint(), timeout=5) as ga:
                 if via_stdin:
                     rc, o, e = ga.exec("/bin/bash", ["-s"], stdin=script.encode("utf-8"), timeout=timeout)
                     out = o + e
@@ -600,7 +611,7 @@ class VM:
                   f"runuser -u \"$U\" -- env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$ID/bus "
                   f"notify-send -u critical -a \"Bony's Agents\" {shlex.quote(title)} {shlex.quote(text)}")
         try:
-            with qemu.GuestAgent(self.runtime().get("qga_port") or 0, timeout=3) as ga:
+            with qemu.GuestAgent(self.qga_endpoint(), timeout=3) as ga:
                 rc, _out = ga.run(script, timeout=10)
         except (qemu.GuestAgentError, RuntimeError, OSError):
             return False
@@ -708,6 +719,26 @@ class VM:
         sock.settimeout(None)
         return sock
 
+    def qmp_endpoint(self) -> str | int | None:
+        """Adresse der QEMU-Steuerung des laufenden Agent-PCs (bis 0.19: nur eine Portnummer)."""
+        return qemu.runtime_target(self.runtime(), "qmp")
+
+    def qga_endpoint(self) -> str | int | None:
+        """Adresse des Gast-Agent-Kanals des laufenden Agent-PCs (bis 0.19: nur eine Portnummer)."""
+        return qemu.runtime_target(self.runtime(), "qga")
+
+    def spice_target(self) -> tuple[str | None, int | None]:
+        """Lokales SPICE: (Socket-Pfad, None) oder (None, Port) – je nachdem, wie der Agent-PC gestartet wurde."""
+        rt = self.runtime() if self.is_running() else {}
+        if rt.get("spice_socket"):
+            return rt["spice_socket"], None
+        if rt:
+            return None, rt.get("spice_port")
+        # ausgeschaltet: so, wie der nächste Start es einrichtet
+        if UNIX_SOCKETS and not self.config.remote_permanent:
+            return str(control_socket_path(self.path, "spice")), None
+        return None, self.config.spice_port
+
     def capabilities(self) -> dict:
         qemu_bin = qemu.find_binary(qemu.ARCH_BINARY[self.config.arch], host.detect().os)
         return qemu.capabilities(qemu_bin, storage.data_dir() / "qemu-capabilities.json")
@@ -725,12 +756,17 @@ class VM:
         # SPICE hört nur zur Startzeit festgelegt: im Heimnetz nur, wenn beim Start dauerhaft an war.
         spice_lan = bool(rt.get("spice_lan")) if running else c.remote_permanent
         lan = [a.ip for a in remote.lan_addresses()]
+        spice_sock, spice_tcp = self.spice_target() if spice_ok else (None, None)
         return {
             "active": active, "permanent": c.remote_permanent, "temporary": active and not c.remote_permanent,
             "addresses": lan, "rdp_port": c.rdp_port,
             "spice_port": c.spice_port if spice_ok else None, "spice_supported": spice_ok,
             "spice_lan": spice_ok and spice_lan,
-            "username": c.username, "spice_password": c.spice_password if spice_ok and spice_lan else "",
+            # lokal: „spice+unix://PFAD“ (Linux/macOS) bzw. „spice://127.0.0.1:PORT“ (mit Passwort)
+            "spice_local": (f"spice+unix://{spice_sock}" if spice_sock
+                            else f"spice://127.0.0.1:{spice_tcp}" if spice_tcp else None),
+            "username": c.username,
+            "spice_password": c.spice_password if spice_ok and (spice_lan or (spice_tcp and not spice_sock)) else "",
             "rdp_installed": "xrdp" in c.apps, "display": c.display,
             # dauerhaft eingeschaltet, aber SPICE lief beim Start nur lokal
             "needs_restart": running and c.remote_permanent and spice_ok and not rt.get("spice_lan"),
@@ -741,10 +777,13 @@ class VM:
         if not self.config.rdp_port or not sys.platform.startswith("linux"):
             return
         try:
-            spice = self.config.spice_port if self.capabilities()["spice"] else None
+            spice_ok = self.capabilities()["spice"]
         except qemu.QemuNotFound:
-            spice = None
-        remote.sync_profiles(self.name, self.config.username, self.config.rdp_port, spice)
+            spice_ok = False
+        spice_sock, spice_tcp = self.spice_target() if spice_ok else (None, None)
+        remote.sync_profiles(self.name, self.config.username, self.config.rdp_port,
+                             spice_tcp or self.config.spice_port if spice_ok else None,
+                             spice_socket=spice_sock)
 
     def connect(self, protocol: str) -> None:
         protocol = protocol.upper()
@@ -759,14 +798,27 @@ class VM:
         if protocol == "SPICE" and not info["spice_supported"]:
             raise RuntimeError("Dieser QEMU-Build kann kein SPICE – bitte RDP verwenden.")
         self.sync_remmina()
-        port = self.config.rdp_port if protocol == "RDP" else self.config.spice_port
-        remote.connect(protocol, self.name, self.config.username, port, self.path)
+        if protocol == "RDP":
+            remote.connect(protocol, self.name, self.config.username, self.config.rdp_port, self.path)
+            return
+        spice_sock, spice_tcp = self.spice_target()
+        remote.connect(protocol, self.name, self.config.username, spice_tcp or 0, self.path,
+                       spice_socket=spice_sock, spice_password=self.config.spice_password)
 
     def _launch(self, headless: bool) -> None:
         info = host.detect()
         qemu_bin = qemu.find_binary(qemu.ARCH_BINARY[self.config.arch], info.os)
         firmware = qemu.find_aarch64_firmware(qemu_bin) if self.config.arch == "aarch64" else None
-        qmp_port, ssh_port, qga_port = qemu.free_port(), qemu.free_port(), qemu.free_port()
+        ssh_port = qemu.free_port()
+        if UNIX_SOCKETS:
+            qmp_sock, qga_sock = control_socket_path(self.path, "qmp"), control_socket_path(self.path, "qga")
+            for old in (qmp_sock, qga_sock):
+                with contextlib.suppress(OSError):
+                    old.unlink()
+            qmp_port = qga_port = 0
+        else:
+            qmp_sock = qga_sock = None
+            qmp_port, qga_port = qemu.free_port(), qemu.free_port()
         self.ensure_remote_ports()
         caps = qemu.capabilities(qemu_bin, storage.data_dir() / "qemu-capabilities.json")
         c = self.config
@@ -778,9 +830,15 @@ class VM:
         # Nur bei „dauerhaft“ gleich beim Start ins Heimnetz (SPICE lässt sich später nicht mehr umstellen).
         remote_on = c.remote_permanent and not c.first_boot_pending and "xrdp" in c.apps
         spice_lan = spice_ok and remote_on
+        # SPICE nur an diesem Rechner: Unix-Socket. Sonst (Heimnetz oder Windows) ein TCP-Port – dann immer mit
+        # Passwort, denn auch 127.0.0.1 ist aus jedem Agent-PC über 10.0.2.2 erreichbar.
+        spice_sock = control_socket_path(self.path, "spice") if spice_ok and UNIX_SOCKETS and not spice_lan else None
+        if spice_sock:
+            with contextlib.suppress(OSError):
+                spice_sock.unlink()
         pw_file = self.path / "spice-password"
         pw_file.unlink(missing_ok=True)
-        if spice_lan:
+        if spice_ok and not spice_sock:
             self._ensure_spice_password()
             self.save()
             pw_file.write_text(c.spice_password, "utf-8")
@@ -803,7 +861,7 @@ class VM:
             qemu_bin=qemu_bin, arch=c.arch, accel=info.accel if c.arch == info.arch else "tcg",
             name=qemu_window_title(self.name),
             cpus=c.cpus, ram_mb=c.ram_mb,
-            disk=self.disk, qmp_port=qmp_port, ssh_port=ssh_port,
+            disk=self.disk, qmp_port=qmp_port, ssh_port=ssh_port, qmp_socket=qmp_sock, qga_socket=qga_sock,
             serial_log=self.console_log, pidfile=self.pidfile,
             seed_iso=self.seed_iso if self.seed_iso.exists() else None,
             firmware=firmware, headless=qemu_headless, qga_port=qga_port,
@@ -813,7 +871,8 @@ class VM:
             rdp_addr=REMOTE_ADDR if remote_on else None, rdp_port=c.rdp_port,
             extra_forwards=() if self.restrict_net else mission_control.launch_forwards(self),
             spice_addr=REMOTE_ADDR if spice_lan else "127.0.0.1",
-            spice_port=c.spice_port if spice_ok else None, spice_password_file=pw_file, audio=audio,
+            spice_port=c.spice_port if spice_ok and not spice_sock else None, spice_socket=spice_sock,
+            spice_password_file=pw_file, audio=audio,
             vnc=vnc,
         )
         cmd = qemu.build_command(spec)
@@ -832,7 +891,9 @@ class VM:
         proc = subprocess.Popen(cmd, env=clean_env(), **kwargs)
         _children[proc.pid] = proc
         self.runtime_file.write_text(
-            json.dumps({"qmp_port": qmp_port, "ssh_port": ssh_port, "qga_port": qga_port, "accel": info.accel,
+            json.dumps({"qmp": qemu.endpoint(qmp_sock, qmp_port), "qga": qemu.endpoint(qga_sock, qga_port),
+                        "qmp_port": qmp_port, "ssh_port": ssh_port, "qga_port": qga_port, "accel": info.accel,
+                        "spice_socket": str(spice_sock) if spice_sock else None,
                         "command": cmd, "started": time.time(), "pid": proc.pid,
                         "remote_on": remote_on, "spice_lan": spice_lan,
                         "rdp_port": c.rdp_port, "spice_port": c.spice_port if spice_ok else None,
@@ -855,7 +916,10 @@ class VM:
             size_qemu_window(self.name, *spec.screen)
         self.sync_remmina()
         if spice_window:
-            _wait_for_port(c.spice_port)
+            if spice_sock:
+                _wait_for_socket(spice_sock)
+            else:
+                _wait_for_port(c.spice_port)
             try:
                 self.connect("SPICE")
             except RuntimeError:
@@ -875,7 +939,7 @@ class VM:
         if self._guest_shutdown():
             return True
         try:
-            with qemu.QMP(self.runtime().get("qmp_port"), timeout=3) as q:
+            with qemu.QMP(self.qmp_endpoint(), timeout=3) as q:
                 q.execute("system_powerdown")
             return True
         except (OSError, RuntimeError, TypeError, ValueError):
@@ -883,7 +947,7 @@ class VM:
 
     def guest_agent_ready(self) -> bool:
         """Antwortet der Gast-Agent (Gast fertig gebootet)?"""
-        port = self.runtime().get("qga_port")
+        port = self.qga_endpoint()
         if not port or not self.is_running():
             return False
         try:
@@ -894,7 +958,7 @@ class VM:
             return False
 
     def _guest_shutdown(self) -> bool:
-        port = self.runtime().get("qga_port")
+        port = self.qga_endpoint()
         if not port:
             return False
         try:
@@ -923,7 +987,7 @@ class VM:
             return
         self._update_runtime(powered_off=True)  # für die Anzeige der Abbruch-Ursache
         try:
-            with qemu.QMP(self.runtime().get("qmp_port"), timeout=2) as q:
+            with qemu.QMP(self.qmp_endpoint(), timeout=2) as q:
                 q.execute("quit")
         except (OSError, RuntimeError, TypeError, ValueError):
             pass
@@ -1111,7 +1175,7 @@ class VM:
         schreibt), sonst per SSH – dafür braucht es das Passwort (``password``) bzw. ``ssh_prompt``.
         """
         emit = log or (lambda line: None)
-        port = self.runtime().get("qga_port") or 0
+        port = self.qga_endpoint()
         try:
             pos = self.console_log.stat().st_size  # Ausgabe ab hier live weiterreichen
         except OSError:
@@ -1195,7 +1259,7 @@ class VM:
         sep = "=====BONYS-FILE "
         script = "".join(f'echo "{sep}{src}"; cat {src} 2>&1 || true\n' for src in GUEST_SETUP_LOGS)
         try:
-            with qemu.GuestAgent(self.runtime().get("qga_port") or 0, timeout=3) as ga:
+            with qemu.GuestAgent(self.qga_endpoint(), timeout=3) as ga:
                 out = ga.run(script, timeout=60)[1]
         except (qemu.GuestAgentError, RuntimeError):
             if not password and not ssh_prompt:
@@ -1345,6 +1409,16 @@ def _wait_port_free(port: int, timeout: float = 15.0) -> bool:
             return False
         time.sleep(0.3)
     return True
+
+
+def _wait_for_socket(path: Path, timeout: float = 8.0) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            qemu.connect_local(f"unix:{path}", timeout=0.5).close()
+            return
+        except OSError:
+            time.sleep(0.3)
 
 
 def _wait_for_port(port: int, timeout: float = 8.0) -> None:

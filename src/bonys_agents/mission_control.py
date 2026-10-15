@@ -562,7 +562,7 @@ def _forward_off(machine: VM) -> None:
     c = machine.config
     if machine.is_running() and c.mc_forward_port:
         try:
-            with qemu.QMP(machine.runtime()["qmp_port"]) as q:
+            with qemu.QMP(qemu.runtime_target(machine.runtime(), "qmp")) as q:
                 q.hostfwd_remove(forward_rule(c.mc_forward_port))
         except (OSError, RuntimeError, KeyError, TypeError, ValueError):
             pass
@@ -597,7 +597,7 @@ def set_forward(machine: VM, on: bool, password: str | None = None, ssh_prompt: 
     if rc != 0:
         raise RuntimeError(f"Die Weiterleitung ließ sich im Agent-PC nicht einrichten (Code {rc}).")
     rule = forward_rule(port)
-    with qemu.QMP(machine.runtime()["qmp_port"]) as q:
+    with qemu.QMP(qemu.runtime_target(machine.runtime(), "qmp")) as q:
         q.hostfwd_remove(rule)
         q.hostfwd_add(rule)
     c.mc_forward = True

@@ -118,14 +118,17 @@ def profile_name(vm_name: str, protocol: str) -> str:
     return f"{PROFILE_PREFIX}{vm_name}-{protocol.lower()}.remmina"
 
 
-def remmina_profile(vm_name: str, protocol: str, server: str, port: int, username: str) -> str:
-    """Inhalt einer .remmina-Datei – bewusst ohne Passwort (Remmina fragt danach)."""
+def remmina_profile(vm_name: str, protocol: str, server: str, port: int | None, username: str) -> str:
+    """Inhalt einer .remmina-Datei – bewusst ohne Passwort (Remmina fragt danach).
+
+    ``port`` None: ``server`` ist ein Unix-Socket („unix:///PFAD“, SPICE nur an diesem Rechner).
+    """
     lines = [
         "[remmina]",
         f"name={vm_name} ({protocol})",
         f"group={GROUP}",
         f"protocol={protocol}",
-        f"server={server}:{port}",
+        f"server={server}" if port is None else f"server={server}:{port}",
     ]
     if protocol == "RDP":
         lines += [f"username={username}", "sound=local", "resolution_mode=2", "colordepth=32",
@@ -149,16 +152,23 @@ def write_if_changed(path: Path, text: str) -> bool:
 
 
 def sync_profiles(vm_name: str, username: str, rdp_port: int, spice_port: int | None,
-                  dirs: list[Path] | None = None) -> list[Path]:
-    """Remmina-Profile eines Agent-PCs anlegen bzw. aktualisieren (nur wenn Remmina da ist)."""
+                  dirs: list[Path] | None = None, spice_socket: str | Path | None = None) -> list[Path]:
+    """Remmina-Profile eines Agent-PCs anlegen bzw. aktualisieren (nur wenn Remmina da ist).
+
+    ``spice_socket``: SPICE läuft lokal über diesen Unix-Socket statt über ``spice_port``.
+    """
     written = []
     for d in remmina_dirs() if dirs is None else dirs:
-        items = [("RDP", rdp_port)] + ([("SPICE", spice_port)] if spice_port else [])
-        for proto, port in items:
+        items = [("RDP", "127.0.0.1", rdp_port)]
+        if spice_socket:
+            items.append(("SPICE", f"unix://{spice_socket}", None))
+        elif spice_port:
+            items.append(("SPICE", "127.0.0.1", spice_port))
+        for proto, server, port in items:
             path = d / profile_name(vm_name, proto)
-            write_if_changed(path, remmina_profile(vm_name, proto, "127.0.0.1", port, username))
+            write_if_changed(path, remmina_profile(vm_name, proto, server, port, username))
             written.append(path)
-        if not spice_port:
+        if not (spice_port or spice_socket):
             (d / profile_name(vm_name, "SPICE")).unlink(missing_ok=True)
     return written
 
@@ -214,9 +224,23 @@ def spice_viewer_available() -> bool:
     return bool(remote_viewer() or (sys.platform.startswith("linux") and remmina_command()))
 
 
+def spice_vv_file(path: Path, title: str, port: int, password: str) -> Path:
+    """Verbindungsdatei für remote-viewer mit Passwort (nur für diesen Benutzer lesbar, löscht sich beim Öffnen)."""
+    path.unlink(missing_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(["[virt-viewer]", "type=spice", "host=127.0.0.1", f"port={port}",
+                           f"password={password}", f"title={title}", "delete-this-file=1"]) + "\n")
+    return path
+
+
 def connect_command(protocol: str, vm_name: str, username: str, port: int, work_dir: Path,
-                    host_os: str | None = None) -> list[str]:
-    """Befehl, der eine Verbindung öffnet – oder RuntimeError mit Hinweis, was fehlt."""
+                    host_os: str | None = None, spice_socket: str | Path | None = None,
+                    spice_password: str = "") -> list[str]:
+    """Befehl, der eine Verbindung öffnet – oder RuntimeError mit Hinweis, was fehlt.
+
+    SPICE: über ``spice_socket`` (Unix-Socket) oder ``port`` – der Port verlangt das ``spice_password``.
+    """
     host_os = host_os or host.detect().os
     protocol = protocol.upper()
     if protocol == "RDP":
@@ -240,15 +264,22 @@ def connect_command(protocol: str, vm_name: str, username: str, port: int, work_
         if cmd and existing:
             return cmd + ["-c", existing]
     viewer = remote_viewer()
+    if viewer and spice_socket:
+        return [viewer, f"--title={vm_name}", f"spice+unix://{spice_socket}"]
+    if viewer and spice_password:
+        return [viewer, str(spice_vv_file(work_dir / f"{vm_name}.vv", vm_name, port, spice_password))]
     if viewer:
         return [viewer, f"--title={vm_name}", f"spice://127.0.0.1:{port}"]
     if host_os == "linux" and remmina_command():
-        return remmina_command() + ["-c", f"spice://127.0.0.1:{port}"]
+        target = f"unix://{spice_socket}" if spice_socket else f"spice://127.0.0.1:{port}"
+        return remmina_command() + ["-c", target]
     raise RuntimeError("Für SPICE wird remote-viewer (Paket virt-viewer) oder Remmina benötigt.")
 
 
-def connect(protocol: str, vm_name: str, username: str, port: int, work_dir: Path) -> None:
-    spawn_detached(connect_command(protocol, vm_name, username, port, work_dir))
+def connect(protocol: str, vm_name: str, username: str, port: int, work_dir: Path,
+            spice_socket: str | Path | None = None, spice_password: str = "") -> None:
+    spawn_detached(connect_command(protocol, vm_name, username, port, work_dir,
+                                   spice_socket=spice_socket, spice_password=spice_password))
 
 
 # ---------------------------------------------------------------- Remmina installieren (Linux)

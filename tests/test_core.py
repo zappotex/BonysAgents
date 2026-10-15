@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
+import os
 import re
 import sys
 from pathlib import Path, PurePosixPath
@@ -926,11 +927,16 @@ def test_remote_ports_unique(datadir, monkeypatch):
 
 
 def test_remote_off_by_default_and_ports_at_start():
-    off = qemu.build_command(_rspec(rdp_port=3390, spice_port=5901))
+    off = qemu.build_command(_rspec(rdp_port=3390, spice_socket=PurePosixPath("/run/u/x.spice")))
     net = off[off.index("-netdev") + 1]
     assert net == "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22"  # nur SSH, lokal – kein RDP-Port
-    assert "port=5901,addr=127.0.0.1,disable-ticketing=on" in off      # SPICE nur an diesem Rechner
+    assert "unix=on,addr=/run/u/x.spice,disable-ticketing=on" in off  # SPICE nur an diesem Rechner: Socket
     assert "com.redhat.spice.0" in " ".join(off)
+    # Ein TCP-Port ohne Passwort wäre aus jedem Agent-PC über 10.0.2.2 erreichbar – auch an 127.0.0.1
+    with pytest.raises(ValueError):
+        qemu.build_command(_rspec(spice_port=5901))
+    local_tcp = qemu.build_command(_rspec(spice_port=5901, spice_password_file=PurePosixPath("/vm/spice-password")))
+    assert "port=5901,addr=127.0.0.1,password-secret=spicepw" in local_tcp
     lan = qemu.build_command(_rspec(rdp_addr="0.0.0.0", rdp_port=3390, spice_port=5901, spice_addr="0.0.0.0",
                                    spice_password_file=PurePosixPath("/vm/spice-password")))
     net = lan[lan.index("-netdev") + 1]
@@ -944,7 +950,7 @@ def test_remote_off_by_default_and_ports_at_start():
 
 
 def test_screen_follows_window_and_guest_agent_channel():
-    cmd = qemu.build_command(_rspec(qga_port=4555, spice_port=5901))
+    cmd = qemu.build_command(_rspec(qga_port=4555, spice_socket=PurePosixPath("/run/u/x.spice")))
     assert "virtio-vga,edid=on,xres=800,yres=600" in cmd  # EDID: neue Fenstergröße geht an den Gast
     assert cmd[cmd.index("-fw_cfg") + 1] == "name=opt/bonys-agents/screen,string=auto"
     assert "socket,id=qga0,host=127.0.0.1,port=4555,server=on,wait=off" in cmd
@@ -956,7 +962,7 @@ def test_screen_follows_window_and_guest_agent_channel():
     assert "virtio-vga,edid=on,xres=1280,yres=800" in fixed
     assert "name=opt/bonys-agents/screen,string=fixed:1280x800" in fixed
     # Mit -spice öffnet QEMU von sich aus KEIN Fenster – deshalb steht die Anzeige ausdrücklich da.
-    win = qemu.build_command(_rspec(spice_port=5901, display="gtk"))
+    win = qemu.build_command(_rspec(spice_socket=PurePosixPath("/run/u/x.spice"), display="gtk"))
     assert win[-2:] == ["-display", "gtk"]
     assert qemu.build_command(_rspec(display="gtk", headless=True))[-2:] == ["-display", "none"]
     # zoom-to-fit=off ließe das Fenster nicht kleiner als den Gast werden – nur bei fester Auflösung
@@ -1115,15 +1121,110 @@ def test_spice_window_start(datadir, monkeypatch):
     monkeypatch.setattr(vm.host, "detect", lambda: _LINUX_HOST)
     monkeypatch.setattr(remote, "spice_viewer_available", lambda: True)
     monkeypatch.setattr(vm, "_wait_for_port", lambda port, timeout=8.0: None)
+    monkeypatch.setattr(vm, "_wait_for_socket", lambda path, timeout=8.0: None)
     monkeypatch.setattr(vm.VM, "connect", lambda self, proto: opened.append(proto))
     m.start()
     cmd = started[0]
     assert cmd[-2:] == ["-display", "none"] and "spice,id=snd0" in cmd
     assert opened == ["SPICE"]
     rt = m.runtime()
-    assert rt["rdp_port"] == 3390 and rt["spice_port"] == 5901 and rt["remote_on"] is False
-    assert rt["qga_port"] and "hostfwd=tcp:0.0.0.0" not in " ".join(cmd)
+    assert rt["rdp_port"] == 3390 and rt["remote_on"] is False
+    assert rt["qga"].startswith("unix:") and "hostfwd=tcp:0.0.0.0" not in " ".join(cmd)
+    assert rt["spice_socket"] and any(a.startswith("unix=on,addr=") for a in cmd)
     vm._children.clear()
+
+
+def _start_fake(m, monkeypatch, caps=None):
+    """Agent-PC mit vorgetäuschtem QEMU starten – gibt die Befehlszeile zurück."""
+    started = []
+
+    class FakeProc:
+        pid = 1
+
+        def __init__(self, cmd, **kw):
+            started.append(cmd)
+            m.pidfile.write_text("1")
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/usr/bin/qemu-system-x86_64"))
+    monkeypatch.setattr(vm.qemu, "capabilities",
+                        lambda qb, cache=None: caps or {"spice": True, "audio": ["pipewire", "spice"]})
+    monkeypatch.setattr(vm.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(vm.host, "detect", lambda: _LINUX_HOST)
+    monkeypatch.setattr(vm, "_wait_for_port", lambda port, timeout=8.0: None)
+    m.start(headless=True)
+    vm._children.clear()
+    return started[0]
+
+
+def test_no_control_port_reachable_from_guest(datadir, monkeypatch):
+    """Aus dem Agent-PC ist 127.0.0.1 des Hosts über 10.0.2.2 erreichbar (QEMU-Benutzernetz). Darum dürfen QMP,
+    Gast-Agent und lokales SPICE dort nie an einem TCP-Port ohne Passwort lauschen – sonst führt ein Programm im
+    Agent-PC über QMP Befehle auf dem Host aus."""
+    m = _fake_vm(datadir)
+    m.config.provisioned = True
+    cmd = _start_fake(m, monkeypatch)
+    qmp = cmd[cmd.index("-qmp") + 1]
+    assert qmp.startswith("unix:") and "tcp:" not in qmp
+    qga = next(a for a in cmd if a.startswith("socket,id=qga0,"))
+    assert ",path=" in qga and "host=" not in qga and "port=" not in qga
+    spice = cmd[cmd.index("-spice") + 1]
+    assert spice.startswith("unix=on,addr=") and "port=" not in spice
+    rt = m.runtime()
+    assert rt["qmp"].startswith("unix:") and rt["qga"].startswith("unix:")
+    assert not rt["qmp_port"] and not rt["qga_port"]
+    # Sockets liegen in einem Ordner, den nur dieser Benutzer öffnen darf
+    folder = Path(rt["qmp"][5:]).parent
+    assert folder.stat().st_mode & 0o077 == 0 and folder.stat().st_uid == os.getuid()
+    assert m.qmp_endpoint() == rt["qmp"] and m.qga_endpoint() == rt["qga"]
+
+
+def test_without_unix_sockets_spice_always_has_password(datadir, monkeypatch):
+    """Windows (Python ohne AF_UNIX): SPICE lauscht an 127.0.0.1 – dann immer mit Passwort."""
+    monkeypatch.setattr(vm, "UNIX_SOCKETS", False)
+    m = _fake_vm(datadir)
+    m.config.provisioned = True
+    cmd = _start_fake(m, monkeypatch)
+    spice = cmd[cmd.index("-spice") + 1]
+    assert "addr=127.0.0.1" in spice and "password-secret=spicepw" in spice
+    assert not any("disable-ticketing" in a for a in cmd)
+    assert m.config.spice_password and m.remote_info()["spice_password"] == m.config.spice_password
+
+
+def test_connect_local_only_to_this_computer(tmp_path):
+    import socket as socketmod
+    for bad in (None, 0, "", "tcp:10.0.2.2:22", "tcp:192.168.1.5:4444", "tcp:127.0.0.1:0", True):
+        with pytest.raises(ConnectionRefusedError):
+            qemu.connect_local(bad, timeout=0.5)
+    path = tmp_path / "q.sock"
+    srv = socketmod.socket(socketmod.AF_UNIX, socketmod.SOCK_STREAM)
+    srv.bind(str(path))
+    srv.listen(1)
+    try:
+        qemu.connect_local(f"unix:{path}", timeout=1).close()
+        assert qemu.runtime_target({"qmp": f"unix:{path}", "qmp_port": 5}, "qmp") == f"unix:{path}"
+        assert qemu.runtime_target({"qmp_port": 5}, "qmp") == 5  # Agent-PC, der noch mit 0.19 läuft
+    finally:
+        srv.close()
+
+
+def test_spice_connect_command_socket_or_password(tmp_path, monkeypatch):
+    from bonys_agents import remote
+    monkeypatch.setattr(remote, "remote_viewer", lambda: "/usr/bin/remote-viewer")
+    monkeypatch.setattr(remote, "remmina_command", lambda: None)
+    cmd = remote.connect_command("SPICE", "pc", "agent", 0, tmp_path, host_os="macos",
+                                 spice_socket="/run/u/x.spice")
+    assert cmd[-1] == "spice+unix:///run/u/x.spice"
+    cmd = remote.connect_command("SPICE", "pc", "agent", 5901, tmp_path, host_os="windows",
+                                 spice_password="geheim123")
+    vv = Path(cmd[-1])
+    text = vv.read_text()
+    assert "port=5901" in text and "password=geheim123" in text and "delete-this-file=1" in text
+    assert "geheim123" not in " ".join(cmd)  # nicht auf der Befehlszeile (für andere Prozesse sichtbar)
+    if os.name != "nt":
+        assert vv.stat().st_mode & 0o777 == 0o600
 
 
 def test_remmina_profiles_created_and_removed(datadir, monkeypatch, tmp_path):
@@ -1139,7 +1240,8 @@ def test_remmina_profiles_created_and_removed(datadir, monkeypatch, tmp_path):
         spice = (d / "bonys-agents-agent-pc-1-spice.remmina").read_text()
         assert "group=Bony's Agents" in rdp and "protocol=RDP" in rdp
         assert "server=127.0.0.1:3390" in rdp and "username=agent" in rdp
-        assert "protocol=SPICE" in spice and "server=127.0.0.1:5901" in spice
+        # SPICE nur an diesem Rechner: über den Unix-Socket (kein Port, den ein Agent-PC erreichen könnte)
+        assert "protocol=SPICE" in spice and "server=unix:///" in spice and ".spice" in spice
         assert "password" not in (rdp + spice).lower()
     m.delete()
     assert not list(native.iterdir()) and not list(flat.iterdir())
