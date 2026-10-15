@@ -134,6 +134,27 @@ def vms_dir() -> Path:
     return storage.default_library()
 
 
+# Formatversion von vm.json. Erhöhen, wenn eine ältere Programmversion die Datei falsch verstehen würde –
+# die lässt den Agent-PC dann nur noch anzeigen (NEWER_FORMAT), statt ihn zu ändern.
+VM_FORMAT = 1
+NEWER_FORMAT = ("„{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's Agents "
+                "aktualisieren – bis dahin kann diese Version ihn nur anzeigen.")
+
+
+def write_json(path: Path, data: dict) -> None:
+    """JSON atomar schreiben: erst eine Nachbardatei (mit PID im Namen) vollständig auf die Platte, dann ersetzen."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 # ---------- Angaben aus vm.json / template.json prüfen ----------
 # Beide Dateien können von einem fremden Laufwerk oder aus einer weitergegebenen Datei stammen. Ihre Werte
 # landen in Remmina-Profilen, .rdp-Dateien, Gast-Skripten und QEMU-Befehlszeilen – daher eng prüfen.
@@ -189,6 +210,7 @@ VM_RULES: dict[str, Callable] = {
     "setup_total": lambda n: 0 <= n <= 10_000,
     "setup_title": _text(200),
     "template": lambda s: s == "" or NAME_RE.match(s),
+    "format_version": lambda n: n >= 1,
 }
 
 
@@ -209,7 +231,8 @@ def _type_ok(value, annotation: str) -> bool:
 def checked_fields(cls, data, rules: dict[str, Callable], what: str, skip: frozenset = frozenset()) -> dict:
     """Bekannte Felder von ``cls`` aus ``data`` – ValueError bei falschem Typ oder unzulässigem Wert.
 
-    Unbekannte Felder (z. B. aus einer neueren Version) werden ignoriert.
+    Unbekannte Felder (z. B. aus einer neueren Version) prüft und nutzt das Programm nicht; ``unknown_fields``
+    liefert sie, damit sie beim Speichern erhalten bleiben.
     """
     if not isinstance(data, dict):
         raise ValueError(f"{what}: kein gültiger Inhalt.")
@@ -225,6 +248,11 @@ def checked_fields(cls, data, rules: dict[str, Callable], what: str, skip: froze
             raise ValueError(f"{what}: unzulässiger Wert bei „{f.name}“.")
         out[f.name] = value
     return out
+
+
+def unknown_fields(cls, data: dict, skip: frozenset = frozenset()) -> dict:
+    known = {f.name for f in fields(cls)} | set(skip)
+    return {k: v for k, v in data.items() if k not in known}
 
 
 @dataclass
@@ -269,6 +297,7 @@ class VMConfig:
     # Aus einer weitergegebenen Vorlage: nicht mitgelieferte Apps (Lizenz) – „Programme hinzufügen“ schlägt sie vor
     reinstall: list[str] = field(default_factory=list)
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    format_version: int = VM_FORMAT   # fehlt bis 0.19 = 1
 
 
 @dataclass
@@ -293,6 +322,7 @@ class VM:
         if isinstance(data, dict) and data.pop("remote_lan", False):  # bis 0.6: „Heimnetz“ = jetzt „dauerhaft“
             data["remote_permanent"] = True
         self.config = VMConfig(**checked_fields(VMConfig, data, VM_RULES, f"{path.name}/vm.json"))
+        self._unknown = unknown_fields(VMConfig, data)  # aus einer neueren Version – beim Speichern behalten
 
     # ---------- Pfade ----------
     @property
@@ -331,8 +361,19 @@ class VM:
     def runtime_file(self) -> Path:
         return self.path / "runtime.json"
 
+    def newer_format(self) -> bool:
+        """vm.json stammt aus einer neueren Version von Bony's Agents (nur anzeigen, nicht ändern)."""
+        return self.config.format_version > VM_FORMAT
+
+    def _save_status(self) -> None:
+        """Beim Abfragen des Zustands mitspeichern – bei neuerem Format still nicht (nur anzeigen)."""
+        if not self.newer_format():
+            self.save()
+
     def save(self) -> None:
-        (self.path / "vm.json").write_text(json.dumps(asdict(self.config), indent=2), "utf-8")
+        if self.newer_format():
+            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
+        write_json(self.path / "vm.json", {**self._unknown, **asdict(self.config)})
 
     # ---------- Zustand ----------
     def pid(self) -> int | None:
@@ -405,12 +446,12 @@ class VM:
             ready = True
         if ready and not c.provisioned:
             c.provisioned = True
-            self.save()
+            self._save_status()
             self._remove_seed()  # erst jetzt: Das Seed-ISO enthält das Passwort, wird aber bis READY gebraucht
         resumed = False
         if step and (step, total, title) != (c.setup_step, c.setup_total, c.setup_title) and not ready:
             c.setup_step, c.setup_total, c.setup_title = step, total, title
-            self.save()
+            self._save_status()
         elif not step and c.setup_step and not ready:
             # Neustart nach einem Abbruch: bis der Gast weitermacht, den letzten Stand zeigen
             step, total, title, resumed = c.setup_step, c.setup_total, c.setup_title, True
@@ -465,6 +506,8 @@ class VM:
         return pid if psutil.pid_exists(pid) else None
 
     def _check_usable(self) -> None:
+        if self.newer_format():
+            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
         if self.template_lock_pid() is not None:
             raise RuntimeError(f"Aus „{self.name}“ wird gerade eine Vorlage erstellt – bitte warten, bis das "
                                "fertig ist.")
@@ -1807,7 +1850,7 @@ def create(
             apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop, vpn=vpn,
         )
         cloudinit.write_seed_iso(path / "seed.iso", guest, instance_id=f"bonys-{uuid.uuid4()}")
-        (path / "vm.json").write_text(json.dumps(asdict(cfg), indent=2), "utf-8")
+        write_json(path / "vm.json", asdict(cfg))
     except Exception:
         shutil.rmtree(path, ignore_errors=True)
         raise
@@ -1832,6 +1875,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     if len(password) < 4:
         raise ValueError("Passwort: mindestens 4 Zeichen")
     tpl = templates.get(template_name)
+    tpl.check_usable()
     if vpn and vpnlink.APP_ID not in tpl.apps:
         raise ValueError(f"In der Vorlage „{tpl.name}“ ist Bony's VPN nicht installiert – die WireGuard-Konfiguration "
                          "geht erst, wenn die VPN-App im Agent-PC nachinstalliert ist (Detailansicht → VPN).")
@@ -1891,7 +1935,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         cloudinit.write_clone_seed_iso(path / "seed.iso", hostname=name.lower().replace("_", "-"),
                                        username=tpl.username, password=password,
                                        instance_id=f"bonys-{uuid.uuid4()}", vpn=vpn)
-        (path / "vm.json").write_text(json.dumps(asdict(cfg), indent=2), "utf-8")
+        write_json(path / "vm.json", asdict(cfg))
     except Exception:
         shutil.rmtree(path, ignore_errors=True)
         raise

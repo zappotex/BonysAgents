@@ -643,6 +643,7 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
     ``cancel``: gesetzt = abbrechen (räumt auf, wirft Cancelled).
     """
     t = templates.get(name)
+    t.check_usable()
     version = (version or t.version or "1").strip()
     if not _SAFE_TEXT.match(version) or not version:
         raise ValueError("Version: nur Buchstaben, Ziffern und . _ - (z. B. 1.0)")

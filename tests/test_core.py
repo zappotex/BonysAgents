@@ -1776,3 +1776,31 @@ def test_remote_profiles_reject_line_breaks(tmp_path):
     with pytest.raises(ValueError):
         remote.spice_vv_file(tmp_path / "x.vv", "pc", 5901, "pw\nproxy=http://x")
     assert "username=agent" in remote.remmina_profile("pc", "RDP", "127.0.0.1", 3390, "agent")
+
+
+# ---------- Formatversion von vm.json ----------
+def test_vm_json_keeps_unknown_fields_and_newer_format_is_read_only(datadir, monkeypatch, tmp_path):
+    _fake_create(monkeypatch, tmp_path)
+    m = vm.create("formate", "pw1234", cpus=1, ram_mb=2048, location=tmp_path / "lib")
+    data = json.loads((m.path / "vm.json").read_text("utf-8"))
+    assert data["format_version"] == vm.VM_FORMAT
+    data["neu_in_2_0"] = {"x": [1, 2]}
+    (m.path / "vm.json").write_text(json.dumps(data), "utf-8")
+    m = vm.VM(m.path)
+    m.config.cpus = 2
+    m.save()
+    saved = json.loads((m.path / "vm.json").read_text("utf-8"))
+    assert saved["neu_in_2_0"] == {"x": [1, 2]} and saved["cpus"] == 2
+    assert [p.name for p in m.path.iterdir() if p.name.endswith(".tmp")] == []
+
+    saved["format_version"] = vm.VM_FORMAT + 1
+    (m.path / "vm.json").write_text(json.dumps(saved), "utf-8")
+    newer = vm.VM(m.path)
+    assert newer.newer_format() and "formate" in [x.name for x in vm.list_vms()]  # wird angezeigt
+    newer.config.setup_step = 99
+    newer._save_status()  # Zustandsabfrage der Oberfläche: still nichts speichern
+    with pytest.raises(RuntimeError, match="neueren Version"):
+        newer.save()
+    with pytest.raises(RuntimeError, match="neueren Version"):
+        newer.start()
+    assert json.loads((m.path / "vm.json").read_text("utf-8")) == saved  # unverändert

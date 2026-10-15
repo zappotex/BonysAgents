@@ -252,6 +252,24 @@ def test_template_json_with_bad_values_is_skipped(datadir, tmp_path, over):
     assert templates.list_templates() == []
 
 
+def test_template_json_keeps_unknown_fields_and_newer_format_is_read_only(datadir, tmp_path):
+    d = templates.templates_dir(vm.vms_dir()) / "neu"
+    d.mkdir(parents=True)
+    data = {"name": "neu", "format": templates.FORMAT, "neu_in_2_0": "bleibt"}
+    (d / "template.json").write_text(json.dumps(data), "utf-8")
+    t = templates.Template.load(d)
+    t.description = "geändert"
+    t.save()
+    saved = json.loads((d / "template.json").read_text("utf-8"))
+    assert saved["neu_in_2_0"] == "bleibt" and saved["description"] == "geändert"
+    (d / "template.json").write_text(json.dumps({**saved, "format": templates.FORMAT + 1}), "utf-8")
+    assert [x.name for x in templates.list_templates()] == ["neu"]  # wird angezeigt
+    with pytest.raises(RuntimeError, match="neueren Version"):
+        vm.create("aus-neu", "pw1234", template="neu")
+    with pytest.raises(RuntimeError, match="neueren Version"):
+        templates.Template.load(d).save()
+
+
 @needs_qemu_img
 def test_clone_linked_and_full(datadir, monkeypatch, tmp_path):
     _use_real_qemu_img(monkeypatch)

@@ -35,6 +35,8 @@ TEMPLATES_DIRNAME = "_templates"
 FILE_SUFFIX = ".bonys-template"
 FORMAT = 1
 NAME_RE = vm.NAME_RE
+NEWER_FORMAT = ("Die Vorlage „{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's "
+                "Agents aktualisieren – bis dahin kann diese Version sie nur anzeigen.")
 # template.json kann von einem fremden Laufwerk oder aus einer alten .bonys-template-Datei stammen
 RULES = {
     **vm.COMMON_RULES,
@@ -46,6 +48,7 @@ RULES = {
     "creator": vm._text(200),
     "preview": lambda s: s in ("", "preview.png", "preview.jpg"),
     "size": lambda n: n >= 0,
+    "format": lambda n: n >= 1,
 }
 EXPORT_WARNING = ("Prüfe vor der Weitergabe, dass keine persönlichen Daten enthalten sind – "
                   "vor allem, wenn die Vorlage mit „Persönliche Daten behalten“ erstellt wurde.")
@@ -96,19 +99,28 @@ class Template:
         return self.path.parent.parent
 
     def to_json(self) -> dict:
-        d = asdict(self)
+        d = {**getattr(self, "_unknown", {}), **asdict(self)}  # Felder einer neueren Version behalten
         d.pop("path")
         return d
 
+    def newer_format(self) -> bool:
+        """template.json stammt aus einer neueren Version von Bony's Agents (nur anzeigen, nicht nutzen)."""
+        return self.format > FORMAT
+
+    def check_usable(self) -> None:
+        if self.newer_format():
+            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
+
     def save(self) -> None:
-        tmp = self.path / "template.json.tmp"
-        tmp.write_text(json.dumps(self.to_json(), indent=2, ensure_ascii=False), "utf-8")
-        os.replace(tmp, self.path / "template.json")
+        self.check_usable()
+        vm.write_json(self.path / "template.json", self.to_json())
 
     @classmethod
     def load(cls, path: Path) -> Template:
         data = json.loads((path / "template.json").read_text("utf-8"))
-        return cls(path=path, **vm.checked_fields(cls, data, RULES, f"{path.name}/template.json", skip={"path"}))
+        t = cls(path=path, **vm.checked_fields(cls, data, RULES, f"{path.name}/template.json", skip={"path"}))
+        t._unknown = vm.unknown_fields(cls, data, skip={"path"})
+        return t
 
     def created_local(self) -> str:
         try:

@@ -26,6 +26,14 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   SPICE-Verbindungsdateien nehmen keine Zeilenumbrüche mehr an – darüber hätte sich z. B. ein Befehl vor dem
   Verbinden einschleusen lassen.
 
+### Verbessert
+- **Formatversion für Agent-PCs und Vorlagen.** `vm.json` trägt jetzt eine Formatversion. Einstellungen, die
+  eine neuere Version von Bony's Agents ergänzt hat, bleiben beim Speichern erhalten (bisher gingen sie still
+  verloren, z. B. mit einer SSD an einem Schulungs-PC mit älterer Version). Stammt ein Agent-PC oder eine
+  Vorlage aus einer neueren Formatversion, zeigt Bony's Agents sie nur an und bittet um ein Update, statt sie
+  zu verändern. `vm.json` wird außerdem atomar geschrieben – ein Absturz beim Speichern hinterlässt keine halbe
+  Datei mehr.
+
 ## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
 
 ### Neu
