@@ -603,7 +603,9 @@ def test_deb_package_sets_up_and_removes_source():
     assert "if [ ! -e /usr/share/keyrings/bonys-agents.gpg ]" in deb and "apt-source-disabled" in deb
     assert '/usr/share/keyrings/$APP.gpg' in deb and "apt_sources_text" in deb
     # Beide Editionen ersetzen einander
-    assert 'Provides: bonys-agents (= $VERSION)' in deb and "Conflicts: $OTHER" in deb and "Replaces: $OTHER" in deb
+    assert 'Provides: bonys-agents (= $VERSION)' in deb and "Replaces: $OTHER" in deb
+    # Kein Conflicts/Breaks: der grafische Installer (python-apt) lehnte sonst den Wechsel ab
+    assert "Conflicts: $OTHER" not in deb and "Breaks:" not in deb and "edition-data.tar.gz" in deb
 
 
 def test_install_scripts():

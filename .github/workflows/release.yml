@@ -49,28 +49,18 @@ jobs:
           packaging/linux/build-deb.sh anwender
           packaging/linux/build-deb.sh kursleiter
           ls -la dist/*.deb
-      - name: Paketinhalt prüfen – Anwender ohne Kursleiter-Teile, Kursleiter mit
-        run: |
-          A=$(ls dist/bonys-agents_*.deb); K=$(ls dist/bonys-agents-kursleiter_*.deb)
-          if dpkg-deb -c "$A" | grep -iE 'bonys_agents/trainer|novnc'; then echo "::error::Kursleiter-Teile im Anwender-Paket"; exit 1; fi
-          dpkg-deb -c "$K" | grep -q 'trainer/resources/novnc/core/rfb.js'
-          dpkg-deb -f "$K" Provides | grep -q '^bonys-agents (= '
-          dpkg-deb -f "$K" Conflicts | grep -qx 'bonys-agents'
-          dpkg-deb -f "$K" Replaces | grep -qx 'bonys-agents'
-          dpkg-deb -f "$A" Conflicts | grep -qx 'bonys-agents-kursleiter'
-          dpkg-deb -f "$A" Replaces | grep -qx 'bonys-agents-kursleiter'
-          for deb in "$A" "$K"; do
-            d=$(mktemp -d); dpkg-deb -x "$deb" "$d"
-            ed=$([ "$deb" = "$K" ] && echo kursleiter || echo anwender)
-            python3 packaging/check-edition.py "$d/opt/bonys-agents" "$ed"
-            grep -H '^Name=' "$d/usr/share/applications/bonys-agents.desktop"
-          done
+      - name: Paketinhalt prüfen – gleiche Pfade, keine Conflicts, Anwender ohne Kursleiter-Teile
+        run: PYTHON=build/venv/bin/python packaging/linux/check-debs.sh dist/bonys-agents_*.deb dist/bonys-agents-kursleiter_*.deb
       - name: Paket testweise installieren und die Edition wechseln (Anwender → Kursleiter → Anwender)
         run: |
           A=$(ls dist/bonys-agents_*.deb); K=$(ls dist/bonys-agents-kursleiter_*.deb)
           sudo apt-get update
+          sudo apt-get install -y python3-apt
           sudo apt-get install -y "./$A"
           bonys-agents --version | tee v.txt; grep -q '(Anwender)$' v.txt
+          # Wie der grafische Installer (captain/gdebi, python-apt) beim Doppelklick prüft – in beide Richtungen
+          checkdeb() { /usr/bin/python3 -c 'import sys, apt, apt.debfile; d = apt.debfile.DebPackage(sys.argv[1], apt.Cache()); ok = d.check(); print(sys.argv[1], ok, d._failure_string); sys.exit(0 if ok else 1)' "$1"; }
+          checkdeb "$K"
           bonys-agents selftest
           QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
           set +e; bonys-agents present irgendwas; rc=$?; set -e
@@ -86,6 +76,7 @@ jobs:
           bonys-agents present --help >/dev/null
           grep -qx "Name=Bony's Agents Kursleiter" /usr/share/applications/bonys-agents.desktop
           QT_QPA_PLATFORM=offscreen timeout 5 bonys-agents-gui || [ $? -eq 124 ]
+          checkdeb "$A"
           sudo apt-get install -y "./$A"        # und zurück
           ! dpkg-query -W -f='${db:Status-Status}' bonys-agents-kursleiter 2>/dev/null | grep -qx installed
           bonys-agents --version | grep -q '(Anwender)$'

@@ -4,9 +4,14 @@
 #   packaging/linux/build-deb.sh               -> dist/bonys-agents_<version>_<arch>.deb             (Anwender)
 #   packaging/linux/build-deb.sh kursleiter    -> dist/bonys-agents-kursleiter_<version>_<arch>.deb  (Kursleiter)
 #
-# Beide installieren dieselben Dateien (/opt/bonys-agents, Befehle bonys-agents/bonys-agents-gui) und ersetzen
-# einander (Conflicts/Replaces, die Kursleiter-Version „Provides: bonys-agents“): Wechsel in beide Richtungen per
-# Doppelklick auf die .deb oder mit apt. Agent-PCs, Vorlagen und Einstellungen liegen im Benutzerordner und bleiben.
+# Wechsel in beide Richtungen per Doppelklick (captain/gdebi) und mit apt: Beide Pakete haben GENAU dieselben
+# Dateipfade und ersetzen einander (Replaces, die Kursleiter-Version zusätzlich „Provides: bonys-agents“). dpkg
+# entfernt das andere Paket dann selbst („komplett ersetzt“, postrm disappear). Bewusst ohne Conflicts und Breaks – der
+# grafische Installer (python-apt) lehnt ein Paket ab, sobald das installierte einen Conflicts-Eintrag dagegen hat
+# („Beschädigt vorhandenes Paket“), und Breaks bräuchte bei dpkg -i --auto-deconfigure.
+# Damit die Pfade gleich sind, stecken die Kursleiter-Dateien (Seiten der Vorführung, noVNC) in einem Archiv mit
+# festem Namen (in der Anwender-Version leer); postinst packt es aus, postrm räumt es weg.
+# Agent-PCs, Vorlagen und Einstellungen liegen im Benutzerordner und bleiben.
 #
 # Voraussetzung: Python 3.10+ mit venv, dpkg-deb. Das Paket enthält Python und Qt
 # bereits (PyInstaller), braucht auf dem Zielsystem also kein Python.
@@ -23,13 +28,11 @@ APP="bonys-agents"   # gemeinsame Pfade beider Editionen (/opt, Befehle, Symbol,
 case "$EDITION" in
   anwender)
     PKG="bonys-agents"; OTHER="bonys-agents-kursleiter"; NAME="Bony's Agents"; DIST="dist/bonys-agents"
-    RELATIONS="Conflicts: $OTHER
-Replaces: $OTHER" ;;
+    RELATIONS="Replaces: $OTHER" ;;
   kursleiter)
     PKG="bonys-agents-kursleiter"; OTHER="bonys-agents"; NAME="Bony's Agents Kursleiter"
     DIST="dist/bonys-agents-kursleiter"
     RELATIONS="Provides: bonys-agents (= $VERSION)
-Conflicts: $OTHER
 Replaces: $OTHER" ;;
   *) echo "Unbekannte Edition: $EDITION (anwender | kursleiter)" >&2; exit 1 ;;
 esac
@@ -54,12 +57,21 @@ build/venv/bin/python packaging/check-edition.py "$DIST" "$EDITION"
 
 # ---------- 2. Paketstruktur ----------
 rm -rf "$STAGE"
+DOC="$STAGE/usr/share/doc/$APP"   # gleicher Pfad in beiden Editionen (siehe oben)
 install -d "$STAGE/DEBIAN" "$STAGE/opt" "$STAGE/usr/bin" \
-  "$STAGE/usr/share/applications" "$STAGE/usr/share/doc/$PKG" \
+  "$STAGE/usr/share/applications" "$DOC" \
   "$STAGE/usr/share/icons/hicolor/256x256/apps" "$STAGE/usr/share/icons/hicolor/512x512/apps" \
   "$STAGE/usr/lib/udev/rules.d"
 
 cp -a "$DIST" "$STAGE/opt/$APP"
+# Kursleiter-Dateien ins Archiv mit festem Namen (Anwender: leeres Archiv) – siehe oben
+PKGDIR="$STAGE/opt/$APP/_internal/bonys_agents"
+if [ -d "$PKGDIR/trainer" ]; then
+  tar -C "$PKGDIR" --owner=0 --group=0 --sort=name -czf "$PKGDIR/edition-data.tar.gz" trainer
+  rm -rf "$PKGDIR/trainer"
+else
+  tar --owner=0 --group=0 -czf "$PKGDIR/edition-data.tar.gz" -T /dev/null
+fi
 ln -s "/opt/$APP/bonys-agents" "$STAGE/usr/bin/bonys-agents"
 ln -s "/opt/$APP/BonysAgents" "$STAGE/usr/bin/bonys-agents-gui"
 
@@ -74,14 +86,14 @@ install -m644 packaging/linux/70-bonys-agents-kvm.rules "$STAGE/usr/lib/udev/rul
   echo "$NAME"
   echo "Copyright (C) 2026 Bony"
   echo "Lizenz: GPL-3.0-or-later (vollständiger Text unten)."
-  echo "Mitgelieferte Komponenten und ihre Lizenzen: /usr/share/doc/$PKG/THIRD-PARTY-LICENSES"
+  echo "Mitgelieferte Komponenten und ihre Lizenzen: /usr/share/doc/$APP/THIRD-PARTY-LICENSES"
   echo "Name und Logo „Bony's Agents“ sind von der Lizenz ausgenommen."
   echo
   cat LICENSE
-} > "$STAGE/usr/share/doc/$PKG/copyright"
-chmod 644 "$STAGE/usr/share/doc/$PKG/copyright"
-install -m644 THIRD-PARTY-LICENSES "$STAGE/usr/share/doc/$PKG/THIRD-PARTY-LICENSES"
-install -m644 README.md "$STAGE/usr/share/doc/$PKG/README.md"
+} > "$DOC/copyright"
+chmod 644 "$DOC/copyright"
+install -m644 THIRD-PARTY-LICENSES "$DOC/THIRD-PARTY-LICENSES"
+install -m644 README.md "$DOC/README.md"
 
 # Eigene Paketquelle für Updates über die Aktualisierungsverwaltung – nur, wenn der öffentliche
 # Signierschlüssel im Repository liegt (packaging/linux/bonys-agents-archive-keyring.asc, siehe docs/RELEASE.md).
@@ -155,6 +167,10 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
 if [ "$1" = "configure" ]; then
+  # Kursleiter-Dateien (Seiten der Vorführung, noVNC) auspacken – in der Anwender-Version ist das Archiv leer
+  D=/opt/bonys-agents/_internal/bonys_agents
+  rm -rf "$D/trainer"
+  [ -f "$D/edition-data.tar.gz" ] && tar -xzf "$D/edition-data.tar.gz" -C "$D" --no-same-owner
   # Reste von Bony's VPN aus 0.14 (vom Helfer als root angelegte __pycache__, gehören keinem Paket)
   rm -rf /usr/lib/bonys-agents/vpn
   rmdir /usr/lib/bonys-agents 2>/dev/null || true
@@ -205,6 +221,9 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q
 # sonst einen Fehler meldet. Bei einem Update („upgrade“) bleibt sie – und ebenso, wenn die andere
 # Edition den Schlüssel schon übernommen hat (Wechsel bonys-agents ↔ bonys-agents-kursleiter).
 DST=/etc/apt/sources.list.d/bonys-agents.sources
+case "$1" in
+  remove|purge|disappear) rm -rf /opt/bonys-agents/_internal/bonys_agents/trainer ;;   # ausgepackte Kursleiter-Dateien
+esac
 case "$1" in
   remove|purge|disappear)
     if [ ! -e /usr/share/keyrings/bonys-agents.gpg ] && [ -f "$DST" ]; then

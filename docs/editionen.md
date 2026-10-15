@@ -60,9 +60,19 @@ In der normalen Version fehlen die Kursleiter-Knöpfe und -Menüs ganz. `bonys-a
 
 | System | Bony's Agents | Bony's Agents Kursleiter | Wechsel |
 |---|---|---|---|
-| Debian/Ubuntu/Mint | `bonys-agents_VERSION_ARCH.deb` | `bonys-agents-kursleiter_VERSION_ARCH.deb` | Kursleiter: `Provides/Conflicts/Replaces: bonys-agents`, normal: `Conflicts/Replaces: bonys-agents-kursleiter` – Doppelklick auf die andere .deb oder `sudo apt install bonys-agents-kursleiter` bzw. `bonys-agents`. Gleiche Pfade und Befehle, Startmenü „Bony's Agents Kursleiter“. Beide in der APT-Paketquelle. |
+| Debian/Ubuntu/Mint | `bonys-agents_VERSION_ARCH.deb` | `bonys-agents-kursleiter_VERSION_ARCH.deb` | Doppelklick auf die andere .deb oder `sudo apt install bonys-agents-kursleiter` bzw. `bonys-agents`. Siehe unten. Gleiche Befehle, Startmenü „Bony's Agents Kursleiter“. Beide in der APT-Paketquelle. |
 | Windows | `BonysAgents-Setup-VERSION.exe` | `BonysAgents-Kursleiter-Setup-VERSION.exe` | Siehe unten |
 | macOS | `BonysAgents-VERSION-macos-applesilicon.dmg` / `-intel.dmg` | `BonysAgents-Kursleiter-VERSION-macos-…dmg` | Siehe unten |
+
+**Linux (.deb):** Beide Pakete haben **genau dieselben Dateipfade** und ersetzen einander (`Replaces`, die
+Kursleiter-Version zusätzlich `Provides: bonys-agents`). dpkg entfernt das bisherige Paket dann von selbst („komplett
+ersetzt“). Bewusst **ohne `Conflicts`/`Breaks`**: Der grafische Installer von Mint (captain, wie gdebi auf python-apt
+gebaut) lehnt ein Paket mit „Beschädigt vorhandenes Paket“ ab, sobald das installierte Paket einen
+`Conflicts`-Eintrag dagegen hat – `Replaces` beachtet er dabei nicht; `Breaks` bräuchte bei `dpkg -i` die Option
+`--auto-deconfigure`. Damit die Pfade gleich sind, liegen Seiten der Vorführung und noVNC in
+`/opt/bonys-agents/_internal/bonys_agents/edition-data.tar.gz` (in der normalen Version ein leeres Archiv); postinst
+packt es aus, postrm räumt es weg. `packaging/linux/check-debs.sh` prüft das, die Release-Aktion zusätzlich mit der
+Prüfung von python-apt in beide Richtungen.
 
 **Windows (Inno Setup):** Beide Installer haben **dieselbe AppId**. Für Windows ist es damit ein Programm in zwei
 Ausführungen – die andere Edition zu installieren ist wie ein Update: derselbe Ordner (`C:\Program Files\Bony's

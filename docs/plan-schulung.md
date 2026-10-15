@@ -258,6 +258,12 @@ Ab 0.19.0 liegen Server und Kursleiter-Dialoge in `trainer/` (`trainer/present.p
   - Testdaten (können gelöscht werden): Agent-PCs `wp-test` (Xfce), `gesamttest`, Vorlage `kurs-gesamttest-019`.
     Installiert ist bonys-agents 0.19.0 (Anwender); bonys-agents-kursleiter steht noch als „config-files“ (harmlos,
     `sudo apt purge bonys-agents-kursleiter` räumt es weg).
+  - Nutzer-Test: Doppelklick auf die Kursleiter-.deb → captain „Beschädigt vorhandenes Paket“. Ursache: python-apt
+    (captain/gdebi) lehnt ab, wenn das INSTALLIERTE Paket Conflicts gegen das neue hat (Replaces zählt dort nicht).
+    Lösung: kein Conflicts/Breaks mehr, gegenseitig Replaces und identische Dateipfade (Kursleiter-Dateien im Archiv
+    `edition-data.tar.gz`, postinst packt aus) → dpkg entfernt das andere Paket selbst („komplett ersetzt“).
+    `packaging/linux/check-debs.sh`, CI prüft zusätzlich mit python-apt in beide Richtungen. Neue Anwender-.deb ist
+    installiert, python-apt nimmt die Kursleiter-.deb an.
   - **Wartet auf Test und OK des Nutzers**, danach Tag v0.19.0 (CI vorher abwarten).
 - **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt (gehört nach `trainer/`); Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).
