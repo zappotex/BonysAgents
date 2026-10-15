@@ -252,7 +252,7 @@ def test_failed_steps_are_recorded_and_apps_not_marked_installed(datadir):
     vpn_echo = f'echo "{vpnlink.FAILED_LINE}"'  # Skript-Quelltext auf der Konsole zählt nicht
     m.console_log.write_text(
         f"BONYS-STEP 3/5 Hermes Agent installieren\n{cloudinit.FAILED_MARKER} 3/5 hermes Hermes Agent installieren\n"
-        f"{vpn_echo}\n{vpnlink.FAILED_LINE}\n{cloudinit.READY_MARKER}\n")
+        f"{vpn_echo}\n{vpnlink.FAILED_LINE}\n{cloudinit.READY_MARKER}\n", "utf-8")  # wie die Gast-Konsole
     assert m.progress().ready
     m = vm.VM(m.path)
     assert m.config.setup_failed == ["Hermes Agent installieren", "WireGuard-Konfiguration übernehmen"]
