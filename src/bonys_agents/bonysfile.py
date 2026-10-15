@@ -399,8 +399,11 @@ def validate_manifest(m: object) -> dict:
     if m.get("desktop", desktops.DEFAULT) not in desktops.DESKTOPS:
         raise ValueError(f"Manifest: unbekannter Desktop „{m.get('desktop')}“ – vielleicht braucht die Datei eine "
                          "neuere Version von Bony's Agents.")
-    if not re.match(r"^[a-z_][a-z0-9_-]{0,31}$", m.get("username", "")):
+    if not vm.USERNAME_RE.match(m.get("username", "")):
         raise ValueError("Manifest: ungültiger Benutzername.")
+    for key, regex in (("keyboard", vm.KEYBOARD_RE), ("timezone", vm.TIMEZONE_RE)):
+        if key in m and not regex.match(m[key]):
+            raise ValueError(f"Manifest: ungültige Angabe bei „{key}“.")
     for key in ("keyboard", "timezone", "debian", "version"):
         if not _SAFE_TEXT.match(m.get(key, "")):
             raise ValueError(f"Manifest: ungültige Angabe bei „{key}“.")

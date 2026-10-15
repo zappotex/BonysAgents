@@ -1732,3 +1732,47 @@ def test_about_dialog_shows_gpl():
     texts = " ".join(w.text() for w in dlg.findChildren(QLabel))
     assert "Lizenz: <b>GPL-3.0-or-later</b>" in texts and "MIT" not in texts
     assert "LICENSE" in texts and "THIRD-PARTY-LICENSES" in texts
+
+
+# ---------- vm.json von einem fremden Laufwerk ----------
+@pytest.mark.parametrize("over", [
+    {"username": "agent\nprecommand=touch /tmp/x"}, {"name": "../../etc"}, {"keyboard": "de'; rm -rf ~"},
+    {"timezone": "Europe/Berlin\nx"}, {"cpus": "4"}, {"ram_mb": True}, {"rdp_port": 70000},
+    {"apps": ["brave", "../x"]}, {"desktop": "unbekannt"}, {"spice_password": "a b\nc"}, {"display": "vnc"},
+    {"app_info": {"mission-control": {"version": "1\n2"}}}, {"template": "a/b"}, {"arch": "riscv64"},
+])
+def test_vm_json_with_bad_values_is_rejected(datadir, monkeypatch, tmp_path, over):
+    _fake_create(monkeypatch, tmp_path)
+    m = vm.create("fremd", "pw1234", cpus=1, ram_mb=2048, location=tmp_path / "lib")
+    data = json.loads((m.path / "vm.json").read_text("utf-8"))
+    data.update(over)
+    (m.path / "vm.json").write_text(json.dumps(data), "utf-8")
+    with pytest.raises(ValueError, match=next(iter(over))):
+        vm.VM(m.path)
+    assert "fremd" not in [x.name for x in vm.list_vms()]  # wird übersprungen, statt Schaden anzurichten
+
+
+def test_vm_json_unknown_fields_and_old_values_still_load(datadir, monkeypatch, tmp_path):
+    _fake_create(monkeypatch, tmp_path)
+    m = vm.create("alt", "pw1234", cpus=1, ram_mb=2048, location=tmp_path / "lib")
+    data = json.loads((m.path / "vm.json").read_text("utf-8"))
+    data.update(remote_lan=True, neu_in_spaeterer_version={"x": 1})
+    (m.path / "vm.json").write_text(json.dumps(data), "utf-8")
+    assert vm.VM(m.path).config.remote_permanent
+    (m.path / "vm.json").write_text("[1, 2]", "utf-8")
+    with pytest.raises(ValueError):
+        vm.VM(m.path)
+
+
+def test_remote_profiles_reject_line_breaks(tmp_path):
+    from bonys_agents import remote
+
+    with pytest.raises(ValueError):
+        remote.remmina_profile("pc", "RDP", "127.0.0.1", 3390, "agent\nprecommand=x")
+    with pytest.raises(ValueError):
+        remote.rdp_file("127.0.0.1", 3390, "agent\r\nalternate shell:s:cmd")
+    with pytest.raises(ValueError):
+        remote.profile_name("../pc", "RDP")
+    with pytest.raises(ValueError):
+        remote.spice_vv_file(tmp_path / "x.vv", "pc", 5901, "pw\nproxy=http://x")
+    assert "username=agent" in remote.remmina_profile("pc", "RDP", "127.0.0.1", 3390, "agent")

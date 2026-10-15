@@ -114,8 +114,23 @@ def remmina_dirs(native: bool | None = None, flatpak: bool | None = None) -> lis
     return dirs
 
 
+def _one_line(*values: object) -> None:
+    """Werte für Profil-Dateien: kein Zeilenumbruch, kein Steuerzeichen (sonst entstünden zusätzliche Einträge,
+    bei Remmina z. B. ein Befehl vor dem Verbinden) – ValueError."""
+    for v in values:
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(v)):
+            raise ValueError(f"Unzulässiges Zeichen in {str(v)[:40]!r}")
+
+
+def _file_part(vm_name: str) -> str:
+    _one_line(vm_name)
+    if any(ch in vm_name for ch in '/\\:*?"<>|') or vm_name in ("", ".", ".."):
+        raise ValueError(f"Unzulässiger Name für eine Datei: {vm_name!r}")
+    return vm_name
+
+
 def profile_name(vm_name: str, protocol: str) -> str:
-    return f"{PROFILE_PREFIX}{vm_name}-{protocol.lower()}.remmina"
+    return f"{PROFILE_PREFIX}{_file_part(vm_name)}-{protocol.lower()}.remmina"
 
 
 def remmina_profile(vm_name: str, protocol: str, server: str, port: int | None, username: str) -> str:
@@ -123,6 +138,7 @@ def remmina_profile(vm_name: str, protocol: str, server: str, port: int | None, 
 
     ``port`` None: ``server`` ist ein Unix-Socket („unix:///PFAD“, SPICE nur an diesem Rechner).
     """
+    _one_line(vm_name, protocol, server, port, username)
     lines = [
         "[remmina]",
         f"name={vm_name} ({protocol})",
@@ -183,6 +199,7 @@ def remove_profiles(vm_name: str, dirs: list[Path] | None = None) -> None:
 
 def rdp_file(server: str, port: int, username: str) -> str:
     """.rdp-Datei für die Windows-Remotedesktopverbindung (mstsc), mit Ton am Client."""
+    _one_line(server, port, username)
     return "\r\n".join([
         f"full address:s:{server}:{port}",
         f"username:s:{username}",
@@ -197,6 +214,7 @@ def rdp_file(server: str, port: int, username: str) -> str:
 def export_profiles(folder: Path, vm_name: str, username: str, rdp_port: int, spice_port: int | None,
                     server: str) -> list[Path]:
     """Profile für einen anderen PC: Remmina (.remmina) und Windows (.rdp), mit LAN-Adresse."""
+    _file_part(vm_name)
     folder.mkdir(parents=True, exist_ok=True)
     out = [folder / f"{vm_name} (RDP).remmina", folder / f"{vm_name}.rdp"]
     out[0].write_text(remmina_profile(vm_name, "RDP", server, rdp_port, username), "utf-8")
@@ -226,6 +244,7 @@ def spice_viewer_available() -> bool:
 
 def spice_vv_file(path: Path, title: str, port: int, password: str) -> Path:
     """Verbindungsdatei für remote-viewer mit Passwort (nur für diesen Benutzer lesbar, löscht sich beim Öffnen)."""
+    _one_line(title, port, password)
     path.unlink(missing_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:

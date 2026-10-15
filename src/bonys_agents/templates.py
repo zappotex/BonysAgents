@@ -25,7 +25,7 @@ import shutil
 import tarfile
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +35,18 @@ TEMPLATES_DIRNAME = "_templates"
 FILE_SUFFIX = ".bonys-template"
 FORMAT = 1
 NAME_RE = vm.NAME_RE
+# template.json kann von einem fremden Laufwerk oder aus einer alten .bonys-template-Datei stammen
+RULES = {
+    **vm.COMMON_RULES,
+    "arch": lambda s: s == "" or s in qemu.ARCH_BINARY,
+    "description": vm._text(4000, multiline=True),
+    "debian": vm._text(64),
+    "version": vm._text(64),
+    "source": vm._text(200),
+    "creator": vm._text(200),
+    "preview": lambda s: s in ("", "preview.png", "preview.jpg"),
+    "size": lambda n: n >= 0,
+}
 EXPORT_WARNING = ("Prüfe vor der Weitergabe, dass keine persönlichen Daten enthalten sind – "
                   "vor allem, wenn die Vorlage mit „Persönliche Daten behalten“ erstellt wurde.")
 
@@ -96,8 +108,7 @@ class Template:
     @classmethod
     def load(cls, path: Path) -> Template:
         data = json.loads((path / "template.json").read_text("utf-8"))
-        known = {f.name for f in fields(cls)} - {"path"}
-        return cls(path=path, **{k: v for k, v in data.items() if k in known})
+        return cls(path=path, **vm.checked_fields(cls, data, RULES, f"{path.name}/template.json", skip={"path"}))
 
     def created_local(self) -> str:
         try:
@@ -466,8 +477,7 @@ def read_export_info(file: Path) -> Template:
     with tarfile.open(file, "r:") as tar:
         _check_members(tar)
         data = json.loads(tar.extractfile("template.json").read().decode("utf-8"))
-    known = {f.name for f in fields(Template)} - {"path"}
-    return Template(path=Path(file), **{k: v for k, v in data.items() if k in known})
+    return Template(path=Path(file), **vm.checked_fields(Template, data, RULES, Path(file).name, skip={"path"}))
 
 
 def _check_members(tar: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:

@@ -134,6 +134,99 @@ def vms_dir() -> Path:
     return storage.default_library()
 
 
+# ---------- Angaben aus vm.json / template.json prüfen ----------
+# Beide Dateien können von einem fremden Laufwerk oder aus einer weitergegebenen Datei stammen. Ihre Werte
+# landen in Remmina-Profilen, .rdp-Dateien, Gast-Skripten und QEMU-Befehlszeilen – daher eng prüfen.
+USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+APP_ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+KEYBOARD_RE = re.compile(r"^[A-Za-z0-9_()-]{1,40}$")
+TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+/-]{1,64}$")
+WORD_RE = re.compile(r"^[A-Za-z0-9_.:+/-]{0,64}$")          # Zeitstempel, Versionen, Passwort für SPICE
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _text(limit: int, multiline: bool = False) -> Callable[[str], bool]:
+    def ok(s: str) -> bool:
+        return len(s) <= limit and not _CONTROL_RE.search(s) and (multiline or "\n" not in s)
+    return ok
+
+
+def _app_info_ok(d: dict) -> bool:
+    """{App-ID: {Schlüssel: Text/Zahl/Wahrheitswert}} – z. B. {"mission-control": {"version": "0.1.0"}}."""
+    def value_ok(v) -> bool:
+        return isinstance(v, (int, float, bool)) or isinstance(v, str) and _text(200)(v)
+
+    return all(isinstance(k, str) and APP_ID_RE.match(k) and isinstance(v, dict)
+               and all(isinstance(kk, str) and _text(40)(kk) and value_ok(vv) for kk, vv in v.items())
+               for k, v in d.items())
+
+
+COMMON_RULES: dict[str, Callable] = {
+    "name": NAME_RE.match,
+    "username": USERNAME_RE.match,
+    "keyboard": KEYBOARD_RE.match,
+    "timezone": TIMEZONE_RE.match,
+    "desktop": lambda s: s in desktops.DESKTOPS,
+    "extra_desktops": lambda xs: all(x in desktops.DESKTOPS for x in xs),
+    "apps": lambda xs: all(APP_ID_RE.match(x) for x in xs),
+    "reinstall": lambda xs: all(APP_ID_RE.match(x) for x in xs),
+    "app_info": _app_info_ok,
+    "disk_gb": lambda n: 1 <= n <= 4 * MAX_DISK_GB,
+    "created": WORD_RE.match,
+}
+VM_RULES: dict[str, Callable] = {
+    **COMMON_RULES,
+    "arch": lambda s: s in qemu.ARCH_BINARY,
+    "cpus": lambda n: 1 <= n <= 1024,
+    "ram_mb": lambda n: 256 <= n <= 16 * 1024 * 1024,
+    "rdp_port": lambda n: 0 <= n <= 65535,
+    "spice_port": lambda n: 0 <= n <= 65535,
+    "mc_forward_port": lambda n: 0 <= n <= 65535,
+    "spice_password": WORD_RE.match,
+    "display": lambda s: s in ("qemu", "spice"),
+    # screen_mode/screen_size: screen_settings() fällt bei verbogenen Werten auf den Standard zurück
+    "setup_step": lambda n: 0 <= n <= 10_000,
+    "setup_total": lambda n: 0 <= n <= 10_000,
+    "setup_title": _text(200),
+    "template": lambda s: s == "" or NAME_RE.match(s),
+}
+
+
+def _type_ok(value, annotation: str) -> bool:
+    if annotation == "bool":
+        return isinstance(value, bool)
+    if annotation == "int":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if annotation == "str":
+        return isinstance(value, str)
+    if annotation == "dict":
+        return isinstance(value, dict)
+    if annotation == "list[str]":
+        return isinstance(value, list) and all(isinstance(x, str) for x in value)
+    return False
+
+
+def checked_fields(cls, data, rules: dict[str, Callable], what: str, skip: frozenset = frozenset()) -> dict:
+    """Bekannte Felder von ``cls`` aus ``data`` – ValueError bei falschem Typ oder unzulässigem Wert.
+
+    Unbekannte Felder (z. B. aus einer neueren Version) werden ignoriert.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"{what}: kein gültiger Inhalt.")
+    out = {}
+    for f in fields(cls):
+        if f.name in skip or f.name not in data:
+            continue
+        value = data[f.name]
+        if not _type_ok(value, str(f.type)):
+            raise ValueError(f"{what}: „{f.name}“ hat den falschen Typ.")
+        rule = rules.get(f.name)
+        if rule is not None and not rule(value):
+            raise ValueError(f"{what}: unzulässiger Wert bei „{f.name}“.")
+        out[f.name] = value
+    return out
+
+
 @dataclass
 class VMConfig:
     name: str
@@ -197,10 +290,9 @@ class VM:
     def __init__(self, path: Path):
         self.path = path
         data = json.loads((path / "vm.json").read_text("utf-8"))
-        if data.pop("remote_lan", False):  # bis 0.6: „Fernzugriff aus dem Heimnetz“ = jetzt „dauerhaft“
+        if isinstance(data, dict) and data.pop("remote_lan", False):  # bis 0.6: „Heimnetz“ = jetzt „dauerhaft“
             data["remote_permanent"] = True
-        known = {f.name for f in fields(VMConfig)}
-        self.config = VMConfig(**{k: v for k, v in data.items() if k in known})
+        self.config = VMConfig(**checked_fields(VMConfig, data, VM_RULES, f"{path.name}/vm.json"))
 
     # ---------- Pfade ----------
     @property

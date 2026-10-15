@@ -19,6 +19,12 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   Festplatte gesehen. Bony's Agents prüft den Kopf jeder solchen Festplatte jetzt selbst, bevor QEMU oder
   qemu-img sie öffnen: keine externe Datendatei, beim Import keine Backing-Datei, beim Start nur Vorlagen im
   qcow2-Format ohne Protokoll-Angaben wie `json:` oder `nbd:`.
+- **Präparierte Einstellungsdateien werden abgelehnt.** `vm.json` und `template.json` (auch von Laufwerken, die
+  Bony's Agents automatisch erkennt, und aus alten `.bonys-template`-Dateien) werden beim Laden genau geprüft:
+  Typ und erlaubte Werte jedes Felds, z. B. Name, Benutzername, Tastatur, Ports und Desktop. Ein Agent-PC
+  oder eine Vorlage mit unzulässigen Angaben erscheint nicht in der Liste. Remmina-Profile, `.rdp`- und
+  SPICE-Verbindungsdateien nehmen keine Zeilenumbrüche mehr an – darüber hätte sich z. B. ein Befehl vor dem
+  Verbinden einschleusen lassen.
 
 ## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
 

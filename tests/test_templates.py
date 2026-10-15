@@ -238,6 +238,20 @@ def _make_template(library: Path, name="basis", size_gb=32, **kw) -> templates.T
     return t
 
 
+@pytest.mark.parametrize("over", [{"username": "a\nb"}, {"description": "x\x1b[2J"}, {"apps": "brave"},
+                                  {"preview": "../../.ssh/id"}, {"size": -1}, {"name": "a b"}])
+def test_template_json_with_bad_values_is_skipped(datadir, tmp_path, over):
+    d = templates.templates_dir(vm.vms_dir()) / "fremd"
+    d.mkdir(parents=True)
+    data = {"name": "fremd", "username": "agent", "description": "Zeile 1\nZeile 2", "apps": ["brave"]}
+    (d / "template.json").write_text(json.dumps(data), "utf-8")
+    assert templates.Template.load(d).description == "Zeile 1\nZeile 2"
+    (d / "template.json").write_text(json.dumps({**data, **over}), "utf-8")
+    with pytest.raises(ValueError, match=next(iter(over))):
+        templates.Template.load(d)
+    assert templates.list_templates() == []
+
+
 @needs_qemu_img
 def test_clone_linked_and_full(datadir, monkeypatch, tmp_path):
     _use_real_qemu_img(monkeypatch)
