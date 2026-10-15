@@ -181,8 +181,8 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
   - Testdaten liegen in `/media/zappotex/bonysagent/BonysAgents/_schulung-test/` (Agent-PCs `kurs-pc`,
     `kurs-pc-2`, Vorlagen `kurs-import`, `kurs-join`) – können gelöscht werden.
 - **2026-10-15**: Stufe 1 und 2 vom Nutzer getestet und abgenommen, veröffentlicht als Release v0.17.0.
-- **2026-10-15 (Sitzung 2)**: **Stufe 3 A (Vorführen) umgesetzt**, Version 0.18.0 (noch nicht veröffentlicht –
-  erst nach Test und OK des Nutzers).
+- **2026-10-15 (Sitzung 2)**: **Stufe 3 A (Vorführen) umgesetzt**, Version 0.18.0 (veröffentlicht als v0.18.0,
+  nach Test und OK des Nutzers – siehe unten).
   - Tests: `tests/test_present.py` (Filter mit echten RFB-Nachrichten, auch byteweise; WebSocket-Rahmen;
     VNC nur lokal; Server: Code/Ratenbegrenzung, fremde Origin, Pfad-Tricks, Eingaben kommen nie an,
     Bildrate, Pause, Entfernen, Höchstzahl, Ende bei Ausschalten/Zeitablauf, ECDSA-Zertifikat),
@@ -215,5 +215,8 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
     die Ansicht. Gefunden und behoben: Deadlock beim Zurückstufen, noVNC-Laden ohne Schlüssel, Tab-Wiederverwendung.
   - Noch offen für den Nutzer: zweiter Rechner bzw. zweites Benutzerkonto, Zustimmungsdialoge in der echten App,
     Benachrichtigung im Agent-PC (notify-send im Gast nicht geprüft).
+- **2026-10-15**: Nachtrag Windows (CI): Vorführen-Fenster war 914 px breit (fünf Knöpfe in der festen Knopfzeile) →
+  „Hilfe-Anfragen …“ und „Zuschauer entfernen“ unter die Zuschauerliste; VNC-Pfadtest plattformfest. Nutzer hat
+  getestet („Test war gut“) → **Release v0.18.0 veröffentlicht** (alle Release-Jobs grün, APT-Quelle liefert 0.18.0).
 - **Offen / Ideen**: Stufe 4 (Kursleiter-Dashboard) als nächster Schritt; Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im
   .deb, Datei-Argument der App).
