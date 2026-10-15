@@ -242,7 +242,7 @@ class HelpRequestDialog(QDialog):
         self.ok_btn.setEnabled(self.m.vnc_available())
         for f in items:
             it = QListWidgetItem(f"{f.txt.get('name', 'Kurs')} – {f.txt.get('creator') or '?'} · {f.address}")
-            it.setData(Qt.UserRole, (f.address, f.txt.get("fp", "")))
+            it.setData(Qt.UserRole, f.address)
             self.found.addItem(it)
         if len(items) == 1 and not self.address.text().strip():
             self.found.setCurrentRow(0)
@@ -252,8 +252,8 @@ class HelpRequestDialog(QDialog):
     def _pick(self, item) -> None:
         if item is None:
             return
-        addr, fp = item.data(Qt.UserRole)
-        self.address.setText(f"bonys://{addr}?fp={fp}" if fp else addr)
+        # Nur die Adresse: Fingerabdruck aus mDNS ist fälschbar – Vergleich mit dem Kursleiter bleibt Pflicht
+        self.address.setText(item.data(Qt.UserRole))
         self.code.setFocus()
 
     def _reset_fp(self, *_) -> None:

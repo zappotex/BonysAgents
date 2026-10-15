@@ -161,7 +161,7 @@ class JoinDialog(QDialog):
                 text = (f"{f.txt.get('name', '?')} {f.txt.get('version', '')} – von "
                         f"{f.txt.get('creator') or '?'} · {f.address}")
             it = QListWidgetItem(text)
-            it.setData(Qt.UserRole, (f.address, f.txt.get("fp", "")))
+            it.setData(Qt.UserRole, f.address)
             self.found.addItem(it)
         self.status.setText(f"{len(items)} gefunden – auswählen und Code eingeben." if items else
                             "Nichts gefunden. Im VPN geht die Suche nicht – Adresse und Code eingeben.")
@@ -171,9 +171,9 @@ class JoinDialog(QDialog):
     def _pick(self, item) -> None:
         if item is None:
             return
-        addr, fp = item.data(Qt.UserRole)
-        # Fingerabdruck aus der Suche mitnehmen – dann prüft das Beitreten ihn selbst
-        self.address.setText(f"bonys://{addr}?fp={fp}" if fp else addr)
+        # Nur die Adresse: Den Fingerabdruck aus der Suche (mDNS) kann jeder im WLAN fälschen – er gilt nicht
+        # als geprüft, der Vergleich mit dem Bildschirm des Kursleiters bleibt Pflicht. Nur Link/QR zählen.
+        self.address.setText(item.data(Qt.UserRole))
         self.code.setFocus()
 
     def _reset(self, *_) -> None:
@@ -228,7 +228,7 @@ class JoinDialog(QDialog):
         self.info = info
         text = html.escape(bonysfile.describe_manifest(info.manifest, info.size)).replace("\n", "<br>")
         fp = (f"<br><br>Fingerabdruck: <b>{share.short_fingerprint(info.fingerprint)}</b>"
-              + (" ✓ (aus dem Link bzw. der Suche)" if info.target.fingerprint else ""))
+              + (" ✓ (aus dem Link)" if info.target.fingerprint else ""))
         if not bonysfile.arch_matches(info.manifest):
             fp += (f"<br><span style='color:{style.DANGER}'>⚠ Andere Architektur ({info.manifest['arch']}) – "
                    "nach dem Laden wird das Rezept angeboten.</span>")

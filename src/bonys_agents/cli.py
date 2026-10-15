@@ -1142,8 +1142,7 @@ def cmd_join(args) -> int:
         if len(found) > 1:
             print("Mehrere Freigaben – bitte eine Adresse angeben.", file=sys.stderr)
             return 1
-        args.address = found[0].address
-        args.fingerprint = args.fingerprint or found[0].txt.get("fp", "")
+        args.address = found[0].address  # Fingerabdruck aus mDNS ist fälschbar – unten trotzdem vergleichen lassen
     target = share.parse_target(args.address, args.code or "", args.fingerprint or "")
     if not target.code:
         target.code = share.normalize_code(input("Freigabe-Code (z. B. 4711-BONY): "))

@@ -25,6 +25,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   oder eine Vorlage mit unzulässigen Angaben erscheint nicht in der Liste. Remmina-Profile, `.rdp`- und
   SPICE-Verbindungsdateien nehmen keine Zeilenumbrüche mehr an – darüber hätte sich z. B. ein Befehl vor dem
   Verbinden einschleusen lassen.
+- **Kurs aus der Suche nur nach Vergleich des Fingerabdrucks.** Wer „Schulung beitreten“ oder „Hilfe anfordern“
+  über die Suche im Netz nutzt, muss den Fingerabdruck jetzt immer mit dem Bildschirm des Kursleiters
+  vergleichen. Bisher galt der Fingerabdruck aus der Suche als geprüft – im WLAN kann ihn aber jeder fälschen
+  und sich als Kursleiter ausgeben. Ohne Rückfrage gilt nur der Link bzw. QR-Code des Kursleiters.
 
 ### Verbessert
 - **Formatversion für Agent-PCs und Vorlagen.** `vm.json` trägt jetzt eine Formatversion. Einstellungen, die

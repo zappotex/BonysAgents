@@ -456,3 +456,24 @@ def test_stylesheet_survives_quotes_in_path(app, monkeypatch, tmp_path, folder):
         qInstallMessageHandler(previous)
         style.apply(app)
     assert not [m for m in messages if "parse" in m.lower()], messages
+
+
+def test_found_course_does_not_carry_mdns_fingerprint(app, window, monkeypatch):
+    """Fingerabdruck aus mDNS ist im WLAN fälschbar – Auswahl übernimmt nur die Adresse, Vergleich bleibt Pflicht."""
+    from bonys_agents import mdns, share
+    from bonys_agents.gui import course_ui, share_dialogs
+
+    monkeypatch.setattr(share, "discover", lambda timeout=2.5: [])
+    fake = mdns.Found(instance="x", host="h", port=47110, addresses=["192.168.1.5"],
+                      txt={"name": "kurs", "kind": "present", "fp": "ab" * 32})
+    for d in (share_dialogs.JoinDialog(window), course_ui.HelpRequestDialog(window.current(), window)):
+        if getattr(d, "worker", None):
+            d.worker.wait()
+            app.processEvents()
+        d.found.clear()
+        d._found([fake])
+        d._pick(d.found.item(0))
+        assert d.address.text() == "192.168.1.5:47110"
+        assert share.parse_target(d.address.text(), "4711-BONY").fingerprint == ""
+        d.done(0)
+        d.deleteLater()

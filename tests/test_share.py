@@ -76,3 +76,25 @@ def test_cli_parses_join():
     assert (a.address, a.code, a.create) == ("192.168.1.5:47110", "4711-BONY", "pc-1")
     a = p.parse_args(["join"])
     assert a.address is None
+
+
+# ---------- Fingerabdruck aus der Suche (mDNS) gilt nicht als geprüft ----------
+def test_cli_join_does_not_trust_mdns_fingerprint(monkeypatch, capsys):
+    from bonys_agents import cli, mdns
+
+    fake = mdns.Found(instance="x", host="h", port=47110, addresses=["192.168.1.5"],
+                      txt={"name": "kurs", "fp": "ab" * 32})
+    monkeypatch.setattr(share, "discover", lambda timeout=2.5: [fake])
+    seen = {}
+
+    def fetch(target):
+        seen["target"] = target
+        return share.RemoteInfo(target=target, fingerprint="cd" * 32, manifest={}, file_name="k.bonys", size=1,
+                                sha256="0" * 64)
+
+    monkeypatch.setattr(share, "fetch_info", fetch)
+    answers = iter(["4711-BONY", "nein"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    assert cli.main(["join"]) == 1  # Vergleich verlangt, „nein“ → nichts geladen
+    assert seen["target"].fingerprint == ""
+    assert "Abgebrochen" in capsys.readouterr().out
