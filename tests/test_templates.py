@@ -80,11 +80,17 @@ def test_generalize_personal_part_runs(tmp_path, dry):
     script = cloudinit.generalize_script("niemand-hier", dry_run=dry)
     script = script.replace("H='/home/niemand-hier'", f"H='{home}'")
     script = script.split('echo "== System =="')[0]  # nur der persönliche Teil
+    # Systempfade ins Spielverzeichnis umlenken – unabhängig davon, was auf diesem Rechner installiert ist
+    for path in ("/opt/bonys-mission-control", "/etc/wireguard", "/etc/bonys-vpn"):
+        assert path in script
+        script = script.replace(path, f"{tmp_path}/sys{path}")
     stubs = tmp_path / "stubs"
     stubs.mkdir()
-    for cmd in ("systemctl", "loginctl", "pkill", "sleep"):
+    for cmd in ("systemctl", "loginctl", "pkill", "sleep", "nft"):
         (stubs / cmd).write_text("#!/bin/sh\nexit 0\n")
         (stubs / cmd).chmod(0o755)
+    (stubs / "docker").write_text("#!/bin/sh\nexit 1\n")  # kein Docker-Volume
+    (stubs / "docker").chmod(0o755)
     env = {**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}"}
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env, check=True).stdout
     gone = [".var/app/org.telegram.desktop", ".config/BraveSoftware", ".hermes/.env", ".hermes/config.yaml",
