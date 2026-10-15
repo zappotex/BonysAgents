@@ -19,7 +19,7 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
 
 ## Stufen
 
-### Stufe 1 – Paketformat `.bonys` (Export/Import als Datei)
+### Stufe 1 – Paketformat `.bonys` (Export/Import als Datei) ✅ erledigt (0.17.0)
 
 - **Format**: unkomprimiertes tar mit
   1. `manifest.json` (immer das erste Element, schnell lesbar),
@@ -53,7 +53,7 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
   eingerichtet (`template import DATEI --recipe NAME`).
 - Das alte Format `.bonys-template` (bis 0.16) lässt sich weiter importieren, exportiert wird nur noch `.bonys`.
 
-### Stufe 2 – Freigabe im Netzwerk (LAN oder VPN)
+### Stufe 2 – Freigabe im Netzwerk (LAN oder VPN) ✅ erledigt (0.17.0)
 
 - **Kursleiter**: Vorlagen-Ansicht → „Im Netzwerk freigeben“. Ein eingebauter HTTPS-Server (Python-Standard-
   bibliothek, nur solange freigegeben, Standardport **47110**, wählbar) liefert genau eine `.bonys`-Datei aus
@@ -134,5 +134,6 @@ Jede Sitzung liest zuerst diese Datei und aktualisiert am Ende den Abschnitt [St
     physischer Rechner war nicht verfügbar.
   - Testdaten liegen in `/media/zappotex/bonysagent/BonysAgents/_schulung-test/` (Agent-PCs `kurs-pc`,
     `kurs-pc-2`, Vorlagen `kurs-import`, `kurs-join`) – können gelöscht werden.
+- **2026-10-15**: Stufe 1 und 2 vom Nutzer getestet und abgenommen, veröffentlicht als Release v0.17.0.
 - **Offen / Ideen**: Doppelklick auf `.bonys` öffnet Bony's Agents (MIME-Typ im .deb, Datei-Argument der
   App); Stufe 3 und 4.

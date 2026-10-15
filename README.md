@@ -497,6 +497,12 @@ oder den Link aus dem QR-Code einfügen. Danach zeigt Bony's Agents, was drin is
 Fortschritt und Restzeit. Ein abgebrochener Download wird beim nächsten Mal **fortgesetzt**. Am Ende wird die
 Prüfsumme geprüft, dann geht es weiter wie beim Import (Agent-PC erstellen …).
 
+**Über VPN (z. B. Bony's VPN/WireGuard):** Die automatische Suche (mDNS) reicht nur ins lokale Netz, durch einen
+VPN-Tunnel kommt sie nicht. Die Teilnehmer geben dann die **VPN-Adresse** des Kursleiter-Rechners ein – sie
+steht im Freigabe-Fenster bei den Adressen (z. B. `10.8.0.1:47110`) – plus Code, oder fügen den Link aus dem
+QR-Code ein (dort ist der Fingerabdruck schon enthalten). Kursleiter und Teilnehmer müssen dafür im selben
+VPN sein, und das VPN muss Verbindungen zwischen den Teilnehmern erlauben.
+
 **Sicherheit:**
 
 - Verschlüsselt (HTTPS) mit einem **eigenen Zertifikat für jede Freigabe**. Sein Fingerabdruck kommt über
