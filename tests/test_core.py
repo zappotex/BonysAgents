@@ -1122,6 +1122,7 @@ def test_spice_detection_switches_off(datadir, monkeypatch, tmp_path):
         m.connect("SPICE")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix-Sockets; Windows (TLS) prüfen test_without_unix_sockets_*")
 def test_spice_window_start(datadir, monkeypatch):
     """SPICE-Fenster: QEMU ohne eigenes Fenster, Ton über SPICE, Viewer wird geöffnet."""
     from bonys_agents import remote
@@ -1184,6 +1185,7 @@ def _start_fake(m, monkeypatch, caps=None):
     return started[0]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix-Sockets; Windows (TLS) prüfen test_without_unix_sockets_*")
 def test_no_control_port_reachable_from_guest(datadir, monkeypatch):
     """Aus dem Agent-PC ist 127.0.0.1 des Hosts über 10.0.2.2 erreichbar (QEMU-Benutzernetz). Darum dürfen QMP,
     Gast-Agent und lokales SPICE dort nie an einem TCP-Port ohne Passwort lauschen – sonst führt ein Programm im
@@ -1298,10 +1300,15 @@ def test_control_tls_with_real_qemu(tmp_path):
 
 def test_connect_local_only_to_this_computer(tmp_path):
     import socket as socketmod
+    import tempfile
     for bad in (None, 0, "", "tcp:10.0.2.2:22", "tcp:192.168.1.5:4444", "tcp:127.0.0.1:0", True, "tls:0:/x"):
         with pytest.raises(ConnectionRefusedError):
             qemu.connect_local(bad, timeout=0.5)
-    path = tmp_path / "q.sock"
+    if not hasattr(socketmod, "AF_UNIX"):
+        return  # Windows: Steuerkanäle über TLS (test_control_tls_with_real_qemu)
+    # Kurzer Pfad: sun_path hat unter macOS nur 104 Zeichen, tmp_path ist dort viel länger
+    short = Path(tempfile.mkdtemp(prefix="ba-", dir="/tmp"))
+    path = short / "q.sock"
     srv = socketmod.socket(socketmod.AF_UNIX, socketmod.SOCK_STREAM)
     srv.bind(str(path))
     srv.listen(1)
@@ -1311,6 +1318,8 @@ def test_connect_local_only_to_this_computer(tmp_path):
         assert qemu.runtime_target({"qmp_port": 5}, "qmp") == 5  # Agent-PC, der noch mit 0.19 läuft
     finally:
         srv.close()
+        path.unlink(missing_ok=True)
+        short.rmdir()
 
 
 def test_spice_connect_command_socket_or_password(tmp_path, monkeypatch):
@@ -1330,6 +1339,7 @@ def test_spice_connect_command_socket_or_password(tmp_path, monkeypatch):
         assert vv.stat().st_mode & 0o777 == 0o600
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix-Sockets; Windows (TLS) prüfen test_without_unix_sockets_*")
 def test_remmina_profiles_created_and_removed(datadir, monkeypatch, tmp_path):
     from bonys_agents import remote
     native, flat = tmp_path / "remmina", tmp_path / "flatpak-remmina"
