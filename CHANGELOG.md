@@ -9,7 +9,7 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 - Windows bei 150 % Anzeigegröße: Das Hauptfenster ließ sich nicht mehr auf 800 Pixel Breite verkleinern. Der
   Knopf heißt jetzt kürzer **„Kurs beitreten“** (das Fenster weiterhin „Schulung beitreten“).
 - „Vorlage importieren“: Ein langer Dateipfad machte das Fenster breiter als kleine Bildschirme – er wird jetzt
-  in der Mitte gekürzt.
+  in der Mitte gekürzt, und „Rezept nutzen …“ steht jetzt beim Architektur-Hinweis statt in der Knopfzeile.
 
 ## 0.17.0 – Schulungen: Agent-PCs weitergeben
 
