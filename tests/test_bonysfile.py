@@ -223,7 +223,7 @@ def test_prepare_script_removes_only_not_redistributable_apps():
     assert "brave-browser-stable" not in s  # Brave bleibt
     assert s.index("Versionen") < s.index("Obsidian (Notizen) entfernen") < s.index("Passwörter sperren")
     assert "usermod -p '!'" in s and s.rstrip().endswith(f'echo "{bonysfile.PREP_DONE}"')
-    if shutil.which("bash"):
+    if shutil.which("bash") and sys.platform != "win32":  # unter Windows ist „bash“ oft WSL bzw. Git-Bash
         subprocess.run(["bash", "-n"], input=s, text=True, check=True)
         for strict in (False, True):
             subprocess.run(["bash", "-n"], input=bonysfile.check_script("agent", strict, ["claude-code"]),
@@ -434,11 +434,15 @@ def test_foreign_arch_uses_tcg(datadir, monkeypatch):
     (p / "vm.json").write_text(json.dumps(vm.VMConfig(name="fremd", arch=other, cpus=1, ram_mb=2048,
                                                       provisioned=True).__dict__))
     captured = {}
-    monkeypatch.setattr(qemu, "build_command", lambda spec: captured.update(spec=spec) or ["true"])
+
+    def build(spec):  # hier endet der Test – QEMU wird nie gestartet
+        captured["spec"] = spec
+        raise RuntimeError("gestartet")
+
+    monkeypatch.setattr(qemu, "build_command", build)
     monkeypatch.setattr(qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(qemu, "find_aarch64_firmware", lambda b: Path("/x.fd"))
     monkeypatch.setattr(qemu, "capabilities", lambda b, cache: {"spice": False, "audio": [], "displays": []})
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("gestartet")))
     with pytest.raises(RuntimeError, match="gestartet"):
         vm.VM(p)._launch(headless=True)
     assert captured["spec"].accel == "tcg" and captured["spec"].arch == other

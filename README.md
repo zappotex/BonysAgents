@@ -80,7 +80,7 @@ Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben d
 | `.deb` | `packaging/linux/build-deb.sh` → `dist/bonys-agents_<version>_<arch>.deb` |
 | Windows-Setup | `packaging\windows\build-setup.cmd` doppelklicken (auf einem Windows-PC) → `dist\BonysAgents-Setup-<version>.exe` |
 | macOS-App | `pip install . pyinstaller && pyinstaller packaging/bonys-agents.spec`, dann `packaging/macos/sign.sh` und `packaging/macos/build-dmg.sh` (auf einem Mac) |
-| Alles auf einmal | Auf GitHub ein Tag `v0.17.0` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
+| Alles auf einmal | Auf GitHub ein Tag `v0.17.1` anlegen – die Aktion *Release* baut `.deb` (amd64 + arm64), Setup.exe und die macOS-Apps (Apple-Chip + Intel), testet sie, signiert alles und veröffentlicht es (Anleitung: [docs/RELEASE.md](docs/RELEASE.md)) |
 
 ### Was die App selbst erledigt
 
@@ -491,7 +491,7 @@ die Vorlage ändert. Angezeigt werden:
 Einstellbar: Port (Standard **47110**), Dauer (Standard 120 Minuten, danach endet die Freigabe von selbst)
 und gleichzeitige Downloads (Standard 4 – wer danach kommt, wartet in einer Schlange und sieht seinen Platz).
 
-**Teilnehmer:** Hauptfenster → **„Schulung beitreten“**. Im selben Netz erscheint die Freigabe von selbst
+**Teilnehmer:** Hauptfenster → **„Kurs beitreten“** (Fenster „Schulung beitreten“). Im selben Netz erscheint die Freigabe von selbst
 (mDNS/Zeroconf, Dienst `_bonys-agents._tcp`). Im VPN oder wenn nichts erscheint: Adresse und Code eintippen
 oder den Link aus dem QR-Code einfügen. Danach zeigt Bony's Agents, was drin ist, und lädt die Vorlage mit
 Fortschritt und Restzeit. Ein abgebrochener Download wird beim nächsten Mal **fortgesetzt**. Am Ende wird die

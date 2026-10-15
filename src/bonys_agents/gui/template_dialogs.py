@@ -496,9 +496,8 @@ class ImportDialog(QDialog):
         info.setWordWrap(True)
         info.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(info)
-        from_file = QLabel(f"Datei: {self.file}")
-        from_file.setObjectName("Muted")
-        from_file.setWordWrap(True)
+        from_file = PathLabel(prefix="Datei: ")  # langer Pfad ohne Leerzeichen – in der Mitte gekürzt
+        from_file.set_path(self.file)
         root.addWidget(from_file)
         self.arch_ok = bonysfile.arch_matches(manifest)
         if not self.arch_ok:

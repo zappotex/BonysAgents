@@ -158,8 +158,10 @@ class MainWindow(QMainWindow):
         self.templates_btn = QPushButton("Vorlagen")
         self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, weitergeben, im Netzwerk freigeben, "
                                       "importieren")
-        self.join_btn = QPushButton("Schulung beitreten")
-        self.join_btn.setToolTip("Vorlage vom Rechner des Kursleiters laden (im selben Netz oder per VPN)")
+        # kurzer Text: der breiteste Knopf bestimmt die Mindestbreite des Fensters (150 % Zoom, 800 px)
+        self.join_btn = QPushButton("Kurs beitreten")
+        self.join_btn.setToolTip("Schulung beitreten: Vorlage vom Rechner des Kursleiters laden (im selben Netz oder "
+                                 "per VPN)")
         self.new_btn = QPushButton("+  Neuer Agent-PC")
         self.new_btn.setObjectName("Primary")
         # Bony's VPN für diesen Rechner – eigenes Programm (nur Linux; Windows/macOS: ⓘ → Extras)
