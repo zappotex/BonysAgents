@@ -1917,3 +1917,19 @@ def test_broken_vm_json_uses_backup_or_shows_broken(datadir, monkeypatch, tmp_pa
     assert isinstance(entry, vm.MissingVM) and entry.status() == vm.STATUS_BROKEN
     gone = vm.MissingVM("weg", tmp_path / "fehlt" / "weg")
     assert gone.status() == "nicht verfügbar"
+
+
+def test_third_party_versions_match_build_lock():
+    """THIRD-PARTY-LICENSES nennt genau die Versionen, die die Builds fest installieren."""
+    import re
+    root = Path(__file__).resolve().parents[1]
+    lock = (root / "packaging" / "requirements-build.txt").read_text("utf-8")
+    third = (root / "THIRD-PARTY-LICENSES").read_text("utf-8")
+    pins = dict(re.findall(r"^([a-z0-9-]+)==([\w.]+)(?: ;[^\n]*)? \\", lock, re.M))
+    pins.update(dict(re.findall(r"^(pyside6-essentials)==([\w.]+) ; platform_machine != ", lock, re.M)))
+    rows = {"pyside6-essentials": "PySide6 (Qt für Python)", "psutil": "psutil", "platformdirs": "platformdirs",
+            "pycdlib": "pycdlib", "qrcode": "qrcode (python-qrcode)", "pyinstaller": "PyInstaller-Bootloader"}
+    for pkg, row in rows.items():
+        line = next(ln for ln in third.splitlines() if ln.strip().startswith(row))
+        assert pins[pkg] in line.split(), (pkg, pins[pkg], line)
+    assert "--hash=sha256:" in lock and "PySide6-6.8.0.2-src" in third

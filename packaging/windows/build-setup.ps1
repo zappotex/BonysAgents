@@ -57,7 +57,10 @@ if ($LASTEXITCODE -ne 0) { Fail "venv fehlgeschlagen" }
 & build\venv-win\Scripts\python.exe -m pip install -q --upgrade pip
 & build\venv-win\Scripts\python.exe packaging\fetch-novnc.py
 if ($LASTEXITCODE -ne 0) { Fail "noVNC konnte nicht geladen werden" }
-& build\venv-win\Scripts\python.exe -m pip install -q . pyinstaller
+# Feste Versionen mit Prüfsummen (packaging\requirements-build.txt), danach nur noch das eigene Paket
+& build\venv-win\Scripts\python.exe -m pip install -q --require-hashes -r packaging\requirements-build.txt
+if ($LASTEXITCODE -ne 0) { Fail "pip install fehlgeschlagen" }
+& build\venv-win\Scripts\python.exe -m pip install -q --no-deps --no-build-isolation .
 if ($LASTEXITCODE -ne 0) { Fail "pip install fehlgeschlagen" }
 
 $outs = @()

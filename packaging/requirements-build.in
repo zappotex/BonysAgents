@@ -1,0 +1,12 @@
+# Abhängigkeiten der fertigen Pakete (wie pyproject.toml) und der Bauwerkzeuge – Grundlage für
+# packaging/requirements-build.txt (feste Versionen mit Prüfsummen, siehe docs/RELEASE.md „Abhängigkeiten“).
+# Linux arm64 wird auf Ubuntu 22.04 gebaut (glibc 2.35, damit das .deb auch unter Debian 12/Raspberry Pi OS läuft).
+# Neuere PySide6-Wheels für aarch64 brauchen glibc 2.39 – dort bleibt es bei 6.8.0.2 (Qt 6.8.0).
+PySide6-Essentials==6.8.0.2 ; sys_platform == 'linux' and platform_machine == 'aarch64'
+PySide6-Essentials ; sys_platform != 'linux' or platform_machine != 'aarch64'
+psutil
+platformdirs
+pycdlib
+qrcode
+pyinstaller
+hatchling

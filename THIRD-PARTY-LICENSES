@@ -11,14 +11,14 @@ deren Texte folgen weiter unten.
   Komponente                        Version   Lizenz
   --------------------------------  --------  ------------------------------------
   Python (Laufzeitumgebung)         3.12      PSF-2.0 (Python Software Foundation)
-  Qt 6 (Bibliotheken)               6.11.2    LGPL-3.0-only
-  PySide6 (Qt für Python)           6.11.2    LGPL-3.0-only
-  Shiboken6                         6.11.2    LGPL-3.0-only
-  ICU (Unicode-Bibliothek von Qt)   73        Unicode/ICU-Lizenz (MIT-artig)
+  Qt 6 (Bibliotheken)               6.12.0    LGPL-3.0-only  (Linux arm64: 6.8.0)
+  PySide6 (Qt für Python)           6.12.0    LGPL-3.0-only  (Linux arm64: 6.8.0.2)
+  Shiboken6                         6.12.0    LGPL-3.0-only  (Linux arm64: 6.8.0.2)
+  ICU (Unicode-Bibliothek von Qt)   73        Unicode/ICU-Lizenz (MIT-artig, nur Linux)
   psutil                            7.2.2     BSD-3-Clause
   qrcode (python-qrcode)            8.2       BSD-3-Clause (inkl. Hinweis pyqrnative, MIT)
-  platformdirs                      4.12.3    MIT
-  pycdlib                           1.21.0    LGPL-2.1-only
+  platformdirs                      4.13.2    MIT
+  pycdlib                           1.22.0    LGPL-2.1-only
   PyInstaller-Bootloader            6.22.3    GPL-2.0-or-later mit Bootloader-Ausnahme
   noVNC (Bibliothek core/)          1.7.0     MPL-2.0 (Mozilla Public License 2.0)
   pako (zlib für noVNC, vendor/)    1.0.3     MIT
@@ -29,9 +29,14 @@ bzw. C:\Program Files\Bony's Agents\_internal) und können durch eigene,
 kompatible Versionen ersetzt werden. pycdlib liegt dort als Quelltext im Ordner
 pycdlib/ (lose .py-Dateien) – zum Austauschen einfach diesen Ordner ersetzen.
 Der Quelltext von Bony's Agents ist unter https://github.com/zappotex/BonysAgents
-verfügbar; die Quelltexte von Qt und
-PySide6 unter https://download.qt.io und https://code.qt.io, der von pycdlib
-unter https://github.com/clalancette/pycdlib.
+verfügbar. Quelltexte genau der mitgelieferten Versionen:
+  Qt:       https://github.com/qt/qtbase/tree/v6.12.0 (dazu qtsvg, qtwayland mit
+            demselben Tag; Linux arm64: v6.8.0), auch unter https://code.qt.io
+  PySide6/Shiboken6:
+            https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/
+            (Linux arm64: …/PySide6-6.8.0.2-src/)
+  pycdlib:  https://github.com/clalancette/pycdlib (Version 1.22.0)
+Die Versionen stehen fest in packaging/requirements-build.txt (mit Prüfsummen).
 
 Vollständige Lizenztexte: Ordner „licenses“ im Programmordner
 ----------------------------------------------------------------

@@ -35,6 +35,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   noch veröffentlicht, wenn alle Tests grün sind und die Signatur gelingt.
 
 ### Lizenzen
+- **Feste Versionen für alle Pakete.** Die fertigen Programme werden nur noch mit festgelegten Versionen und
+  Prüfsummen gebaut (`packaging/requirements-build.txt`): nachvollziehbar, und eine manipulierte neue Version auf
+  PyPI landet nicht unbemerkt im Release. `THIRD-PARTY-LICENSES` nennt jetzt genau diese Versionen mit Links auf
+  ihre Quelltexte (Qt, PySide6).
 - **pycdlib (LGPL-2.1) ist austauschbar mitgeliefert.** Die Bibliothek liegt jetzt als lose Quelltext-Dateien im
   Programmordner (`_internal/pycdlib/`) statt im Archiv der Programmdatei – wie es die LGPL verlangt. Der Paketbau
   prüft das.

@@ -48,7 +48,9 @@ if [ ! -x "$DIST/BonysAgents" ] || [ "${REBUILD:-1}" = "1" ]; then
     python3 packaging/fetch-novnc.py   # noVNC (MPL-2.0) für die Vorführung, feste Version mit Prüfsumme
   fi
   build/venv/bin/pip install -q --upgrade pip
-  build/venv/bin/pip install -q . pyinstaller
+  # Feste Versionen mit Prüfsummen (packaging/requirements-build.txt), danach nur noch das eigene Paket
+  build/venv/bin/pip install -q --require-hashes -r packaging/requirements-build.txt
+  build/venv/bin/pip install -q --no-deps --no-build-isolation .
   build/venv/bin/pyinstaller --noconfirm --log-level WARN --distpath dist --workpath "build/pyinstaller-$EDITION" \
     packaging/bonys-agents.spec -- --edition "$EDITION"
 fi

@@ -195,6 +195,25 @@ Die Quelle hat zwei Suiten mit demselben Inhalt: `stable` (trägt das Paket bony
 Vorversionen (Tag z. B. `v0.9.0-rc.1`, auf GitHub als „Pre-release“ markiert) bekommen nur Nutzer,
 die in der App „Testversionen anbieten“ eingeschaltet haben.
 
+### Feste Versionen der Bau-Abhängigkeiten
+
+Alle Builds (`build-deb.sh`, `build-setup.ps1`, `release.yml`) installieren Python-Pakete nur aus
+`packaging/requirements-build.txt` – feste Versionen mit Prüfsummen (`pip install --require-hashes`). Eine
+kompromittierte oder neue Version auf PyPI landet so nie unbemerkt signiert im Release, und jedes Release ist
+nachvollziehbar (wichtig für die Quelltext-Angaben zu Qt/PySide6 in `THIRD-PARTY-LICENSES`).
+
+Aktualisieren (z. B. vor einem Release, auf einem beliebigen Rechner mit [uv](https://docs.astral.sh/uv/)):
+
+```bash
+uv pip compile --universal --python-version 3.12 --generate-hashes \
+  packaging/requirements-build.in -o packaging/requirements-build.txt
+```
+
+Danach die Versionstabelle in `THIRD-PARTY-LICENSES` anpassen (ein Test prüft, dass sie zur Lock-Datei passt) und
+die CI sowie einen Release-Lauf ohne Tag abwarten. Linux arm64 bleibt bei PySide6 6.8.0.2: neuere Wheels für
+aarch64 brauchen glibc 2.39, gebaut wird auf Ubuntu 22.04 (glibc 2.35), damit das Paket auch unter Debian 12 läuft.
+Die normalen Tests (`ci.yml`) laufen bewusst mit den neuesten Versionen – so fallen Brüche früh auf.
+
 ## Prüfen, ob alles klappt
 
 ```bash
