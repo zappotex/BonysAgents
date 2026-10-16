@@ -77,6 +77,20 @@ def datadir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_update_consent_question(monkeypatch):
+    """Keine Rückfrage „nach Updates suchen?“ mitten in einem Test (ein Hauptfenster sucht nach 3 s automatisch).
+    Der Test der Rückfrage selbst nutzt ``REAL_NEEDS_CONSENT``."""
+    from bonys_agents import updates
+
+    global REAL_NEEDS_CONSENT
+    REAL_NEEDS_CONSENT = REAL_NEEDS_CONSENT or updates.needs_consent
+    monkeypatch.setattr(updates, "needs_consent", lambda: False)
+
+
+REAL_NEEDS_CONSENT = None
+
+
+@pytest.fixture(autouse=True)
 def _no_network_for_mission_control(monkeypatch):
     """Mindestwerte von Mission Control nie wirklich aus dem Internet laden (Dialoge tun das im Hintergrund)."""
     from bonys_agents import mission_control

@@ -378,6 +378,12 @@ class MainWindow(QMainWindow):
     def check_updates(self, manual: bool) -> None:
         if self._update_check and self._update_check.isRunning():
             return
+        if not manual and updates.needs_consent():  # einmal fragen, bevor zum ersten Mal still gesucht wird
+            yes = QMessageBox.question(self, APP_NAME, updates.CONSENT_QUESTION) == QMessageBox.Yes
+            updates.set_setting("auto", yes)
+            self.about_btn.setMenu(self._build_menu())  # Häkchen „Automatisch nach Updates suchen“ anpassen
+            if not yes:
+                return
         if manual:
             self.statusBar().showMessage("Suche nach Updates …")
         w = CheckWorker(manual)

@@ -19,3 +19,10 @@ Software/
 src/bonys_agents/trainer/resources/novnc/
 # Edition des gebauten Programms (schreibt packaging/bonys-agents.spec beim Bauen)
 src/bonys_agents/_edition.py
+
+# Material für Videos (Musik, Vorschaubilder) – gehört nicht ins öffentliche Repository
+Audio/
+Bilder/*
+!Bilder/logo.jpg
+!Bilder/hintergrund_program.png
+!Bilder/hintergrund_program_neu.png

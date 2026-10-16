@@ -188,6 +188,17 @@ def set_setting(key: str, value) -> None:
     storage.save_settings(s)
 
 
+def needs_consent() -> bool:
+    """Wurde noch nie gefragt, ob automatisch nach Updates gesucht werden darf? (Dann zuerst fragen.)"""
+    return "update_auto_check" not in storage.load_settings()
+
+
+CONSENT_QUESTION = ("Soll Bony's Agents einmal am Tag nach Updates suchen?\n\n"
+                    "Dabei fragt es nur bei GitHub die neueste Versionsnummer ab (übertragen werden dabei, wie bei "
+                    "jedem Webseitenaufruf, deine IP-Adresse und die installierte Version). Installiert wird nie "
+                    "ohne deine Zustimmung. Ändern lässt sich das jederzeit im Menü.")
+
+
 def auto_check_due(now: float | None = None) -> bool:
     """Automatische Suche eingeschaltet und die letzte länger als einen Tag her?"""
     st = settings()

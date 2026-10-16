@@ -69,10 +69,27 @@ System herunter (hier die normale Version):
 
 | System | Datei | So geht's |
 |---|---|---|
-| **Windows 10/11** | `BonysAgents-Setup-0.15.0.exe` | Doppelklick → „Weiter“ → „Installieren“. Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
-| **Debian, Ubuntu, Linux Mint** | `bonys-agents_0.15.0_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
-| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-0.15.0-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
-| **Mac mit Intel-Prozessor** | `BonysAgents-0.15.0-macos-intel.dmg` | wie oben |
+| **Windows 10/11** | `BonysAgents-Setup-<Version>.exe` | Doppelklick → „Weiter“ → „Installieren“. Warnt Windows („Der Computer wurde durch Windows geschützt“): siehe [Windows: erster Start](#windows-erster-start). Der Installer richtet QEMU und die Hardware-Beschleunigung gleich mit ein. Danach ggf. einmal neu starten. |
+| **Debian, Ubuntu, Linux Mint** | `bonys-agents_<Version>_amd64.deb` (ARM: `_arm64.deb`) | Doppelklick → die Softwareverwaltung öffnet sich → „Installieren“. QEMU wird automatisch mitinstalliert. |
+| **Mac mit Apple-Chip** (M1, M2, M3 …) | `BonysAgents-<Version>-macos-applesilicon.dmg` | Öffnen, „Bony's Agents“ auf „Programme“ ziehen. Beim ersten Start: siehe [macOS](#macos). |
+| **Mac mit Intel-Prozessor** | `BonysAgents-<Version>-macos-intel.dmg` | wie oben |
+
+`<Version>` ist die Nummer auf der Releases-Seite, z. B. `0.19.0`. Die Kursleiter-Version hat dieselben Dateien mit
+„Kursleiter“ im Namen, z. B. `BonysAgents-Kursleiter-Setup-<Version>.exe`.
+
+### Windows: erster Start
+
+Bony's Agents ist (noch) nicht mit einem kostenpflichtigen Microsoft-Zertifikat signiert. Darum zeigt Windows
+beim ersten Öffnen des Installers eine blaue Warnung **„Der Computer wurde durch Windows geschützt“** mit nur
+einem Knopf „Nicht ausführen“:
+
+1. Auf **„Weitere Informationen“** klicken (kleiner Link im Text).
+2. Unten erscheint **„Trotzdem ausführen“** – darauf klicken.
+
+Prüfen, dass die Datei echt ist: Auf der Releases-Seite liegt `SHA256SUMS` (signiert mit `SHA256SUMS.minisig`).
+In PowerShell zeigt `Get-FileHash .\BonysAgents-Setup-<Version>.exe` die Prüfsumme – sie muss dort stehen.
+Meldet ein Virenschutz Bony's Agents, ist das bei unsignierten Programmen leider häufig ein Fehlalarm; bitte
+trotzdem die Prüfsumme vergleichen und den Fall gern melden.
 
 Danach findest du **„Bony's Agents“** im Startmenü bzw. Anwendungsmenü.
 Deinstallieren geht wie bei jedem anderen Programm – deine Agent-PCs bleiben dabei erhalten.
@@ -627,7 +644,7 @@ Frage. Solange jemand zusieht oder steuert, steht oben im Fenster ein farbiger H
 - Beim Teilnehmer wird festgehalten, wann wer zugesehen bzw. gesteuert hat (ohne Bildinhalte):
   `~/.local/share/bonys-agents/schulung/hilfe-protokoll.log` (Windows/macOS: im Datenordner von Bony's Agents).
 
-Ausblick (siehe `docs/plan-schulung.md`): Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
+Ausblick: Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
 
 ## Fernzugriff (RDP und SPICE)
 
@@ -833,7 +850,7 @@ eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browse
 
 **Bony's Agents selbst**
 
-- Die App sucht beim Start höchstens einmal am Tag nach einer neuen Version (abschaltbar im Menü
+- Die App fragt beim ersten Start, ob sie einmal am Tag nach einer neuen Version suchen darf (änderbar im Menü
   hinter dem ⓘ neben dem Namen, dort auch „Nach Updates suchen“ und „Testversionen anbieten“).
   Gibt es eine, erscheint oben eine dezente Leiste mit „Was ist neu?“, „Jetzt aktualisieren“ und
   „Später“ – installiert wird nur, wenn du zustimmst.
@@ -869,6 +886,24 @@ Bekäme die VM den gesamten Arbeitsspeicher, hätte das Host-System nichts mehr 
 würde einfrieren – oder das System beendet QEMU wegen Speichermangels. Bony's Agents gibt daher
 alles bis auf eine Reserve von 25 % (mindestens 3 GB) frei. CPU-Kerne werden dagegen vollständig geteilt, das ist
 unkritisch, weil der Host sie bei Bedarf mitbenutzt.
+
+## Datenschutz
+
+Bony's Agents hat **keine Telemetrie** und kein Konto. Nach außen geht nur, was in dieser Tabelle steht:
+
+| Wann | Wohin | Was |
+|---|---|---|
+| Update-Suche (einmal am Tag, nur wenn du beim ersten Start zugestimmt hast; abschaltbar im Menü) | api.github.com | Anfrage nach der neuesten Version – dabei wie bei jedem Webseitenaufruf deine IP-Adresse und die installierte Version |
+| Update installieren (nur nach deiner Zustimmung) | github.com bzw. die Paketquelle zappotex.github.io | Download des Pakets |
+| Neuen Agent-PC einrichten | cloud.debian.org, deb.debian.org und die offiziellen Quellen der gewählten Programme (Brave, Flathub für Telegram, Hermes Agent, OpenClaw, Claude Code, Docker, GitHub für Obsidian, Bony's VPN und Mission Control) | Downloads des Debian-Images und der Programme – die Programme lädt der Agent-PC selbst |
+| QEMU fehlt (Windows/macOS) | winget (Microsoft) bzw. Homebrew | Installation von QEMU |
+| Schulung: Freigabe/Vorführung suchen | nur im lokalen Netz (mDNS) | Suchanfrage; ein Kursleiter kündigt dabei den Namen des Kurses und seinen Rechnernamen an |
+| Schulung: Vorlage laden, Vorführung ansehen | nur zum Rechner des Kursleiters | dein Rechnername (zur Anzeige beim Kursleiter) |
+| Schulung: Hilfe anfordern | nur zum Rechner des Kursleiters | der Name, den du eingibst, und deine Nachricht; Bild und Steuerung des Agent-PCs erst nach deiner zweiten Zustimmung |
+
+Was in den Agent-PCs passiert (Browser, KI-Agenten, Telegram …), entscheidest du – das sind eigene Rechner mit
+eigenen Programmen. Fehler der App landen nur lokal in `fehler.log` im Datenordner (siehe unten) und werden nirgends
+hin geschickt.
 
 ## Wo liegen die Daten?
 

@@ -529,3 +529,22 @@ def test_unexpected_error_is_logged_and_shown(app, datadir, monkeypatch):
     log = crashlog.log_file().read_text("utf-8")
     assert "ValueError: Knopf kaputt" in log and "ZeroDivisionError" in log and "Thread hintergrund" in log
     assert len(shown) == 1 and "Knopf kaputt" in shown[0] and str(crashlog.log_file()) in shown[0]
+
+
+def test_first_automatic_update_check_asks_first(app, window, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    import conftest
+
+    from bonys_agents.gui import main_window
+    monkeypatch.setattr(updates, "needs_consent", conftest.REAL_NEEDS_CONSENT)
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: (asked.append(a[2]), QMessageBox.No)[1])
+    started = []
+    monkeypatch.setattr(main_window.CheckWorker, "start", lambda self: started.append(1))
+    assert updates.needs_consent()
+    window.check_updates(manual=False)
+    assert asked and "GitHub" in asked[0] and not started  # „Nein“: nichts gesendet
+    assert not updates.needs_consent() and updates.settings()["auto"] is False
+    window.check_updates(manual=False)
+    assert len(asked) == 1  # nur einmal gefragt

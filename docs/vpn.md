@@ -133,7 +133,7 @@ erlaubt:
 - Zugriffe aus dem Heimnetz auf eingeschalteten Fernzugriff: Antworten (`ct direction reply`) sind erlaubt
 - DNS im Agent-PC (QEMU-DNS 10.0.2.3 → Resolver des Hosts über `lo` → systemd-resolved): geht, Daten nicht
 
-Geprüft im echten Test (siehe `docs/plan-vpn-obsidian.md`, Sitzung 5). Ohne Tunnel dauert das
+Geprüft im echten Test (Sitzung 5 des VPN-Plans). Ohne Tunnel dauert das
 Herunterfahren eines Agent-PCs mit Hermes Agent und Telegram-Anbindung länger (gemessen 65 s statt 20 s):
 Das Hermes-Gateway versucht beim Beenden weiter Telegram zu erreichen, bis sein eigener Watchdog nach 60 s
 abbricht. Das bleibt unter den 90 s, nach denen Bony's Agents hart ausschaltet. Dasselbe passiert bei jedem

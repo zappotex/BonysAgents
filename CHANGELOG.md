@@ -45,6 +45,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   viele davon, und die Liste nannte teils Bibliotheken, die gar nicht dabei waren.
 
 ### Verbessert
+- **Update-Suche nur nach Zustimmung.** Beim ersten Start fragt Bony's Agents, ob es einmal am Tag bei GitHub nach
+  einer neuen Version suchen darf. Neuer README-Abschnitt „Datenschutz“: was wann wohin geht (keine Telemetrie).
+- **README:** versionsneutrale Dateinamen (mit Kursleiter-Version) und eine Anleitung für die Windows-Warnung
+  „Der Computer wurde durch Windows geschützt“ (→ „Weitere Informationen“ → „Trotzdem ausführen“).
 - **Alles auf Deutsch.** Auch die Knöpfe und Menüs, die Qt selbst mitbringt („Ja/Nein“, „Abbrechen“, „Kopieren/
   Einfügen“ im Kontextmenü), sind jetzt deutsch.
 - **Löschen nur mit Absicht.** Beim Löschen eines Agent-PCs oder einer Vorlage ist „Behalten“ voreingestellt –
