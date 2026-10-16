@@ -36,7 +36,8 @@ from .setup_dialog import SetupDialog
 from .template_dialogs import FnWorker, SaveTemplateDialog, TemplatesDialog
 from .updates_ui import CheckWorker, UpdateBanner, UpgradeDialog, start_update
 from .widgets import (
-    ColumnLayout, FlowLayout, PathLabel, PercentBar, ScaledLogo, available_geometry, fit_to_screen, open_url,
+    ColumnLayout, FlowLayout, PathLabel, PercentBar, ScaledLogo, available_geometry, confirm_delete, fit_to_screen,
+    open_url,
 )
 from .workers import TaskWorker
 
@@ -1342,11 +1343,8 @@ class MainWindow(QMainWindow):
         m = self.current()
         if not m:
             return
-        answer = QMessageBox.question(
-            self, APP_NAME,
-            f"„{m.name}“ wirklich löschen?\nAlle Daten in diesem Agent-PC gehen verloren.",
-        )
-        if answer == QMessageBox.Yes:
+        if confirm_delete(self, APP_NAME, f"„{m.name}“ wirklich löschen?",
+                          "Alle Daten in diesem Agent-PC gehen verloren – das lässt sich nicht rückgängig machen."):
             self._run(lambda mm: mm.delete())
 
     def move_vm(self) -> None:

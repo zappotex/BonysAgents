@@ -5,16 +5,31 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QLibraryInfo, QLocale, Qt, QTranslator
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-from bonys_agents import APP_NAME, edition, procutil
+from bonys_agents import APP_NAME, crashlog, edition, procutil
 
 from . import style
 
 
+def install_german(app: QApplication) -> bool:
+    """Qt-eigene Texte deutsch: „Ja/Nein“, „Abbrechen“, Kontextmenüs („Kopieren“, „Einfügen“), Dateidialoge."""
+    tr = QTranslator(app)   # Elternobjekt: lebt so lange wie die App
+    folder = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if tr.load(QLocale(QLocale.German, QLocale.Germany), "qtbase", "_", folder):
+        app.installTranslator(tr)
+        return True
+    return False
+
+
+def _show_error(text: str) -> None:
+    QMessageBox.critical(QApplication.activeWindow(), "Unerwarteter Fehler", text)
+
+
 def run() -> int:
+    crashlog.install(show=_show_error)
     procutil.add_homebrew_to_path()
     # Hohe Auflösungen / Windows-Skalierung 125 % oder 150 %: Faktor exakt übernehmen statt runden.
     # Muss vor dem Anlegen der QApplication gesetzt werden.
@@ -23,6 +38,7 @@ def run() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName(APP_NAME)   # gleich in beiden Editionen (Einstellungen bleiben beim Wechsel)
     app.setApplicationDisplayName(edition.NAME)
+    install_german(app)
     style.apply(app)
     app.setWindowIcon(QIcon(str(style.resource("logo.png"))))
 
@@ -42,7 +58,18 @@ def run() -> int:
 
 
 def main() -> None:
-    raise SystemExit(run())
+    try:
+        code = run()
+    except Exception as e:  # noqa: BLE001 – App startet nicht: protokollieren und, wenn möglich, melden
+        path = crashlog.write(type(e), e, e.__traceback__, where="Start")
+        try:
+            QApplication.instance() or QApplication(sys.argv)
+            QMessageBox.critical(None, "Bony's Agents startet nicht",
+                                 f"{crashlog.short(e)}\n\nEinzelheiten: {path}")
+        except Exception:  # noqa: BLE001
+            pass
+        code = 1
+    raise SystemExit(code)
 
 
 if __name__ == "__main__":

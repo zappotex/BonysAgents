@@ -8,13 +8,26 @@ import sys
 from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QDialog, QFrame, QHBoxLayout, QLabel, QLayout, QProgressBar, QScrollArea, QSizePolicy, QSlider, QVBoxLayout,
-    QWidget,
+    QDialog, QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox, QProgressBar, QScrollArea, QSizePolicy, QSlider,
+    QVBoxLayout, QWidget,
 )
 
 from bonys_agents import procutil, vm
 
 from . import style
+
+
+def confirm_delete(parent: QWidget | None, title: str, text: str, detail: str = "") -> bool:
+    """Löschen bestätigen – „Behalten“ ist voreingestellt, Enter und Esc löschen also nichts."""
+    box = QMessageBox(QMessageBox.Warning, title, text, QMessageBox.NoButton, parent)
+    if detail:
+        box.setInformativeText(detail)
+    delete = box.addButton("Löschen", QMessageBox.DestructiveRole)
+    keep = box.addButton("Behalten", QMessageBox.RejectRole)
+    box.setDefaultButton(keep)
+    box.setEscapeButton(keep)
+    box.exec()
+    return box.clickedButton() is delete
 
 
 def open_url(url: str) -> None:

@@ -21,7 +21,7 @@ from bonys_agents import (
 )
 
 from . import style
-from .widgets import FlowLayout, PathLabel, PercentBar, make_scrollable
+from .widgets import FlowLayout, PathLabel, PercentBar, confirm_delete, make_scrollable
 
 
 class FnWorker(QThread):
@@ -847,8 +847,8 @@ class TemplatesDialog(QDialog):
 
             self._run(detach, lambda n: f"{n} Agent-PC(s) sind jetzt unabhängig – die Vorlage kann gelöscht werden.")
             return
-        if QMessageBox.question(self, APP_NAME, f"Vorlage „{t.name}“ ({t.size / storage.GB:.1f} GB) löschen?"
-                                ) != QMessageBox.Yes:
+        if not confirm_delete(self, APP_NAME, f"Vorlage „{t.name}“ ({t.size / storage.GB:.1f} GB) löschen?",
+                              "Agent-PCs, die schon daraus erstellt wurden, bleiben erhalten."):
             return
         try:
             templates.delete(t.name)

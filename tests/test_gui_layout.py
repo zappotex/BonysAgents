@@ -477,3 +477,55 @@ def test_found_course_does_not_carry_mdns_fingerprint(app, window, monkeypatch):
         assert share.parse_target(d.address.text(), "4711-BONY").fingerprint == ""
         d.done(0)
         d.deleteLater()
+
+
+def test_qt_texts_are_german(app):
+    from PySide6.QtCore import QCoreApplication
+
+    from bonys_agents.gui import app as gui_app
+    assert gui_app.install_german(app)
+    from PySide6.QtWidgets import QDialogButtonBox
+    assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Abbrechen"
+    assert QCoreApplication.translate("QLineEdit", "&Copy") == "&Kopieren"  # Kontextmenü
+    box = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
+    assert sorted(b.text().replace("&", "") for b in box.buttons()) == ["Ja", "Nein"]
+
+
+def test_delete_confirmation_defaults_to_keep(app, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents.gui import widgets
+    seen = {}
+
+    def fake_exec(box):
+        seen["default"] = box.defaultButton().text()
+        seen["escape"] = box.escapeButton().text()
+        box.defaultButton().click()  # wie Enter
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    assert widgets.confirm_delete(None, "Test", "Wirklich löschen?") is False
+    assert seen == {"default": "Behalten", "escape": "Behalten"}
+
+
+def test_unexpected_error_is_logged_and_shown(app, datadir, monkeypatch):
+    import sys
+    import threading
+
+    from bonys_agents import crashlog
+    shown = []
+    old_hook, old_thread_hook = sys.excepthook, threading.excepthook
+    try:
+        crashlog.install(show=shown.append)
+        try:
+            raise ValueError("Knopf kaputt")
+        except ValueError:
+            sys.excepthook(*sys.exc_info())
+        t = threading.Thread(target=lambda: 1 / 0, name="hintergrund")
+        t.start()
+        t.join()
+    finally:
+        sys.excepthook, threading.excepthook = old_hook, old_thread_hook
+    log = crashlog.log_file().read_text("utf-8")
+    assert "ValueError: Knopf kaputt" in log and "ZeroDivisionError" in log and "Thread hintergrund" in log
+    assert len(shown) == 1 and "Knopf kaputt" in shown[0] and str(crashlog.log_file()) in shown[0]

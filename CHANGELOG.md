@@ -45,6 +45,13 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   viele davon, und die Liste nannte teils Bibliotheken, die gar nicht dabei waren.
 
 ### Verbessert
+- **Alles auf Deutsch.** Auch die Knöpfe und Menüs, die Qt selbst mitbringt („Ja/Nein“, „Abbrechen“, „Kopieren/
+  Einfügen“ im Kontextmenü), sind jetzt deutsch.
+- **Löschen nur mit Absicht.** Beim Löschen eines Agent-PCs oder einer Vorlage ist „Behalten“ voreingestellt –
+  ein versehentliches Enter löscht nichts mehr.
+- **Fehlerprotokoll.** Unerwartete Fehler der Desktop-App landen in `fehler.log` im Datenordner und werden kurz
+  gemeldet, statt still zu verschwinden (z. B. ein Knopf, der nichts tut). Startet die App gar nicht, steht der
+  Grund ebenfalls dort.
 - **Einrichtung „fertig mit Fehlern“ statt still „fertig“.** Scheitert bei der Ersteinrichtung ein Schritt (z. B.
   die Installation einer App oder die Übernahme der WireGuard-Konfiguration), zeigt Bony's Agents das jetzt im
   Hauptfenster und bei `bonys-agents status` an. Die App gilt dann nicht als installiert, „Programme hinzufügen …“
