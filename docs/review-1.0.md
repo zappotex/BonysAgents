@@ -9,6 +9,13 @@ Nachbarprojekte). Die wichtigsten Funde wurden anschließend noch einmal selbst 
 Ausgeführt: komplette Testsuite, ruff, gitleaks (Historie, Arbeitsordner, gebaute .deb), Inhalt der .deb-Pakete,
 eine Wegwerf-Test-VM im Scratchpad für den Ausbruchs-Nachweis (wieder gelöscht).
 
+**Umsetzung (Stand 16.10.2026):** Alle „Muss vor 1.0“-Punkte sind umgesetzt (Commits ab `d0fe944`, je Punkt im
+CHANGELOG unter „Unveröffentlicht“): S-01–S-04, P-01–P-04, R-01–R-03, R-05, R-06, L-01–L-03, U-03–U-05, D-01,
+D-03, D-04. P-05/P-06: Anleitung für SmartScreen (README „Windows: erster Start“) und Gatekeeper (README
+„macOS → Erster Start“) vorhanden; echte Signatur (Authenticode, Apple-Developer-ID) braucht ein bezahltes Konto –
+Entscheidung des Projekts. Offen aus „Sollte vor 1.0“: alles ab S-05 (Liste unten). Noch nicht in einem echten
+Agent-PC geprüft: die neue Fehler-Markierung der Einrichtung (R-02) bei einer kompletten Ersteinrichtung.
+
 ---
 
 ## Zusammenfassung (10 Zeilen)
