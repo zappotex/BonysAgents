@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.20.0 – Durchsicht vor 1.0: Sicherheit, Zuverlässigkeit, Lizenzen
 
 ### Sicherheit
 - **Agent-PCs kommen nicht mehr an die Steuerung von QEMU.** Bisher lauschten QEMU-Steuerung (QMP), Gast-Agent
@@ -85,7 +85,7 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   still durch leere Einstellungen ersetzt, sondern aufgehoben. Ein Agent-PC mit unlesbarer `vm.json` heißt jetzt
   „beschädigt“ statt „nicht verfügbar“ (es fehlt kein Laufwerk).
 
-## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild (noch nicht veröffentlicht)
+## 0.19.0 – Zwei Editionen (Bony's Agents und Bony's Agents Kursleiter), neues Hintergrundbild
 
 ### Neu
 - **Zwei Editionen aus einem Quellcode** (siehe [docs/editionen.md](docs/editionen.md)):

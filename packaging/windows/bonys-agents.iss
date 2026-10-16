@@ -1,8 +1,8 @@
 ﻿; Inno-Setup-Skript für den Windows-Installer von Bony's Agents – beide Editionen (docs/editionen.md)
 ;
 ; Bauen (nach PyInstaller):
-;   iscc /DAppVersion=0.19.0 packaging\windows\bonys-agents.iss                        (Anwender)
-;   iscc /DAppVersion=0.19.0 /DEdition=kursleiter packaging\windows\bonys-agents.iss   (Kursleiter)
+;   iscc /DAppVersion=0.20.0 packaging\windows\bonys-agents.iss                        (Anwender)
+;   iscc /DAppVersion=0.20.0 /DEdition=kursleiter packaging\windows\bonys-agents.iss   (Kursleiter)
 ; Ergebnis: dist\BonysAgents-Setup-<Version>.exe bzw. dist\BonysAgents-Kursleiter-Setup-<Version>.exe
 ;
 ; Wechsel zwischen den Editionen: Beide Installer haben dieselbe AppId. Für Windows ist es also EIN Programm –
