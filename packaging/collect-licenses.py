@@ -225,17 +225,37 @@ def openssl(content: Path, out: Path, qt_licenses: Path) -> bool:
     return True
 
 
+def webengine_versionen(libs: list[Path]) -> tuple[str, str]:
+    """(Chromium, Qt WebEngine) – ohne QtWebEngine zu laden: Dem Bau-Rechner fehlen oft Grafikbibliotheken (libEGL).
+
+    Chromium steht im User-Agent der Bibliothek („Chrome/140.0.7339.225“). Qt WebEngine hat ab PySide6 6.12 eine eigene
+    Nummer: Wheel PySide6-WebEngine 6.12.0.140 → Qt WebEngine 6.140.0; davor gleich der Qt-Version.
+    """
+    chromium = ""
+    for lib in sorted(libs, key=lambda p: -p.stat().st_size):
+        if m := re.search(rb"Chrome/(\d+\.\d+\.\d+\.\d+)", lib.read_bytes()):
+            chromium = m.group(1).decode()
+            break
+    if not chromium:
+        raise SystemExit("Chromium-Version in Qt WebEngine nicht gefunden")
+    try:
+        teile = md.version("PySide6-WebEngine").split(".")
+        version = f"{teile[0]}.{teile[3]}.0" if len(teile) == 4 else qt_version()
+    except md.PackageNotFoundError:
+        version = qt_version()
+    return chromium, version
+
+
 def webengine(content: Path, out: Path) -> str:
     """Qt WebEngine: Lizenz von Chromium (Zweig „<Version>-based“ von qtwebengine-chromium) – "" ohne WebEngine.
 
     Chromium bringt Hunderte Drittkomponenten mit; deren vollständige Liste veröffentlicht Qt für jede Version
     (Link in der Datei). Qt WebEngine selbst steht unter LGPL-3.0 wie Qt (Texte bei PySide6).
     """
-    if not any("WebEngineCore" in p.name for p in content.rglob("*") if p.is_file()):
+    libs = [p for p in content.rglob("*") if p.is_file() and "WebEngineCore" in p.name]
+    if not libs:
         return ""
-    from PySide6.QtWebEngineCore import qWebEngineChromiumVersion, qWebEngineVersion
-
-    chromium, version = qWebEngineChromiumVersion(), qWebEngineVersion()
+    chromium, version = webengine_versionen(libs)
     zweig = f"{chromium.split('.')[0]}-based"
     url = f"https://raw.githubusercontent.com/qt/qtwebengine-chromium/{zweig}/chromium/LICENSE"
     for attempt in range(3):
