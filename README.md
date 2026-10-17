@@ -526,7 +526,7 @@ die Vorlage ändert. Angezeigt werden:
 Einstellbar: Port (Standard **47110**), Dauer (Standard 120 Minuten, danach endet die Freigabe von selbst)
 und gleichzeitige Downloads (Standard 4 – wer danach kommt, wartet in einer Schlange und sieht seinen Platz).
 
-**Teilnehmer:** Hauptfenster → **„Kurs beitreten“** (Fenster „Schulung beitreten“). Im selben Netz erscheint die Freigabe von selbst
+**Teilnehmer:** Hauptfenster → **„Kurse“** → **„Schulung im Netzwerk beitreten …“**. Im selben Netz erscheint die Freigabe von selbst
 (mDNS/Zeroconf, Dienst `_bonys-agents._tcp`). Im VPN oder wenn nichts erscheint: Adresse und Code eintippen
 oder den Link aus dem QR-Code einfügen. Danach zeigt Bony's Agents, was drin ist, und lädt die Vorlage mit
 Fortschritt und Restzeit. Ein abgebrochener Download wird beim nächsten Mal **fortgesetzt**. Am Ende wird die
@@ -585,7 +585,8 @@ Die Vorführung endet von selbst nach der eingestellten Zeit und sobald der Agen
 **Teilnehmer:** Im Browser die angezeigte Adresse öffnen (oder den QR-Code scannen), Name und Code eingeben –
 fertig. Das Bild passt sich der Fenstergröße an, „⛶“ schaltet auf Vollbild, oben rechts steht der Status
 (verbunden, Pause, beendet). Bricht das WLAN kurz ab, verbindet sich die Seite selbst wieder. Wer Bony's Agents
-installiert hat, findet laufende Vorführungen auch unter **„Kurs beitreten“** – sie öffnen sich im Browser.
+installiert hat, findet laufende Vorführungen auch unter **„Kurse“ → „Schulung im Netzwerk beitreten …“** – sie
+öffnen sich im Browser.
 
 **Der Browser warnt vor dem Zertifikat** („Verbindung nicht privat“) – das ist bei einem eigenen Zertifikat für
 jede Vorführung normal: „Erweitert“ → „Weiter zu …“. Wer sicher gehen will, vergleicht den Fingerabdruck in den
@@ -645,6 +646,30 @@ Frage. Solange jemand zusieht oder steuert, steht oben im Fenster ein farbiger H
   `~/.local/share/bonys-agents/schulung/hilfe-protokoll.log` (Windows/macOS: im Datenordner von Bony's Agents).
 
 Ausblick: Kursleiter-Übersicht („alle auf Anfang“, Dateien verteilen).
+
+## Kurse über das Internet (Bony-Netz)
+
+Für Schulungen, bei denen Kursleiter und Teilnehmer **nicht im selben Netz** sitzen. Voraussetzung: Menü ⓘ →
+„Bony-Netz …“ ist eingeschaltet, eine Instanz ist angelegt, und die Agent-PCs sind im Bony-Netz (Häkchen beim
+Erstellen). Alles andere – auch die Schulung im eigenen Netz oben – funktioniert ohne Bony-Netz und ohne Internet
+weiter wie bisher. Hauptfenster → **„Kurse“**:
+
+- **Kursleitung** (nur in „Bony's Agents Kursleiter“): Beim ersten Mal den **Kursleiter-Code** einlösen (vom
+  Betreiber des Servers; gilt auch für Bony's VPN). Danach **„Neuer Kurs …“** mit Kursname, deinem Anzeigenamen
+  und wie lange der Kurscode gilt (1–60 Tage, Standard 14). Die Kursansicht zeigt den Code groß mit „Kopieren“,
+  dazu „Kurs starten“, „Pausieren“ und „Beenden“ sowie die Teilnehmer mit ihrem Agent-PC und dessen Netzadresse.
+  **Nur solange der Kurs läuft**, erreichst du diese Agent-PCs über das Bony-Netz – nach „Pausieren“ oder
+  „Beenden“ ist der Zugang sofort weg. Teilnehmer erreichen sich untereinander nie.
+- **Teilnahme** (beide Versionen): Kurscode eingeben (Groß-/Kleinschreibung und Bindestrich egal), den Agent-PC
+  wählen, mit dem du teilnimmst, und deinen Namen. Der Kursleiter erreicht dann nur diesen einen Agent-PC – nie
+  deinen Rechner (auch nicht, wenn er über Bony's VPN im Bony-Netz ist) und nie deine anderen Agent-PCs.
+  „Meine Kurse“ zeigt Kursleiter und Status; „Kurs verlassen …“ beendet die Teilnahme. Beginnt ein Kurs, meldet
+  das Hauptfenster es unten in der Statuszeile (abgefragt höchstens jede Minute, nur solange du an Kursen teilnimmst).
+- **Kursraum** (Bild, Ton, Kamera, Chat): Knöpfe sind schon da, der Kursraum selbst kommt mit einer der nächsten
+  Versionen.
+
+An den Server gehen dabei nur Kursname, die Anzeigenamen und welcher Agent-PC teilnimmt. Die Fehlermeldungen des
+Servers (Code abgelaufen, Kurs voll, zu viele aktive Kurse …) zeigt die App unverändert an.
 
 ## Fernzugriff (RDP und SPICE)
 
@@ -935,6 +960,8 @@ src/bonys_agents/
   helpmode.py    Hilfe-Modus beim Teilnehmer: Verbindung zum Kursleiter, Zustimmungen, Protokoll
   rfb.py, websocket.py, vncbridge.py  Filter (Eingaben nur mit Erlaubnis), WebSocket, Brücke zum lokalen VNC
   mdns.py        kleines mDNS/DNS-SD: Freigaben finden (_bonys-agents._tcp)
+  netz.py        Bony-Netz: Server, Instanz, Agent-PCs ins Netz (Baustein bony_netz in src/bony_netz/)
+  kurse.py       Kurse über das Bony-Netz: anlegen, steuern, beitreten (Fenster gui/kurse_dialog.py, trainer/gui/)
   trainer/       nur Kursleiter-Version: Freigabe-Server (share_server), Vorführen (present, noVNC), Hilfe-Schalter
                  (helpdesk), mDNS-Ankündigung (announce), Befehle share/present (cli), Dialoge (gui/)
   procutil.py    externe Programme mit sauberer Umgebung starten (ohne Bibliotheken des Bundles)

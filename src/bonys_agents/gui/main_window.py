@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import (
     APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, edition, host,
-    netz, remote,
+    kurse, netz, remote,
     screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
@@ -30,6 +30,7 @@ from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
 from .host_vpn import button_text, linux_vpn, mac_wireguard, vpn_icon, windows_wireguard
 from .install_dialog import InstallAppsDialog
+from .kurse_dialog import KurseDialog
 from .mc_panel import McPanel
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
 from .vpn_panel import VpnPanel
@@ -152,6 +153,11 @@ class MainWindow(QMainWindow):
         self._netz_geraete: dict[str, dict] | None = None
         self._netz_fehler = ""
         self._netz_zuletzt = 0.0
+        # Kurse über das Bony-Netz: „Der Kurs X hat begonnen“ (höchstens jede Minute fragen)
+        self._kurse_check: TaskWorker | None = None
+        self._kurse_zuletzt = 0.0
+        self._kurse_aktiv: bool | None = None   # None: noch nicht gefragt; False: keine Teilnahmen
+        self._kurse_beobachter = kurse.Beobachter()
         self._ticks = 0
         self._console_big = False
         self.entries: dict[str, vm.VM | vm.MissingVM] = {}
@@ -209,9 +215,10 @@ class MainWindow(QMainWindow):
         self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, weitergeben, im Netzwerk freigeben, "
                                       "importieren")
         # kurzer Text: der breiteste Knopf bestimmt die Mindestbreite des Fensters (150 % Zoom, 800 px)
-        self.join_btn = QPushButton("Kurs beitreten")
-        self.join_btn.setToolTip("Schulung beitreten: Vorlage vom Rechner des Kursleiters laden (im selben Netz oder "
-                                 "per VPN)")
+        self.join_btn = QPushButton("Kurse")
+        self.join_btn.setToolTip("Kurse über das Bony-Netz: beitreten" + (", anlegen und leiten" if edition.IS_TRAINER
+                                 else "") + " – und Schulung im selben Netz beitreten (Vorlage vom Rechner des "
+                                 "Kursleiters)")
         self.new_btn = QPushButton("+  Neuer Agent-PC")
         self.new_btn.setObjectName("Primary")
         # Bony's VPN für diesen Rechner – eigenes Programm (nur Linux; Windows/macOS: ⓘ → Extras)
@@ -276,7 +283,7 @@ class MainWindow(QMainWindow):
         self.doctor_btn.clicked.connect(self.show_doctor)
         self.import_btn.clicked.connect(self.import_vm)
         self.templates_btn.clicked.connect(self.show_templates)
-        self.join_btn.clicked.connect(self.join_training)
+        self.join_btn.clicked.connect(self.show_courses)
         self.youtube_btn.clicked.connect(lambda: open_url(YOUTUBE_CHANNEL_URL))
         self.vpn_btn.clicked.connect(self.host_vpn)
         self._vpn_button_state()
@@ -1032,6 +1039,7 @@ class MainWindow(QMainWindow):
         netz_on = bool(with_netz) and netz.bereit()
         if with_netz:
             self._check_netz(netz_on)
+        self._check_kurse()
         self.list.setIconSize(QSize(30, 14) if with_netz else self._icon_size)
         for i, e in enumerate(entries):
             item = self.list.item(i)
@@ -1406,6 +1414,29 @@ class MainWindow(QMainWindow):
         self._netz_check = w
         w.start()
 
+    def _check_kurse(self) -> None:
+        """Eigene Teilnahmen im Hintergrund: Meldung, wenn ein Kurs beginnt. Höchstens jede Minute, nur bei sichtbarem
+        Fenster und eingeschaltetem Bony-Netz – und nur, solange es Teilnahmen gibt (einmal beim Start nachsehen)."""
+        if (self._kurse_aktiv is False or not self.isVisible() or self.isMinimized()
+                or (self._kurse_check and self._kurse_check.isRunning())
+                or time.monotonic() - self._kurse_zuletzt < kurse.TEILNAHMEN_SEKUNDEN or not netz.bereit()):
+            return
+        self._kurse_zuletzt = time.monotonic()
+        w = TaskWorker(kurse.teilnahmen)
+
+        def done() -> None:
+            if w.error is not None:
+                return   # ohne Internet: still – die Kurse zeigen den Fehler selbst
+            self._kurse_aktiv = bool(w.result)
+            neu = self._kurse_beobachter.neu_begonnen(w.result)
+            if neu:
+                self.statusBar().showMessage(kurse.begonnen_text(neu), 120000)
+                QApplication.alert(self, 0)
+
+        w.finished.connect(done)
+        self._kurse_check = w
+        w.start()
+
     def _list_menu(self, pos) -> None:
         item = self.list.itemAt(pos)
         m = self.entries.get(item.data(Qt.UserRole)) if item else None
@@ -1570,9 +1601,15 @@ class MainWindow(QMainWindow):
         HelpRequestDialog(m, self, restart=lambda: self._run(lambda x: (x.stop(), x.start()))).exec()
 
     def join_training(self) -> None:
+        """Schulung im selben Netz (LAN/VPN) – ohne Bony-Netz, wie bisher."""
         from .share_dialogs import JoinDialog
 
         JoinDialog(self).exec()
+        self.refresh()
+
+    def show_courses(self) -> None:
+        KurseDialog(self, join_local=self.join_training).exec()
+        self._kurse_aktiv = None   # vielleicht beigetreten oder verlassen – bei der nächsten Abfrage nachsehen
         self.refresh()
 
     def make_independent(self) -> None:

@@ -264,14 +264,23 @@ def _dialogs(window, monkeypatch):
     up = updates.UpdateInfo(version="9.9.9", tag="v9.9.9", notes="Neu\n" * 40)
     tpl, bundle, manifest = _fake_bundle(info)
     from bonys_agents import edition, share
-    from bonys_agents.gui import course_ui, share_dialogs
+    from bonys_agents.gui import course_ui, kurse_dialog, share_dialogs
 
     monkeypatch.setattr(share, "discover", lambda timeout=2.5: [])  # keine echte Suche im Netz
     trainer = {}
     if edition.IS_TRAINER:
         from bonys_agents.trainer.gui import helpdesk_dialog, present_dialog, share_dialog
 
+        from bonys_agents import kurse
+        from bonys_agents.trainer.gui import kurse_leiten
+
+        kurs = kurse.Kurs("k1", "Einführung in Hermes und Telegram für Fortgeschrittene", "Bony", "laeuft",
+                          "K7QX-M3PA", 1761000000, 1760000000,
+                          [kurse.Teilnehmer(f"i{n}", f"Teilnehmerin {n} mit langem Namen", f"agent-pc-{n}",
+                                            f"100.64.0.{n}", 1760000100) for n in range(12)])
         trainer = {
+            "Neuer Kurs": lambda: kurse_leiten.NeuerKursDialog(window),
+            "Kursansicht": lambda: kurse_leiten.KursAnsicht(kurs, window),
             "Im Netzwerk freigeben": lambda: share_dialog.ShareDialog(tpl, window),
             "Vorführen": lambda: present_dialog.PresentDialog(m, window),
             "Vorführen (läuft)": lambda: _live_present(window, m, monkeypatch),
@@ -289,6 +298,7 @@ def _dialogs(window, monkeypatch):
         "Weitergeben": lambda: template_dialogs.ExportDialog(tpl, window),
         "Importieren": lambda: template_dialogs.ImportDialog(bundle, manifest, window),
         "Schulung beitreten": lambda: share_dialogs.JoinDialog(window),
+        "Kurse": lambda: kurse_dialog.KurseDialog(window),
         "Hilfe anfordern": lambda: course_ui.HelpRequestDialog(m, window),
         "Importieren (andere Architektur)": lambda: template_dialogs.ImportDialog(
             bundle, {**manifest, "arch": "arm64" if info.arch == "x86_64" else "amd64"}, window),

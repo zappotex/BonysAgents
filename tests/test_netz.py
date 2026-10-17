@@ -24,6 +24,8 @@ class FakeZentrale:
         self.geraete: list[dict] = []          # [{geraet_id, name, ip, online, zuletzt_gesehen}]
         self.schluessel: list[str] = []        # ausgegebene Geräteschlüssel
         self.grenze: int | None = None         # Gerätegrenze (409)
+        self.kurse: dict[str, dict] = {}       # kurs_id -> Kurs (API.md) + "_leiter", "_teiln" (Token->Eintrag)
+        self.kurs_grenze: int | None = None    # Teilnehmer je Kurs (409 „Kurs voll“)
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -70,6 +72,9 @@ class FakeZentrale:
                     outer.schluessel.append(f"hskey-auth-{len(outer.schluessel) + 1:04d}geheim")
                     return self._send(200, {"schluessel": outer.schluessel[-1], "login_server": "https://vpn.test",
                                             "gueltig_minuten": 60})
+                kurs = outer._kurse(self.command, self.path, token, instanz, self._body())
+                if kurs is not None:
+                    return self._send(*kurs)
                 if self.command == "DELETE" and self.path.startswith("/api/v1/geraete/"):
                     gid = self.path.rsplit("/", 1)[1]
                     if not any(g["geraet_id"] == gid for g in outer.geraete):
@@ -78,11 +83,93 @@ class FakeZentrale:
                     return self._send(204)
                 return self._send(404, {"detail": "Nicht gefunden"})
 
+            def _body(self):
+                n = int(self.headers.get("Content-Length") or 0)
+                return json.loads(self.rfile.read(n)) if n else {}
+
             do_GET = do_POST = do_DELETE = _route
 
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    # ---------------------------------------------------------------- Kurse (Aufgabe 04)
+    @staticmethod
+    def _oeffentlich(k: dict, mit_code: bool = True) -> dict:
+        d = {x: y for x, y in k.items() if not x.startswith("_")}
+        d["teilnehmer"] = [{x: y for x, y in t.items() if not x.startswith("_")} for t in k["_teiln"].values()]
+        if not mit_code:
+            d.pop("code", None)
+        return d
+
+    def _kurse(self, methode, pfad, token, instanz, body):
+        """(Status, Antwort) für Kurs-Aufrufe, sonst None."""
+        import urllib.parse
+
+        teile = urllib.parse.urlsplit(pfad)
+        pfad, query = teile.path, urllib.parse.parse_qs(teile.query)
+        if (methode, pfad) == ("POST", "/api/v1/instanz/kursleiter"):
+            if body.get("code") != "LEITER-OK":
+                return 400, {"detail": "Der Kursleiter-Code ist ungültig."}
+            instanz["ist_kursleiter"] = True
+            return 204, None
+        if not pfad.startswith("/api/v1/kurse"):
+            return None
+        eigene = {i: k for i, k in self.kurse.items() if k["_leiter"] == token}
+        if (methode, pfad) == ("POST", "/api/v1/kurse/beitreten"):
+            code = "".join(z for z in body["code"].upper() if z.isalnum())
+            k = next((k for k in self.kurse.values() if k["code"].replace("-", "") == code
+                      and k["status"] != "beendet" and k["code_gueltig_bis"] > time.time()), None)
+            if k is None:
+                return 404, {"detail": "Der Kurscode ist ungültig oder abgelaufen."}
+            if self.kurs_grenze is not None and token not in k["_teiln"] and len(k["_teiln"]) >= self.kurs_grenze:
+                return 409, {"detail": "Der Kurs ist voll."}
+            g = next(g for g in self.geraete if g["geraet_id"] == body["geraet_id"])
+            k["_teiln"][token] = {"instanz_id": instanz["instanz_id"], "anzeigename": body["anzeigename"],
+                                  "geraet_name": g["name"], "geraet_ip": g["ip"], "beigetreten": 1760000100,
+                                  "_geraet_id": g["geraet_id"]}
+            return 200, self._oeffentlich(k, mit_code=False)
+        if (methode, pfad) == ("GET", "/api/v1/kurse/teilnahmen"):
+            return 200, [{**self._oeffentlich(k, mit_code=False), "mein_geraet_id": k["_teiln"][token]["_geraet_id"],
+                          "teilnehmer": []}
+                         for k in self.kurse.values() if token in k["_teiln"] and k["status"] != "beendet"]
+        teil = pfad.split("/")
+        if methode == "DELETE" and len(teil) == 6 and teil[5] == "teilnahme":
+            k = self.kurse.get(teil[4])
+            if k is None or token not in k["_teiln"]:
+                return 404, {"detail": "Teilnahme nicht gefunden."}
+            del k["_teiln"][token]
+            return 204, None
+        # ab hier nur Kursleiter
+        if not instanz["ist_kursleiter"]:
+            return 403, {"detail": "Diese Instanz ist nicht als Kursleiter freigeschaltet."}
+        if (methode, pfad) == ("POST", "/api/v1/kurse"):
+            if len([k for k in eigene.values() if k["status"] != "beendet"]) >= 3:
+                return 409, {"detail": "Du hast schon zu viele aktive Kurse."}
+            n = len(self.kurse) + 1
+            kurs_id = f"k{n:03d}abcdef"
+            self.kurse[kurs_id] = {
+                "kurs_id": kurs_id, "name": body["name"], "kursleiter_name": body["kursleiter_name"],
+                "status": "offen", "raum": kurs_id, "code": f"K{n:03d}-M3PA",
+                "code_gueltig_bis": int(time.time()) + 86400 * body.get("code_gueltig_tage", 14),
+                "erstellt": 1760000000 + n, "_leiter": token, "_teiln": {}}
+            return 201, self._oeffentlich(self.kurse[kurs_id])
+        if (methode, pfad) == ("GET", "/api/v1/kurse/geleitet"):
+            alle = query.get("alle") == ["true"]
+            return 200, [self._oeffentlich(k) for k in eigene.values() if alle or k["status"] != "beendet"]
+        k = eigene.get(teil[4]) if len(teil) > 4 else None
+        if k is None:
+            return 404, {"detail": "Kurs nicht gefunden."}
+        if methode == "POST" and teil[5:] == ["status"]:
+            if k["status"] == "beendet":
+                return 409, {"detail": "Der Kurs ist schon beendet."}
+            k["status"] = body["status"]
+            return 200, self._oeffentlich(k)
+        if methode == "DELETE" and len(teil) == 7 and teil[5] == "teilnehmer":
+            vorher = len(k["_teiln"])
+            k["_teiln"] = {t: e for t, e in k["_teiln"].items() if e["instanz_id"] != teil[6]}
+            return (204, None) if len(k["_teiln"]) < vorher else (404, {"detail": "Teilnehmer nicht gefunden."})
+        return 404, {"detail": "Nicht gefunden"}
 
     def close(self):
         self.httpd.shutdown()

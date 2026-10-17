@@ -72,7 +72,8 @@ def require_trainer(what: str) -> str | None:
     if IS_TRAINER:
         return None
     return (f"{what} gibt es nur in „{NAMES[KURSLEITER]}“. Teilnehmer brauchen sie nicht – sie treten mit "
-            f"„bonys-agents join“ bzw. „Kurs beitreten“ bei. Die Kursleiter-Version gibt es hier: {download_url()}")
+            f"„bonys-agents join“ bzw. „Kurse“ → „Schulung im Netzwerk beitreten“ bei. Die Kursleiter-Version gibt "
+            f"es hier: {download_url()}")
 
 
 def download_url() -> str:

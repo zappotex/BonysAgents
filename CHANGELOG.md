@@ -21,6 +21,15 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   der Agent-PC auch aus dem Netz entfernt; ist der Server nicht erreichbar, wird trotzdem gelöscht, mit Hinweis.
   Nachträglich: Rechtsklick in der Liste → „Mit dem Bony-Netz verbinden“ (über den Gast-Agent, sonst SSH).
   Kommandozeile: `create … --bony-netz`. Vorlagen enthalten nie die Tailscale-Anmeldung – jeder Klon tritt selbst bei.
+- **Kurse über das Bony-Netz.** Der Knopf „Kurs beitreten“ heißt jetzt **„Kurse“** und öffnet ein Fenster mit
+  „Teilnahme“ (beide Versionen: Kurscode, Agent-PC wählen, Anzeigename, „Meine Kurse“, „Kurs verlassen …“) und in
+  der Kursleiter-Version zusätzlich „Kursleitung“ (Kursleiter-Code einlösen, „Neuer Kurs …“ mit Code-Gültigkeit 1–60
+  Tage, Kursliste mit „Beendete anzeigen“, Kursansicht mit großem Code und „Kopieren“, Starten/Pausieren/Beenden,
+  Teilnehmertabelle mit Netzadresse, „Entfernen …“; Abfrage alle 15 Sekunden, solange sichtbar). Nur solange ein Kurs
+  läuft, erreicht der Kursleiter die gewählten Agent-PCs der Teilnehmer. Der eigene Rechner (über Bony's VPN im Netz)
+  steht nie zur Auswahl. Beginnt ein Kurs, an dem du teilnimmst, meldet das die Statuszeile (höchstens jede Minute
+  gefragt). Die Schulung im eigenen Netz bleibt unverändert: „Kurse“ → „Schulung im Netzwerk beitreten …“.
+  „Kursraum öffnen/betreten“ ist noch ein Platzhalter.
 
 ### Behoben
 - **Bony-Netz: Beitritt scheiterte bei Agent-PCs ohne Tailscale** („bei der Einrichtung ist etwas schiefgegangen“,

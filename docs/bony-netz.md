@@ -1,6 +1,7 @@
 # Bony-Netz in Bony's Agents
 
-Stand: Aufgaben 01 (Baustein und Einstellungen) und 02 (Agenten-PCs ins Netz) aus `bony-netz-paket`.
+Stand: Aufgaben 01 (Baustein und Einstellungen), 02 (Agenten-PCs ins Netz) und 04 (Kurse verwalten) aus
+`bony-netz-paket`. Aufgabe 03 steht in Bony's VPN.
 
 | Was | Wo |
 |---|---|
@@ -11,7 +12,11 @@ Stand: Aufgaben 01 (Baustein und Einstellungen) und 02 (Agenten-PCs ins Netz) au
 | Agenten-PCs ins Netz: Schlüssel, Beitritt im Gast, Geräteliste, Entfernen | `src/bonys_agents/netz.py` (unterer Teil) |
 | Einrichtungsschritt bzw. Klon-Erststart, Seed-Datei, Vorlagen ohne Tailscale-Identität | `src/bonys_agents/cloudinit.py` |
 | Häkchen beim Erstellen | `gui/create_dialog.py`; Netz-Symbol, Kontextmenü, Löschen: `gui/main_window.py` |
-| Tests gegen eine Test-Zentrale auf 127.0.0.1 | `tests/test_netz.py` |
+| Kurse (Aufgabe 04): Logik ohne Qt | `src/bonys_agents/kurse.py` |
+| Fenster „Kurse“ (Knopf im Kopf), Reiter „Teilnahme“ | `src/bonys_agents/gui/kurse_dialog.py` |
+| Reiter „Kursleitung“, „Neuer Kurs“, Kursansicht (nur Kursleiter-Version) | `src/bonys_agents/trainer/gui/kurse_leiten.py` |
+| „Der Kurs X hat begonnen“ | `gui/main_window.py` (`_check_kurse`) |
+| Tests gegen eine Test-Zentrale auf 127.0.0.1 (mit Kurs-Endpunkten) | `tests/test_netz.py`, `tests/test_kurse.py` |
 
 Baustein ersetzen: `src/bony_netz/` und `tests/test_bony_netz_baustein.py` durch die neue Fassung aus dem Paket
 überschreiben, in Bony's VPN ebenso. Ruff-Ausnahmen für den Baustein stehen in `pyproject.toml`
@@ -67,3 +72,38 @@ Bony-Netz verbinden“ (Tailscale ist dann schon da).
   Agent-PC mit demselben Namen bekommt von Headscale dann womöglich einen abgewandelten Namen und erscheint als
   „nicht verbunden“. Eine Geräteliste zum Aufräumen gibt es noch nicht.
 
+## Aufgabe 04: Kurse – wie es mit der Schulung im eigenen Netz zusammenpasst
+
+Die vorhandene Schulung (Vorlage freigeben, „Schulung beitreten“, Vorführen, Hilfe-Schalter) läuft ohne Server direkt
+zwischen den Rechnern im selben Netz (LAN oder VPN) mit eigenem Code und Fingerabdruck. Sie bleibt **unverändert**.
+Die Kurse über das Bony-Netz kommen daneben:
+
+- Ein Knopf **„Kurse“** (früher „Kurs beitreten“) öffnet das Fenster „Kurse“. Darin „Kursleitung“ (nur
+  Kursleiter-Version, Modul in `trainer/` – fehlt in der Anwender-Version ganz) und „Teilnahme“. Der bisherige Weg
+  steht unten als „Schulung im Netzwerk beitreten …“ (öffnet `JoinDialog` wie früher).
+- Ohne Bony-Netz (aus oder keine Instanz) zeigt das Fenster einen Hinweis mit „Bony-Netz …“ und fragt die Zentrale
+  nicht; die Schulung im eigenen Netz geht trotzdem.
+- Später (Aufgaben 05/06) sollen Kursraum und Hilfe für Bony-Netz-Kurse dieselben Fenster nutzen: Kursansicht →
+  „Kursraum öffnen“, Teilnehmerliste → „Helfen“. Der Hilfe-Schalter im eigenen Netz bleibt für Kurse ohne Internet.
+
+Umsetzung:
+- `kurse._aufruf` deutet einen 404 der Zentrale **nicht** als „kein Bony-Netz-Server“ (anders als `netz._fragen`):
+  „Code abgelaufen“ kommt als 404 mit Meldung für den Nutzer. Antworten ohne JSON ergeben weiter `KeinBonyNetz`,
+  ein 401 meldet die Instanz ab (wie überall).
+- Gemerkt in `konto.extra`: `kursleiter_name` (Kursleiter) und `anzeigename` (Teilnehmer). `ist_kursleiter` wird
+  nach `instanz()` bzw. dem Einlösen in `konto.json` nachgetragen (sieht auch Bony's VPN).
+- Agent-PC-Auswahl: `zentrale.geraete()`, online zuerst. **Ohne** den Rechner selbst, wenn Bony's VPN ihn verbunden
+  hat (`konto.extra["vpn_rechner"]`, gleiche Instanz) – sonst könnte ein Teilnehmer dem Kursleiter versehentlich
+  den eigenen Rechner öffnen. Neben dem Netznamen steht der Name des Agent-PCs auf diesem Rechner.
+- Abfragen: Kursliste und Kursansicht alle 15 s, solange sichtbar; „Teilnahme“ und die Meldung im Hauptfenster
+  höchstens jede Minute. Das Hauptfenster fragt beim Start einmal und danach nur weiter, solange es Teilnahmen gibt
+  (nach dem Fenster „Kurse“ wieder einmal).
+- „Kursraum öffnen/betreten“: Platzhalter (`kurse.KURSRAUM_SPAETER`) bis Aufgabe 05.
+
+### Offen / Hinweise
+- Echt zu prüfen (Fertig-wenn): Kurs anlegen, zweiter Rechner mit anderer Instanz tritt bei; nach „Kurs starten“
+  `ping` vom Kursleiter (Rechner über Bony's VPN oder Agent-PC) auf genau diesen Agent-PC, nicht auf andere des
+  Teilnehmers; nach „Pausieren“/„Beenden“ sofort weg; Teilnehmer untereinander nie. Das regelt die Zentrale
+  (Headscale-Regeln) – die App zeigt nur an.
+- Was die Zentrale bei einem erneuten Beitritt nach „Entfernen“ tut, steht nicht in API.md; die App zeigt dann
+  einfach die Meldung der Zentrale.

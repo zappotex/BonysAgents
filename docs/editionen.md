@@ -24,9 +24,11 @@ behält Agent-PCs, Vorlagen, Bibliotheken und Einstellungen – beide nutzen den
 | Vorlagen erstellen und verwalten, Programme hinzufügen, Bony's VPN, Mission Control, Obsidian | ✅ | ✅ |
 | Hintergrundbild der Agent-PCs aktualisieren | ✅ | ✅ |
 | Vorlage als `.bonys`-Datei exportieren und importieren | ✅ | ✅ |
-| **Teilnehmer:** „Kurs beitreten“ – Freigaben im Netz finden, Code/QR-Inhalt eingeben, Fingerabdruck prüfen, Vorlage laden (`bonys-agents join`) | ✅ | ✅ |
+| **Teilnehmer:** „Kurse“ → „Schulung im Netzwerk beitreten“ – Freigaben im Netz finden, Code/QR-Inhalt eingeben, Fingerabdruck prüfen, Vorlage laden (`bonys-agents join`) | ✅ | ✅ |
 | **Teilnehmer:** Vorführung im Browser öffnen | ✅ | ✅ |
 | **Teilnehmer:** „Hilfe anfordern“ mit Zustimmungs-Dialogen (Ansehen / Steuern) und Hinweis, solange zugesehen oder gesteuert wird | ✅ | ✅ |
+| **Teilnehmer:** Kurse über das Bony-Netz – beitreten mit Kurscode, Agent-PC wählen, „Meine Kurse“, verlassen | ✅ | ✅ |
+| **Kursleiter:** Kurse über das Bony-Netz – Kursleiter-Code einlösen, anlegen, starten/pausieren/beenden, Teilnehmer entfernen (`trainer/gui/kurse_leiten.py`) | – | ✅ |
 | **Kursleiter:** Vorlage im Netzwerk freigeben (HTTPS-Server, mDNS-Ankündigung, `bonys-agents share`) | – | ✅ |
 | **Kursleiter:** Vorführen (Kurs-Server, WebSocket-Proxy, noVNC, `bonys-agents present`) | – | ✅ |
 | **Kursleiter:** Hilfe-Anfragen annehmen, Teilnehmer-Agent-PCs ansehen und (nach Zustimmung) steuern | – | ✅ |

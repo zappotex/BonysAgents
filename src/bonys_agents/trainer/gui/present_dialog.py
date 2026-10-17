@@ -251,7 +251,7 @@ class PresentDialog(QDialog):
         rows.append(f"Fingerabdruck: <b>{share.short_fingerprint(p.fingerprint)}</b> – der Browser warnt vor dem "
                     "Zertifikat; Teilnehmer können ihn in den Zertifikatsdetails vergleichen")
         rows.append(f"<span style='font-size:small'>{share.format_fingerprint(p.fingerprint)}</span>")
-        rows.append("In Bony's Agents: „Kurs beitreten“ zeigt die Vorführung auch an.")
+        rows.append("In Bony's Agents: „Kurse“ → „Schulung im Netzwerk beitreten“ zeigt die Vorführung auch an.")
         self.info.setText("<br>".join(rows))
         pix = qr_pixmap(p.url(), style.px(200))
         if pix is not None:
