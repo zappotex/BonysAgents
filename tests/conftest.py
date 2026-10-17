@@ -91,6 +91,17 @@ REAL_NEEDS_CONSENT = None
 
 
 @pytest.fixture(autouse=True)
+def _kein_einrichtungsassistent(monkeypatch):
+    """Fehlt QEMU (z. B. auf dem Windows-Runner), öffnet ein Hauptfenster nach 300 ms den Einrichtungs-Assistenten
+    modal (``exec``) – ein Test, der danach Ereignisse abarbeitet, hinge dort bis zum Zeitlimit."""
+    try:
+        from bonys_agents.gui import main_window
+    except ImportError:   # ohne Qt
+        return
+    monkeypatch.setattr(main_window.MainWindow, "show_doctor", lambda self: None)
+
+
+@pytest.fixture(autouse=True)
 def _no_network_for_mission_control(monkeypatch):
     """Mindestwerte von Mission Control nie wirklich aus dem Internet laden (Dialoge tun das im Hintergrund)."""
     from bonys_agents import mission_control
