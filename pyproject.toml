@@ -49,7 +49,8 @@ bonys-agents-gui = "bonys_agents.gui.app:main"
 path = "src/bonys_agents/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/bonys_agents"]
+# bony_netz: gemeinsamer Baustein mit Bony's VPN (unverändert aus bony-netz-paket übernommen)
+packages = ["src/bonys_agents", "src/bony_netz"]
 # noVNC (MPL-2.0) steht nicht im Repository – packaging/fetch-novnc.py holt es vor dem Bauen
 artifacts = ["src/bonys_agents/trainer/resources/novnc/"]
 
@@ -73,3 +74,5 @@ ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/bonys_agents/apps.py" = ["E501"]
+# Gemeinsamer Baustein mit Bony's VPN – wird nur als Ganzes ersetzt, nicht hier angepasst
+"src/bony_netz/*" = ["E501", "UP037"]

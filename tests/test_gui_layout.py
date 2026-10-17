@@ -252,8 +252,8 @@ def _live_helpdesk(window, m, monkeypatch):
 def _dialogs(window, monkeypatch):
     from bonys_agents import host
     from bonys_agents.gui import (
-        about_dialog, create_dialog, desktop_dialog, install_dialog, main_window, move_dialog, remote_panel,
-        resize_dialog, setup_dialog, template_dialogs, updates_ui,
+        about_dialog, create_dialog, desktop_dialog, install_dialog, main_window, move_dialog, netz_dialog,
+        remote_panel, resize_dialog, setup_dialog, template_dialogs, updates_ui,
     )
 
     # Nie wirklich installieren oder aktualisieren
@@ -295,6 +295,7 @@ def _dialogs(window, monkeypatch):
         "Programme": lambda: install_dialog.InstallAppsDialog(m, window),
         "Desktop": lambda: desktop_dialog.AddDesktopDialog(m, window),
         "Über": lambda: about_dialog.AboutDialog(window),
+        "Bony-Netz": lambda: netz_dialog.NetzDialog(window),
         "Fernzugriff": lambda: remote_panel.RemoteDialog(m, False, window),
         "Was ist neu": lambda: updates_ui.ReleaseNotesDialog(up, window),
         "Update installieren": lambda: updates_ui.InstallDialog(up, [], window),

@@ -100,3 +100,9 @@ def _no_network_for_mission_control(monkeypatch):
 
     monkeypatch.setattr(mission_control, "_download", offline)
     monkeypatch.setattr(mission_control, "_cache", None)
+
+
+@pytest.fixture(autouse=True)
+def _own_bony_netz_folder(tmp_path, monkeypatch):
+    """Nie die echte Bony-Netz-Anmeldung (~/.config/bonys-netz/konto.json) lesen oder überschreiben."""
+    monkeypatch.setenv("BONY_NETZ_ORDNER", str(tmp_path / "bony-netz"))

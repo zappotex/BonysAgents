@@ -98,6 +98,7 @@ def test_main_package_works_without_trainer_folder(tmp_path):
     Hauptfenster entsteht ohne Kursleiter-Knöpfe."""
     pkg = tmp_path / "src" / "bonys_agents"
     shutil.copytree(SRC, pkg, ignore=shutil.ignore_patterns("trainer", "__pycache__", "_edition.py"))
+    shutil.copytree(SRC.parent / "bony_netz", pkg.parent / "bony_netz", ignore=shutil.ignore_patterns("__pycache__"))
     home = tmp_path / "home"
     script = r'''
 import importlib, io, pkgutil, sys, contextlib

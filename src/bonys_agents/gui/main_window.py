@@ -31,6 +31,7 @@ from .mc_panel import McPanel
 from .remote_panel import RemoteDialog, RemotePanel, switch_remote
 from .vpn_panel import VpnPanel
 from .move_dialog import MoveDialog
+from .netz_dialog import NetzDialog
 from .resize_dialog import ResizeDialog
 from .setup_dialog import SetupDialog
 from .template_dialogs import FnWorker, SaveTemplateDialog, TemplatesDialog
@@ -291,6 +292,7 @@ class MainWindow(QMainWindow):
         if edition.IS_TRAINER:
             menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
         menu.addSeparator()
+        menu.addAction("Bony-Netz …", lambda: NetzDialog(self).exec())
         extras = menu.addMenu("Extras")
         if sys.platform.startswith("linux"):
             extras.addAction("Bony's VPN für diesen Rechner", self.host_vpn)

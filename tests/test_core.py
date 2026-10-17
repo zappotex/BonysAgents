@@ -1772,6 +1772,9 @@ def test_license_is_gpl3_unchanged():
 def test_every_python_file_has_spdx_line():
     files = [*ROOT.glob("src/**/*.py"), *ROOT.glob("tests/*.py"), *ROOT.glob("packaging/*.py")]
     assert len(files) > 25
+    # Gemeinsamer Baustein mit Bony's VPN und sein Test: unverändert aus bony-netz-paket (siehe docs/bony-netz.md)
+    shared = {ROOT / "tests" / "test_bony_netz_baustein.py"}
+    files = [f for f in files if "bony_netz" not in f.relative_to(ROOT).parts and f not in shared]
     for f in files:
         head = f.read_text("utf-8").lstrip("﻿").splitlines()[:2]
         assert "# SPDX-License-Identifier: GPL-3.0-or-later" in head, f

@@ -51,7 +51,7 @@ EXCLUDES = [
     "tkinter", "unittest", "pydoc",
 ] + ([] if TRAINER else [editions.TRAINER_PACKAGE])
 HIDDEN = ["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.gui.share_dialogs",
-          "bonys_agents._edition", "qrcode"]
+          "bonys_agents._edition", "qrcode", "bony_netz"]   # bony_netz: gemeinsamer Baustein mit Bony's VPN
 if TRAINER:   # werden erst bei Bedarf importiert – PyInstaller fände sie sonst nicht
     HIDDEN += collect_submodules(editions.TRAINER_PACKAGE)
 

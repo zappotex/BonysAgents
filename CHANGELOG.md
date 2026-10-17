@@ -3,6 +3,15 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Neu
+- **Bony-Netz (erster Schritt).** Menü → „Bony-Netz …“: Schalter „Bony-Netz verwenden“ (standardmäßig aus – dann
+  nimmt die App keinen Kontakt zum Server auf und verhält sich wie bisher), Server wählen und prüfen
+  (Vorschlag `https://zentrale.bony23.de`), Instanz anlegen oder löschen, Zustand der Verbindung. Die Anmeldung
+  teilt sich Bony's Agents mit Bony's VPN (`~/.config/bonys-netz/konto.json`, nur für dich lesbar). Agent-PCs
+  und Kurse kommen in den nächsten Schritten.
+
 ## 0.20.0 – Durchsicht vor 1.0: Sicherheit, Zuverlässigkeit, Lizenzen
 
 ### Sicherheit

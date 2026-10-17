@@ -74,6 +74,8 @@ def check(root: Path, edition: str) -> list[str]:
     if any(m == "pycdlib" or m.startswith("pycdlib.") for m in mods):
         problems.append("pycdlib steckt im Archiv der Programmdatei (PYZ) – muss austauschbar daneben liegen")
     if mods:
+        if not {"bony_netz", "bony_netz.zentrale", "bony_netz.konto"} <= mods:
+            problems.append("Baustein bony_netz fehlt im Programm (Bony-Netz)")
         if not edition_code:
             problems.append("bonys_agents._edition fehlt im Programm")
         for exe, code in edition_code.items():
