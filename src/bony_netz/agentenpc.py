@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Alles, was im Agenten-PC selbst passiert, damit er dem Bony-Netz beitritt."""
 
 from __future__ import annotations

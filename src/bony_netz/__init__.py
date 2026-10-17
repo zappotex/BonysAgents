@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """bony_netz – gemeinsamer Baustein von Bony's Agents und Bony's VPN.
 
 Spricht mit der Zentrale eines Bony-Netz-Servers und merkt sich die Anmeldung.

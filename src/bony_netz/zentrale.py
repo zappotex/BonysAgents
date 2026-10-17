@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Client für die Zentrale eines Bony-Netz-Servers (siehe API.md im Server-Projekt).
 
 Alle Methoden blockieren und dauern bei langsamer Verbindung einige Sekunden.

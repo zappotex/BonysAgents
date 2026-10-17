@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Speichert Serveradresse und Instanz-Anmeldung im Benutzerordner.
 
 Speicherort:

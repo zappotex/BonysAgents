@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Fehlerarten. Die Meldungen sind auf Deutsch und können direkt angezeigt werden."""
 
 
