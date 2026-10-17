@@ -12,7 +12,7 @@ from pathlib import Path
 
 from bonys_agents import (
     APP_NAME, __version__, apps, deps, desktops, edition, host, mission_control, procutil, qemu, remote, screen,
-    storage, vm, vpnlink,
+    netz, storage, vm, vpnlink,
 )
 from bonys_agents import progress as pct
 
@@ -202,6 +202,7 @@ def cmd_create(args) -> int:
         return 2
     app_ids = app_selection(args.apps, args.agents)  # Tippfehler melden, bevor nach dem Passwort gefragt wird
     vpn = vpn_setup(args)
+    bony_netz = _bony_netz(args)
     desk = desktops.get(args.desktop)
     _warn_ram(desk.id, args.ram)
     _warn_mission_control(app_ids, desk.id, args.ram, args.disk or vm.DEFAULT_DISK_GB)
@@ -235,7 +236,9 @@ def cmd_create(args) -> int:
         app_ids=app_ids,
         keyboard=args.keyboard, timezone_name=args.timezone, progress=progress,
         location=Path(args.location) if args.location else None, desktop=desk.id, vpn=vpn,
+        bony_netz=bony_netz,
     )
+    _print_hints(machine)
     c = machine.config
     print(f"\nAgent-PC '{c.name}': {desktops.name(c.desktop)}, {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB, "
           f"Apps: {', '.join(c.apps)}")
@@ -248,6 +251,18 @@ def cmd_create(args) -> int:
         return _wait_ready(machine, headless=args.headless)
     print(f"Fortschritt: bonys-agents status {c.name}")
     return 0
+
+
+def _bony_netz(args) -> bool:
+    if args.bony_netz and not netz.bereit():
+        raise ValueError("--bony-netz: Das Bony-Netz ist ausgeschaltet oder es ist keine Instanz angemeldet "
+                         "(in der App: Menü → „Bony-Netz …“).")
+    return bool(args.bony_netz)
+
+
+def _print_hints(machine: vm.VM) -> None:
+    for text in machine.hinweise:
+        print(f"⚠ {text}")
 
 
 def _warn_ram(desktop_id: str, ram_mb: int | None) -> None:
@@ -292,6 +307,7 @@ def _create_from_template(args) -> int:
         return 2
     tpl = templates.get(args.template)
     vpn = vpn_setup(args)
+    bony_netz = _bony_netz(args)
     if not _ensure_ready(args.yes):
         print("Agent-PC kann noch nicht erstellt werden – siehe oben.")
         return 1
@@ -311,7 +327,8 @@ def _create_from_template(args) -> int:
 
     machine = vm.create(args.name, password, cpus=args.cpus, ram_mb=args.ram, disk_gb=args.disk,
                         location=Path(args.location) if args.location else None, progress=progress,
-                        template=tpl.name, linked=linked, vpn=vpn)
+                        template=tpl.name, linked=linked, vpn=vpn, bony_netz=bony_netz)
+    _print_hints(machine)
     c = machine.config
     kind = "verknüpft mit" if machine.is_linked() else "unabhängige Kopie von"
     print(f"Agent-PC '{c.name}' ({kind} „{tpl.name}“): {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB, "
@@ -571,8 +588,11 @@ def cmd_delete(args) -> int:
         if input(f"'{args.name}' mit allen Daten löschen? (ja/nein) ").strip().lower() not in ("j", "ja", "y", "yes"):
             print("Abgebrochen.")
             return 1
+    hint = netz.loeschen_hinweis(m) if m.template_lock_pid() is None else ""
     m.delete()
     print(f"'{args.name}' gelöscht.")
+    if hint:
+        print(f"⚠ {hint}")
     return 0
 
 
@@ -1313,6 +1333,8 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--vpn-autoconnect", action="store_true", help="Tunnel bei jedem Start automatisch verbinden")
     c.add_argument("--killswitch", action="store_true",
                    help="Kill-Switch: ohne Tunnel kein Internet (Steuerung des Agent-PCs geht weiter)")
+    c.add_argument("--bony-netz", action="store_true",
+                   help="Beim ersten Start dem Bony-Netz beitreten (Bony-Netz an, Instanz angemeldet)")
     c.set_defaults(func=cmd_create)
 
     tp = sub.add_parser("template", help="Vorlagen: aus einem fertigen Agent-PC neue in Sekunden erstellen")

@@ -479,7 +479,7 @@ def test_create_dialog_vpn_section(qapp, datadir, monkeypatch, conf_file):
     class Worker:
         def __init__(self, params):
             captured.update(params)
-            self.progress = self.finished_ok = self.failed = SimpleNamespace(connect=lambda f: None)
+            self.progress = self.hint = self.finished_ok = self.failed = SimpleNamespace(connect=lambda f: None)
 
         def start(self):
             pass

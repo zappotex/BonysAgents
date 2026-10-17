@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPixmap, QPainter
+from PySide6.QtCore import QByteArray, QPointF, QRect, QSize, Qt, QTimer
+from PySide6.QtGui import (
+    QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPen, QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
@@ -16,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import (
     APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, edition, host,
-    remote,
+    netz, remote,
     screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
@@ -51,6 +54,31 @@ def _dot(color: str) -> QIcon:
     p.setBrush(QColor(color))
     p.setPen(Qt.NoPen)
     p.drawEllipse(2, 2, 10, 10)
+    p.end()
+    return QIcon(pm)
+
+
+NETZ_COLORS = {netz.IM_NETZ: style.OK, netz.OFFLINE: style.WARN, netz.NICHT_VERBUNDEN: style.MUTED}
+
+
+def _dot_netz(color: str, netz_color: str | None) -> QIcon:
+    """Zustandspunkt und rechts daneben ein kleines Netz-Symbol (drei verbundene Punkte) – oder Platz dafür."""
+    pm = QPixmap(30, 14)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setBrush(QColor(color))
+    p.setPen(Qt.NoPen)
+    p.drawEllipse(2, 2, 10, 10)
+    if netz_color:
+        pts = (QPointF(22, 3.5), QPointF(17.5, 10.5), QPointF(26.5, 10.5))
+        p.setPen(QPen(QColor(netz_color), 1.4))
+        for a, b in ((0, 1), (0, 2), (1, 2)):
+            p.drawLine(pts[a], pts[b])
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(netz_color))
+        for pt in pts:
+            p.drawEllipse(pt, 2.3, 2.3)
     p.end()
     return QIcon(pm)
 
@@ -119,6 +147,11 @@ class MainWindow(QMainWindow):
         self._remote_check: TaskWorker | None = None
         self._vpn_check: TaskWorker | None = None
         self._vpn_checked: set[tuple[str, int]] = set()  # (Agent-PC, QMP-Port) – einmal je Start prüfen
+        # Bony-Netz: Geräteliste der Instanz (nach Netzname), höchstens alle 30 s und nur bei sichtbarem Fenster
+        self._netz_check: TaskWorker | None = None
+        self._netz_geraete: dict[str, dict] | None = None
+        self._netz_fehler = ""
+        self._netz_zuletzt = 0.0
         self._ticks = 0
         self._console_big = False
         self.entries: dict[str, vm.VM | vm.MissingVM] = {}
@@ -218,6 +251,9 @@ class MainWindow(QMainWindow):
         self.list = QListWidget()
         self.list.setMinimumWidth(150)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # lange Namen enden mit „…“
+        self._icon_size = self.list.iconSize()
+        self.list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._list_menu)
         self.splitter.addWidget(self.list)
 
         self.stack = QStackedWidget()
@@ -992,16 +1028,27 @@ class MainWindow(QMainWindow):
             elif names:
                 self.list.setCurrentRow(0)
         stopping = False
+        with_netz = [e for e in entries if isinstance(e, vm.VM) and e.config.netz_name]
+        netz_on = bool(with_netz) and netz.bereit()
+        if with_netz:
+            self._check_netz(netz_on)
+        self.list.setIconSize(QSize(30, 14) if with_netz else self._icon_size)
         for i, e in enumerate(entries):
             item = self.list.item(i)
-            item.setIcon(_dot(style.STATUS_COLORS.get(e.status(), style.MUTED)))
             missing = isinstance(e, vm.MissingVM)
+            dot = style.STATUS_COLORS.get(e.status(), style.MUTED)
+            netz_tip = "" if missing else self._netz_tip(e, netz_on)
+            if with_netz:
+                state = None if missing or not e.config.netz_name else self._netz_state(e, netz_on)
+                item.setIcon(_dot_netz(dot, NETZ_COLORS[state] if state else None))
+            else:
+                item.setIcon(_dot(dot))
             remote_on = not missing and e.remote_active()
             desk = "" if missing else f"  ·  {desktops.name(e.config.desktop)}"
             item.setText(e.name + desk + (REMOTE_MARK if remote_on else ""))
             item.setForeground(QColor(style.MUTED if missing else style.TEXT))
             tip = (f"{e.status().capitalize()} – {e.path}" if missing else str(e.path))
-            item.setToolTip(tip + ("\nFernzugriff ist an" if remote_on else ""))
+            item.setToolTip(tip + ("\nFernzugriff ist an" if remote_on else "") + netz_tip)
             # Herunterfahren überwachen: nach STOP_TIMEOUT Sekunden hart ausschalten
             waited = None if missing else e.stopping_for()
             if waited is not None:
@@ -1319,6 +1366,86 @@ class MainWindow(QMainWindow):
         self._vpn_check = w
         w.start()
 
+    # ---------- Bony-Netz ----------
+    def _netz_state(self, m: vm.VM, netz_on: bool) -> str:
+        if not netz_on or self._netz_geraete is None:
+            return netz.NICHT_VERBUNDEN
+        return netz.netz_zustand(m.config.netz_name, self._netz_geraete)
+
+    def _netz_tip(self, m: vm.VM, netz_on: bool) -> str:
+        name = m.config.netz_name
+        if not name:
+            return ""
+        if not netz_on:
+            return f"\nBony-Netz ({name}): ausgeschaltet"
+        if self._netz_geraete is None:
+            return f"\nBony-Netz ({name}): " + (self._netz_fehler or "wird abgefragt …")
+        state = netz.netz_zustand(name, self._netz_geraete)
+        ip = (self._netz_geraete.get(name) or {}).get("ip")
+        return f"\nBony-Netz ({name}): {state}" + (f" – {ip}" if ip and state != netz.NICHT_VERBUNDEN else "")
+
+    def _check_netz(self, netz_on: bool) -> None:
+        """Geräteliste im Hintergrund – höchstens alle 30 s und nur, wenn das Fenster zu sehen ist."""
+        if not netz_on:
+            self._netz_geraete, self._netz_fehler = None, ""
+            return
+        if (not self.isVisible() or self.isMinimized()
+                or (self._netz_check and self._netz_check.isRunning())
+                or time.monotonic() - self._netz_zuletzt < netz.ABFRAGE_SEKUNDEN):
+            return
+        self._netz_zuletzt = time.monotonic()
+        w = TaskWorker(netz.geraete)
+
+        def done() -> None:
+            if w.error is None:
+                self._netz_geraete, self._netz_fehler = w.result, ""
+            else:
+                self._netz_geraete, self._netz_fehler = None, netz.fehlertext(w.error)
+
+        w.finished.connect(done)
+        self._netz_check = w
+        w.start()
+
+    def _list_menu(self, pos) -> None:
+        item = self.list.itemAt(pos)
+        m = self.entries.get(item.data(Qt.UserRole)) if item else None
+        if not isinstance(m, vm.VM) or not netz.bereit():
+            return
+        if m.config.netz_name and self._netz_geraete is not None \
+                and netz.netz_zustand(m.config.netz_name, self._netz_geraete) != netz.NICHT_VERBUNDEN:
+            return   # schon im Netz
+        ready = m.is_running() and m.progress().ready and not m.config.first_boot_pending
+        menu = QMenu(self)
+        act = menu.addAction("Mit dem Bony-Netz verbinden" if ready else
+                             "Mit dem Bony-Netz verbinden (Agent-PC muss laufen und eingerichtet sein)")
+        act.setEnabled(ready)
+        act.triggered.connect(lambda: self._netz_verbinden(m))
+        menu.exec(self.list.viewport().mapToGlobal(pos))
+
+    def _netz_verbinden(self, m: vm.VM, password: str | None = None) -> None:
+        self.statusBar().showMessage(f"„{m.name}“ wird mit dem Bony-Netz verbunden (Tailscale wird installiert) …")
+        w = TaskWorker(lambda: netz.nachtraeglich_verbinden(m, password))
+
+        def failed(msg: str) -> None:
+            self.statusBar().clearMessage()
+            if isinstance(w.error, vm.NeedsPassword):
+                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                                              QLineEdit.Password)
+                if ok and pw:
+                    self._netz_verbinden(m, pw)
+                return
+            QMessageBox.warning(self, APP_NAME, f"„{m.name}“ ließ sich nicht mit dem Bony-Netz verbinden:\n\n"
+                                f"{netz.fehlertext(w.error) if w.error else msg}")
+
+        def done() -> None:
+            if w.error is None:
+                self.statusBar().showMessage(f"„{m.name}“ ist mit dem Bony-Netz verbunden.", 10000)
+            self.refresh()
+
+        w.failed.connect(failed)
+        w.finished.connect(done)
+        self._keep(w)
+
     def _keep(self, w: TaskWorker) -> None:
         self.workers = [x for x in self.workers if x.isRunning()] + [w]
         w.start()
@@ -1346,6 +1473,8 @@ class MainWindow(QMainWindow):
                 if self.list.item(i).data(Qt.UserRole) == dlg.created_name:
                     self.list.setCurrentRow(i)
                     break
+            if dlg.hints:
+                QMessageBox.warning(self, APP_NAME, "\n\n".join(dlg.hints))
 
     def delete_vm(self) -> None:
         m = self.current()
@@ -1353,7 +1482,17 @@ class MainWindow(QMainWindow):
             return
         if confirm_delete(self, APP_NAME, f"„{m.name}“ wirklich löschen?",
                           "Alle Daten in diesem Agent-PC gehen verloren – das lässt sich nicht rückgängig machen."):
-            self._run(lambda mm: mm.delete())
+            def remove() -> str:
+                # Erst aus dem Bony-Netz (geht es nicht, trotzdem lokal löschen und Hinweis zeigen)
+                hint = netz.loeschen_hinweis(m) if m.template_lock_pid() is None else ""
+                m.delete()
+                return hint
+
+            w = TaskWorker(remove)
+            w.failed.connect(lambda msg: QMessageBox.critical(self, APP_NAME, msg))
+            w.finished.connect(lambda: (w.result and QMessageBox.warning(self, APP_NAME, w.result), self.refresh()))
+            self._keep(w)
+            self.refresh_detail()
 
     def move_vm(self) -> None:
         m = self.current()

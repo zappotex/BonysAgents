@@ -22,6 +22,7 @@ FINISH = (97.0, 100.0)  # Ausschalten und Neustart mit Desktop
 
 # Relative Dauer der Einrichtungsschritte; die Apps bringen ihr Gewicht selbst mit (AppSpec.weight).
 BASE_STEP_WEIGHTS = [5.0, 38.0]  # Sprache/Tastatur, Desktop (Cinnamon; je Desktop: DesktopSpec.weight)
+NETZ_STEP_WEIGHT = 3.0  # „Mit dem Bony-Netz verbinden“ (Tailscale) – Schritt 2, wenn gewählt
 APP_DEFAULT = 10.0  # für unbekannte IDs (z. B. aus einer neueren Version)
 
 _APT_SUMMARY = re.compile(r"(\d+) (?:newly installed|neu installiert)")
@@ -54,10 +55,11 @@ def strip_ansi(text: str) -> str:
     return "\n".join(lines)
 
 
-def step_ranges(app_ids: list[str], desktop: str = desktops.DEFAULT) -> list[tuple[float, float]]:
+def step_ranges(app_ids: list[str], desktop: str = desktops.DEFAULT, netz: bool = False) -> list[tuple[float, float]]:
     """Prozentbereich jedes Einrichtungsschritts – abgewählte Apps werden neu verteilt."""
     desk = desktops.DESKTOPS[desktop].weight if desktop in desktops.DESKTOPS else BASE_STEP_WEIGHTS[1]
-    weights = [BASE_STEP_WEIGHTS[0], desk] + [apps.APPS[a].weight if a in apps.APPS else APP_DEFAULT for a in app_ids]
+    weights = ([BASE_STEP_WEIGHTS[0]] + ([NETZ_STEP_WEIGHT] if netz else []) + [desk]
+               + [apps.APPS[a].weight if a in apps.APPS else APP_DEFAULT for a in app_ids])
     total = sum(weights)
     lo, span = SETUP[0], SETUP[1] - SETUP[0]
     ranges = []
@@ -109,7 +111,8 @@ def step_fraction(step_text: str) -> float:
 
 
 def setup_percent(console: str, app_ids: list[str], ready: bool, pending: bool = False,
-                  running: bool = True, resume_step: int = 0, desktop: str = desktops.DEFAULT) -> float:
+                  running: bool = True, resume_step: int = 0, desktop: str = desktops.DEFAULT,
+                  netz: bool = False) -> float:
     """Gesamtfortschritt (0..100) aus der Konsolenausgabe des Gasts.
 
     ``resume_step``: zuletzt gesehener Schritt vor einem Abbruch – nach dem Neustart steht der
@@ -121,7 +124,7 @@ def setup_percent(console: str, app_ids: list[str], ready: bool, pending: bool =
         return FINISH[0] if running else 99.0
     markers = list(_STEP.finditer(console))
     if not markers and resume_step:
-        ranges = step_ranges(app_ids, desktop)
+        ranges = step_ranges(app_ids, desktop, netz)
         if 1 <= resume_step <= len(ranges):
             return ranges[resume_step - 1][0]
     if not markers:
@@ -129,7 +132,7 @@ def setup_percent(console: str, app_ids: list[str], ready: bool, pending: bool =
         return _lerp(BOOT, _asymptotic(console.count("\n"), scale=300.0, cap=0.95))
     last = markers[-1]
     step = int(last.group(1))
-    ranges = step_ranges(app_ids, desktop)
+    ranges = step_ranges(app_ids, desktop, netz)
     if not 1 <= step <= len(ranges):  # passt nicht zur Konfiguration – nur grob anzeigen
         return _lerp(SETUP, (step - 1) / max(int(last.group(2)), 1))
     return _lerp(ranges[step - 1], step_fraction(console[last.end():]))

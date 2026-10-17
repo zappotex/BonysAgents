@@ -25,4 +25,4 @@ __all__ = [
     "Konto", "Zentrale", "ZentraleFehler", "NetzFehler",
     "STANDARD_SERVER", "erstbeitritt_skript", "geraetename",
 ]
-__version__ = "0.1.0"
+__version__ = "0.1.1"

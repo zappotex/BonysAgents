@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, mission_control, screen, vpnlink, wallpaper
+from bonys_agents import desktops, mission_control, netz, screen, vpnlink, wallpaper
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -59,6 +59,8 @@ class GuestConfig:
     desktop: str = desktops.DEFAULT
     # Mitgebrachte WireGuard-Konfiguration: kommt als eigene Datei ins Seed-ISO, nie in user-data
     vpn: vpnlink.VpnSetup | None = None
+    # Beitrittsskript für das Bony-Netz (enthält einen Geräteschlüssel): eigene Datei im Seed-ISO, nie in user-data
+    netz: str | None = field(default=None, repr=False)
 
 
 def _q(s: str) -> str:
@@ -131,6 +133,9 @@ systemctl enable bonys-growroot.service
 """),
         (f"{desk.name}-Desktop mit automatischer Anmeldung", desktops.install_script(desk, locale=cfg.locale)),
     ]
+    if cfg.netz:
+        # Gleich nach den Grundlagen: Der Geräteschlüssel gilt nur 60 Minuten ab dem Erstellen.
+        steps.insert(1, (netz.SCHRITT_TITEL, "\n" + netz.gast_beitritt() + 'exit "$NETZ_RC"\n', netz.SCHRITT_ID))
     for app in cfg.apps:
         # Erst als installiert werten, wenn die App wirklich da ist (wie beim Nachinstallieren)
         verify = (f'\nsu - "$AGENT_USER" -c {_q(app.check)} </dev/null >/dev/null 2>&1 '
@@ -420,6 +425,8 @@ def write_seed_iso(path: Path, cfg: GuestConfig, instance_id: str) -> None:
     }
     if cfg.vpn:
         files[vpnlink.SEED_FILE] = cfg.vpn.data
+    if cfg.netz:
+        files[netz.SEED_DATEI] = cfg.netz.encode("utf-8")
     _write_iso(path, files)
 
 
@@ -503,6 +510,8 @@ SYSTEM_CLEANUP: tuple[str, ...] = (
     "cloud-init zurücksetzen (cloud-init clean --logs --seed --machine-id) – Klone starten als neue Instanz",
     "/etc/machine-id leeren – jeder Klon bekommt beim ersten Start eine eigene",
     "SSH-Host-Schlüssel löschen (/etc/ssh/ssh_host_*) – werden beim ersten Start neu erzeugt",
+    "Bony-Netz: Anmeldung von Tailscale (/var/lib/tailscale) – jeder Klon tritt selbst bei, sonst hätten zwei "
+    "Agent-PCs dieselbe Identität im Netz",
     "SSH-Schlüssel und bekannte Rechner von root (/root/.ssh)",
     "Befehlsverläufe von root und Benutzer (.bash_history, .python_history, .lesshst, .viminfo …)",
     "Paket-Cache (apt-get clean), Zwischenspeicher (~/.cache, ~/.npm-Cache) und ~/.xsession-errors",
@@ -633,6 +642,13 @@ wipe /root/.bash_history /root/.python_history /root/.lesshst /root/.viminfo /ro
 wipe /root/.ssh
 wipe "$H/.bash_history" "$H/.python_history" "$H/.lesshst" "$H/.viminfo" "$H/.wget-hsts" "$H/.node_repl_history"
 wipe /var/lib/bonys-agents/vpn-config.done
+# Bony-Netz: Tailscale-Identität (Geräteschlüssel) nie in eine Vorlage – nur lokal, ohne den Server zu fragen
+# (ein „tailscale logout“ nähme den Original-Agent-PC aus dem Netz). Tailscale selbst bleibt installiert.
+if [ -d /var/lib/tailscale ]; then
+  run systemctl stop tailscaled
+  wipe /var/lib/tailscale
+fi
+wipe """ + netz.GAST_FERTIG + r"""
 wipe "$H/.cache" /root/.cache "$H/.npm/_cacache" "$H/.npm/_logs" "$H/.xsession-errors" "$H/.xsession-errors.old"
 if [ "$DRY" = 1 ]; then
   echo "WÜRDE AUSFÜHREN: cloud-init clean --logs --seed --machine-id"
@@ -689,9 +705,11 @@ echo "BONYS-GENERALIZED"
     return "\n".join(lines) + "\n"
 
 
-def clone_firstboot_script(vpn: vpnlink.VpnSetup | None = None) -> str:
+def clone_firstboot_script(vpn: vpnlink.VpnSetup | None = None, netz_beitritt: bool = False) -> str:
     """Läuft beim ersten Start eines Agent-PCs aus einer Vorlage (runcmd, einmal je Instanz)."""
     vpn_part = vpnlink.guest_import_script(vpn, console=GUEST_CONSOLE) if vpn else ""
+    # Vor dem VPN-Teil: Ein Kill-Switch sperrt danach ohne Tunnel das Internet
+    vpn_part = (netz.gast_beitritt(console=GUEST_CONSOLE) if netz_beitritt else "") + vpn_part
     return f"""#!/bin/sh
 # Von Bony's Agents erzeugt – erster Start eines Agent-PCs aus einer Vorlage.
 ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1 || ssh-keygen -A
@@ -709,7 +727,8 @@ echo "{READY_MARKER}" > {GUEST_CONSOLE}
 """
 
 
-def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.VpnSetup | None = None) -> str:
+def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.VpnSetup | None = None,
+                    netz_beitritt: bool = False) -> str:
     """cloud-config für den ersten Start eines Klons: nur Rechnername, Passwort, Schlüssel, Platz."""
     doc = {
         "hostname": hostname,
@@ -721,7 +740,7 @@ def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.Vp
         "growpart": {"mode": "auto", "devices": ["/"]},
         "resize_rootfs": True,
         "write_files": [
-            {"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script(vpn)},
+            {"path": CLONE_SCRIPT, "permissions": "0755", "content": clone_firstboot_script(vpn, netz_beitritt)},
             {"path": CLONE_WALLPAPER_SCRIPT, "permissions": "0755",
              "content": "#!/bin/bash\n" + wallpaper.guest_script(username, "auto")},
             {"path": wallpaper.STAGED, "permissions": "0644", "encoding": "b64", "content": wallpaper_b64()},
@@ -732,11 +751,13 @@ def clone_user_data(hostname: str, username: str, password: str, vpn: vpnlink.Vp
 
 
 def write_clone_seed_iso(path: Path, hostname: str, username: str, password: str, instance_id: str,
-                         vpn: vpnlink.VpnSetup | None = None) -> None:
+                         vpn: vpnlink.VpnSetup | None = None, netz_skript: str | None = None) -> None:
     files = {
-        "user-data": clone_user_data(hostname, username, password, vpn).encode("utf-8"),
+        "user-data": clone_user_data(hostname, username, password, vpn, bool(netz_skript)).encode("utf-8"),
         "meta-data": f"instance-id: {instance_id}\nlocal-hostname: {hostname}\n".encode(),
     }
     if vpn:
         files[vpnlink.SEED_FILE] = vpn.data
+    if netz_skript:
+        files[netz.SEED_DATEI] = netz_skript.encode("utf-8")
     _write_iso(path, files)

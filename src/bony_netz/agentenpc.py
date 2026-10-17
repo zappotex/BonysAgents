@@ -26,11 +26,13 @@ done
 # Tailscale aus der offiziellen Paketquelle installieren
 if ! command -v tailscale >/dev/null; then
   command -v curl >/dev/null || { apt-get update -q; DEBIAN_FRONTEND=noninteractive apt-get install -y -q curl ca-certificates; }
-  . /etc/os-release
+  # In einer Unter-Shell lesen: /etc/os-release setzt auch NAME und würde den Gerätenamen überschreiben
+  OS_ID="$(. /etc/os-release && echo "$ID")"
+  OS_CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
   install -m 0755 -d /usr/share/keyrings
-  curl -fsSL "https://pkgs.tailscale.com/stable/${ID}/${VERSION_CODENAME}.noarmor.gpg" \
+  curl -fsSL "https://pkgs.tailscale.com/stable/${OS_ID}/${OS_CODENAME}.noarmor.gpg" \
     -o /usr/share/keyrings/tailscale-archive-keyring.gpg
-  curl -fsSL "https://pkgs.tailscale.com/stable/${ID}/${VERSION_CODENAME}.tailscale-keyring.list" \
+  curl -fsSL "https://pkgs.tailscale.com/stable/${OS_ID}/${OS_CODENAME}.tailscale-keyring.list" \
     -o /etc/apt/sources.list.d/tailscale.list
   apt-get update -q
   DEBIAN_FRONTEND=noninteractive apt-get install -y -q tailscale

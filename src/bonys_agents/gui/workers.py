@@ -12,6 +12,7 @@ from bonys_agents import vm
 
 class CreateWorker(QThread):
     progress = Signal(str, float, str)
+    hint = Signal(str)          # z. B. „ohne Bony-Netz erstellt, weil …“ – vor finished_ok
     finished_ok = Signal(str)
     failed = Signal(str)
 
@@ -23,6 +24,8 @@ class CreateWorker(QThread):
     def run(self) -> None:
         try:
             machine = vm.create(progress=self.progress.emit, **self.params)
+            for text in machine.hinweise:
+                self.hint.emit(text)
             if self.start_after:
                 self.progress.emit("start", 1.0, "Starte Agent-PC …")
                 machine.start()

@@ -11,6 +11,21 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   (Vorschlag `https://zentrale.bony23.de`), Instanz anlegen oder löschen, Zustand der Verbindung. Die Anmeldung
   teilt sich Bony's Agents mit Bony's VPN (`~/.config/bonys-netz/konto.json`, nur für dich lesbar). Agent-PCs
   und Kurse kommen in den nächsten Schritten.
+- **Agent-PCs im Bony-Netz.** Ist das Bony-Netz an und eine Instanz angemeldet, gibt es beim Erstellen das
+  Häkchen „Mit dem Bony-Netz verbinden“ (standardmäßig an). Der Agent-PC installiert dann beim ersten Start
+  Tailscale aus der offiziellen Paketquelle und tritt dem Netz der Instanz bei (Protokoll im Agent-PC:
+  `/var/log/bony-netz-beitritt.log`). Der einmal nutzbare Geräteschlüssel wird erst direkt vor dem Start geholt und
+  geht nur über die Einrichtungsdaten in den Agent-PC. Ohne Internet oder bei erreichter Gerätegrenze wird der
+  Agent-PC ganz normal ohne Netz erstellt, mit Hinweis. In der Liste zeigt ein kleines Netz-Symbol „im Netz /
+  offline / nicht verbunden“ (abgefragt höchstens alle 30 Sekunden, nur bei sichtbarem Fenster). Beim Löschen wird
+  der Agent-PC auch aus dem Netz entfernt; ist der Server nicht erreichbar, wird trotzdem gelöscht, mit Hinweis.
+  Nachträglich: Rechtsklick in der Liste → „Mit dem Bony-Netz verbinden“ (über den Gast-Agent, sonst SSH).
+  Kommandozeile: `create … --bony-netz`. Vorlagen enthalten nie die Tailscale-Anmeldung – jeder Klon tritt selbst bei.
+
+### Behoben
+- **Bony-Netz: Beitritt scheiterte bei Agent-PCs ohne Tailscale** („bei der Einrichtung ist etwas schiefgegangen“,
+  im Protokoll `"Debian GNU/Linux" contains invalid character ' '`). Baustein `bony_netz` 0.1.1. Betroffene
+  Agent-PCs: Rechtsklick → „Mit dem Bony-Netz verbinden“.
 
 ## 0.20.0 – Durchsicht vor 1.0: Sicherheit, Zuverlässigkeit, Lizenzen
 

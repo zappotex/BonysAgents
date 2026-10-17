@@ -202,6 +202,7 @@ VM_RULES: dict[str, Callable] = {
     "template": lambda s: s == "" or NAME_RE.match(s),
     "format_version": lambda n: n >= 1,
     "setup_failed": lambda xs: len(xs) <= 50 and all(_text(200)(x) for x in xs),
+    "netz_name": lambda s: s == "" or re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", s) is not None,
 }
 
 
@@ -291,6 +292,9 @@ class VMConfig:
     format_version: int = VM_FORMAT   # fehlt bis 0.19 = 1
     # Bei der Ersteinrichtung fehlgeschlagene Schritte (Titel) – Hinweis „fertig mit Fehlern“, bis behoben
     setup_failed: list[str] = field(default_factory=list)
+    # Name im Bony-Netz („geraetename“), wenn der Agent-PC beitreten soll bzw. beigetreten ist; die geraet_id
+    # steht nur auf dem Server (über den Namen in zentrale.geraete() zu finden)
+    netz_name: str = ""
 
 
 @dataclass
@@ -311,6 +315,7 @@ class VM:
 
     def __init__(self, path: Path):
         self.path = path
+        self.hinweise: list[str] = []   # nach vm.create: z. B. „ohne Bony-Netz erstellt, weil …“
         data = storage.read_json(path / "vm.json")  # kaputt → vm.json.bak
         if isinstance(data, dict) and data.pop("remote_lan", False):  # bis 0.6: „Heimnetz“ = jetzt „dauerhaft“
             data["remote_permanent"] = True
@@ -444,7 +449,8 @@ class VM:
             # Neustart nach einem Abbruch: bis der Gast weitermacht, den letzten Stand zeigen
             step, total, title, resumed = c.setup_step, c.setup_total, c.setup_title, True
         percent = pct.setup_percent(text, c.apps, ready, c.first_boot_pending, running=self.is_running(),
-                                    resume_step=c.setup_step, desktop=c.desktop)
+                                    resume_step=c.setup_step, desktop=c.desktop,
+                                    netz=bool(c.netz_name) and not c.template)
         return Progress(step, total, title, ready, percent, resumed, resume_step)
 
     def _record_failed_steps(self, text: str) -> None:
@@ -1811,6 +1817,7 @@ def create(
     linked: bool | None = None,
     vpn: vpnlink.VpnSetup | None = None,
     foreign_arch: bool = False,
+    bony_netz: bool = False,
 ) -> VM:
     """Neuen Agent-PC anlegen – neu installiert (Debian-Image + Einrichtung) oder aus einer Vorlage.
 
@@ -1822,6 +1829,10 @@ def create(
     (dort per Helfer importiert) – nicht in vm.json und in keine Meldung. Installiert Bony's VPN mit.
 
     ``foreign_arch``: Vorlage einer anderen Architektur trotzdem nutzen (Emulation, sehr langsam).
+
+    ``bony_netz``: beim ersten Start dem Bony-Netz beitreten. Der Geräteschlüssel wird erst direkt vor dem
+    Schreiben des Seed-ISOs geholt (gilt 60 Minuten). Geht das nicht (kein Internet, Gerätegrenze …), wird der
+    Agent-PC ohne Netz erstellt; der Grund steht dann in ``VM.hinweise``.
     """
     def report(phase: str, frac: float, msg: str) -> None:
         if progress:
@@ -1832,7 +1843,7 @@ def create(
     if template is not None:
         return _create_from_template(name, password, template, linked=linked, cpus=cpus, ram_mb=ram_mb,
                                      disk_gb=disk_gb, keyboard=keyboard, location=location, report=report,
-                                     vpn=vpn, foreign_arch=foreign_arch)
+                                     vpn=vpn, foreign_arch=foreign_arch, bony_netz=bony_netz)
     disk_gb = DEFAULT_DISK_GB if disk_gb is None else disk_gb
     desktops.get(desktop)
     if not re.match(r"^[a-z_][a-z0-9_-]{0,31}$", username):
@@ -1882,13 +1893,16 @@ def create(
     base_path = images.ensure_image(base, library / IMAGES_DIRNAME, dl, reuse_from=other_caches)
 
     path.mkdir(parents=True)
+    hinweise: list[str] = []
     try:
         report("disk", 0.0, f"Erstelle {cfg.disk_gb}-GB-Festplatte …")
         qemu.create_disk(qemu_img, base_path, path / "disk.qcow2", cfg.disk_gb)
+        beitritt = _netz_beitritt(name, cfg, report, hinweise) if bony_netz else None
         report("seed", 0.0, "Schreibe Einrichtungsdaten …")
         guest = cloudinit.GuestConfig(
             hostname=name.lower().replace("_", "-"), username=username, password=password,
             apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop, vpn=vpn,
+            netz=beitritt.skript if beitritt else None,
         )
         cloudinit.write_seed_iso(path / "seed.iso", guest, instance_id=f"bonys-{uuid.uuid4()}")
         write_json(path / "vm.json", asdict(cfg))
@@ -1900,15 +1914,29 @@ def create(
     storage.remember(name, path)
     storage.invalidate_cache()
     machine = VM(path)
+    machine.hinweise = hinweise
     machine.ensure_remote_ports()  # feste Ports für RDP/SPICE gleich beim Anlegen
     report("done", 1.0, f"Agent-PC angelegt in {path}")
     return machine
 
 
+def _netz_beitritt(name: str, cfg: VMConfig, report: ProgressFn, hinweise: list[str]):
+    """Geräteschlüssel fürs Bony-Netz holen; Netzname in ``cfg``. Ohne Schlüssel: Hinweis, weiter ohne Netz."""
+    from bonys_agents import netz
+
+    report("seed", 0.0, "Hole den Schlüssel für das Bony-Netz …")
+    beitritt, hinweis = netz.beitritt_mit_hinweis(name)
+    if beitritt is None:
+        hinweise.append(hinweis)
+        return None
+    cfg.netz_name = beitritt.netzname
+    return beitritt
+
+
 def _create_from_template(name: str, password: str, template_name: str, *, linked: bool | None,
                           cpus: int | None, ram_mb: int | None, disk_gb: int | None, keyboard: str,
                           location: Path | None, report: ProgressFn, vpn: vpnlink.VpnSetup | None = None,
-                          foreign_arch: bool = False) -> VM:
+                          foreign_arch: bool = False, bony_netz: bool = False) -> VM:
     """Agent-PC aus einer Vorlage: nur Festplatte (verknüpft oder kopiert) und ein kleines Seed."""
     from bonys_agents import templates
 
@@ -1960,6 +1988,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         provisioned=False, first_boot_pending=False, template=tpl.name, reinstall=list(tpl.reinstall),
     )
     path.mkdir(parents=True)
+    hinweise: list[str] = []
     try:
         if linked:
             report("disk", 0.0, f"Verknüpfe mit Vorlage „{tpl.name}“ …")
@@ -1972,10 +2001,12 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
             qemu.convert_disk(qemu_img, tpl.disk, path / "disk.qcow2", progress=copy)
             if disk_gb * storage.GB > qemu.virtual_size(qemu_img, path / "disk.qcow2"):
                 qemu.resize_disk(qemu_img, path / "disk.qcow2", disk_gb)
+        beitritt = _netz_beitritt(name, cfg, report, hinweise) if bony_netz else None
         report("seed", 0.0, "Schreibe Rechnername und Passwort …")
         cloudinit.write_clone_seed_iso(path / "seed.iso", hostname=name.lower().replace("_", "-"),
                                        username=tpl.username, password=password,
-                                       instance_id=f"bonys-{uuid.uuid4()}", vpn=vpn)
+                                       instance_id=f"bonys-{uuid.uuid4()}", vpn=vpn,
+                                       netz_skript=beitritt.skript if beitritt else None)
         write_json(path / "vm.json", asdict(cfg))
     except Exception:
         shutil.rmtree(path, ignore_errors=True)
@@ -1985,6 +2016,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     storage.remember(name, path)
     storage.invalidate_cache()
     machine = VM(path)
+    machine.hinweise = hinweise
     machine.ensure_remote_ports()
     kind = "verknüpft" if linked else "unabhängige Kopie"
     report("done", 1.0, f"Agent-PC aus Vorlage „{tpl.name}“ angelegt ({kind}, {time.monotonic() - t0:.0f} s) "

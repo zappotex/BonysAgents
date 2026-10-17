@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, mission_control, storage, templates, vm, vpnlink
+from bonys_agents import apps, desktops, host, mission_control, netz, storage, templates, vm, vpnlink
 from bonys_agents import progress as pct
 
 from . import style
@@ -51,6 +51,7 @@ class CreateDialog(QDialog):
         self.info = info
         self.worker: CreateWorker | None = None
         self.created_name: str | None = None
+        self.hints: list[str] = []   # nach dem Erstellen vom Hauptfenster angezeigt
         self.setWindowTitle("Neuer Agent-PC")
 
         # Inhalt scrollbar, Knöpfe immer sichtbar – passt so auch auf kleine Laptop-Bildschirme.
@@ -193,6 +194,7 @@ class CreateDialog(QDialog):
         root.addWidget(self._mc_section())
 
         root.addWidget(self._vpn_section())
+        root.addWidget(self._netz_section())
 
         # KI-Werkzeuge: frei kombinierbar, auch keins – je mit kurzer Erklärung
         sec_ai = QLabel("KI-WERKZEUGE")
@@ -487,6 +489,30 @@ class CreateDialog(QDialog):
             self.vpn_info.setText("Optional – ohne Konfiguration importierst du sie später im Agent-PC oder in der "
                                   "Detailansicht.")
 
+    def _netz_section(self) -> QWidget:
+        """Bony-Netz: nur sichtbar, wenn es eingeschaltet und eine Instanz angemeldet ist – dann standardmäßig an."""
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        sec = QLabel("BONY-NETZ")
+        sec.setObjectName("Section")
+        lay.addWidget(sec)
+        self.netz_box = QCheckBox("Mit dem Bony-Netz verbinden")
+        desc = QLabel("Der Agent-PC tritt beim ersten Start dem Bony-Netz dieser Instanz bei (Tailscale aus der "
+                      "offiziellen Paketquelle). Geht das gerade nicht, wird er ohne Netz erstellt.")
+        desc.setObjectName("Muted")
+        desc.setWordWrap(True)
+        desc.setContentsMargins(26, 0, 0, 0)
+        lay.addWidget(self.netz_box)
+        lay.addWidget(desc)
+        an = netz.bereit()
+        self.netz_box.setChecked(an)
+        box.setVisible(an)
+        self.netz_box.setEnabled(an)
+        self._netz_available = an
+        return box
+
     def template(self) -> templates.Template | None:
         return self.templates.get(self.base.currentData() or "")
 
@@ -560,6 +586,7 @@ class CreateDialog(QDialog):
                   self.keyboard, self.desktop, self.ok_btn, self.location, self.remember_loc, *self.app_boxes.values(),
                   self.base, self.linked, self.full, self.vpn_opts, self.mc_fix):
             w.setEnabled(not busy)
+        self.netz_box.setEnabled(not busy and self._netz_available)
         self.cancel_btn.setEnabled(not busy)
         self.progress.setVisible(busy)
         if not busy:
@@ -585,6 +612,8 @@ class CreateDialog(QDialog):
             params["vpn"] = vpnlink.VpnSetup(
                 name=self.vpn_setup.name, data=self.vpn_setup.data, endpoint=self.vpn_setup.endpoint,
                 autoconnect=self.vpn_auto.isChecked(), killswitch=self.vpn_kill.isChecked())
+        if self._netz_available and self.netz_box.isChecked():
+            params["bony_netz"] = True
         t = self.template()
         if t is not None:
             if params["disk_gb"] < t.disk_gb:
@@ -601,6 +630,7 @@ class CreateDialog(QDialog):
         self.status.setText("Bereite vor …")
         self.worker = CreateWorker(params)
         self.worker.progress.connect(self._on_progress)
+        self.worker.hint.connect(self.hints.append)
         self.worker.finished_ok.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.worker.start()
