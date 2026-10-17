@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.21.0 – Bony-Netz: Agent-PCs im Netz, Kurse und Kursraum
 
 ### Neu
 - **Bony-Netz (erster Schritt).** Menü → „Bony-Netz …“: Schalter „Bony-Netz verwenden“ (standardmäßig aus – dann
