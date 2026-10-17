@@ -22,9 +22,9 @@ deren Texte folgen weiter unten.
   PyInstaller-Bootloader            6.22.3    GPL-2.0-or-later mit Bootloader-Ausnahme
   noVNC (Bibliothek core/)          1.7.0     MPL-2.0 (Mozilla Public License 2.0)
   pako (zlib für noVNC, vendor/)    1.0.3     MIT
-  Qt WebEngine (Kursraum)           6.140.0   LGPL-3.0-only  (Linux arm64: 6.8.0)
-  Chromium (in Qt WebEngine)        140       BSD-3-Clause und weitere (Linux arm64: 122)
-  PySide6-WebEngine                 6.12.0.140 LGPL-3.0-only (Linux arm64: in PySide6-Addons 6.8.0.2)
+  Qt WebEngine (Kursraum)           6.140.0   LGPL-3.0-only  (nicht in Linux arm64)
+  Chromium (in Qt WebEngine)        140       BSD-3-Clause und weitere (nicht in Linux arm64)
+  PySide6-WebEngine                 6.12.0.140 LGPL-3.0-only (nicht in Linux arm64)
   livekit-client (Kursraum)         2.22.3    Apache-2.0 (darin MIT- und BSD-Teile, siehe unten)
 
 Qt (auch Qt WebEngine), PySide6, Shiboken6 und pycdlib (LGPL) werden als eigenständige, austauschbare
@@ -40,9 +40,9 @@ verfügbar. Quelltexte genau der mitgelieferten Versionen:
             https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/
             (Linux arm64: …/PySide6-6.8.0.2-src/)
   pycdlib:  https://github.com/clalancette/pycdlib (Version 1.22.0)
-  Qt WebEngine: https://code.qt.io/cgit/qt/qtwebengine.git (Tag v6.140.0; Linux arm64:
-            v6.8.0), Chromium: https://code.qt.io/cgit/qt/qtwebengine-chromium.git
-            (Zweig 140-based bzw. 122-based)
+  Qt WebEngine: https://code.qt.io/cgit/qt/qtwebengine.git (Tag v6.140.0),
+            Chromium: https://code.qt.io/cgit/qt/qtwebengine-chromium.git
+            (Zweig 140-based)
 Die Versionen stehen fest in packaging/requirements-build.txt (mit Prüfsummen).
 
 Vollständige Lizenztexte: Ordner „licenses“ im Programmordner

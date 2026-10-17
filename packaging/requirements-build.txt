@@ -86,29 +86,19 @@ pyinstaller-hooks-contrib==2026.8 \
     --hash=sha256:4d825786ad7a9b7dbcc52d612748a34562fe273461bcfd88f4d549c594bbf8f9 \
     --hash=sha256:6d21d65323ea4467753afc21f52d7d0e69416ae8101dd88269bf273ad48db084
     # via pyinstaller
-pyside6-addons==6.8.0.2 ; platform_machine == 'aarch64' and sys_platform == 'linux' \
-    --hash=sha256:30c9ca570dd18ffbfd34ee95e0a319c34313a80425c4011d6ccc9f4cca0dc4c8 \
-    --hash=sha256:553f3fa412f423929b5cd8b7d43fd5f02161851f10a438174a198b0f1a044df7 \
-    --hash=sha256:754a9822ab2dc313f9998edef69d8a12bc9fd61727543f8d30806ed272ae1e52 \
-    --hash=sha256:ae4377a3e10fe720a9119677b31d8de13e2a5221c06b332df045af002f5f4c3d
-    # via -r packaging/requirements-build.in
 pyside6-addons==6.12.0 ; platform_machine != 'aarch64' or sys_platform != 'linux' \
     --hash=sha256:1d9bcd294ce1c9829194c7d13b01f771a2254b86cb3462cc3399321d2797fdac \
     --hash=sha256:3c079cbaad2ad28bc5bfa92fd6bac4ba28d622b825825e3b4220f0682599b2db \
     --hash=sha256:48cd0b639c06c9f79685f340ccae4319614b66d6efcdf06c2ce3836790d8c46e \
     --hash=sha256:4ab38c0017f0453671a9313d3a53ca1c0e378924f54b07e596bcea94a9642391 \
     --hash=sha256:98d8d62010da6605344cee83e5c96fb846170a1f2d924523f10f5d92078b02b0
-    # via
-    #   -r packaging/requirements-build.in
-    #   pyside6-webengine
+    # via pyside6-webengine
 pyside6-essentials==6.8.0.2 ; platform_machine == 'aarch64' and sys_platform == 'linux' \
     --hash=sha256:3df4ed75bbb74d74ac338b330819b1a272e7f5cec206765c7176a197c8bc9c79 \
     --hash=sha256:7df6d6c1da4858dbdea77c74d7270d9c68e8d1bbe3362892abd1a5ade3815a50 \
     --hash=sha256:cf490145d18812a6cff48b0b0afb0bfaf7066744bfbd09eb071c3323f1d6d00d \
     --hash=sha256:d2f029b8c9f0106f57b26aa8c435435d7f509c80525075343e07177b283f862e
-    # via
-    #   -r packaging/requirements-build.in
-    #   pyside6-addons
+    # via -r packaging/requirements-build.in
 pyside6-essentials==6.12.0 ; platform_machine != 'aarch64' or sys_platform != 'linux' \
     --hash=sha256:0867b709a724db28b161227c7d6ecb5ed10cc09226a53542417ac6dee1308239 \
     --hash=sha256:08c5841063fc1df69b7fa1ee405f539e66576a83fc48004be3e2c5e35ccbfa69 \
@@ -142,9 +132,7 @@ shiboken6==6.8.0.2 ; platform_machine == 'aarch64' and sys_platform == 'linux' \
     --hash=sha256:9019e1fcfeed8bb350222e981748ef05a2fec11e31ddf616657be702f0b7a468 \
     --hash=sha256:b11e750e696bb565d897e0f5836710edfb86bd355f87b09988bd31b2aad404d3 \
     --hash=sha256:fa7d411c3c67b4296847b3f5f572268e219d947d029ff9d8bce72fe6982d92bc
-    # via
-    #   pyside6-addons
-    #   pyside6-essentials
+    # via pyside6-essentials
 shiboken6==6.12.0 ; platform_machine != 'aarch64' or sys_platform != 'linux' \
     --hash=sha256:3bde565bb0890044b5c7f63808adddede5abc241e9395a2bfed61919884d6240 \
     --hash=sha256:47105e05baf57d35453e07d240bbe59cb4b8d9565377ea5134ff9fb37d4f5c02 \

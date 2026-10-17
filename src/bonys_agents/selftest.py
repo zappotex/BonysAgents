@@ -186,6 +186,10 @@ def check_kursraum() -> Check:
         from PySide6 import QtWebChannel, QtWebEngineWidgets  # noqa: F401
         from PySide6.QtWebEngineCore import qWebEngineChromiumVersion, qWebEngineVersion
     except Exception as e:  # noqa: BLE001
+        from bonys_agents import kursraum
+
+        if kursraum.linux_arm():   # gewollt: Paket für Linux arm64 ohne Qt WebEngine
+            return Check(name, True, "nicht in diesem Paket (Linux arm64) – „Kursraum betreten“ zeigt einen Hinweis")
         return Check(name, False, f"Qt WebEngine fehlt: {e}")
     from bonys_agents import kursraum
 

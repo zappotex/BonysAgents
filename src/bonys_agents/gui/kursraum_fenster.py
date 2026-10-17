@@ -102,7 +102,7 @@ def oeffnen(kurs_id: str, kursname: str, parent: QWidget | None = None, fertig=N
         melden(None)
         return
     if not verfuegbar():
-        melden(kursraum.KEIN_WEBENGINE)
+        melden(kursraum.kein_webengine_text())
         return
     if not kursraum.livekit_da():
         melden(kursraum.KEINE_SEITE)

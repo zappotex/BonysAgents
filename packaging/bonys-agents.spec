@@ -12,6 +12,7 @@
 # kein noVNC. Die Edition steht danach fest im Programm (bonys_agents/_edition.py, nur während des Bauens).
 
 import atexit
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -53,8 +54,10 @@ EXCLUDES = [
 ] + ([] if TRAINER else [editions.TRAINER_PACKAGE])
 HIDDEN = ["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.gui.share_dialogs",
           "bonys_agents._edition", "qrcode", "bony_netz",   # bony_netz: gemeinsamer Baustein mit Bony's VPN
-          "bonys_agents.gui.kursraum_fenster", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore",
-          "PySide6.QtWebChannel"]   # Kursraum (Qt WebEngine)
+          "bonys_agents.gui.kursraum_fenster"]
+# Kursraum (Qt WebEngine) – nicht in Linux arm64 (dort ist PySide6-WebEngine nicht installiert, siehe Lock-Datei)
+if importlib.util.find_spec("PySide6.QtWebEngineWidgets") is not None:
+    HIDDEN += ["PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore", "PySide6.QtWebChannel"]
 if not (ROOT / "src" / "bonys_agents" / "resources" / "kursraum" / "vendor" / "livekit-client.umd.js").is_file():
     raise SystemExit("livekit-client fehlt – erst python packaging/fetch-livekit.py ausführen.")
 if TRAINER:   # werden erst bei Bedarf importiert – PyInstaller fände sie sonst nicht

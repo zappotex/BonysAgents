@@ -41,6 +41,8 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   warum, mit „Erneut eintreten“. Technik: LiveKit (`livekit-client` 2.22.3, Apache-2.0) in einem eingebetteten
   Browser (Qt WebEngine); die Seite gehört zur App, Kamera, Mikrofon und Bildschirmaufnahme bekommt nur sie.
   Bildschirm teilen geht unter Linux nur in einer X11-Sitzung (unter Wayland zeigt der Knopf einen Hinweis).
+  Im Paket für Linux auf ARM (arm64, z. B. Raspberry Pi) gibt es den Kursraum noch nicht – dort fehlt ein
+  passender eingebetteter Browser für Debian 12/Ubuntu 22.04; „Kursraum betreten“ sagt das.
   Das Programm wird dadurch etwa 290 MB größer (Qt WebEngine). Unter macOS fragt das System beim ersten Mal nach
   Kamera, Mikrofon und Bildschirmaufnahme; unter Ubuntu ab 24.04 bringt das .deb ein AppArmor-Profil mit, das der
   Sandbox von Qt WebEngine eigene Namensräume erlaubt.

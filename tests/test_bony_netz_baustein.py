@@ -65,6 +65,7 @@ def test_ohne_anmeldung():
     assert e.value.anmeldung_ungueltig
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="nur POSIX (bash unter Windows ist der WSL-Platzhalter)")
 def test_skript_ist_gueltiges_bash_und_sicher_maskiert():
     skript = erstbeitritt_skript("https://vpn.bony23.de", "hskey-auth-abc'; rm -rf /", "Agent PC 1")
     assert "--hostname" in skript and "agent-pc-1" in skript

@@ -135,8 +135,12 @@ Umsetzung:
   bekommen Nachzügler ebenso.
 
 ### Paket
-- Abhängigkeit `PySide6-WebEngine` (ab 6.12 eigenes Wheel, zieht `PySide6-Addons` nach); Linux arm64 bleibt bei
-  `PySide6-Addons==6.8.0.2` (WebEngine 6.8.0). Etwa +290 MB im Programmordner.
+- Abhängigkeit `PySide6-WebEngine` (ab 6.12 eigenes Wheel, zieht `PySide6-Addons` nach). Etwa +290 MB im
+  Programmordner. **Linux arm64 ohne Kursraum** (Entscheidung 17.10.2026): Dort bleibt es bei Qt 6.8.0.2, und dessen
+  WebEngine (PySide6-Addons, aarch64) braucht `libwebp.so.6`, `libevent`, `libminizip`, `libopus` aus dem System –
+  `libwebp.so.6` gibt es auf Ubuntu 22.04/Debian 12 nicht (Release-Lauf scheiterte daran). „Kursraum betreten“ zeigt
+  dort `kursraum.KEIN_WEBENGINE_ARM`, der Selbsttest wertet das als OK. Mit Qt 6.12 für arm64 ginge es, das .deb
+  bräuchte dann aber glibc 2.39 (kein Debian 12/Raspberry Pi OS bookworm mehr).
 - Bauplan: `QtNetwork`, `QtWebEngineCore` und **`QtPrintSupport`** dürfen nicht ausgeschlossen sein (die
   Python-Bindung von QtWebEngineCore braucht QtPrintSupport – sonst „could not import module
   PySide6.QtWebEngineCore“). Das Druck-Plugin (CUPS, Avahi, GnuTLS) bleibt draußen. NSS, ALSA, GBM, DRM, xkbfile,

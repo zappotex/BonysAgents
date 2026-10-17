@@ -47,6 +47,9 @@ KARTE_ABGELAUFEN = "Deine Eintrittskarte ist abgelaufen (sie gilt 6 Stunden). Tr
 KEIN_WEBENGINE = ("Für den Kursraum fehlt dieser Installation der eingebettete Browser (Qt WebEngine). "
                   "Mit den fertigen Paketen von Bony's Agents ist er dabei; aus dem Quelltext: "
                   "pip install PySide6-WebEngine (bzw. PySide6-Addons bis Version 6.11).")
+KEIN_WEBENGINE_ARM = ("Den Kursraum gibt es für Linux auf ARM (z. B. Raspberry Pi) noch nicht: Der eingebettete "
+                      "Browser (Qt WebEngine) braucht dort neuere Systembibliotheken als Debian 12 und Ubuntu 22.04 "
+                      "haben. Nimm für den Kursraum einen anderen Rechner (Linux auf x86, Windows oder macOS).")
 KEINE_SEITE = ("Die Seite des Kursraums fehlt in dieser Installation (beim Bauen: python packaging/fetch-livekit.py).")
 WAYLAND_HINWEIS = ("Bildschirm teilen geht unter Linux nur in einer X11-Sitzung: Der eingebaute Browser kann unter "
                    "Wayland keine Bildschirmaufnahme. Melde dich dafür mit „Cinnamon“/„GNOME on Xorg“ o. Ä. an. "
@@ -246,6 +249,17 @@ def sandbox_abschalten(sperre: Path = USERNS_SPERRE, label: tuple[Path, ...] = A
         except OSError:
             continue
     return True
+
+
+def linux_arm() -> bool:
+    import platform
+
+    return sys.platform.startswith("linux") and platform.machine().lower() in ("aarch64", "arm64")
+
+
+def kein_webengine_text() -> str:
+    """Hinweis, wenn Qt WebEngine fehlt – im Paket für Linux arm64 ist das so gewollt."""
+    return KEIN_WEBENGINE_ARM if linux_arm() else KEIN_WEBENGINE
 
 
 def bildschirm_teilen() -> tuple[bool, str]:

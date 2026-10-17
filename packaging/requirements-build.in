@@ -4,8 +4,8 @@
 # Neuere PySide6-Wheels für aarch64 brauchen glibc 2.39 – dort bleibt es bei 6.8.0.2 (Qt 6.8.0).
 PySide6-Essentials==6.8.0.2 ; sys_platform == 'linux' and platform_machine == 'aarch64'
 PySide6-Essentials ; sys_platform != 'linux' or platform_machine != 'aarch64'
-# Kursraum (Qt WebEngine): ab 6.12 eigenes Paket PySide6-WebEngine, in 6.8 Teil von PySide6-Addons
-PySide6-Addons==6.8.0.2 ; sys_platform == 'linux' and platform_machine == 'aarch64'
+# Kursraum (Qt WebEngine): ab 6.12 eigenes Paket PySide6-WebEngine. Linux arm64 ohne Kursraum – das WebEngine von
+# PySide6-Addons 6.8.0.2 (aarch64) braucht libwebp.so.6 u. a., die es auf Ubuntu 22.04/Debian 12 nicht gibt.
 PySide6-WebEngine ; sys_platform != 'linux' or platform_machine != 'aarch64'
 psutil
 platformdirs

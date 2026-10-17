@@ -673,7 +673,8 @@ weiter wie bisher. Hauptfenster → **„Kurse“**:
   **„Sprechen nur nach Freigabe“** festlegen, dass nur spricht, wem er es erlaubt. Der Chat wird nicht gespeichert.
   Unter Linux geht „Bildschirm teilen“ nur in einer X11-Sitzung (z. B. Cinnamon, „GNOME on Xorg“), nicht unter
   Wayland. Unter macOS beim ersten Mal Kamera, Mikrofon und **Bildschirmaufnahme** erlauben
-  (Systemeinstellungen → Datenschutz & Sicherheit).
+  (Systemeinstellungen → Datenschutz & Sicherheit). Im Paket für Linux auf ARM (arm64) gibt es den Kursraum noch
+  nicht.
 
 An den Server gehen dabei nur Kursname, die Anzeigenamen und welcher Agent-PC teilnimmt. Die Fehlermeldungen des
 Servers (Code abgelaufen, Kurs voll, zu viele aktive Kurse …) zeigt die App unverändert an.

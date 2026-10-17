@@ -121,6 +121,12 @@ else
 fi
 
 # ---------- 3. Abhängigkeiten je Architektur ----------
+# Qt WebEngine (Kursraum) nur in amd64 – NSS, ALSA, GBM & Co. kommen vom System (siehe SYSTEM_LIBS im Bauplan)
+WEBENGINE_DEPENDS=""
+if [ -f "$DIST/_internal/PySide6/Qt/libexec/QtWebEngineProcess" ]; then
+  WEBENGINE_DEPENDS=",
+ libnss3, libnspr4, libasound2t64 | libasound2, libgbm1, libdrm2, libxkbfile1, libxtst6, libxcb-dri3-0"
+fi
 case "$ARCH" in
   amd64) QEMU="qemu-system-x86" ;;
   arm64) QEMU="qemu-system-arm, qemu-efi-aarch64" ;;
@@ -162,8 +168,7 @@ Depends: $QEMU, qemu-utils, acl, python3, libc6 (>= $GLIBC), libegl1, libgl1, li
  libexpat1, libbrotli1, libharfbuzz0b, libfribidi0, libthai0, libdatrie1, libgraphite2-3, libpixman-1-0,
  libpng16-16t64 | libpng16-16, libx11-6, libx11-xcb1, libxau6, libxdmcp6, libbsd0, libmd0, libxcb1,
  libxcb-glx0, libxcb-render0, libxcb-shm0, libxcb-sync1, libxcb-xfixes0, libxcomposite1, libxcursor1,
- libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1,
- libnss3, libnspr4, libasound2t64 | libasound2, libgbm1, libdrm2, libxkbfile1, libxtst6, libxcb-dri3-0
+ libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1$WEBENGINE_DEPENDS
 Recommends: qemu-system-gui, qemu-system-modules-spice, pkexec | policykit-1
 Suggests: bonys-vpn, remmina, remmina-plugin-rdp, remmina-plugin-spice, virt-viewer
 $RELATIONS
@@ -278,8 +283,9 @@ chmod 755 "$STAGE/DEBIAN/preinst" "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE/opt" -type f -exec chmod 644 {} +
 chmod 755 "$STAGE/opt/$APP/BonysAgents" "$STAGE/opt/$APP/bonys-agents"
-# Hilfsprogramm von Qt WebEngine (Kursraum) – ohne x-Recht startet der eingebettete Browser nicht
-chmod 755 "$STAGE/opt/$APP/_internal/PySide6/Qt/libexec/QtWebEngineProcess"
+# Hilfsprogramm von Qt WebEngine (Kursraum) – ohne x-Recht startet der eingebettete Browser nicht (arm64: ohne)
+WEBENGINE="$STAGE/opt/$APP/_internal/PySide6/Qt/libexec/QtWebEngineProcess"
+[ ! -f "$WEBENGINE" ] || chmod 755 "$WEBENGINE"
 find "$STAGE/opt" -type f \( -name "*.so*" -o -perm -u+x \) -exec chmod 755 {} + 2>/dev/null || true
 
 mkdir -p dist

@@ -282,8 +282,9 @@ def test_paket_bringt_webengine_mit():
     for modul in ("QtWebEngineCore", "QtWebEngineWidgets", "QtWebChannel", "QtNetwork", "QtPrintSupport"):
         assert f'"PySide6.{modul}"' not in ausgeschlossen, modul
     assert "fetch-livekit.py" in deb
-    assert 'chmod 755 "$STAGE/opt/$APP/_internal/PySide6/Qt/libexec/QtWebEngineProcess"' in deb
-    depends = deb.split("Depends:", 1)[1].split("Recommends:", 1)[0]
+    assert 'WEBENGINE="$STAGE/opt/$APP/_internal/PySide6/Qt/libexec/QtWebEngineProcess"' in deb
+    assert '[ ! -f "$WEBENGINE" ] || chmod 755 "$WEBENGINE"' in deb
+    depends = deb.split('WEBENGINE_DEPENDS=",', 1)[1].split('"', 1)[0]
     for paket in ("libnss3", "libnspr4", "libasound2", "libgbm1", "libdrm2", "libxkbfile1", "libxtst6",
                   "libxcb-dri3-0"):
         assert paket in depends, paket
@@ -386,6 +387,16 @@ def test_knopf_kursraum_oeffnen(qapp, datadir, zentrale, laufender_kurs, monkeyp
     assert geoeffnet == [kurs.kurs_id] and not v.busy
     v.done(0)
     v.deleteLater()
+
+
+def test_hinweis_ohne_webengine_auf_linux_arm(monkeypatch):
+    import platform
+
+    monkeypatch.setattr(kursraum.sys, "platform", "linux")
+    monkeypatch.setattr(platform, "machine", lambda: "aarch64")
+    assert kursraum.linux_arm() and kursraum.kein_webengine_text() == kursraum.KEIN_WEBENGINE_ARM
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    assert kursraum.kein_webengine_text() == kursraum.KEIN_WEBENGINE
 
 
 def test_oeffnen_ohne_webengine_oder_seite(qapp, monkeypatch):  # noqa: F811
