@@ -46,6 +46,8 @@ sign() {
 while IFS= read -r -d '' f; do
   if [[ "$(file -b "$f")" == *Mach-O* ]]; then sign "$f"; fi
 done < <(find "$APP/Contents/Frameworks" "$APP/Contents/Resources" -type f -print0)
+# Qt WebEngine: Hilfsprogramm QtWebEngineProcess.app steckt im Framework – erst das Bundle, dann das Framework
+while IFS= read -r -d '' helper; do sign "$helper"; done < <(find "$APP/Contents" -mindepth 2 -type d -name "*.app" -print0)
 while IFS= read -r -d '' fw; do sign "$fw"; done < <(find "$APP/Contents" -type d -name "*.framework" -print0)
 for exe in "$APP/Contents/MacOS/"*; do sign "$exe"; done
 sign "$APP"

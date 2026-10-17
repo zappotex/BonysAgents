@@ -47,6 +47,7 @@ if [ ! -x "$DIST/BonysAgents" ] || [ "${REBUILD:-1}" = "1" ]; then
   if [ "$EDITION" = kursleiter ]; then
     python3 packaging/fetch-novnc.py   # noVNC (MPL-2.0) für die Vorführung, feste Version mit Prüfsumme
   fi
+  python3 packaging/fetch-livekit.py   # livekit-client (Apache-2.0) für den Kursraum, beide Editionen
   build/venv/bin/pip install -q --upgrade pip
   # Feste Versionen mit Prüfsummen (packaging/requirements-build.txt), danach nur noch das eigene Paket
   build/venv/bin/pip install -q --require-hashes -r packaging/requirements-build.txt
@@ -83,6 +84,9 @@ install -m644 src/bonys_agents/resources/logo.png "$STAGE/usr/share/icons/hicolo
 sed "s/^Name=.*/Name=$NAME/" packaging/linux/bonys-agents.desktop > "$STAGE/usr/share/applications/$APP.desktop"
 chmod 644 "$STAGE/usr/share/applications/$APP.desktop"
 install -m644 packaging/linux/70-bonys-agents-kvm.rules "$STAGE/usr/lib/udev/rules.d/"
+# AppArmor-Profil für den Kursraum (Qt WebEngine) – postinst legt es nur mit AppArmor 4 nach /etc/apparmor.d
+install -d "$STAGE/usr/share/$APP/apparmor"
+install -m644 packaging/linux/apparmor-bonys-agents "$STAGE/usr/share/$APP/apparmor/bonys-agents"
 
 # Bony's VPN ist ein eigenes Paket (bonys-vpn, https://github.com/zappotex/bonys-vpn) – hier nur „Suggests“.
 {
@@ -158,7 +162,8 @@ Depends: $QEMU, qemu-utils, acl, python3, libc6 (>= $GLIBC), libegl1, libgl1, li
  libexpat1, libbrotli1, libharfbuzz0b, libfribidi0, libthai0, libdatrie1, libgraphite2-3, libpixman-1-0,
  libpng16-16t64 | libpng16-16, libx11-6, libx11-xcb1, libxau6, libxdmcp6, libbsd0, libmd0, libxcb1,
  libxcb-glx0, libxcb-render0, libxcb-shm0, libxcb-sync1, libxcb-xfixes0, libxcomposite1, libxcursor1,
- libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1
+ libxdamage1, libxext6, libxfixes3, libxi6, libxinerama1, libxrandr2, libxrender1,
+ libnss3, libnspr4, libasound2t64 | libasound2, libgbm1, libdrm2, libxkbfile1, libxtst6, libxcb-dri3-0
 Recommends: qemu-system-gui, qemu-system-modules-spice, pkexec | policykit-1
 Suggests: bonys-vpn, remmina, remmina-plugin-rdp, remmina-plugin-spice, virt-viewer
 $RELATIONS
@@ -183,6 +188,13 @@ if [ "$1" = "configure" ]; then
     udevadm trigger --name-match=kvm 2>/dev/null || true
   fi
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications || true
+  # Kursraum (Qt WebEngine): Ubuntu ab 24.04 erlaubt die Sandbox von Chromium nur mit AppArmor-Profil
+  if [ -d /etc/apparmor.d/abi ] && [ -f /etc/apparmor.d/abi/4.0 ]; then
+    install -m644 /usr/share/bonys-agents/apparmor/bonys-agents /etc/apparmor.d/bonys-agents
+    if command -v apparmor_parser >/dev/null 2>&1 && [ -d /sys/kernel/security/apparmor ]; then
+      apparmor_parser -r -W -T /etc/apparmor.d/bonys-agents 2>/dev/null || true
+    fi
+  fi
   command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t /usr/share/icons/hicolor || true
   # Paketquelle für Updates (Aktualisierungsverwaltung). Hat der Nutzer sie mit „Enabled: no“
   # abgeschaltet, bleibt das so – auch beim Wechsel der Edition (bonys-agents ↔ bonys-agents-kursleiter):
@@ -225,7 +237,15 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q
 # Edition den Schlüssel schon übernommen hat (Wechsel bonys-agents ↔ bonys-agents-kursleiter).
 DST=/etc/apt/sources.list.d/bonys-agents.sources
 case "$1" in
-  remove|purge|disappear) rm -rf /opt/bonys-agents/_internal/bonys_agents/trainer ;;   # ausgepackte Kursleiter-Dateien
+  remove|purge|disappear)
+    rm -rf /opt/bonys-agents/_internal/bonys_agents/trainer   # ausgepackte Kursleiter-Dateien
+    # AppArmor-Profil des Kursraums – nicht beim Wechsel der Edition (die andere legt es gleich wieder an)
+    if [ ! -e /opt/bonys-agents/BonysAgents ] && [ -f /etc/apparmor.d/bonys-agents ]; then
+      if command -v apparmor_parser >/dev/null 2>&1 && [ -d /sys/kernel/security/apparmor ]; then
+        apparmor_parser -R /etc/apparmor.d/bonys-agents 2>/dev/null || true
+      fi
+      rm -f /etc/apparmor.d/bonys-agents
+    fi ;;
 esac
 case "$1" in
   remove|purge|disappear)
@@ -258,6 +278,8 @@ chmod 755 "$STAGE/DEBIAN/preinst" "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE/opt" -type f -exec chmod 644 {} +
 chmod 755 "$STAGE/opt/$APP/BonysAgents" "$STAGE/opt/$APP/bonys-agents"
+# Hilfsprogramm von Qt WebEngine (Kursraum) – ohne x-Recht startet der eingebettete Browser nicht
+chmod 755 "$STAGE/opt/$APP/_internal/PySide6/Qt/libexec/QtWebEngineProcess"
 find "$STAGE/opt" -type f \( -name "*.so*" -o -perm -u+x \) -exec chmod 755 {} + 2>/dev/null || true
 
 mkdir -p dist

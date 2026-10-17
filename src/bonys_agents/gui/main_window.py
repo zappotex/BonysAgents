@@ -418,6 +418,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802 – Qt-Name
         self._save_window()
+        from .kursraum_fenster import alle_schliessen
+
+        alle_schliessen()   # offene Kursräume verlassen (sie sind eigene Fenster)
         super().closeEvent(event)
 
     def check_updates(self, manual: bool) -> None:

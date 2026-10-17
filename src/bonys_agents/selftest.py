@@ -179,6 +179,22 @@ def check_qt() -> Check:
     return Check("Bibliotheken der Desktop-App (Qt)", True, f"PySide6 {pyside_version}")
 
 
+def check_kursraum() -> Check:
+    """Kursraum: Qt WebEngine lässt sich laden, und die Seite samt livekit-client ist im Paket."""
+    name = "Kursraum (Qt WebEngine, livekit-client)"
+    try:
+        from PySide6 import QtWebChannel, QtWebEngineWidgets  # noqa: F401
+        from PySide6.QtWebEngineCore import qWebEngineChromiumVersion, qWebEngineVersion
+    except Exception as e:  # noqa: BLE001
+        return Check(name, False, f"Qt WebEngine fehlt: {e}")
+    from bonys_agents import kursraum
+
+    if kursraum.seiten_datei("/index.html") is None or not kursraum.livekit_da():
+        return Check(name, False, kursraum.KEINE_SEITE)
+    return Check(name, True, f"Qt WebEngine {qWebEngineVersion()} (Chromium {qWebEngineChromiumVersion()}), "
+                             f"livekit-client {kursraum.LIVEKIT_VERSION}")
+
+
 def run(log: Callable[[Check], None] | None = None, include_qt: bool = True, boot: bool = False) -> list[Check]:
     """Alle Prüfungen; ``log`` bekommt jedes Ergebnis sofort (für die Anzeige)."""
     results: list[Check] = []
@@ -208,6 +224,7 @@ def run(log: Callable[[Check], None] | None = None, include_qt: bool = True, boo
                 add(check_boot(info, qemu_bin, binaries["qemu-img"], Path(tmp)))
     if include_qt:
         add(check_qt())
+        add(check_kursraum())
     return results
 
 

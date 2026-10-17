@@ -665,8 +665,15 @@ weiter wie bisher. Hauptfenster → **„Kurse“**:
   deinen Rechner (auch nicht, wenn er über Bony's VPN im Bony-Netz ist) und nie deine anderen Agent-PCs.
   „Meine Kurse“ zeigt Kursleiter und Status; „Kurs verlassen …“ beendet die Teilnahme. Beginnt ein Kurs, meldet
   das Hauptfenster es unten in der Statuszeile (abgefragt höchstens jede Minute, nur solange du an Kursen teilnimmst).
-- **Kursraum** (Bild, Ton, Kamera, Chat): Knöpfe sind schon da, der Kursraum selbst kommt mit einer der nächsten
-  Versionen.
+- **Kursraum** (Bild, Ton, Kamera, Chat), nur solange der Kurs läuft: Kursansicht → **„Kursraum öffnen“** bzw.
+  „Kurse“ → **„Kursraum betreten“**. Groß siehst du den Bildschirm des Kursleiters (ohne Freigabe seine Kamera),
+  darunter die eingeschalteten Kameras, rechts Teilnehmer (🎤/🔇, ✋) und Chat. Teilnehmer kommen mit Mikrofon und
+  Kamera aus herein, melden sich mit **„✋ Hand heben“** und schalten Mikrofon und Kamera selbst ein. Der Kursleiter
+  teilt seinen Bildschirm (oder ein Fenster), kann Teilnehmer **stumm schalten** und **aus dem Raum nehmen** und mit
+  **„Sprechen nur nach Freigabe“** festlegen, dass nur spricht, wem er es erlaubt. Der Chat wird nicht gespeichert.
+  Unter Linux geht „Bildschirm teilen“ nur in einer X11-Sitzung (z. B. Cinnamon, „GNOME on Xorg“), nicht unter
+  Wayland. Unter macOS beim ersten Mal Kamera, Mikrofon und **Bildschirmaufnahme** erlauben
+  (Systemeinstellungen → Datenschutz & Sicherheit).
 
 An den Server gehen dabei nur Kursname, die Anzeigenamen und welcher Agent-PC teilnimmt. Die Fehlermeldungen des
 Servers (Code abgelaufen, Kurs voll, zu viele aktive Kurse …) zeigt die App unverändert an.

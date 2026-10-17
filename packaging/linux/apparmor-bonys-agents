@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Bony's Agents – Kursraum (Qt WebEngine)
+#
+# Die Sandbox von Chromium in Qt WebEngine legt eigene Benutzer-Namensräume an (der Hauptprozess, nicht erst
+# QtWebEngineProcess). Ubuntu ab 24.04 erlaubt das nur Programmen mit einem Profil wie diesem
+# (kernel.apparmor_restrict_unprivileged_userns = 1) – genau wie für Chrome, Brave oder VS Code. Sonst gibt es
+# keine Einschränkung („unconfined“).
+#
+# Das Paket legt die Datei nur an, wenn AppArmor 4 da ist (/etc/apparmor.d/abi/4.0); ältere Versionen kennen
+# „userns“ nicht und brauchen das Profil auch nicht.
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bonys-agents /opt/bonys-agents/BonysAgents flags=(unconfined) {
+  userns,
+
+  include if exists <local/bonys-agents>
+}

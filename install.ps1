@@ -67,6 +67,9 @@ Say "Installiere Bony's Agents nach $AppDir …"
 if ($LASTEXITCODE -ne 0) { Fail "Virtuelle Python-Umgebung konnte nicht angelegt werden." }
 $venvPy = Join-Path $AppDir "Scripts\python.exe"
 & $venvPy -m pip install --upgrade pip | Out-Null
+# Kursraum: livekit-client (feste Version mit Prüfsumme) – ohne Internet geht der Rest trotzdem
+& $venvPy (Join-Path $Src "packaging\fetch-livekit.py")
+if ($LASTEXITCODE -ne 0) { Write-Host "Hinweis: livekit-client nicht geladen – der Kursraum fehlt in dieser Installation." }
 & $venvPy -m pip install $Src
 if ($LASTEXITCODE -ne 0) { Fail "Installation der App fehlgeschlagen." }
 

@@ -11,6 +11,8 @@ Läuft nach PyInstaller im Bau-Python (dessen Pakete und Lizenzdateien eingebaut
 - jedes Python-Paket, dessen Module im Programm stecken: seine Lizenzdateien (PySide6/Shiboken6: LGPL-3.0 + GPL-3.0),
 - Qt: Lizenz- und Copyright-Angaben aller Drittteile (qt_attribution.json) der eingebauten Qt-Version
   (aus den Qt-Quellen, nur diese Dateien werden geladen) und ICU, falls Qt sie mitbringt,
+- Qt WebEngine (Kursraum): Lizenz von Chromium in genau der eingebauten Fassung und wo die Liste seiner
+  Drittkomponenten steht; livekit-client liegt mit Lizenz unter bonys_agents/resources/kursraum/vendor,
 - Linux: die Debian/Ubuntu-``copyright``-Datei jedes Pakets, aus dem eine mitgelieferte Bibliothek stammt.
 
 Fehlt für ein mitgeliefertes Python-Paket der Lizenztext, bricht das Skript ab – nichts soll ohne Lizenz hinein.
@@ -32,7 +34,7 @@ from pathlib import Path
 
 LICENSE_FILE = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.IGNORECASE)
 # Pakete ohne Lizenzdatei im Wheel → SPDX-Texte aus den Qt-Quellen (LICENSES/)
-QT_LICENSED = {"pyside6", "pyside6-essentials", "pyside6-addons", "shiboken6"}
+QT_LICENSED = {"pyside6", "pyside6-essentials", "pyside6-addons", "pyside6-webengine", "shiboken6"}
 # Teile der Qt-Quellen, die nie im Programm landen (Tests, Bauwerkzeuge, andere Plattformen)
 QT_SKIP = ("/testlib/", "/testinternal/", "cmake/", "util/", "/android/", "/wasm/", "/gradle/")
 
@@ -182,8 +184,12 @@ def qt_version() -> str:
 def qt_and_icu(content: Path, out: Path, tmp: Path) -> tuple[str, Path]:
     version = qt_version()
     names = [p.name for p in content.rglob("*") if p.is_file()]
-    repos = ["qtbase"] + (["qtsvg"] if any("Qt6Svg" in n or "QtSvg" in n for n in names) else []) \
-        + (["qtwayland"] if any("Qt6Wayland" in n for n in names) else [])
+    def has(lib: str) -> bool:
+        return any(f"Qt6{lib}" in n or f"Qt{lib}" in n for n in names)
+
+    repos = ["qtbase"] + (["qtsvg"] if has("Svg") else []) + (["qtwayland"] if has("Wayland") else []) \
+        + (["qtdeclarative"] if has("Qml") else []) + (["qtpositioning"] if has("Positioning") else []) \
+        + (["qtwebchannel"] if has("WebChannel") else [])
     text = ""
     base = None
     for repo in repos:
@@ -217,6 +223,41 @@ def openssl(content: Path, out: Path, qt_licenses: Path) -> bool:
     (out / "OpenSSL-LICENSE.txt").write_text("OpenSSL 3 (mit Python mitgeliefert) – Apache License 2.0\n"
                                              "Copyright (c) 1998-2025 The OpenSSL Project Authors\n\n" + text, "utf-8")
     return True
+
+
+def webengine(content: Path, out: Path) -> str:
+    """Qt WebEngine: Lizenz von Chromium (Zweig „<Version>-based“ von qtwebengine-chromium) – "" ohne WebEngine.
+
+    Chromium bringt Hunderte Drittkomponenten mit; deren vollständige Liste veröffentlicht Qt für jede Version
+    (Link in der Datei). Qt WebEngine selbst steht unter LGPL-3.0 wie Qt (Texte bei PySide6).
+    """
+    if not any("WebEngineCore" in p.name for p in content.rglob("*") if p.is_file()):
+        return ""
+    from PySide6.QtWebEngineCore import qWebEngineChromiumVersion, qWebEngineVersion
+
+    chromium, version = qWebEngineChromiumVersion(), qWebEngineVersion()
+    zweig = f"{chromium.split('.')[0]}-based"
+    url = f"https://raw.githubusercontent.com/qt/qtwebengine-chromium/{zweig}/chromium/LICENSE"
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:  # noqa: S310 – feste https-Adresse
+                lizenz = r.read().decode("utf-8")
+            break
+        except OSError:
+            time.sleep(10 * (attempt + 1))
+    else:
+        raise SystemExit(f"Lizenz von Chromium nicht geladen ({url})")
+    major_minor = ".".join(version.split(".")[:2])
+    (out / "QtWebEngine-Chromium.txt").write_text(
+        f"Qt WebEngine {version} mit Chromium {chromium} (Kursraum)\n\n"
+        "Qt WebEngine steht unter der LGPL-3.0 (Texte im Ordner python/ bei PySide6). Es enthält Chromium, das\n"
+        "unter der folgenden BSD-Lizenz steht, und dessen Drittkomponenten mit eigenen Lizenzen (u. a. BSD, MIT,\n"
+        "Apache-2.0, LGPL, MPL). Die vollständige Liste dieser Komponenten samt Lizenztexten:\n"
+        f"  https://doc.qt.io/qt-{version.split('.')[0]}/qtwebengine-licensing.html (Qt WebEngine {major_minor})\n"
+        "Quelltexte: https://code.qt.io/cgit/qt/qtwebengine.git (Tag v" + version + ") und\n"
+        f"  https://code.qt.io/cgit/qt/qtwebengine-chromium.git (Zweig {zweig})\n\n"
+        "Chromium – BSD-3-Clause\n=======================\n\n" + lizenz, "utf-8")
+    return f"Qt WebEngine {version} / Chromium {chromium}: QtWebEngine-Chromium.txt"
 
 
 SYSTEM_LIB_DIRS = ("/lib", "/usr/lib", "/lib64", "/usr/lib64")
@@ -263,6 +304,7 @@ def main() -> int:
         qt_version, qt_licenses = qt_and_icu(content, out, Path(tmp))
         pkgs = packages(content, out, qt_licenses)
         ssl = openssl(content, out, qt_licenses)
+    web = webengine(content, out)
     deb, unknown = debian_packages(content, out)
     index = [
         "Lizenztexte der mitgelieferten Komponenten (beim Bauen aus dem Programmordner erzeugt)",
@@ -271,12 +313,17 @@ def main() -> int:
         *(["OpenSSL 3: OpenSSL-LICENSE.txt"] if ssl else []),
         f"Qt {qt_version} und dessen Drittkomponenten: Qt-third-party.txt"
         + (" (ICU: ICU-*-LICENSE.txt)" if list(out.glob("ICU-*")) else ""),
+        *([web] if web else []),
         "Python-Pakete (Ordner python/):",
         *[f"  {p}" for p in pkgs],
     ]
     novnc = [p for p in content.rglob("novnc/LICENSE.txt")]
     if novnc:
         index.append(f"noVNC (Kursleiter-Version): {novnc[0].relative_to(content).as_posix()} und docs/, vendor/pako/")
+    livekit = [p for p in content.rglob("kursraum/vendor/LICENSE-livekit-client")]
+    if livekit:
+        index.append(f"livekit-client (Kursraum): {livekit[0].relative_to(content).as_posix()} – darin gebündelte "
+                     "Bibliotheken: siehe THIRD-PARTY-LICENSES")
     if deb:
         index += ["Bibliotheken aus Debian/Ubuntu-Paketen (Ordner debian/, Quelltexte: sources.debian.org bzw. "
                   "packages.ubuntu.com):", *[f"  {p}" for p in deb]]

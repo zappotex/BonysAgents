@@ -29,7 +29,21 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   läuft, erreicht der Kursleiter die gewählten Agent-PCs der Teilnehmer. Der eigene Rechner (über Bony's VPN im Netz)
   steht nie zur Auswahl. Beginnt ein Kurs, an dem du teilnimmst, meldet das die Statuszeile (höchstens jede Minute
   gefragt). Die Schulung im eigenen Netz bleibt unverändert: „Kurse“ → „Schulung im Netzwerk beitreten …“.
-  „Kursraum öffnen/betreten“ ist noch ein Platzhalter.
+- **Kursraum mit Bildschirm, Ton, Kamera und Chat.** Solange ein Kurs läuft: Kursansicht → „Kursraum öffnen“
+  (Kursleiter) bzw. „Kurse“ → „Kursraum betreten“ (Teilnehmer). Ein eigenes Fenster zeigt groß den Bildschirm des
+  Kursleiters (ohne Freigabe seine Kamera), darunter die eingeschalteten Kameras (wer spricht, ist grün umrandet),
+  rechts die Teilnehmerliste mit Mikrofon und ✋ sowie den Chat. Unten: Mikrofon, Kamera, Hand heben/senken,
+  „Kursraum verlassen“ – beim Kursleiter zusätzlich „Bildschirm teilen“ (Bildschirm oder einzelnes Fenster wählen)
+  und „Sprechen nur nach Freigabe“. Teilnehmer kommen mit Mikrofon und Kamera aus, der Kursleiter mit Mikrofon an.
+  Der Kursleiter kann Teilnehmer stumm schalten, ihnen das Sprechen erlauben und sie aus dem Raum nehmen.
+  Der Chat wird nirgends gespeichert. Bricht die Verbindung ab, zeigt der Kursraum „Verbindung wird
+  wiederhergestellt …“; ist der Kurs beendet oder pausiert oder die Eintrittskarte (6 Stunden) abgelaufen, steht da
+  warum, mit „Erneut eintreten“. Technik: LiveKit (`livekit-client` 2.22.3, Apache-2.0) in einem eingebetteten
+  Browser (Qt WebEngine); die Seite gehört zur App, Kamera, Mikrofon und Bildschirmaufnahme bekommt nur sie.
+  Bildschirm teilen geht unter Linux nur in einer X11-Sitzung (unter Wayland zeigt der Knopf einen Hinweis).
+  Das Programm wird dadurch etwa 290 MB größer (Qt WebEngine). Unter macOS fragt das System beim ersten Mal nach
+  Kamera, Mikrofon und Bildschirmaufnahme; unter Ubuntu ab 24.04 bringt das .deb ein AppArmor-Profil mit, das der
+  Sandbox von Qt WebEngine eigene Namensräume erlaubt.
 
 ### Behoben
 - **Bony-Netz: Beitritt scheiterte bei Agent-PCs ohne Tailscale** („bei der Einrichtung ist etwas schiefgegangen“,

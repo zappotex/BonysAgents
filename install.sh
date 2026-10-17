@@ -57,6 +57,9 @@ fi
 say "Installiere Bony's Agents nach $APP_DIR …"
 python3 -m venv "$APP_DIR"
 "$APP_DIR/bin/python" -m pip install --upgrade pip >/dev/null
+# Kursraum: livekit-client (feste Version mit Prüfsumme) – ohne Internet geht der Rest trotzdem
+"$APP_DIR/bin/python" "$SRC/packaging/fetch-livekit.py" \
+  || echo "Hinweis: livekit-client nicht geladen – der Kursraum fehlt in dieser Installation."
 "$APP_DIR/bin/python" -m pip install "$SRC"
 
 mkdir -p "$BIN_DIR"

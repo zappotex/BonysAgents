@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from bonys_agents import APP_NAME, edition, kurse, netz, share, vm
+from bonys_agents import edition, kurse, netz, share, vm
 
 from .netz_dialog import _card, _muted, _section
 from .widgets import make_scrollable
@@ -86,8 +86,23 @@ def nachfragen(parent, titel: str, text: str, detail: str, ja: str, nein: str = 
     return box.clickedButton() is ok
 
 
-def kursraum_platzhalter(parent) -> None:
-    QMessageBox.information(parent, APP_NAME, kurse.KURSRAUM_SPAETER)
+def kursraum_oeffnen(seite, kurs_id: str, name: str) -> None:
+    """Kursraum öffnen (eigenes Fenster); ``seite`` hat ``busy``, ``status_text`` und ``_update`` (Hintergrund)."""
+    from .kursraum_fenster import oeffnen
+
+    seite.busy += 1
+    seite.status_text = ""
+    seite._update()
+    seite.status.setText("Hole die Eintrittskarte …")
+
+    def fertig(fehler: str | None) -> None:
+        if not isValid(seite):
+            return
+        seite.busy -= 1
+        seite.status_text = f"Kursraum: {fehler}" if fehler else ""
+        seite._update()
+
+    oeffnen(kurs_id, name, seite, fertig)
 
 
 class Hintergrund:
@@ -217,7 +232,7 @@ class TeilnahmeSeite(Seite):
 
         self.join_btn.clicked.connect(self._join)
         self.code.returnPressed.connect(self._join)
-        self.room_btn.clicked.connect(lambda: kursraum_platzhalter(self))
+        self.room_btn.clicked.connect(self._room)
         self.leave_btn.clicked.connect(self._leave)
         self.table.itemSelectionChanged.connect(self._update)
         self.code.textChanged.connect(lambda _t: self._update())
@@ -290,6 +305,11 @@ class TeilnahmeSeite(Seite):
 
         self._run(lambda: kurse.kurs_beitreten(code, geraet_id, name), done)
 
+    def _room(self) -> None:
+        k = self._kurs()
+        if k is not None and k.laeuft:
+            kursraum_oeffnen(self, k.kurs_id, k.name)
+
     def _leave(self) -> None:
         k = self._kurs()
         if k is None or not nachfragen(
@@ -311,6 +331,7 @@ class TeilnahmeSeite(Seite):
 class KurseDialog(QDialog):
     def __init__(self, parent=None, join_local: Callable[[], None] | None = None):
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModal)   # sperrt nur das Hauptfenster, nicht den Kursraum
         self.setWindowTitle("Kurse")
         self.join_local = join_local
         root = QVBoxLayout(self)

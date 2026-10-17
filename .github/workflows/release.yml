@@ -150,6 +150,7 @@ jobs:
         shell: bash
         run: |
           python packaging/fetch-novnc.py
+          python packaging/fetch-livekit.py   # Kursraum (beide Editionen)
           pip install --require-hashes -r packaging/requirements-build.txt   # feste Versionen mit Prüfsummen
           pip install --no-deps --no-build-isolation .
           for ed in anwender kursleiter; do
@@ -241,6 +242,7 @@ jobs:
         run: |
           sw_vers; uname -m
           if [ "${{ matrix.edition }}" = kursleiter ]; then python packaging/fetch-novnc.py; fi
+          python packaging/fetch-livekit.py   # Kursraum (beide Editionen)
           pip install --require-hashes -r packaging/requirements-build.txt   # feste Versionen mit Prüfsummen
           pip install --no-deps --no-build-isolation .
           pyinstaller --noconfirm --log-level WARN packaging/bonys-agents.spec -- --edition ${{ matrix.edition }}

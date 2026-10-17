@@ -3,7 +3,7 @@
 
 - Noch kein Kursleiter (``zentrale.instanz()["ist_kursleiter"]``): nur „Kursleiter-Code einlösen“.
 - Sonst Kursliste (Name, Status, Teilnehmer, Code; „Beendete anzeigen“), „Neuer Kurs …“ und die Kursansicht mit Code,
-  Starten/Pausieren/Beenden, Teilnehmertabelle und „Kursraum öffnen“ (Platzhalter bis Aufgabe 05).
+  Starten/Pausieren/Beenden, Teilnehmertabelle und „Kursraum öffnen“ (Fenster ``gui/kursraum_fenster.py``).
 
 Liste und Kursansicht fragen die Zentrale alle 15 Sekunden, solange sie zu sehen sind.
 """
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from bony_netz import Konto
 from bonys_agents import kurse, netz
 from bonys_agents.gui.kurse_dialog import (
-    Hintergrund, Seite, auswahl, kursraum_platzhalter, nachfragen, tabelle, zeile,
+    Hintergrund, Seite, auswahl, kursraum_oeffnen, nachfragen, tabelle, zeile,
 )
 from bonys_agents.gui.netz_dialog import _card, _muted, _section
 from bonys_agents.gui.share_dialogs import code_style
@@ -254,6 +254,7 @@ class KursAnsicht(QDialog, Hintergrund):
 
     def __init__(self, kurs: kurse.Kurs, parent=None):
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModal)   # der Kursraum (eigenes Fenster) bleibt daneben bedienbar
         self.kurs = kurs
         self.weg = False
         self.status_text = ""
@@ -321,7 +322,7 @@ class KursAnsicht(QDialog, Hintergrund):
         self.start_btn.clicked.connect(lambda: self._status(kurse.LAEUFT))
         self.pause_btn.clicked.connect(lambda: self._status(kurse.PAUSIERT))
         self.end_btn.clicked.connect(self._end)
-        self.room_btn.clicked.connect(lambda: kursraum_platzhalter(self))
+        self.room_btn.clicked.connect(lambda: kursraum_oeffnen(self, self.kurs.kurs_id, self.kurs.name))
         self.remove_btn.clicked.connect(self._remove)
         self.table.itemSelectionChanged.connect(self._update)
         self.timer = QTimer(self)

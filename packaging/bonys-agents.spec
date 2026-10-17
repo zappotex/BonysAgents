@@ -42,16 +42,21 @@ VERSION = next(
 # Anwender: nichts aus trainer/ (Seiten der Vorführung, noVNC) – Kursleiter: alles
 datas = [d for d in collect_data_files("bonys_agents") if editions.keep(EDITION, d[1])]
 
-# Nicht benötigte Qt-Teile weglassen – spart ~100 MB.
+# Nicht benötigte Qt-Teile weglassen. Qt WebEngine (Kursraum) bleibt drin – es bringt QtNetwork, QtWebChannel und
+# die Qt-Bibliotheken von Qml/Quick selbst mit (als Abhängigkeit von libQt6WebEngineCore, nicht als Python-Modul).
 EXCLUDES = [
-    "PySide6.QtNetwork", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickWidgets",
-    "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtSql", "PySide6.QtTest",
-    "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtPrintSupport", "PySide6.QtDBus",
-    "PySide6.QtHelp", "PySide6.QtMultimedia", "PySide6.QtPdf", "PySide6.QtWebEngineCore",
+    "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickWidgets",
+    "PySide6.QtOpenGLWidgets", "PySide6.QtSql", "PySide6.QtTest",
+    "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtDBus",   # QtPrintSupport braucht QtWebEngineCore
+    "PySide6.QtHelp", "PySide6.QtMultimedia", "PySide6.QtPdf",
     "tkinter", "unittest", "pydoc",
 ] + ([] if TRAINER else [editions.TRAINER_PACKAGE])
 HIDDEN = ["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.gui.share_dialogs",
-          "bonys_agents._edition", "qrcode", "bony_netz"]   # bony_netz: gemeinsamer Baustein mit Bony's VPN
+          "bonys_agents._edition", "qrcode", "bony_netz",   # bony_netz: gemeinsamer Baustein mit Bony's VPN
+          "bonys_agents.gui.kursraum_fenster", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore",
+          "PySide6.QtWebChannel"]   # Kursraum (Qt WebEngine)
+if not (ROOT / "src" / "bonys_agents" / "resources" / "kursraum" / "vendor" / "livekit-client.umd.js").is_file():
+    raise SystemExit("livekit-client fehlt – erst python packaging/fetch-livekit.py ausführen.")
 if TRAINER:   # werden erst bei Bedarf importiert – PyInstaller fände sie sonst nicht
     HIDDEN += collect_submodules(editions.TRAINER_PACKAGE)
 
@@ -115,11 +120,24 @@ SYSTEM_LIBS = (
     # X11/xcb (lädt auch GTK)
     "libX11", "libXau", "libXdmcp", "libbsd", "libmd.so", "libxcb", "libXcomposite", "libXcursor",
     "libXdamage", "libXext", "libXfixes", "libXinerama", "libXi.so", "libXrandr", "libXrender", "libxkbcommon",
+    # Qt WebEngine (Kursraum): NSS lädt zur Laufzeit eigene Module des Systems (libsoftokn3, libfreebl3) –
+    # mitgelieferte, ältere libnss3 passten nicht dazu. Ton (ALSA), Grafik (GBM/DRM) und Tastatur ebenso vom System.
+    "libnss3", "libnssutil3", "libsmime3", "libnspr4", "libplc4", "libplds4", "libasound", "libgbm", "libdrm",
+    "libxkbfile", "libXtst",
+    # … und die NSS-Module, die PyInstaller für WebEngine einsammelt (alles von NSS kommt vom System)
+    "libsoftokn3", "libfreebl3", "libfreeblpriv3", "libnssckbi", "libnssdbm3", "libsqlite3",
+    # Druck-Plugin (CUPS) gibt es nicht (siehe keep_binary) – und damit auch nicht seine Bibliotheken
+    "libcups", "libavahi", "libgnutls", "libgmp", "libnettle", "libhogweed", "libidn2", "libtasn1",
+    "libunistring", "libp11-kit",
 )
+# Qt-Plugins, die die App nicht braucht: Drucken (zöge CUPS, Avahi und GnuTLS herein)
+SKIP_PLUGINS = ("/plugins/printsupport/",)
 
 
 def keep_binary(entry) -> bool:
     name = Path(entry[0]).name
+    if any(skip in "/" + entry[0].replace("\\", "/") for skip in SKIP_PLUGINS):
+        return False
     return not (sys.platform.startswith("linux") and name.startswith(SYSTEM_LIBS))
 
 
@@ -170,6 +188,12 @@ if sys.platform == "darwin":
             "LSApplicationCategoryType": "public.app-category.utilities",
             "NSHumanReadableCopyright": "Copyright © 2026 Bony – GPL-3.0-or-later",
             "NSHighResolutionCapable": True,
+            # Kursraum: Ohne diese Texte beendet macOS die App beim ersten Zugriff auf Kamera/Mikrofon.
+            # Bildschirmaufnahme braucht keinen Text – macOS fragt selbst (Systemeinstellungen → Datenschutz).
+            "NSCameraUsageDescription": "Im Kursraum können dich die anderen Teilnehmer sehen, wenn du deine "
+                                        "Kamera einschaltest.",
+            "NSMicrophoneUsageDescription": "Im Kursraum können dich die anderen Teilnehmer hören, wenn du dein "
+                                            "Mikrofon einschaltest.",
             # Wichtig: COLLECT übernimmt console=True vom zuletzt genannten Programm (der Kommandozeile),
             # BUNDLE macht daraus LSBackgroundOnly=True. Dann wäre die App ein unsichtbarer
             # Hintergrunddienst – kein Dock-Symbol, keine Menüleiste, Fenster kommen nicht nach vorn.

@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Kursraum von Bony's Agents (Aufgabe 05). Läuft nur im Fenster „Kursraum“ (Qt WebEngine), Adresse
+     kursraum://app/index.html. Die Eintrittskarte kommt per QWebChannel, nie über die Adresse. -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:;
+                 media-src 'self' blob: mediastream:; connect-src 'self' wss: https: ws: http:; worker-src 'self' blob:">
+  <title>Kursraum</title>
+  <link rel="stylesheet" href="kursraum.css">
+</head>
+<body>
+  <header id="kopf">
+    <div id="kursname">Kursraum</div>
+    <div id="verbindung" hidden>Verbindung wird wiederhergestellt …</div>
+    <div id="rolle"></div>
+  </header>
+
+  <main id="inhalt">
+    <section id="buehne-bereich">
+      <div id="buehne">
+        <video id="buehne-video" autoplay playsinline muted></video>
+        <div id="buehne-leer">Der Kursleiter zeigt gerade nichts.</div>
+        <div id="buehne-name"></div>
+      </div>
+      <div id="kameras" aria-label="Kameras"></div>
+    </section>
+
+    <aside id="seitenleiste">
+      <h2>Teilnehmer <span id="anzahl"></span></h2>
+      <ul id="teilnehmer"></ul>
+      <h2>Chat</h2>
+      <div id="chat" aria-live="polite"></div>
+      <form id="chat-form" autocomplete="off">
+        <input id="chat-text" maxlength="1000" placeholder="Nachricht an alle …" disabled>
+        <button id="chat-senden" type="submit" disabled>Senden</button>
+      </form>
+    </aside>
+  </main>
+
+  <footer id="leiste">
+    <button id="mikrofon" type="button" disabled>Mikrofon an</button>
+    <button id="kamera" type="button" disabled>Kamera an</button>
+    <button id="hand" type="button" disabled>✋ Hand heben</button>
+    <button id="teilen" type="button" disabled hidden>Bildschirm teilen</button>
+    <label id="freigabe-wahl" hidden><input id="freigabe-pflicht" type="checkbox"> Sprechen nur nach Freigabe</label>
+    <span class="luecke"></span>
+    <button id="ton" type="button" hidden>Ton einschalten</button>
+    <button id="verlassen" type="button" class="gefahr">Kursraum verlassen</button>
+  </footer>
+
+  <div id="hinweis" hidden></div>
+
+  <div id="schicht" hidden>
+    <div id="dialog" role="dialog" aria-modal="true">
+      <p id="dialog-text"></p>
+      <div id="dialog-knoepfe"></div>
+    </div>
+  </div>
+
+  <div id="audio" hidden></div>
+
+  <script src="qwebchannel.js"></script>
+  <script src="vendor/livekit-client.umd.js"></script>
+  <script src="kursraum.js"></script>
+</body>
+</html>

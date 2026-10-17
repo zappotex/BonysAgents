@@ -40,7 +40,6 @@ TEILNAHMEN_SEKUNDEN = 60      # „Der Kurs X hat begonnen“ – höchstens so 
 NETZ_HINWEIS = ("Solange der Kurs läuft, kannst du die gewählten Agenten-PCs der Teilnehmer über das Bony-Netz "
                 "erreichen.")
 BEENDEN_HINWEIS = "Alle Teilnehmer verlieren den Zugang."
-KURSRAUM_SPAETER = "Der Kursraum mit Bildschirm, Ton, Kamera und Chat kommt mit einer der nächsten Versionen."
 
 
 def _aufruf(fn: Callable[[Zentrale], T]) -> T:

@@ -14,6 +14,17 @@ from bony_netz import Konto, NetzFehler
 from bonys_agents import netz
 
 
+def karte_fuer(kursleiter: bool, gueltig: int = 6 * 3600) -> str:
+    """Eintrittskarte wie von der Zentrale (JWT; die Signatur prüft hier niemand)."""
+    import base64
+
+    def teil(d: dict) -> str:
+        return base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
+
+    rechte = {"roomJoin": True, "roomAdmin": kursleiter}
+    return f"{teil({'alg': 'HS256'})}.{teil({'exp': int(time.time()) + gueltig, 'video': rechte})}.geheimeSignatur"
+
+
 class FakeZentrale:
     """Antwortet wie die Zentrale (API.md) – oder als gewöhnliche Webseite (``webseite``)."""
 
@@ -26,6 +37,8 @@ class FakeZentrale:
         self.grenze: int | None = None         # Gerätegrenze (409)
         self.kurse: dict[str, dict] = {}       # kurs_id -> Kurs (API.md) + "_leiter", "_teiln" (Token->Eintrag)
         self.kurs_grenze: int | None = None    # Teilnehmer je Kurs (409 „Kurs voll“)
+        self.kursraum_url = "wss://k.test"      # Kursraum (Aufgabe 05) – Tests setzen hier einen Test-Server ein
+        self.karten: list[str] = []            # ausgegebene Eintrittskarten
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -140,6 +153,15 @@ class FakeZentrale:
                 return 404, {"detail": "Teilnahme nicht gefunden."}
             del k["_teiln"][token]
             return 204, None
+        if methode == "POST" and len(teil) == 6 and teil[5] == "eintritt":
+            k = self.kurse.get(teil[4])
+            if k is None or (k["_leiter"] != token and token not in k["_teiln"]):
+                return 404, {"detail": "Kurs nicht gefunden."}
+            if k["status"] != "laeuft":
+                return 409, {"detail": "Der Kurs läuft nicht."}
+            self.karten.append(karte_fuer(k["_leiter"] == token))
+            return 200, {"kursraum_url": self.kursraum_url, "raum": k["raum"], "eintrittskarte": self.karten[-1],
+                         "rolle": "kursleiter" if k["_leiter"] == token else "teilnehmer"}
         # ab hier nur Kursleiter
         if not instanz["ist_kursleiter"]:
             return 403, {"detail": "Diese Instanz ist nicht als Kursleiter freigeschaltet."}

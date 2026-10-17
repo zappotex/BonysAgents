@@ -1931,7 +1931,8 @@ def test_third_party_versions_match_build_lock():
     pins = dict(re.findall(r"^([a-z0-9-]+)==([\w.]+)(?: ;[^\n]*)? \\", lock, re.M))
     pins.update(dict(re.findall(r"^(pyside6-essentials)==([\w.]+) ; platform_machine != ", lock, re.M)))
     rows = {"pyside6-essentials": "PySide6 (Qt für Python)", "psutil": "psutil", "platformdirs": "platformdirs",
-            "pycdlib": "pycdlib", "qrcode": "qrcode (python-qrcode)", "pyinstaller": "PyInstaller-Bootloader"}
+            "pycdlib": "pycdlib", "qrcode": "qrcode (python-qrcode)", "pyinstaller": "PyInstaller-Bootloader",
+            "pyside6-webengine": "PySide6-WebEngine"}
     for pkg, row in rows.items():
         line = next(ln for ln in third.splitlines() if ln.strip().startswith(row))
         assert pins[pkg] in line.split(), (pkg, pins[pkg], line)

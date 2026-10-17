@@ -17,6 +17,8 @@ Software/
 
 # noVNC wird beim Bauen geholt (packaging/fetch-novnc.py)
 src/bonys_agents/trainer/resources/novnc/
+# livekit-client wird beim Bauen geholt (packaging/fetch-livekit.py)
+src/bonys_agents/resources/kursraum/vendor/
 # Edition des gebauten Programms (schreibt packaging/bonys-agents.spec beim Bauen)
 src/bonys_agents/_edition.py
 

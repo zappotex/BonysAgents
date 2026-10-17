@@ -22,8 +22,12 @@ deren Texte folgen weiter unten.
   PyInstaller-Bootloader            6.22.3    GPL-2.0-or-later mit Bootloader-Ausnahme
   noVNC (Bibliothek core/)          1.7.0     MPL-2.0 (Mozilla Public License 2.0)
   pako (zlib für noVNC, vendor/)    1.0.3     MIT
+  Qt WebEngine (Kursraum)           6.140.0   LGPL-3.0-only  (Linux arm64: 6.8.0)
+  Chromium (in Qt WebEngine)        140       BSD-3-Clause und weitere (Linux arm64: 122)
+  PySide6-WebEngine                 6.12.0.140 LGPL-3.0-only (Linux arm64: in PySide6-Addons 6.8.0.2)
+  livekit-client (Kursraum)         2.22.3    Apache-2.0 (darin MIT- und BSD-Teile, siehe unten)
 
-Qt, PySide6, Shiboken6 und pycdlib (LGPL) werden als eigenständige, austauschbare
+Qt (auch Qt WebEngine), PySide6, Shiboken6 und pycdlib (LGPL) werden als eigenständige, austauschbare
 Bibliotheken mitgeliefert (im Programmordner, z. B. /opt/bonys-agents/_internal
 bzw. C:\Program Files\Bony's Agents\_internal) und können durch eigene,
 kompatible Versionen ersetzt werden. pycdlib liegt dort als Quelltext im Ordner
@@ -36,6 +40,9 @@ verfügbar. Quelltexte genau der mitgelieferten Versionen:
             https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/
             (Linux arm64: …/PySide6-6.8.0.2-src/)
   pycdlib:  https://github.com/clalancette/pycdlib (Version 1.22.0)
+  Qt WebEngine: https://code.qt.io/cgit/qt/qtwebengine.git (Tag v6.140.0; Linux arm64:
+            v6.8.0), Chromium: https://code.qt.io/cgit/qt/qtwebengine-chromium.git
+            (Zweig 140-based bzw. 122-based)
 Die Versionen stehen fest in packaging/requirements-build.txt (mit Prüfsummen).
 
 Vollständige Lizenztexte: Ordner „licenses“ im Programmordner
@@ -49,7 +56,9 @@ Darin: INDEX.txt (Übersicht), Python-LICENSE.txt (Python und die Drittteile
 seines Builds, unter Windows u. a. OpenSSL, libffi, expat, zlib, bzip2, xz),
 OpenSSL-LICENSE.txt (Windows/macOS), Qt-third-party.txt (Lizenz und Copyright
 aller Drittkomponenten der eingebauten Qt-Version, z. B. harfbuzz, PCRE2,
-libpng, zlib, md4c, FreeType), ICU-…-LICENSE.txt, python/ (Lizenzdateien jedes
+libpng, zlib, md4c, FreeType), QtWebEngine-Chromium.txt (Lizenz von Chromium in
+der eingebauten Fassung und Verweis auf die vollständige Liste seiner
+Drittkomponenten), ICU-…-LICENSE.txt, python/ (Lizenzdateien jedes
 mitgelieferten Python-Pakets) und unter Linux debian/ (copyright-Datei jedes
 Debian/Ubuntu-Pakets, aus dem eine mitgelieferte Bibliothek stammt, z. B.
 libssl3, libkrb5-3, libjpeg-turbo8; Quelltexte unter https://sources.debian.org
@@ -923,6 +932,290 @@ bonys_agents/resources/novnc/LICENSE.txt.
 pako (vendor/pako, zlib-Dekompression für noVNC) – MIT-Lizenz,
 Copyright (C) 2014-2016 by Vitaly Puzrin; Text unter
 bonys_agents/resources/novnc/vendor/pako/LICENSE.
+
+==============================================================================
+livekit-client – Apache License 2.0
+Gilt für: livekit-client 2.22.3, Datei bonys_agents/resources/kursraum/vendor/
+livekit-client.umd.js (Kursraum, beide Editionen). Unverändert aus dem
+offiziellen npm-Paket https://www.npmjs.com/package/livekit-client (Version
+2.22.3) übernommen, Quelltext unter https://github.com/livekit/client-sdk-js
+(Tag v2.22.3). Copyright LiveKit, Inc. Der vollständige Lizenztext liegt im
+Paket unter bonys_agents/resources/kursraum/vendor/LICENSE-livekit-client und
+unter https://www.apache.org/licenses/LICENSE-2.0.
+
+Die Datei enthält außerdem diese Bibliotheken (unverändert gebündelt):
+  @livekit/protocol     1.50.4   Apache-2.0
+  @livekit/mutex        1.1.1    Apache-2.0
+  @bufbuild/protobuf    1.10.1   Apache-2.0 AND BSD-3-Clause
+  events                3.3.0    MIT
+  jose                  6.2.9    MIT
+  loglevel              1.9.2    MIT
+  machina               7.0.1    MIT
+  sdp                   3.2.2    MIT
+  sdp-transform         2.15.0   MIT
+  webrtc-adapter        9.0.6    BSD-3-Clause
+
+@livekit/protocol 1.50.4 – Apache-2.0
+Copyright LiveKit, Inc. – Lizenztext wie livekit-client (oben).
+
+@livekit/mutex 1.1.1 – Apache-2.0
+Copyright LiveKit, Inc. – Lizenztext wie livekit-client (oben).
+
+@bufbuild/protobuf 1.10.1 – Apache-2.0 AND BSD-3-Clause
+Copyright Buf Technologies, Inc. (Apache-2.0, Text wie oben); Teile aus Protocol Buffers:
+
+Copyright 2008 Google Inc.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+* Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+
+events 3.3.0 – MIT
+
+MIT
+
+Copyright Joyent, Inc. and other Node contributors.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+jose 6.2.9 – MIT
+
+The MIT License (MIT)
+
+Copyright (c) 2018 Filip Skokan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+loglevel 1.9.2 – MIT
+
+Copyright (c) 2013 Tim Perry
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+machina 7.0.1 – MIT
+
+Copyright (c) 2011-2023 Jim Cowart (MIT License)
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+See http://opensource.org/licenses/MIT for more details.
+
+--------------------------------------------------------------------
+Also available under GPL 2.0
+Copyright (c) 2011-2015 Jim Cowart (GPL-2.0 License)
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or (at
+your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
+
+See http://opensource.org/licenses/GPL-2.0 for more details
+
+--------------------------------------------------------------------
+
+The extend function included in machina was very heavily borrowed
+from the backbone.js project, which can be found at http://backbonejs.org.
+Due to its origin, the backbone license is included below as well.
+
+Copyright (c) 2010-2012 Jeremy Ashkenas, DocumentCloud
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+sdp 3.2.2 – MIT
+
+Copyright (c) 2017 Philipp Hancke
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+sdp-transform 2.15.0 – MIT
+
+(The MIT License)
+
+Copyright (c) 2013 Eirik Albrigtsen
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+webrtc-adapter 9.0.6 – BSD-3-Clause
+
+Copyright (c) 2014, The WebRTC project authors. All rights reserved.
+Copyright (c) 2018, The adapter.js project authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+
+  * Neither the name of Google nor the names of its contributors may
+    be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
 PyInstaller-Bootloader – GPL-2.0-or-later mit Bootloader-Ausnahme

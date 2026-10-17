@@ -98,7 +98,7 @@ Umsetzung:
 - Abfragen: Kursliste und Kursansicht alle 15 s, solange sichtbar; „Teilnahme“ und die Meldung im Hauptfenster
   höchstens jede Minute. Das Hauptfenster fragt beim Start einmal und danach nur weiter, solange es Teilnahmen gibt
   (nach dem Fenster „Kurse“ wieder einmal).
-- „Kursraum öffnen/betreten“: Platzhalter (`kurse.KURSRAUM_SPAETER`) bis Aufgabe 05.
+- „Kursraum öffnen/betreten“: seit Aufgabe 05 das Fenster „Kursraum“ (unten).
 
 ### Offen / Hinweise
 - Echt zu prüfen (Fertig-wenn): Kurs anlegen, zweiter Rechner mit anderer Instanz tritt bei; nach „Kurs starten“
@@ -107,3 +107,56 @@ Umsetzung:
   (Headscale-Regeln) – die App zeigt nur an.
 - Was die Zentrale bei einem erneuten Beitritt nach „Entfernen“ tut, steht nicht in API.md; die App zeigt dann
   einfach die Meldung der Zentrale.
+
+## Aufgabe 05: Kursraum
+
+- Logik ohne Qt: `bonys_agents/kursraum.py` (Eintrittskarte, LiveKit-Twirp `MutePublishedTrack`/`RemoveParticipant`
+  mit der Kursleiter-Karte, Regeln für Seite und Berechtigungen). Fenster: `gui/kursraum_fenster.py`. Seite:
+  `resources/kursraum/` (`index.html`, `kursraum.js`, `kursraum.css`), dazu `vendor/livekit-client.umd.js` – nicht im
+  Repository, `packaging/fetch-livekit.py` holt Version 2.22.3 mit fester SHA-256 (wie noVNC).
+- Die Seite kommt über das eigene Schema `kursraum://app/…` (sicher, nicht „lokal“, damit sie wss/https zum
+  LiveKit-Server darf). `vorbereiten()` meldet es vor der QApplication an (`gui/app.py`). Die Karte geht nur per
+  QWebChannel an die Seite; LiveKit schreibt das Token auch in seinen eigenen Meldungen nur als `<redacted>`.
+- Berechtigungen: Qt 6.8+ `permissionRequested`, davor `featurePermissionRequested`; erlaubt nur Kamera, Mikrofon
+  und Bildschirm für `kursraum://app`. **Bildschirm teilen braucht `QWebEngineSettings.ScreenCaptureEnabled`** –
+  ohne kommt sofort „AbortError: Invalid state“, ohne dass Qt überhaupt fragt. Nur beim Kursleiter an.
+  `desktopMediaRequested` (Qt 6.7+) öffnet eine Auswahl Bildschirm/Fenster.
+- Geprüft (17.10.2026, Linux/X11, Qt 6.12 und 6.8.3): getDisplayMedia, Mikrofon, Ende-zu-Ende mit
+  `livekit-server --dev` (zwei Fenster: Chat, Hand, Stummschalten per Twirp, Freigabe, Bildschirm auf der Bühne,
+  Entfernen, Raum gelöscht, abgelaufene Karte, sauberes Verlassen – 23/23), dazu das gebaute PyInstaller-Paket in
+  einem eigenen X-Server (Xephyr) und `wss://` gegen den echten Kursraum-Server (falsche Karte → richtige Meldung).
+- **Wayland:** Die offiziellen Qt-Wheels sind ohne PipeWire gebaut → keine Bildschirmaufnahme. Der Knopf erklärt
+  das (`kursraum.WAYLAND_HINWEIS`); Kamera, Ton und Chat gehen. Windows und macOS sind hier nicht getestet.
+- Fenster: eigenständig (ohne Elternfenster), „Kurse“ und Kursansicht sind nur noch fenstermodal – sonst wäre der
+  Kursraum gesperrt, solange sie offen sind. Ein Fenster je Kurs; Schließen wartet auf `room.disconnect()` (höchstens
+  3 s). Offene Kursräume gehen mit dem Hauptfenster zu.
+- „Sprechen nur nach Freigabe“: Datennachricht `freigabe` `{pflicht, erlaubt: [identity]}` vom Kursleiter (nur von
+  Teilnehmern mit `{"rolle": "kursleiter"}` angenommen), an neue Teilnehmer gleich beim Eintreten. Handzeichen
+  bekommen Nachzügler ebenso.
+
+### Paket
+- Abhängigkeit `PySide6-WebEngine` (ab 6.12 eigenes Wheel, zieht `PySide6-Addons` nach); Linux arm64 bleibt bei
+  `PySide6-Addons==6.8.0.2` (WebEngine 6.8.0). Etwa +290 MB im Programmordner.
+- Bauplan: `QtNetwork`, `QtWebEngineCore` und **`QtPrintSupport`** dürfen nicht ausgeschlossen sein (die
+  Python-Bindung von QtWebEngineCore braucht QtPrintSupport – sonst „could not import module
+  PySide6.QtWebEngineCore“). Das Druck-Plugin (CUPS, Avahi, GnuTLS) bleibt draußen. NSS, ALSA, GBM, DRM, xkbfile,
+  Xtst kommen vom System (Depends im .deb); NSS lädt zur Laufzeit eigene Module des Systems.
+- .deb: `QtWebEngineProcess` braucht ausdrücklich `chmod 755`. AppArmor-Profil `packaging/linux/apparmor-bonys-agents`
+  (für `/opt/bonys-agents/BonysAgents` – Chromiums Hauptprozess legt die Namensräume an, per strace geprüft), nur mit
+  AppArmor 4 nach `/etc/apparmor.d/`. Ohne Profil unter Ubuntu 24.04+ (Quelltext) schaltet die App die Sandbox ab
+  (`kursraum.sandbox_abschalten`).
+- macOS: `NSCameraUsageDescription`/`NSMicrophoneUsageDescription` in Info.plist, Entitlements `device.camera`,
+  `device.audio-input`; `sign.sh` signiert `QtWebEngineProcess.app` vor dem Framework.
+- Lizenzen: THIRD-PARTY-LICENSES (livekit-client und die darin gebündelten Bibliotheken, Qt WebEngine/Chromium);
+  `collect-licenses.py` legt `QtWebEngine-Chromium.txt` an (Chromium-Lizenz der eingebauten Fassung, Verweis auf
+  die vollständige Liste der Chromium-Drittkomponenten bei Qt).
+- Selbsttest: `bonys-agents selftest` prüft „Kursraum (Qt WebEngine, livekit-client)“ – fällt im CI auf allen
+  Systemen auf, wenn etwas fehlt.
+
+### Offen / Hinweise
+- Echt zu prüfen (Fertig-wenn): Kursleiter und zwei Teilnehmer auf drei Rechnern, eines per Handy-Hotspot; Bild/Ton
+  hin und her; Bildschirm teilen beim Kursleiter; Chat/Hand; Stummschalten/Entfernen; Kurs beenden → alle fliegen
+  raus, erneuter Eintritt abgelehnt. Windows und macOS (Bildschirmaufnahme-Freigabe!) sowie Ubuntu 24.04 (AppArmor)
+  bisher nur nach Quelltext/Doku, nicht ausprobiert.
+- Ob die Zentrale beim **Pausieren** den LiveKit-Raum schließt, steht nicht in API.md. Falls nicht, bleiben
+  Verbundene bis zum Beenden im Raum; neue Eintritte lehnt die Zentrale (409) ab.

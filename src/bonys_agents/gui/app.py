@@ -35,6 +35,10 @@ def run() -> int:
     # Muss vor dem Anlegen der QApplication gesetzt werden.
     if QApplication.instance() is None:
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+        # Kursraum (Qt WebEngine): eigenes Schema kursraum:// – geht nur vor dem Anlegen der QApplication
+        from .kursraum_fenster import vorbereiten
+
+        vorbereiten()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName(APP_NAME)   # gleich in beiden Editionen (Einstellungen bleiben beim Wechsel)
     app.setApplicationDisplayName(edition.NAME)
