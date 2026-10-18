@@ -239,6 +239,10 @@ def test_fenster_ohne_bony_netz(qapp, datadir, zentrale):
     d = KurseDialog()
     d.show()
     qapp.processEvents()
+    assert d.tabs.currentWidget() is d.pakete    # ohne Bony-Netz: Kurspakete zuerst
+    assert not d.off.isVisible()                 # Hinweis gehört nur zu den Bony-Netz-Reitern
+    d.tabs.setCurrentWidget(d.teilnahme)
+    qapp.processEvents()
     assert d.off.isVisible() and not d.teilnahme.join_btn.isEnabled()
     assert d.local_btn.isVisible()   # Schulung im eigenen Netz geht immer
     assert zentrale.anfragen == []
@@ -308,7 +312,7 @@ def test_fenster_kursleitung(qapp, datadir, zentrale, monkeypatch):
     d = KurseDialog()
     d.show()
     s = d.leitung
-    assert d.tabs.currentWidget() is s and d.tabs.tabText(0) == "Kursleitung"
+    assert d.tabs.currentWidget() is s and d.tabs.tabText(1) == "Kursleitung"
     d._tick()
     _wait(qapp, s)
     assert s.stack.currentIndex() == 0     # noch kein Kursleiter: nur Code einlösen
@@ -440,5 +444,6 @@ def test_anwender_hat_keine_kursleitung(qapp, datadir):
 
     d = KurseDialog()
     tabs = [d.tabs.tabText(i) for i in range(d.tabs.count())]
-    assert tabs == (["Kursleitung", "Teilnahme"] if edition.IS_TRAINER else ["Teilnahme"])
+    assert tabs == (["Kurspakete", "Kursleitung", "Teilnahme"] if edition.IS_TRAINER
+                    else ["Kurspakete", "Teilnahme"])
     d.deleteLater()

@@ -131,7 +131,8 @@ assert [t for t in menu if "Schulungen geben" in t], menu
 assert "Hilfe anfordern …" in texts and "Kurse" in texts
 from bonys_agents.gui import kurse_dialog
 k = kurse_dialog.KurseDialog(w)
-assert [k.tabs.tabText(i) for i in range(k.tabs.count())] == ["Teilnahme"], "Kursleitung in der Anwender-Version"
+tabs = [k.tabs.tabText(i) for i in range(k.tabs.count())]
+assert tabs == ["Kurspakete", "Teilnahme"], "Kursleitung in der Anwender-Version"
 d = template_dialogs.TemplatesDialog(w)
 assert d.share_btn is None and "Im Netzwerk freigeben …" not in [b.text() for b in d.findChildren(QPushButton)]
 a = about_dialog.AboutDialog(w)

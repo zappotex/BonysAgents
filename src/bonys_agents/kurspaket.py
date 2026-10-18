@@ -1159,3 +1159,61 @@ def agent_pc_merken(paket: Kurspaket, name: str) -> Fortschritt:
     f.agent_pc = name
     f.speichern()
     return f
+
+
+# ---------------------------------------------------------------- Anzeige
+_KASTEN = {"hinweis": "ℹ️ Hinweis", "tipp": "💡 Tipp", "warnung": "⚠️ Achtung", "datenschutz": "🔒 Datenschutz"}
+_DIV_AUF = re.compile(r"^:::+\s*(\{[^}]*\}|[\w-]+)?\s*$")
+_FELD_TEXT = re.compile(r'text="([^"]*)"')
+
+
+def markdown_fuer_anzeige(text: str) -> str:
+    """Markdown der Handbücher (Pandoc) für die Anzeige in Bony's Agents aufbereiten.
+
+    Titelblock (``---`` … ``---``) wird zur Überschrift, HTML-Kommentare fallen weg, Kästen (``::: tipp`` …
+    ``:::``) werden zu Zitaten mit Beschriftung, Felder zum Ausfüllen (``::: {.feld text="…"}``) zu einer Zeile.
+    Rohes HTML zeigt die Oberfläche ohnehin nicht an (``MarkdownNoHTML``).
+    """
+    zeilen = text.replace("\r\n", "\n").split("\n")
+    out: list[str] = []
+    if zeilen and zeilen[0].strip() == "---":
+        try:
+            ende = zeilen.index("---", 1)
+        except ValueError:
+            ende = -1
+        if ende > 0:
+            kopf = {}
+            for z in zeilen[1:ende]:
+                k, _, v = z.partition(":")
+                kopf[k.strip()] = v.strip().strip("\"'")
+            if kopf.get("title"):
+                out.append(f"# {kopf['title']}")
+            if kopf.get("subtitle"):
+                out.append(f"*{kopf['subtitle']}*")
+            zeilen = zeilen[ende + 1:]
+    text = re.sub(r"<!--.*?-->", "", "\n".join(zeilen), flags=re.S)
+    stapel: list[str] = []
+    for z in text.split("\n"):
+        m = _DIV_AUF.match(z.strip())
+        if m and z.strip().startswith(":::"):
+            art = (m.group(1) or "").strip()
+            if not art:                       # schließt den innersten Kasten
+                if stapel:
+                    stapel.pop()
+                    out.append("")
+                continue
+            if art.startswith("{") and ".feld" in art:
+                t = _FELD_TEXT.search(art)
+                out.append(f"\n**{t.group(1)}:** ________________________\n" if t and t.group(1)
+                           else "\n________________________\n")
+                stapel.append("feld")
+                continue
+            stapel.append("kasten")
+            out.append("")
+            out.append(f"> **{_KASTEN.get(art.strip('{}. '), art.strip('{}. ').capitalize())}:**")
+            continue
+        if stapel and stapel[-1] == "kasten":
+            out.append(f"> {z}" if z.strip() else ">")
+        else:
+            out.append(z)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"

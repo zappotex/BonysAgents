@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Fenster „Kurse“ (Knopf „Kurse“ im Kopf): Kurse über das Bony-Netz – und der Weg zur Schulung im eigenen Netz.
+"""Fenster „Kurse“ (Knopf „Kurse“ im Kopf): Kurspakete, Kurse über das Bony-Netz – und der Weg zur Schulung im eigenen
+Netz.
 
+- Reiter „Kurspakete“ (beide Editionen): Bibliothek der Kurspakete, Selbstlern-Modus (``kurspaket_bibliothek``).
 - Reiter „Teilnahme“ (beide Editionen): Kurs mit Kurscode beitreten, Agent-PC wählen, „Meine Kurse“.
 - Reiter „Kursleitung“ (nur Kursleiter-Version, ``bonys_agents.trainer.gui.kurse_leiten``).
 - „Schulung im Netzwerk beitreten …“ öffnet wie bisher ``JoinDialog`` (LAN/VPN, ohne Internet und Bony-Netz).
@@ -21,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from bonys_agents import edition, kurse, netz, share, vm
+from bonys_agents import edition, kurse, kurspaket, netz, share, vm
 
 from .netz_dialog import _card, _muted, _section
 from .widgets import make_scrollable
@@ -329,8 +331,10 @@ class TeilnahmeSeite(Seite):
 
 
 class KurseDialog(QDialog):
-    def __init__(self, parent=None, join_local: Callable[[], None] | None = None):
+    def __init__(self, parent=None, join_local: Callable[[], None] | None = None,
+                 durcharbeiten: Callable[[kurspaket.Kurspaket], None] | None = None):
         super().__init__(parent)
+        self.durcharbeiten = durcharbeiten
         self.setWindowModality(Qt.WindowModal)   # sperrt nur das Hauptfenster, nicht den Kursraum
         self.setWindowTitle("Kurse")
         self.join_local = join_local
@@ -339,8 +343,8 @@ class KurseDialog(QDialog):
         title = QLabel("Kurse")
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = _muted(INTRO)
-        root.addWidget(intro)
+        self.intro = _muted(INTRO)
+        root.addWidget(self.intro)
 
         self.off = QFrame()
         self.off.setObjectName("Hint")
@@ -354,6 +358,10 @@ class KurseDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.seiten: list[Seite] = []
+        from .kurspaket_bibliothek import BibliothekSeite
+
+        self.pakete = BibliothekSeite(self, durcharbeiten=self._durcharbeiten if durcharbeiten else None)
+        self.tabs.addTab(self.pakete, "Kurspakete")
         if edition.IS_TRAINER:
             from bonys_agents.trainer.gui.kurse_leiten import KursleitungSeite
 
@@ -377,17 +385,31 @@ class KurseDialog(QDialog):
         root.addLayout(buttons)
         make_scrollable(self, 660)
 
+        # Wie bisher auf den Kursen über das Bony-Netz öffnen – ohne Bony-Netz auf den Kurspaketen
+        if netz.bereit() and self.seiten:
+            self.tabs.setCurrentWidget(self.seiten[0])
         self.netz_btn.clicked.connect(self._netz)
         self.local_btn.clicked.connect(self._local)
-        self.tabs.currentChanged.connect(lambda _i: self._tick())
+        self.tabs.currentChanged.connect(lambda _i: (self._hinweise(), self._tick()))
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._tick)
         self._bereit()
 
+    def _durcharbeiten(self, paket: kurspaket.Kurspaket) -> None:
+        """Selbstlern-Modus: Fenster schließen (es sperrt das Hauptfenster), dann übernimmt das Hauptfenster."""
+        self.accept()
+        QTimer.singleShot(0, lambda: self.durcharbeiten(paket))
+
+    def _hinweise(self) -> None:
+        """Erklärung und „Bony-Netz aus“ gehören nur zu den Reitern der Kurse über das Bony-Netz."""
+        netz_reiter = isinstance(self.tabs.currentWidget(), Seite)
+        self.intro.setVisible(netz_reiter)
+        self.off.setVisible(netz_reiter and not netz.bereit())
+
     def _bereit(self) -> None:
         on = netz.bereit()
-        self.off.setVisible(not on)
+        self._hinweise()
         for s in self.seiten:
             s.bereit = on
             s._update()

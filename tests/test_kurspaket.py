@@ -437,3 +437,158 @@ def test_kein_skript_wird_lokal_ausgefuehrt(datadir, tmp_path, monkeypatch):
     datei = kp.packen(src, tmp_path / "p.bonyspaket")
     kp.importieren(datei)
     kp.bestand()
+
+
+# ---------------------------------------------------------------- Anzeige
+def test_markdown_fuer_anzeige():
+    text = ('---\ntitle: Einführung\nsubtitle: Handout\nlang: de\n---\n\n<!-- Kommentar -->\n## Teil\n\n'
+            '::: tipp\nEin Tipp.\n:::\n\n::: {.feld hoehe="2cm" text="Was ist dir aufgefallen?"}\n:::\n\nEnde\n')
+    out = kp.markdown_fuer_anzeige(text)
+    assert out.startswith("# Einführung\n*Handout*")
+    assert "Kommentar" not in out and ":::" not in out and "lang:" not in out
+    assert "> **💡 Tipp:**\n> Ein Tipp." in out
+    assert "**Was ist dir aufgefallen?:** ____" in out and out.rstrip().endswith("Ende")
+
+
+# ---------------------------------------------------------------- Fenster
+@pytest.fixture
+def qapp():
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    widgets = pytest.importorskip("PySide6.QtWidgets")
+    return widgets.QApplication.instance() or widgets.QApplication([])
+
+
+def _warten(qapp, bedingung, timeout=10.0):
+    import time
+
+    ende = time.monotonic() + timeout
+    while time.monotonic() < ende:
+        qapp.processEvents()
+        if bedingung():
+            return
+        time.sleep(0.01)
+    raise AssertionError("Zeitüberschreitung")
+
+
+def test_bibliothek_seite(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    basis = tmp_path / "mit"
+    paket_ordner(basis, mit(id="mitgeliefert", name="Mitgeliefert", stufe="experte"), name="mitgeliefert")
+    monkeypatch.setattr(kp, "mitgeliefert_dirs", lambda: [basis])
+    gestartet = []
+    s = kb.BibliothekSeite(durcharbeiten=gestartet.append)
+    assert s.tabelle.rowCount() == 1 and not s.loeschen_knopf.isEnabled()
+    # Import per Datei (wie Drag & Drop) – erscheint in der Liste, Anfänger vor Experte
+    datei = zippen(paket_ordner(tmp_path / "src"), tmp_path / "p.bonyspaket")
+    assert kb.ist_paket(datei) and kb.ist_paket(tmp_path / "src" / "test-paket")
+    assert not kb.ist_paket(tmp_path)
+    s.importieren(datei)
+    _warten(qapp, lambda: s.tabelle.rowCount() == 2)
+    assert s.tabelle.item(0, 0).text() == "Testpaket" and s.paket().id == "test-paket"
+    assert s.loeschen_knopf.isEnabled() and s.start_knopf.text() == "Durcharbeiten"
+    # gleicher Import noch einmal: Rückfrage, „Nein“ ändert nichts
+    fragen = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: fragen.append(a[2]) or QMessageBox.No)
+    s.importieren(datei)
+    _warten(qapp, lambda: s.import_knopf.isEnabled())
+    assert "schon vorhanden" in fragen[0]
+    s.start_knopf.click()
+    assert [p.id for p in gestartet] == ["test-paket"]
+    # fehlerhafte Datei: Meldung, nichts importiert
+    meldungen = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: meldungen.append(a[2]))
+    (tmp_path / "kaputt.bonyspaket").write_bytes(b"kein zip")
+    s.importieren(tmp_path / "kaputt.bonyspaket")
+    _warten(qapp, lambda: bool(meldungen))
+    assert "kein ZIP" in meldungen[0] and s.tabelle.rowCount() == 2
+    # fremde Texte erscheinen maskiert (keine Links/Bilder aus dem Paket)
+    p = kp.holen("test-paket")
+    p.beschreibung = "![x](file:///etc/passwd) [klick](https://boese)"
+    assert "\\!\\[x\\]" in kb._md_ganz(p) and "\\[klick\\]" in kb._md_ganz(p)
+    s.deleteLater()
+
+
+def test_anleitung_fenster(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QTextDocument
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents import edition
+    from bonys_agents.gui import kurspaket_anleitung as ka
+
+    d = paket_ordner(tmp_path)
+    (d / "lektionen" / "01-ankommen" / "bild.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (tmp_path / "geheim.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    kp.importieren(d)
+    paket = kp.holen("test-paket")
+    gezeigt = []
+    f = ka.oeffnen(paket, gezeigt.append)
+    assert ka.oeffnen(paket) is f                 # zweites Öffnen holt dasselbe Fenster
+    assert f.info.text().startswith("Lektion 1 von 3") and not f.zurueck.isEnabled()
+    assert f.notiz_knopf.isVisibleTo(f) == edition.IS_TRAINER
+    assert not f.pc_knopf.isEnabled()             # noch kein Agent-PC
+    f.weiter.click()
+    assert kp.Fortschritt.laden(paket.id).lektion == 1 and kp.Fortschritt.laden(paket.id).erledigt == ["01-ankommen"]
+    assert f.aufgabe.isVisibleTo(f) and "Prüfaufgabe" in f.aufgabe_text.text()
+    f.weiter.click()
+    assert f.weiter.text().startswith("Abschließen")
+    infos = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: infos.append(a[2]))
+    f.weiter.click()
+    assert "Geschafft" in infos[0] and kp.Fortschritt.laden(paket.id).text(paket) == "abgeschlossen"
+    f.auswahl.setCurrentIndex(0)
+    f.auswahl.activated.emit(0)
+    assert kp.Fortschritt.laden(paket.id).lektion == 0
+    # Bilder nur aus dem Kurspaket, nichts aus dem Netz
+    a = f.ansicht
+    assert a.loadResource(QTextDocument.ImageResource, QUrl("bild.png")) is not None
+    assert a.loadResource(QTextDocument.ImageResource, QUrl.fromLocalFile(str(tmp_path / "geheim.png"))) is None
+    assert a.loadResource(QTextDocument.ImageResource, QUrl("../../../geheim.png")) is None
+    assert a.loadResource(QTextDocument.ImageResource, QUrl("https://example.org/x.png")) is None
+    # Handout statt Lektion
+    f._zusatz("handout")
+    assert "Handout" in f.ansicht.toPlainText() and not f.weiter.isEnabled()
+    f._gehe(1)
+    assert f.weiter.isEnabled() and f.info.text().startswith("Lektion 2")
+    kp.agent_pc_merken(paket, "agent-kurs")
+    f.fortschritt = kp.Fortschritt.laden(paket.id)
+    f._pc_status()
+    assert "nicht verfügbar" in f.pc_text.text()
+    f.close()
+    qapp.processEvents()
+    assert paket.id not in ka._FENSTER
+
+
+def test_agent_pc_einrichten_vorhandener(qapp, datadir, tmp_path, monkeypatch):
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    paket = kp.laden(paket_ordner(tmp_path))
+
+    class _M:
+        name = "agent-kurs"
+
+    monkeypatch.setattr(kp, "agent_pc", lambda p: _M())
+    assert kb.agent_pc_einrichten(None, paket) == "agent-kurs"
+
+
+def test_doku_beispiel_und_schema_gueltig(monkeypatch):
+    """docs/kurspaket-format.md: das Beispiel besteht die Prüfung, Schema und Katalog sind gültiges JSON."""
+    import re
+
+    text = (Path(__file__).parent.parent / "docs" / "kurspaket-format.md").read_text(encoding="utf-8")
+    bloecke = [json.loads(b) for b in re.findall(r"```json\n(.*?)```", text, flags=re.S)
+               if "…" not in b]
+    beispiel = next(b for b in bloecke if b.get("format") == kp.FORMAT_ID)
+    monkeypatch.setattr(kp, "__version__", kp.MIN_VERSION)
+    p = kp.paket_pruefen(beispiel)
+    assert p.id == "einfuehrung-hermes-agent" and len(p.lektionen) == 3
+    schema = next(b for b in bloecke if b.get("$schema"))
+    assert schema["properties"]["format"]["const"] == kp.FORMAT_ID
+    assert set(schema["properties"]["stufe"]["enum"]) == set(kp.STUFEN)
+    assert set(schema["properties"]["lektionen"]["items"]["properties"]["pruefung"]["properties"]["typ"]["enum"]) \
+        == {kp.SKRIPT, *kp.EINGEBAUTE_PRUEFUNGEN}

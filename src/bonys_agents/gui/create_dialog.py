@@ -43,10 +43,11 @@ def _slider_row(slider: QSlider, label: QLabel) -> QWidget:
 
 class CreateDialog(QDialog):
     """``preset_template``: diese Vorlage vorauswählen (auch eine fremder Architektur – dann emuliert).
-    ``recipe``: Rezept aus einer .bonys-Datei (bonysfile.recipe) – neu installieren mit Desktop und Apps daraus."""
+    ``recipe``: Rezept aus einer .bonys-Datei (bonysfile.recipe) bzw. einem Kurspaket – neu installieren mit Desktop
+    und Apps daraus. ``preset_name``: Name vorschlagen (z. B. aus dem Rezept eines Kurspakets)."""
 
     def __init__(self, info: host.HostInfo, parent=None, preset_template: str | None = None,
-                 recipe: dict | None = None):
+                 recipe: dict | None = None, preset_name: str | None = None):
         super().__init__(parent)
         self.info = info
         self.worker: CreateWorker | None = None
@@ -274,6 +275,8 @@ class CreateDialog(QDialog):
         self._base_changed()
         if recipe:
             self._apply_recipe(recipe)
+        if preset_name:
+            self.name.setText(preset_name)
         self._update_ok()
 
     def _apply_recipe(self, r: dict) -> None:

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import (
     APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, edition, host,
-    kurse, netz, remote,
+    kurse, kurspaket, netz, remote,
     screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
@@ -1618,9 +1618,48 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def show_courses(self) -> None:
-        KurseDialog(self, join_local=self.join_training).exec()
+        KurseDialog(self, join_local=self.join_training, durcharbeiten=self.kurspaket_durcharbeiten).exec()
         self._kurse_aktiv = None   # vielleicht beigetreten oder verlassen – bei der nächsten Abfrage nachsehen
         self.refresh()
+
+    def kurspaket_durcharbeiten(self, paket) -> None:
+        """Selbstlern-Modus: Agent-PC für das Kurspaket wählen/erstellen, dann die Anleitung daneben öffnen."""
+        from .kurspaket_anleitung import oeffnen
+        from .kurspaket_bibliothek import agent_pc_einrichten
+
+        if not deps.check(self.info).can_run and kurspaket.agent_pc(paket) is None:
+            self.show_doctor()
+            if not deps.check(self.info).can_run:
+                return
+        name = agent_pc_einrichten(self, paket)
+        if not name:
+            return
+        self.refresh()
+        self._waehlen(name)
+        oeffnen(paket, self.kurspaket_agent_pc_zeigen, self)
+
+    def _waehlen(self, name: str) -> None:
+        for i in range(self.list.count()):
+            if self.list.item(i).data(Qt.UserRole) == name:
+                self.list.setCurrentRow(i)
+                return
+
+    def kurspaket_agent_pc_zeigen(self, name: str) -> None:
+        """Aus der Anleitung: Agent-PC wählen, starten bzw. sein SPICE-Fenster öffnen, Hauptfenster nach vorn."""
+        self.refresh()
+        self._waehlen(name)
+        m = self.current()
+        if m is None or m.name != name:
+            QMessageBox.information(self, APP_NAME, f"Den Agent-PC „{name}“ gibt es nicht (mehr).")
+            return
+        if self.isMinimized():
+            self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        if not m.is_running():
+            self.start_vm()
+        elif m.config.display == "spice" and m.progress().ready:
+            self._show_screen()
 
     def make_independent(self) -> None:
         m = self.current()

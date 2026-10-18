@@ -139,11 +139,22 @@ Zuletzt aktualisiert: 18.10.2026 (Sitzung 1).
 ### Sitzung 1
 - [x] Plan `docs/dev/plan-kurspakete.md`, Auftrag in `.gitignore`
 - [x] Hermes-Doku geprüft (Nous/OpenRouter, Befehle, config.yaml) – siehe Entscheidung 7
-- [ ] Format + Validierung + Entpack-Schutz (`kurspaket.py`), Tests, `docs/kurspaket-format.md`
-- [ ] Bibliothek „Kurspakete“ (Fenster „Kurse“ → Reiter), Import/Drag & Drop, Löschen, Aktualisieren, Internet
-- [ ] Anleitungs-Fenster (Zurück/Weiter, Fortschritt)
-- [ ] Selbstlern-Modus (Agent-PC aus Rezept/Vorlage, Fortschritt)
-- [ ] Vorschläge aus dem Entwurf dem Nutzer zeigen (siehe oben)
+- [x] Format + Validierung + Entpack-Schutz (`kurspaket.py`), Tests (`tests/test_kurspaket.py`),
+      `docs/kurspaket-format.md` mit JSON-Schema (Test prüft Beispiel und Schema gegen den Code)
+- [x] Bibliothek „Kurspakete“ (`gui/kurspaket_bibliothek.py`, erster Reiter im Fenster „Kurse“; ohne Bony-Netz
+      öffnet das Fenster dort, mit Bony-Netz wie bisher auf Kursleitung/Teilnahme): Import per Datei und
+      Drag & Drop, Exportieren, Löschen (nicht mitgelieferte), Aktualisieren bei gleicher ID mit Rückfrage,
+      „Aus dem Internet …“ (Platzhalter-Repo, Größe + SHA-256)
+- [x] Anleitungs-Fenster (`gui/kurspaket_anleitung.py`): Zurück/Weiter/Abschließen, Lektionswahl, Fortschritt,
+      Prüfaufgabe als Text, Kursleitungs-Notizen + Ablaufplan nur in der Kursleiter-Edition, Handout, „Immer im
+      Vordergrund“, rechts am Bildschirm, Position gemerkt; Bilder nur aus dem Paket, kein HTML
+- [x] Selbstlern-Modus: „Durcharbeiten“ → neuer Agent-PC (Fenster „Neuer Agent-PC“ mit Rezept, Namensvorschlag,
+      passende Vorlage) oder vorhandenen wählen; Fortschritt in `kurspakete/fortschritt.json`;
+      „Agent-PC zeigen“ wählt/startet ihn im Hauptfenster
+- [ ] Vorschläge aus dem Entwurf dem Nutzer zeigen (siehe oben) – gefragt am Ende von Sitzung 1
+- Noch nicht echt getestet (nur offscreen): Durcharbeiten mit echtem Agent-PC, Drag & Drop unter Wayland/X11.
+- Hinweis: `MIN_VERSION` ist 0.23.0 – Pakete mit dieser Mindestversion lehnt 0.22.1 ab, bis die Version am
+  Ende erhöht wird (Tests nutzen `min_version` 0.1.0).
 
 ### Sitzung 2
 - [ ] Startzustände, Zurücksetzen, Springen
