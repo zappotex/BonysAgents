@@ -213,7 +213,8 @@ def im_agent_pc_ausfuehren(machine: vm.VM, skript: Path, als: str, zeitlimit: in
     nie die Ausgabe. Ohne erreichbaren Gast-Agent: NichtBereit (es gibt bewusst keinen Weg über SSH)."""
     if not machine.is_running():
         raise NichtBereit("Der Agent-PC läuft nicht – bitte zuerst starten.")
-    inhalt = skript.read_bytes()
+    # Unter Windows geschriebene Skripte haben \r\n – daran scheitern bash und python im Gast
+    inhalt = skript.read_bytes().replace(b"\r\n", b"\n")
     programm, args = befehl_im_gast(skript, als, machine.config.username, zeitlimit)
     try:
         with qemu.GuestAgent(machine.qga_endpoint(), timeout=5) as ga:
@@ -266,7 +267,7 @@ def signatur_pruefen(paket: kurspaket.Kurspaket, public_key: str = UPDATE_PUBLIC
         signing.verify(daten, sig.read_text("utf-8"), public_key)
     except (OSError, UnicodeDecodeError, signing.SignatureError):
         return False
-    return daten.decode("utf-8", errors="replace") == pruefsummen_text(paket.pfad)
+    return daten.decode("utf-8", errors="replace").replace("\r\n", "\n") == pruefsummen_text(paket.pfad)
 
 
 def geprueft(paket: kurspaket.Kurspaket) -> bool:

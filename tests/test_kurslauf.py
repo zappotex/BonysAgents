@@ -117,7 +117,7 @@ def test_pruefung_nur_im_agent_pc(datadir, tmp_path, ga, keine_prozesse):
     e = kurslauf.pruefen(m, paket, lek)
     assert e == kurslauf.Ergebnis(True, "Gut!")
     path, args, stdin, timeout = ga.aufrufe[-1]
-    assert path == "/usr/bin/timeout" and stdin == (lek.pfad / "pruefung" / "datei.sh").read_bytes()
+    assert path == "/usr/bin/timeout" and stdin == b"#!/bin/bash\ntest -s ~/x\n"   # auch unter Windows nur \n
     assert timeout > lek.pruefung.zeitlimit
     ga.rc = 1
     assert kurslauf.pruefen(m, paket, lek) == kurslauf.Ergebnis(False, "Fehlt noch.")
@@ -226,7 +226,7 @@ def test_startzustand_im_laufenden_betrieb(datadir, tmp_path, ga, monkeypatch):
     d = paket_ordner(tmp_path)
     start = d / "lektionen" / "02-uebung" / "start"
     start.mkdir()
-    (start / "ordner.sh").write_text("mkdir -p ~/Kurs\n")
+    (start / "ordner.sh").write_bytes(b"mkdir -p ~/Kurs\r\n")    # unter Windows geschrieben
     import json
     daten = json.loads((d / "paket.json").read_text())
     daten["lektionen"][1]["start"] = {"skript": "start/ordner.sh", "als": "benutzer"}
@@ -261,7 +261,7 @@ def test_signatur(datadir, tmp_path):
     secret, key_id, public = _schluessel()
     d = paket_ordner(tmp_path)
     text = kurslauf.pruefsummen_text(d)
-    (d / kurslauf.PRUEFSUMMEN).write_text(text)
+    (d / kurslauf.PRUEFSUMMEN).write_bytes(text.encode())
     (d / kurslauf.SIGNATUR).write_text(signing.sign(text.encode(), secret, key_id, "Kurspaket test-paket"))
     paket = kurspaket.laden(d)
     assert kurslauf.signatur_pruefen(paket, public)
