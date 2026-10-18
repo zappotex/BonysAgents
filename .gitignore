@@ -28,3 +28,7 @@ Bilder/*
 !Bilder/logo.jpg
 !Bilder/hintergrund_program.png
 !Bilder/hintergrund_program_neu.png
+
+# Handbücher: PDFs hängen am Release (docs/handbuch/erstellen.sh), Zwischendateien
+docs/handbuch/pdf/
+docs/handbuch/_bau/

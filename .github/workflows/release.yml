@@ -6,6 +6,7 @@ name: Release
 #   - BonysAgents-Setup-<version>.exe                  (Windows-Installer; BonysAgents-Kursleiter-Setup-…)
 #   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64; BonysAgents-Kursleiter-…)
 #   - BonysAgents-<version>-macos-intel.dmg            (macOS, Intel – x86_64)
+#   - BonysAgents-Benutzerhandbuch-<version>.pdf, …-Kursleiter-Handbuch-…, Beispielkurs (docs/handbuch/)
 #   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen aller Dateien, signiert – die App prüft sie vor
 #                                                       jedem Update; Updates bleiben in der eigenen Edition)
 # hängt alles an eine GitHub-Release-Seite und veröffentlicht danach die signierte APT-Paketquelle
@@ -382,9 +383,41 @@ jobs:
           name: screenshot-compat-${{ matrix.runner }}
           path: shots
 
+  # Handbücher als PDF (docs/handbuch/, Pandoc + Typst) – mit den Bildschirmfotos aus dem Repository
+  handbuch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PANDOC_VERSION: "3.12.1"
+      PANDOC_SHA256: d0c90410e90204c9ca83b8539fac5c7aed01fd537207e4585849f8abc5df20b8
+      TYPST_VERSION: "0.15.1"
+      TYPST_SHA256: a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Pandoc und Typst (feste Versionen, Prüfsumme)
+        run: |
+          mkdir -p "$RUNNER_TEMP/werkzeuge/bin"
+          cd "$RUNNER_TEMP/werkzeuge"
+          curl -fsSLO "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_SHA256}  pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz" | sha256sum -c
+          curl -fsSLO "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz"
+          echo "${TYPST_SHA256}  typst-x86_64-unknown-linux-musl.tar.xz" | sha256sum -c
+          tar xzf "pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
+          tar xJf typst-x86_64-unknown-linux-musl.tar.xz
+          install -m755 "pandoc-${PANDOC_VERSION}/bin/pandoc" typst-x86_64-unknown-linux-musl/typst bin/
+          echo "$RUNNER_TEMP/werkzeuge/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-color-emoji fonts-dejavu-core
+      - run: docs/handbuch/erstellen.sh --ohne-bilder
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: handbuch
+          path: docs/handbuch/pdf/*.pdf
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, deb, windows, macos, macos-compat]
+    needs: [test, deb, windows, macos, macos-compat, handbuch]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -401,7 +434,7 @@ jobs:
           MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
         run: |
           cd out
-          sha256sum -- *.deb *.exe *.dmg > SHA256SUMS
+          sha256sum -- *.deb *.exe *.dmg *.pdf > SHA256SUMS
           cat SHA256SUMS
           if [ -z "$MINISIGN_SECRET_KEY" ]; then
             echo "::error::Secret MINISIGN_SECRET_KEY fehlt – ohne signierte SHA256SUMS wird nichts veröffentlicht (siehe docs/RELEASE.md)."
@@ -426,6 +459,7 @@ jobs:
             out/*.deb
             out/*.exe
             out/*.dmg
+            out/*.pdf
             out/SHA256SUMS
             out/SHA256SUMS.minisig
           body: |
@@ -438,6 +472,9 @@ jobs:
 
             Teilnehmer brauchen nur die normale Version. Die Kursleiter-Version enthält alles aus der normalen. Wechseln geht
             jederzeit in beide Richtungen – einfach die andere Version installieren; Agent-PCs, Vorlagen und Einstellungen bleiben.
+
+            **Handbücher (PDF):** `BonysAgents-Benutzerhandbuch-….pdf` für alle, `BonysAgents-Kursleiter-Handbuch-….pdf` für
+            Kursleiter, dazu der Beispielkurs „Einführung in Hermes Agent“ (Ablaufplan und Handout).
 
             **Installieren – ganz ohne Terminal:**
             - **Windows:** `BonysAgents-Setup-….exe` (bzw. `BonysAgents-Kursleiter-Setup-….exe`) herunterladen und doppelklicken.

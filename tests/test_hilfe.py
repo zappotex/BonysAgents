@@ -614,6 +614,27 @@ def test_teilnehmer_stimmt_zu_und_beendet(qapp, teilnehmer):  # noqa: F811
     assert "Bony: Nur ansehen erlaubt (Bony-Netz)" in protokoll and "Hilfe beendet" in protokoll
 
 
+def test_rueckfrage_und_hinweis_zeigen_den_ganzen_text(qapp):  # noqa: F811
+    """Die Fenster haben eine feste Breite – ihre Höhe muss zum umgebrochenen Text passen (nichts abgeschnitten)."""
+    from bonys_agents.gui import hilfe_ui, style
+
+    style.apply(qapp)
+    z = hilfe_ui.Zustimmung("Bony", "Agent 1")
+    h = hilfe_ui.Hinweis("Bony", "Agent 1", hilfe.BEDIENEN)
+    try:
+        for w in (z, h):
+            w.show()
+            qapp.processEvents()
+            assert w.height() >= w.heightForWidth(w.width()), type(w).__name__
+    finally:
+        z.gemeldet = True
+        z.close()
+        h.uhr.stop()
+        h.zu = True
+        h.close()
+        _aufraeumen(qapp)
+
+
 def test_teilnehmer_ohne_antwort_abgelehnt(qapp, teilnehmer):  # noqa: F811
     f, pc, aufrufe = teilnehmer
     th = _teilnehmerhilfe(f)

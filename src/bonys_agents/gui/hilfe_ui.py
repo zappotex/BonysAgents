@@ -41,6 +41,13 @@ def festhalten(fenster: QWidget) -> None:
     fenster.destroyed.connect(lambda *_: _OFFEN.discard(fenster))
 
 
+def passend_hoch(fenster: QWidget, breite: int) -> None:
+    """Feste Breite, Höhe passend zum umgebrochenen Text – ``sizeHint`` rechnet mit der breiteren Wunschbreite,
+    bei ``breite`` wären die Texte dann unten abgeschnitten."""
+    fenster.ensurePolished()
+    fenster.resize(breite, max(fenster.sizeHint().height(), fenster.heightForWidth(breite)))
+
+
 def _laufen(fn, fertig=None) -> None:
     """Im Hintergrund – unabhängig vom Fenster (Beenden muss auch nach dem Schließen des Kursraums durchlaufen)."""
     w = TaskWorker(fn)
@@ -108,7 +115,7 @@ class Zustimmung(QDialog):
         self.uhr.timeout.connect(self._ticken)
         self.uhr.start()
         self._zeigen()
-        self.resize(520, self.sizeHint().height())
+        passend_hoch(self, 520)
 
     def _zeigen(self) -> None:
         self.uhr_text.setText(f"Ohne Antwort wird die Anfrage in {self.rest} Sekunden abgelehnt.")
@@ -179,7 +186,7 @@ class Hinweis(QWidget):
         self.uhr.timeout.connect(self._zeit)
         self.uhr.start()
         self._zeit()
-        self.resize(560, self.sizeHint().height())
+        passend_hoch(self, 560)
         bildschirm = QApplication.primaryScreen()
         if bildschirm is not None:
             g = bildschirm.availableGeometry()

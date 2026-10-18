@@ -3,6 +3,22 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Neu
+- **Handbücher als PDF** (`docs/handbuch/`): Benutzerhandbuch, Kursleiter-Handbuch und Beispielkurs „Einführung in
+  Hermes Agent“ (Ablaufplan für die Kursleitung und Handout für Teilnehmer), mit Bildschirmfotos. Die Release-Aktion
+  hängt sie an jedes Release. Die Bildschirmfotos entstehen mit einem Befehl neu (`docs/handbuch/erstellen.sh`) –
+  in einem Vorführmodus mit erfundenen Beispieldaten, ohne Server, Netz oder echte Agent-PCs; eine Prüfung per
+  Texterkennung stellt sicher, dass keine Daten des Rechners in den Bildern stehen.
+- Menü ⓘ → „Hilfe (Anleitung)“ öffnet das Benutzerhandbuch dieser Version (Kursleiter-Version zusätzlich
+  „Kursleiter-Handbuch“).
+
+### Behoben
+- **Hilfe-Funktion:** Die Rückfrage „Hilfe-Anfrage des Kursleiters“ schnitt den Erklärtext unten ab („Nur ansehen“ /
+  „Ansehen und bedienen“, „… endet nach spätestens 30 Minuten“). Fenster und Hinweis „Hilfe läuft“ sind jetzt so hoch
+  wie der umgebrochene Text.
+
 ## 0.22.0 – Hilfe-Funktion über das Bony-Netz
 
 ### Neu

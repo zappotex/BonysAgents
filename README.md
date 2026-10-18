@@ -4,6 +4,12 @@
 
 ▶ **Videos und Anleitungen:** [youtube.com/@BonysAgents](https://www.youtube.com/@BonysAgents)
 
+📖 **Handbücher (PDF, an jedem Release):** Benutzerhandbuch, Kursleiter-Handbuch und Beispielkurs „Einführung in
+Hermes Agent“ – auf der [Releases-Seite](https://github.com/zappotex/BonysAgents/releases/latest) bzw. als Quelltext
+in [docs/handbuch/](docs/handbuch/) ([Benutzerhandbuch](docs/handbuch/benutzer.md),
+[Kursleiter-Handbuch](docs/handbuch/kursleiter.md), [Beispielkurs](docs/handbuch/beispielkurs.md),
+[Handout](docs/handbuch/beispielkurs-handout.md)).
+
 **Virtuelle Agent-PCs per Mausklick – mit Brave, Telegram und Hermes Agent.**
 Läuft auf Linux, macOS und Windows. Freie Software unter GPL-3.0-or-later.
 

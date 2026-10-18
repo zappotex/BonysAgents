@@ -47,6 +47,11 @@ from .widgets import (
 from .workers import TaskWorker
 
 
+def handbuch_url(name: str) -> str:
+    """Handbuch als PDF am Release genau dieser Version (docs/handbuch/, die Release-Aktion hängt es an)."""
+    return f"{REPO_URL}/releases/download/v{__version__}/BonysAgents-{name}-{__version__}.pdf"
+
+
 def _dot(color: str) -> QIcon:
     pm = QPixmap(14, 14)
     pm.fill(Qt.transparent)
@@ -317,7 +322,9 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> QMenu:
         menu = QMenu(self)
         menu.addAction(f"Über {edition.NAME}", lambda: AboutDialog(self).exec())
-        menu.addAction("Hilfe (Anleitung)", lambda: open_url(f"{REPO_URL}#readme"))
+        menu.addAction("Hilfe (Anleitung)", lambda: open_url(handbuch_url("Benutzerhandbuch")))
+        if edition.IS_TRAINER:
+            menu.addAction("Kursleiter-Handbuch", lambda: open_url(handbuch_url("Kursleiter-Handbuch")))
         if not edition.IS_TRAINER:
             menu.addAction(f"Du möchtest selbst Schulungen geben? → {edition.NAMES[edition.KURSLEITER]}",
                            lambda: open_url(edition.download_url()))
