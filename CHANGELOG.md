@@ -3,6 +3,24 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.22.0 – Hilfe-Funktion über das Bony-Netz
+
+### Neu
+- **Hilfe im Kurs über das Bony-Netz.** Der Kursleiter kann sich während eines laufenden Kurses den Agent-PC eines
+  Teilnehmers ansehen und bedienen – **nur nach ausdrücklicher Zustimmung, jedes Mal neu**. Im Kursraum steht bei
+  jedem Teilnehmer „Helfen“ (auch in der Kursansicht), Teilnehmer können mit „🆘 Hilfe anfordern“ darum bitten.
+  Beim Teilnehmer erscheint eine deutliche Rückfrage: „Nur ansehen“, „Ansehen und bedienen“ oder „Ablehnen“ (ohne
+  Antwort nach 60 Sekunden abgelehnt). Solange der Kursleiter zusehen kann, steht über allen Fenstern ein Hinweis
+  mit **„Beenden“**, der sofort trennt; die Hilfe endet auch, wenn der Kurs pausiert oder beendet wird, der
+  Kursraum verlassen wird oder nach spätestens 30 Minuten.
+- Im Agent-PC läuft dafür x11vnc (aus Debian, bei neuen Agent-PCs gleich dabei, bei älteren beim ersten Mal
+  nachinstalliert) – nur auf der Adresse im Bony-Netz, mit Einmal-Passwort, für genau eine Verbindung, bei „Nur
+  ansehen“ ohne Eingaben. Die App des Kursleiters verbindet sich nur mit der Adresse, die die Zentrale für genau
+  diesen Agent-PC nennt. Angezeigt wird in einem eigenen Fenster (noVNC); wo der eingebaute Browser fehlt (Linux auf
+  ARM), mit TigerVNC.
+- Beim Kursstart prüft die Kursleiter-Version, ob dieser Rechner im Bony-Netz ist, und bietet sonst Bony's VPN an
+  (Windows/macOS: Hinweis auf die Tailscale-App).
+
 ## 0.21.0 – Bony-Netz: Agent-PCs im Netz, Kurse und Kursraum
 
 ### Neu
