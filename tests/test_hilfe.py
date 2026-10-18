@@ -11,6 +11,7 @@ import re
 import socket
 import stat
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -99,11 +100,16 @@ def _falsche_programme(tmp_path: Path, ip="100.64.0.7", x11vnc=True, apt_ok=True
     return {"bin": bin_, "log": log}
 
 
+NUR_POSIX = pytest.mark.skipif(sys.platform.startswith("win"),
+                               reason="nur POSIX (bash unter Windows ist der WSL-Platzhalter)")
+
+
 def _ausfuehren(tmp_path, skript, fp):
     env = {"PATH": f"{fp['bin']}:/usr/bin:/bin", "LC_ALL": "C.UTF-8"}
     return subprocess.run(["bash", "-s"], input=skript, capture_output=True, text=True, env=env, timeout=30)
 
 
+@NUR_POSIX
 def test_startskript_lauscht_nur_im_bony_netz(tmp_path):
     fp = _falsche_programme(tmp_path)
     ordner = tmp_path / "run"
@@ -122,6 +128,7 @@ def test_startskript_lauscht_nur_im_bony_netz(tmp_path):
     assert stat.S_IMODE(ordner.stat().st_mode) == 0o700
 
 
+@NUR_POSIX
 def test_startskript_bedienen_ohne_viewonly(tmp_path):
     fp = _falsche_programme(tmp_path)
     r = _ausfuehren(tmp_path, hilfe.start_skript(hilfe.BEDIENEN, "x1", ordner=str(tmp_path / "run")), fp)
@@ -129,6 +136,7 @@ def test_startskript_bedienen_ohne_viewonly(tmp_path):
     assert "-viewonly" not in fp["log"].read_text()
 
 
+@NUR_POSIX
 def test_startskript_fehler(tmp_path):
     fp = _falsche_programme(tmp_path, ip="")
     r = _ausfuehren(tmp_path, hilfe.start_skript(hilfe.ANSEHEN, "x1", ordner=str(tmp_path / "a")), fp)
@@ -142,6 +150,7 @@ def test_startskript_fehler(tmp_path):
     assert not (tmp_path / "c" / "r").exists()     # Passwortdatei weg
 
 
+@NUR_POSIX
 def test_startskript_installiert_x11vnc_bei_bedarf(tmp_path):
     fp = _falsche_programme(tmp_path, x11vnc=False)
     r = _ausfuehren(tmp_path, hilfe.start_skript(hilfe.ANSEHEN, "x1", ordner=str(tmp_path / "r")), fp)
@@ -467,7 +476,8 @@ def test_tigervnc_passwort_nur_in_einer_datei(tmp_path):
     assert "Ab3dEf7h" not in " ".join(befehl)
     assert befehl[-1] == "100.64.0.7::5959" and "-ViewOnly=1" in befehl and "-Shared=0" in befehl
     datei = Path(next(a for a in befehl if a.startswith("-PasswordFile=")).split("=", 1)[1])
-    assert stat.S_IMODE(datei.stat().st_mode) == 0o600
+    if not sys.platform.startswith("win"):   # Windows kennt keine Unix-Rechte (Datei liegt im eigenen Profil)
+        assert stat.S_IMODE(datei.stat().st_mode) == 0o600
     assert datei.read_bytes() == vncauth.passwortdatei("Ab3dEf7h")
     vnc.beenden()
     assert not datei.exists() and "terminate" in gestartet
