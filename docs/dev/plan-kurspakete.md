@@ -67,9 +67,9 @@ einfuehrung-hermes-agent/          Ordner – oder einfuehrung-hermes-agent-1.0.
    (`resources/kurspakete`, Sitzung 4). Das erste Paket entsteht aus `docs/handbuch/beispielkurs.md` und
    `beispielkurs-handout.md` – nur **eine** Quelle: Ablaufplan und Handout liegen dann im Paket, die Handbuch-PDFs
    werden von dort gebaut (keine Kopie).
-6. **Kurspakete aus dem Internet:** `index.json` in einem öffentlichen GitHub-Repo (Platzhalter
-   `zappotex/bonys-agents-kurspakete` – Repo vom Nutzer erfragen), Download nur HTTPS, Größe und SHA-256 müssen
-   passen; später zusätzlich signiert (Sitzung 2).
+6. **Kurspakete aus dem Internet:** `index.json` im öffentlichen Repo **zappotex/bonys-agents-kurspakete**
+   (am 19.10.2026 auf Wunsch des Nutzers angelegt: README, Lizenz CC BY-SA 4.0, leere Liste, Ordner `pakete/`),
+   Download nur HTTPS, Größe und SHA-256 müssen passen; später zusätzlich signiert (Sitzung 2).
 7. **Kostenloses Modell (Hermes-Doku geprüft am 18.10.2026):** Standardweg in allen Unterlagen: `hermes setup`
    → oberster Punkt „Nous“ → Free-Modell (vom Nutzer getestet; die Doku beschreibt Nous Portal als Abo mit
    OAuth-Anmeldung ohne API-Schlüssel, `hermes setup --portal`; kostenlose Modelle nennt sie nicht – im Text daher
@@ -115,7 +115,8 @@ pytest/ruff beider Editionen, Minor-Version, .deb (Installation nach Rückfrage)
 
 ## Vorschläge aus dem Entwurf `kurse/01-ki-agenten-fuer-einsteiger/kurs.md`
 
-Warten auf das OK des Nutzers; danach einarbeiten und die Datei (samt Ordner `kurse/`) entfernen.
+**Vom Nutzer am 19.10.2026 alle freigegeben.** In Sitzung 4 einarbeiten, danach die Datei (samt Ordner
+`kurse/`) entfernen.
 
 1. **Quizfragen** je Lektion übernehmen: Agent vs. Chatbot (Block 2), Wo liegen deine Dateien (Block 2), Benutzer
    im Agent-PC heißt `agent` (Block 3), Was zeigt `/tools` (Block 3), Was ist eine gute Aufgabe (Block 4),
@@ -151,7 +152,9 @@ Zuletzt aktualisiert: 18.10.2026 (Sitzung 1).
 - [x] Selbstlern-Modus: „Durcharbeiten“ → neuer Agent-PC (Fenster „Neuer Agent-PC“ mit Rezept, Namensvorschlag,
       passende Vorlage) oder vorhandenen wählen; Fortschritt in `kurspakete/fortschritt.json`;
       „Agent-PC zeigen“ wählt/startet ihn im Hauptfenster
-- [ ] Vorschläge aus dem Entwurf dem Nutzer zeigen (siehe oben) – gefragt am Ende von Sitzung 1
+- [x] Vorschläge aus dem Entwurf: alle vier Gruppen freigegeben (19.10.2026)
+- [x] Repo zappotex/bonys-agents-kurspakete angelegt
+- [x] Volle Tests Kursleiter-Edition: 657 grün
 - Noch nicht echt getestet (nur offscreen): Durcharbeiten mit echtem Agent-PC, Drag & Drop unter Wayland/X11.
 - Hinweis: `MIN_VERSION` ist 0.23.0 – Pakete mit dieser Mindestversion lehnt 0.22.1 ab, bis die Version am
   Ende erhöht wird (Tests nutzen `min_version` 0.1.0).
@@ -173,5 +176,4 @@ Zuletzt aktualisiert: 18.10.2026 (Sitzung 1).
 - [ ] Tests, echter Test, Version, .deb, Commit
 
 ### Offene Fragen an den Nutzer
-- OK zu den Vorschlägen aus dem Entwurf (oben).
-- Endgültiges GitHub-Repo für Kurspakete aus dem Internet (Platzhalter `zappotex/bonys-agents-kurspakete`).
+- keine

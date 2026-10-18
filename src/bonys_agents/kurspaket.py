@@ -64,7 +64,7 @@ MAX_TIEFE = 8
 MAX_JSON = 1024 * 1024
 MAX_TEXT = 2 * 1024 * 1024        # Markdown-Dateien, Skripte
 MAX_LEKTIONEN = 100
-ENDUNGEN = {".md", ".txt", ".json", ".sh", ".py", ".png", ".jpg", ".jpeg", ".gif", ".webp", ""}
+ENDUNGEN = {".md", ".txt", ".json", ".sh", ".py", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".minisig", ""}
 SKRIPT_ENDUNGEN = {".sh", ".py"}
 
 STUFEN = {"anfaenger": "Anfänger", "fortgeschritten": "Fortgeschritten", "experte": "Experte"}
@@ -1041,6 +1041,7 @@ class Fortschritt:
     erledigt: list[str] = field(default_factory=list)    # Lektionsordner
     pruefungen: dict[str, bool] = field(default_factory=dict)
     quiz: dict[str, list[int]] = field(default_factory=dict)   # Ordner → [richtig, gesamt]
+    skripte_erlaubt: str = ""                            # Kennung der Skripte, denen zugestimmt wurde
     gestartet: float = 0.0
     zuletzt: float = 0.0
 
@@ -1069,6 +1070,8 @@ class Fortschritt:
         if isinstance(d.get("quiz"), dict):
             f.quiz = {k: v for k, v in d["quiz"].items()
                       if isinstance(v, list) and len(v) == 2 and all(isinstance(x, int) for x in v)}
+        if isinstance(d.get("skripte_erlaubt"), str):
+            f.skripte_erlaubt = d["skripte_erlaubt"]
         for key in ("gestartet", "zuletzt"):
             if isinstance(d.get(key), (int, float)) and not isinstance(d[key], bool):
                 setattr(f, key, float(d[key]))
@@ -1080,7 +1083,8 @@ class Fortschritt:
             self.gestartet = self.zuletzt
         alle = self._alle()
         alle[self.paket_id] = {"agent_pc": self.agent_pc, "lektion": self.lektion, "erledigt": self.erledigt,
-                               "pruefungen": self.pruefungen, "quiz": self.quiz, "gestartet": self.gestartet,
+                               "pruefungen": self.pruefungen, "quiz": self.quiz,
+                               "skripte_erlaubt": self.skripte_erlaubt, "gestartet": self.gestartet,
                                "zuletzt": self.zuletzt}
         bibliothek_dir().mkdir(parents=True, exist_ok=True)
         storage.write_json(_fortschritt_datei(), alle)
