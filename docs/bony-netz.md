@@ -1,7 +1,7 @@
 # Bony-Netz in Bony's Agents
 
-Stand: Aufgaben 01 (Baustein und Einstellungen), 02 (Agenten-PCs ins Netz) und 04 (Kurse verwalten) aus
-`bony-netz-paket`. Aufgabe 03 steht in Bony's VPN.
+Stand: Aufgaben 01 (Baustein und Einstellungen), 02 (Agenten-PCs ins Netz), 04 (Kurse verwalten), 05 (Kursraum) und
+06 (Hilfe-Funktion) aus `bony-netz-paket`. Aufgabe 03 steht in Bony's VPN.
 
 | Was | Wo |
 |---|---|
@@ -17,6 +17,9 @@ Stand: Aufgaben 01 (Baustein und Einstellungen), 02 (Agenten-PCs ins Netz) und 0
 | Reiter „Kursleitung“, „Neuer Kurs“, Kursansicht (nur Kursleiter-Version) | `src/bonys_agents/trainer/gui/kurse_leiten.py` |
 | „Der Kurs X hat begonnen“ | `gui/main_window.py` (`_check_kurse`) |
 | Tests gegen eine Test-Zentrale auf 127.0.0.1 (mit Kurs-Endpunkten) | `tests/test_netz.py`, `tests/test_kurse.py` |
+| Hilfe-Funktion (Aufgabe 06): Logik ohne Qt, x11vnc im Agent-PC | `src/bonys_agents/hilfe.py`, `vncauth.py` |
+| Hilfe beim Teilnehmer: Rückfrage, Hinweis mit „Beenden“ | `src/bonys_agents/gui/hilfe_ui.py` |
+| Hilfe beim Kursleiter: Betrachter (noVNC/TigerVNC), Brücke | `trainer/gui/hilfe_fenster.py`, `trainer/hilfe_betrachter.py`, `trainer/resources/hilfe/` |
 
 Baustein ersetzen: `src/bony_netz/` und `tests/test_bony_netz_baustein.py` durch die neue Fassung aus dem Paket
 überschreiben, in Bony's VPN ebenso. Ruff-Ausnahmen für den Baustein stehen in `pyproject.toml`
@@ -164,3 +167,47 @@ Umsetzung:
   bisher nur nach Quelltext/Doku, nicht ausprobiert.
 - Ob die Zentrale beim **Pausieren** den LiveKit-Raum schließt, steht nicht in API.md. Falls nicht, bleiben
   Verbundene bis zum Beenden im Raum; neue Eintritte lehnt die Zentrale (409) ab.
+
+## Aufgabe 06: Hilfe-Funktion
+
+Entscheidungen (18.10.2026): Betrachter **„Beides“** – noVNC eingebettet als Standard, TigerVNC als Rückfall; dieser
+Rechner kommt **über Bony's VPN** ins Netz (Agents prüft nur und bietet Bony's VPN an).
+
+- Nachrichten im Kursraum (zuverlässig, JSON, immer mit `destinationIdentities`): `hilfe-anfrage {id}` nur vom
+  Kursleiter (Rolle aus den Metadaten der Eintrittskarte), `hilfe-zusage {id, ip, port, modus, passwort, pc}` und
+  `hilfe-absage {id, grund?}` nur an ihn und nur als Antwort auf seine offene Anfrage, `hilfe-ende` von der Seite,
+  die beendet, `hilfe-bitte {an}` = „Hilfe anfordern“ (nur ein 🆘 in der Liste des Kursleiters). Entschieden wird
+  in Python, nie auf der Seite: Beim Teilnehmer `gui/hilfe_ui.TeilnehmerHilfe`, beim Kursleiter
+  `trainer/gui/hilfe_fenster.KursleiterHilfe`.
+- Teilnehmer: Den Agent-PC findet `hilfe.agent_pc` über `mein_geraet_id` der Teilnahme → Netzname → `vm.json`
+  (`netz_name`). Rückfrage „Nur ansehen“ / „Ansehen und bedienen“ / „Ablehnen“, nach 60 s „Ablehnen“, Enter und Esc
+  lehnen ab. Eine Hilfe zur Zeit.
+- x11vnc (`hilfe.start_skript`, über den Gast-Agent wie `netz.nachtraeglich_verbinden`, Skript per stdin): als
+  systemd-Einheit `bonys-hilfe` mit `RuntimeMaxSec=1800`; `-listen <tailscale ip -4> -noipv6 -rfbport 5959 -once
+  -timeout 120 -passwdfile rm:/run/bonys-hilfe/passwort -nevershared -nosel -noremote -nocmds -norc`, bei
+  „Nur ansehen“ `-viewonly`. Das Einmal-Passwort (8 Zeichen, VNC kann nicht mehr) schreibt bashs eingebautes
+  `printf` in die Datei, x11vnc löscht sie nach dem Lesen. Das Skript wartet, bis `ss` die 100.x-Adresse zeigt.
+  Neue Agent-PCs bringen x11vnc mit (`desktops.COMMON_PACKAGES`), alte installieren es beim ersten Mal aus Debian.
+  Kein SSH-Rückfall: Antwortet der Gast-Agent nicht, sagt die App das.
+- Ende beim Teilnehmer: „Beenden“ im Hinweis (über allen Fenstern, auch Schließen des Hinweises), `hilfe-ende` vom
+  Kursleiter, Kursraum verlassen/getrennt, Kurs nicht mehr „läuft“ (alle 15 s gefragt), x11vnc von selbst zu Ende
+  (alle 3 s `systemctl is-active`). Protokoll wie im LAN-Hilfe-Modus (`helpmode.log_file`).
+- Kursleiter: Die Zusage wird gegen die Zentrale geprüft (`hilfe.zusage_pruefen`): nur 100.64.0.0/10, und genau die
+  `geraet_ip` dieses Teilnehmers, sonst keine Verbindung. Betrachter eingebettet: `HilfeFenster` lädt
+  `kursraum://app/hilfe/index.html` (Seiten und noVNC über `kursraum_fenster.ZUSATZ` unter demselben Schema),
+  noVNC verbindet sich mit `hilfe_betrachter.Bruecke` – Port nur auf 127.0.0.1, geheimer Pfad, Origin
+  `kursraum://app`, genau eine Verbindung, danach ist der Port zu. Das Passwort geht per QWebChannel an noVNC.
+  Rückfall (kein Qt WebEngine, z. B. Linux arm64): TigerVNC `vncviewer -PasswordFile=<Datei 600>` (Format von
+  `vncpasswd`, DES in `vncauth.py`), Datei nach 20 s bzw. beim Ende gelöscht; ohne TigerVNC ein Hinweis.
+- Beim Kursstart prüft die Kursansicht (`hilfe.rechner_im_netz`: eigene Tailscale-Adresse in der Geräteliste der
+  Instanz) und bietet sonst Bony's VPN an (Linux; Windows/macOS: Hinweis auf die Tailscale-App mit Anmeldeserver).
+  „Helfen“ gibt es im Kursraum je Teilnehmer und in der Kursansicht (öffnet den Kursraum und fragt dann).
+
+### Offen / Hinweise
+- Echt zu prüfen (Fertig-wenn): ohne Zustimmung keine Verbindung (auch mit bekannter Adresse – x11vnc läuft dann
+  nicht); „Nur ansehen“ ohne Eingaben; „Beenden“ trennt sofort; nach Pause/Ende keine neue Verbindung (Zentrale);
+  im Agent-PC `ss -tlnp` zeigt nur `100.x.y.z:5959`.
+- Kill-Switch von Bony's VPN im Agent-PC: ob er eingehende Verbindungen über `tailscale0` durchlässt, ist nicht
+  geprüft (Hinweis auf die Ausnahme 100.64.0.0/10 aus Aufgabe 03).
+- GDM (GNOME) mit automatischer Anmeldung: x11vnc nimmt `-display :0 -auth guess` – wie `guest_notify`. Falls GDM
+  die Sitzung auf `:1` legt, wäre das anzupassen.

@@ -45,9 +45,11 @@ GREETER_DROPIN = "/etc/lightdm/lightdm-gtk-greeter.conf.d/50-bonys-agents.conf"
 LOGIND_DROPIN = "/etc/systemd/logind.conf.d/50-bonys-powerkey.conf"
 # Randfarbe, wo das skalierte Bild den Bildschirm nicht ganz füllt – aus dem Bild ermittelt (make-resources.py)
 WALLPAPER_BORDER = "#010101"
-# Pakete für jeden Desktop: Anmeldung, Schriften, Ton, Gast-Werkzeuge, Hintergrundbild-Umwandlung
+# Pakete für jeden Desktop: Anmeldung, Schriften, Ton, Gast-Werkzeuge, Hintergrundbild-Umwandlung, x11vnc für die
+# Hilfe-Funktion über das Bony-Netz (startet nur auf Zustimmung, siehe hilfe.py – sonst läuft es nicht)
 COMMON_PACKAGES = ("xdg-user-dirs fonts-noto-core fonts-noto-color-emoji pipewire-pulse "
-                   "spice-vdagent qemu-guest-agent x11-xserver-utils python3-gi gir1.2-gdkpixbuf-2.0 gvfs dbus-x11")
+                   "spice-vdagent qemu-guest-agent x11-xserver-utils python3-gi gir1.2-gdkpixbuf-2.0 gvfs dbus-x11 "
+                   "x11vnc")
 
 
 @dataclass(frozen=True)

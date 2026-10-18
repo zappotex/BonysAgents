@@ -117,3 +117,10 @@ def _no_network_for_mission_control(monkeypatch):
 def _own_bony_netz_folder(tmp_path, monkeypatch):
     """Nie die echte Bony-Netz-Anmeldung (~/.config/bonys-netz/konto.json) lesen oder überschreiben."""
     monkeypatch.setenv("BONY_NETZ_ORDNER", str(tmp_path / "bony-netz"))
+
+
+@pytest.fixture(autouse=True)
+def _kein_echtes_tailscale(monkeypatch):
+    """Hilfe-Funktion: Tests fragen nie Tailscale auf diesem Rechner (der Kursstart hinge sonst an dessen Zustand).
+    ``None`` = nicht installiert; Tests mit eigenem Zustand übergeben ihn direkt."""
+    monkeypatch.setattr("bonys_agents.hilfe.tailscale_status", lambda run=None: None)

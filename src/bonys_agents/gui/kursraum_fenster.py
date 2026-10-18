@@ -9,6 +9,10 @@
   Bildschirm teilen braucht ``ScreenCaptureEnabled`` – nur beim Kursleiter an.
 - Stummschalten und Entfernen ruft Python (``kursraum.stummschalten/entfernen``) im Hintergrund auf.
 - Beim Schließen verlässt die Seite den Raum (``room.disconnect()``), erst dann geht das Fenster zu.
+- Hilfe-Funktion (Aufgabe 06): Die Nachrichten laufen über die Seite, entschieden wird in Python – beim Teilnehmer
+  ``gui/hilfe_ui.TeilnehmerHilfe`` (Rückfrage, x11vnc, Hinweis mit „Beenden“), beim Kursleiter
+  ``trainer/gui/hilfe_fenster.KursleiterHilfe`` (Zusage prüfen, Betrachter). Weitere Seiten unter demselben Schema
+  (Betrachter, noVNC) meldet die Kursleiter-Version über ``ZUSATZ`` an.
 
 Ohne Qt WebEngine (Quelltext-Installation ohne PySide6-WebEngine) zeigt ``oeffnen`` nur einen Hinweis.
 """
@@ -23,6 +27,8 @@ from PySide6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QLabel, QListWidget, QListWidgetItem, QMessageBox, QVBoxLayout, QWidget,
 )
 from shiboken6 import isValid
+
+from collections.abc import Callable
 
 from bonys_agents import kursraum, netz
 
@@ -45,6 +51,8 @@ _profil = None
 _handler = None
 SCHLIESSEN_SEKUNDEN = 3   # so lange wartet das Fenster höchstens auf „Raum verlassen“
 DEBUG = bool(os.environ.get("BONYS_KURSRAUM_DEBUG"))
+# Weitere Dateien unter kursraum://app/<ordner>/… : ordner → (Pfad darin → (Inhalt, MIME-Typ) oder None)
+ZUSATZ: dict[str, Callable[[str], tuple[bytes, str] | None]] = {}
 
 
 def verfuegbar() -> bool:
@@ -152,11 +160,16 @@ if verfuegbar():
                     return
                 inhalt, mime = bytes(datei.readAll()), "text/javascript"
             else:
-                treffer = kursraum.seiten_datei(url.path())
+                ordner, _, rest = url.path().lstrip("/").partition("/")
+                if ordner in ZUSATZ:
+                    treffer = ZUSATZ[ordner](rest)
+                else:
+                    datei = kursraum.seiten_datei(url.path())
+                    treffer = (datei[0].read_bytes(), datei[1]) if datei is not None else None
                 if treffer is None:
                     job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                     return
-                inhalt, mime = treffer[0].read_bytes(), treffer[1]
+                inhalt, mime = treffer
             puffer = QBuffer(job)
             puffer.setData(QByteArray(inhalt))
             puffer.open(QIODevice.ReadOnly)
@@ -262,6 +275,7 @@ class Bruecke(QObject):
     karte = Signal(str)       # JSON: Karte für die Seite oder {"fehler": …}
     antwort = Signal(str)     # JSON: {id, ok, text}
     schliessen = Signal()
+    hilfe = Signal(str)       # JSON: Hilfe-Funktion → Seite ({aktion: senden|helfen|aktiv|hinweis|banner, …})
 
     def __init__(self, fenster: KursraumFenster):
         super().__init__(fenster)
@@ -270,6 +284,36 @@ class Bruecke(QObject):
     @Slot()
     def bereit(self) -> None:
         self.karte.emit(json.dumps(self.fenster.fuer_seite()))
+        self.fenster.seite_bereit()
+
+    # Hilfe-Funktion: was die Seite empfängt, entscheidet Python
+    @Slot(str)
+    def hilfeAnfrage(self, daten: str) -> None:  # noqa: N802 – Name auf der Seite
+        self._hilfe("anfrage", daten)
+
+    @Slot(str)
+    def hilfeZusage(self, daten: str) -> None:  # noqa: N802
+        self._hilfe("zusage", daten)
+
+    @Slot(str)
+    def hilfeEnde(self, daten: str) -> None:  # noqa: N802
+        self._hilfe("ende", daten)
+
+    @Slot()
+    def raumGetrennt(self) -> None:  # noqa: N802
+        if self.fenster.hilfe is not None:
+            self.fenster.hilfe.raum_getrennt()
+
+    def _hilfe(self, art: str, daten: str) -> None:
+        steuerung = self.fenster.hilfe
+        if steuerung is None:
+            return
+        try:
+            d = json.loads(daten)
+        except ValueError:
+            return
+        if isinstance(d, dict) and isinstance(d.get("identity"), str):
+            getattr(steuerung, art)(d)
 
     @Slot(str, str, str)
     def stumm(self, anfrage_id: str, identitaet: str, track_sid: str) -> None:
@@ -334,6 +378,26 @@ class KursraumFenster(QWidget):
         self._uhr.setSingleShot(True)
         self._uhr.timeout.connect(self.raum_verlassen)
         self.destroyed.connect(lambda *_: _FENSTER.pop(karte.kurs_id, None))
+        self._bereit = False
+        self._hilfe_wartet: list[str] = []
+        self.hilfe = _hilfe_steuerung(self)
+
+    def seite_bereit(self) -> None:
+        self._bereit = True
+        for identitaet in self._hilfe_wartet:
+            self.an_seite({"aktion": "helfen", "identity": identitaet})
+        self._hilfe_wartet.clear()
+
+    def an_seite(self, daten: dict) -> None:
+        """Nachricht der Hilfe-Funktion an die Seite (``bruecke.hilfe``)."""
+        self.bruecke.hilfe.emit(json.dumps(daten))
+
+    def helfen(self, instanz_id: str) -> None:
+        """Kursleiter: „Helfen“ für einen Teilnehmer (auch aus der Kursansicht) – fragt ihn über die Seite."""
+        if self._bereit:
+            self.an_seite({"aktion": "helfen", "identity": instanz_id})
+        else:
+            self._hilfe_wartet.append(instanz_id)
 
     def fuer_seite(self) -> dict:
         return self.karte.fuer_seite(kursname=self.kursname, teilen=self.teilen, teilen_hinweis=self.teilen_hinweis)
@@ -361,9 +425,36 @@ class KursraumFenster(QWidget):
     def closeEvent(self, event) -> None:  # noqa: N802 – Qt-Name
         if self.fertig:
             self._uhr.stop()
+            if self.hilfe is not None:
+                self.hilfe.raum_getrennt()   # eine laufende Hilfe endet mit dem Kursraum
             super().closeEvent(event)   # Seite und Ansicht gehen mit dem Fenster, das Profil gehört der App
             return
         event.ignore()
         if not self._uhr.isActive():
             self.bruecke.schliessen.emit()   # Seite ruft room.disconnect() und dann bruecke.verlassen()
             self._uhr.start(SCHLIESSEN_SEKUNDEN * 1000)
+
+
+def _hilfe_steuerung(fenster: KursraumFenster):
+    """Teilnehmer: Rückfrage und x11vnc. Kursleiter: Betrachter – nur in der Kursleiter-Version (sonst None)."""
+    if fenster.karte.kursleiter:
+        try:
+            from bonys_agents.trainer.gui.hilfe_fenster import KursleiterHilfe
+        except ImportError:   # Anwender-Version: kein Betrachter
+            return None
+        return KursleiterHilfe(fenster)
+    from .hilfe_ui import TeilnehmerHilfe
+
+    return TeilnehmerHilfe(fenster)
+
+
+def helfen(kurs_id: str, kursname: str, instanz_id: str, parent: QWidget | None = None, fertig=None) -> None:
+    """Kursansicht → „Helfen“: Kursraum öffnen (falls nötig) und den Teilnehmer um Zustimmung bitten."""
+    def offen_dann(text: str | None) -> None:
+        f = _FENSTER.get(kurs_id)
+        if text is None and f is not None and isValid(f):
+            f.helfen(instanz_id)
+        if fertig is not None:
+            fertig(text)
+
+    oeffnen(kurs_id, kursname, parent, offen_dann)

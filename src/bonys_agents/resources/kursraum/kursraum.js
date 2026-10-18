@@ -5,9 +5,13 @@
 //   Signale  karte(json)    – {url, token, rolle, raum, ablauf, kursname, teilen, teilen_hinweis} oder {fehler}
 //            antwort(json)  – {id, ok, text} auf stumm/entfernen
 //            schliessen()   – Fenster wird geschlossen: Raum sauber verlassen
-//   Slots    bereit(), stumm(id, identity, trackSid), entfernen(id, identity), erneut(), verlassen()
+//            hilfe(json)    – Hilfe-Funktion: {aktion: senden|helfen|aktiv|hinweis|banner, …}
+//   Slots    bereit(), stumm(id, identity, trackSid), entfernen(id, identity), erneut(), verlassen(),
+//            hilfeAnfrage(json), hilfeZusage(json), hilfeEnde(json), raumGetrennt()
 //
 // Chat und Handzeichen laufen als Datennachrichten (zuverlässig), Themen „chat“, „hand“ und „freigabe“, Inhalt JSON.
+// Hilfe-Funktion (Aufgabe 06): Themen „hilfe-anfrage“, „hilfe-zusage“, „hilfe-absage“, „hilfe-ende“, „hilfe-bitte“ –
+// immer nur an den Empfänger (destinationIdentities). Zugestimmt wird in der App, nie auf dieser Seite.
 // Nichts wird gespeichert: Der Chat gilt nur, solange das Fenster offen ist.
 'use strict';
 
@@ -25,7 +29,8 @@
     buehne: $('buehne-video'), buehneLeer: $('buehne-leer'), buehneName: $('buehne-name'), kameras: $('kameras'),
     anzahl: $('anzahl'), teilnehmer: $('teilnehmer'), chat: $('chat'), chatForm: $('chat-form'),
     chatText: $('chat-text'), chatSenden: $('chat-senden'),
-    mikrofon: $('mikrofon'), kamera: $('kamera'), hand: $('hand'), teilen: $('teilen'),
+    mikrofon: $('mikrofon'), kamera: $('kamera'), hand: $('hand'), teilen: $('teilen'), hilfe: $('hilfe'),
+    hilfeHinweis: $('hilfe-hinweis'),
     freigabeWahl: $('freigabe-wahl'), freigabePflicht: $('freigabe-pflicht'), ton: $('ton'), verlassen: $('verlassen'),
     hinweis: $('hinweis'), schicht: $('schicht'), dialogText: $('dialog-text'), dialogKnoepfe: $('dialog-knoepfe'),
     audio: $('audio'),
@@ -125,6 +130,7 @@
     document.title = el.kursname.textContent;
     el.rolle.textContent = ichLeite() ? 'Du leitest den Kurs' : 'Du nimmst teil';
     el.teilen.hidden = !ichLeite();
+    el.hilfe.hidden = ichLeite();
     el.freigabeWahl.hidden = !ichLeite();
     if (ichLeite() && !karte.teilen) el.teilen.title = karte.teilen_hinweis || '';
     verbinden();
@@ -159,6 +165,7 @@
     dialogZu();
     for (const k of [el.mikrofon, el.kamera, el.hand, el.chatText, el.chatSenden]) k.disabled = false;
     el.teilen.disabled = false;
+    el.hilfe.disabled = false;
     systemNachricht('Du bist im Kursraum.');
     if (ichLeite()) {
       await mikrofonSetzen(true);   // Kursleiter kommt mit Mikrofon an, Teilnehmer mit allem aus
@@ -166,6 +173,7 @@
     }
     tonPruefen();
     zeichnen();
+    for (const identity of hilfe.wartet.splice(0)) helfen(identity);
   }
 
   function abgelaufen() {
@@ -193,12 +201,15 @@
   }
 
   function sperren() {
-    for (const k of [el.mikrofon, el.kamera, el.hand, el.teilen, el.chatText, el.chatSenden]) k.disabled = true;
+    for (const k of [el.mikrofon, el.kamera, el.hand, el.teilen, el.hilfe, el.chatText, el.chatSenden]) {
+      k.disabled = true;
+    }
     el.verbindung.hidden = true;
   }
 
   async function gehen() {
     gehtGerade = true;
+    bruecke.raumGetrennt();
     if (room) {
       try { await room.disconnect(); } catch (e) { /* egal */ }
     }
@@ -213,10 +224,14 @@
       systemNachricht(nameVon(p) + ' ist da.');
       if (meineHand) senden('hand', { oben: true }, [p.identity]);
       if (ichLeite()) freigabeSenden([p.identity]);
+      if (hilfe.meineBitte && istLeiter(p)) senden('hilfe-bitte', { an: true }, [p.identity]);
       neu();
     });
     r.on(E.ParticipantDisconnected, (p) => {
       haende.delete(p.identity);
+      hilfe.bitten.delete(p.identity);
+      const offen = hilfe.offen.get(p.identity);
+      if (offen) { clearTimeout(offen.uhr); hilfe.offen.delete(p.identity); }
       systemNachricht(nameVon(p) + ' ist gegangen.');
       neu();
     });
@@ -253,6 +268,10 @@
 
   function getrennt(r, grund) {
     if (r !== room) return;   // alter Raum nach „Erneut eintreten“
+    bruecke.raumGetrennt();   // eine laufende Hilfe endet mit dem Kursraum
+    for (const o of hilfe.offen.values()) clearTimeout(o.uhr);
+    hilfe.offen.clear();
+    hilfe.bitten.clear();
     el.verbindung.hidden = true;
     sperren();
     buehneSetzen(null, '');
@@ -293,6 +312,103 @@
       zeichnenBald();
     } else if (thema === 'freigabe' && istLeiter(p) && !ichLeite()) {
       freigabeEmpfangen(d);
+    } else if (thema === 'hilfe-anfrage' && istLeiter(p) && !ichLeite() && typeof d.id === 'string') {
+      bruecke.hilfeAnfrage(JSON.stringify({ id: d.id.slice(0, 64), identity: p.identity, name: nameVon(p) }));
+    } else if (thema === 'hilfe-ende' && istLeiter(p) && !ichLeite()) {
+      bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
+    } else if (typeof thema === 'string' && thema.startsWith('hilfe-') && ichLeite() && !istLeiter(p)) {
+      hilfeAntwort(thema, d, p);
+    }
+  }
+
+  // ------------------------------------------------------------ Hilfe-Funktion (Aufgabe 06)
+  // Kursleiter: „Helfen“ → hilfe-anfrage nur an diesen Teilnehmer. Dessen App fragt ihn und antwortet nur dem
+  // Kursleiter mit hilfe-zusage (Adresse, Port, Passwort, Modus) oder hilfe-absage. Die Zusage prüft Python, bevor
+  // sich der Betrachter verbindet. hilfe-ende kommt von der Seite, die beendet; hilfe-bitte = „Hilfe anfordern“.
+  const ANTWORT_MS = 75 * 1000;   // etwas länger als die 60 s Rückfrage beim Teilnehmer
+  const hilfe = { bitten: new Set(), offen: new Map(), aktiv: new Set(), meineBitte: false, wartet: [] };
+  let hilfeNr = 0;
+
+  function leiterIds() {
+    return room ? [...room.remoteParticipants.values()].filter(istLeiter).map((p) => p.identity) : [];
+  }
+
+  function helfen(identity) {
+    if (!ichLeite()) return;
+    if (!room || room.state !== LK.ConnectionState.Connected) { hilfe.wartet.push(identity); return; }
+    const p = room.remoteParticipants.get(identity);
+    if (!p || istLeiter(p)) {
+      hinweis('Der Teilnehmer ist gerade nicht im Kursraum – Hilfe geht nur, solange er im Kursraum ist.', 10);
+      return;
+    }
+    if (hilfe.offen.has(identity) || hilfe.aktiv.has(identity)) return;
+    hilfeNr += 1;
+    const id = 'h' + hilfeNr + '-' + Date.now().toString(36);
+    const uhr = setTimeout(() => {
+      const o = hilfe.offen.get(identity);
+      if (!o || o.id !== id) return;
+      hilfe.offen.delete(identity);
+      hinweis(nameVon(p) + ' hat nicht geantwortet.', 8);
+      zeichnenBald();
+    }, ANTWORT_MS);
+    hilfe.offen.set(identity, { id, uhr });
+    senden('hilfe-anfrage', { id }, [identity]);
+    hinweis('Frage ' + nameVon(p) + ', ob du den Agent-PC sehen darfst …', 8);
+    zeichnenBald();
+  }
+
+  function hilfeAntwort(thema, d, p) {
+    if (thema === 'hilfe-bitte') {
+      const vorher = hilfe.bitten.has(p.identity);
+      if (d.an) hilfe.bitten.add(p.identity); else hilfe.bitten.delete(p.identity);
+      if (d.an && !vorher) hinweis('🆘 ' + nameVon(p) + ' bittet um Hilfe.', 10);
+      zeichnenBald();
+      return;
+    }
+    if (thema === 'hilfe-ende') {
+      bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
+      return;
+    }
+    const o = hilfe.offen.get(p.identity);
+    if (!o || d.id !== o.id) return;   // nur Antworten auf die eigene, noch offene Anfrage
+    clearTimeout(o.uhr);
+    hilfe.offen.delete(p.identity);
+    if (thema === 'hilfe-zusage') {
+      hilfe.bitten.delete(p.identity);
+      hilfe.aktiv.add(p.identity);
+      bruecke.hilfeZusage(JSON.stringify({ identity: p.identity, name: nameVon(p), daten: d }));
+    } else if (thema === 'hilfe-absage') {
+      const grund = typeof d.grund === 'string' && d.grund ? ': ' + d.grund.slice(0, 300) : ' hat abgelehnt.';
+      hinweis(nameVon(p) + grund, 12);
+    }
+    zeichnenBald();
+  }
+
+  function hilfeBitten(an) {
+    hilfe.meineBitte = an;
+    const ids = leiterIds();
+    if (ids.length) senden('hilfe-bitte', { an }, ids);
+    else if (an) hinweis('Der Kursleiter ist gerade nicht im Kursraum – er sieht deine Bitte, sobald er kommt.');
+    if (an) systemNachricht('Du hast um Hilfe gebeten.');
+    zeichnenBald();
+  }
+
+  function vonPython(json) {
+    let d;
+    try { d = JSON.parse(json); } catch (e) { return; }
+    if (d.aktion === 'senden' && typeof d.thema === 'string' && d.thema.startsWith('hilfe-')) {
+      senden(d.thema, d.daten || {}, d.an);
+    } else if (d.aktion === 'helfen') {
+      helfen(d.identity);
+    } else if (d.aktion === 'aktiv') {
+      if (d.an) hilfe.aktiv.add(d.identity); else hilfe.aktiv.delete(d.identity);
+      zeichnenBald();
+    } else if (d.aktion === 'hinweis') {
+      hinweis(d.text, 12);
+    } else if (d.aktion === 'banner') {
+      el.hilfeHinweis.textContent = d.text || '';
+      el.hilfeHinweis.hidden = !d.text;
+      if (d.text && hilfe.meineBitte) hilfeBitten(false);
     }
   }
 
@@ -415,6 +531,7 @@
   el.kamera.addEventListener('click', () => kameraSetzen(!room.localParticipant.isCameraEnabled));
   el.teilen.addEventListener('click', () => teilenSetzen(!room.localParticipant.isScreenShareEnabled));
   el.hand.addEventListener('click', () => handSetzen(!meineHand));
+  el.hilfe.addEventListener('click', () => hilfeBitten(!hilfe.meineBitte));
   el.ton.addEventListener('click', async () => {
     try { await room.startAudio(); } catch (e) { hinweis('Ton: ' + fehlerText(e)); }
     tonPruefen();
@@ -554,6 +671,7 @@
     knopf(el.kamera, lp.isCameraEnabled, 'Kamera aus', 'Kamera an');
     knopf(el.hand, meineHand, '✋ Hand senken', '✋ Hand heben');
     knopf(el.teilen, lp.isScreenShareEnabled, 'Teilen beenden', 'Bildschirm teilen');
+    knopf(el.hilfe, hilfe.meineBitte, '🆘 Bitte zurückziehen', '🆘 Hilfe anfordern');
   }
 
   function knopf(b, an, textAn, textAus) {
@@ -598,9 +716,22 @@
       h.title = 'meldet sich';
       li.appendChild(h);
     }
+    if (ichLeite() && hilfe.bitten.has(p.identity)) {
+      const h = document.createElement('span');
+      h.className = 'bitte';
+      h.textContent = '🆘';
+      h.title = 'bittet um Hilfe';
+      li.appendChild(h);
+    }
     if (ichLeite() && p !== room.localParticipant && !istLeiter(p)) {
       const steuer = document.createElement('div');
       steuer.className = 'steuer';
+      const laeuft = hilfe.aktiv.has(p.identity);
+      const fragt = hilfe.offen.has(p.identity);
+      const hb = kleinerKnopf(laeuft ? 'Hilfe läuft' : fragt ? 'Frage …' : 'Helfen', () => helfen(p.identity));
+      hb.disabled = laeuft || fragt;
+      hb.title = 'Agent-PC ansehen und bedienen – nur wenn der Teilnehmer zustimmt';
+      steuer.appendChild(hb);
       if (freigabe.pflicht) {
         const erlaubt = freigabe.erlaubt.has(p.identity);
         steuer.appendChild(kleinerKnopf(erlaubt ? 'Freigabe entziehen' : 'Sprechen erlauben',
@@ -636,6 +767,7 @@
     bruecke.karte.connect(start);
     bruecke.antwort.connect(antwort);
     bruecke.schliessen.connect(gehen);
+    bruecke.hilfe.connect(vonPython);
     bruecke.bereit();
   });
 }());

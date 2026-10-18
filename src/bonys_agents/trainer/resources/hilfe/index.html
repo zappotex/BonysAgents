@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Hilfe-Funktion über das Bony-Netz (Aufgabe 06): Betrachter des Kursleiters (noVNC) im Fenster „Hilfe“.
+     Adresse kursraum://app/hilfe/index.html. Verbindungsdaten und Passwort kommen per QWebChannel, nie über die
+     Adresse. Ob Eingaben ankommen, entscheidet x11vnc im Agent-PC des Teilnehmers. -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:;
+                 connect-src ws://127.0.0.1:*; worker-src 'self' blob:">
+  <title>Hilfe</title>
+  <link rel="stylesheet" href="hilfe.css">
+  <script src="/qwebchannel.js"></script>
+  <script type="module" src="hilfe.js"></script>
+</head>
+<body>
+  <header id="leiste">
+    <span id="zustand" class="zustand">Verbinde …</span>
+    <span id="info"></span>
+    <span class="platz"></span>
+    <button id="cad" type="button" hidden title="Strg+Alt+Entf an den Agent-PC schicken">Strg+Alt+Entf</button>
+    <label><input id="skalieren" type="checkbox" checked> An Fenster anpassen</label>
+    <button id="beenden" type="button" class="gefahr">Beenden</button>
+  </header>
+  <main id="bild"></main>
+  <div id="meldung" hidden><div id="meldung-box"><p id="meldung-text"></p>
+    <button id="schliessen" type="button">Schließen</button></div></div>
+</body>
+</html>

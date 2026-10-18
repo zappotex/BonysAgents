@@ -4,22 +4,26 @@
 - Noch kein Kursleiter (``zentrale.instanz()["ist_kursleiter"]``): nur „Kursleiter-Code einlösen“.
 - Sonst Kursliste (Name, Status, Teilnehmer, Code; „Beendete anzeigen“), „Neuer Kurs …“ und die Kursansicht mit Code,
   Starten/Pausieren/Beenden, Teilnehmertabelle und „Kursraum öffnen“ (Fenster ``gui/kursraum_fenster.py``).
+- „Helfen“ (Aufgabe 06): öffnet den Kursraum und bittet den gewählten Teilnehmer um Zustimmung. Beim Kursstart prüft
+  die Kursansicht, ob dieser Rechner im Bony-Netz ist – sonst erreicht der Betrachter die Agent-PCs nicht.
 
 Liste und Kursansicht fragen die Zentrale alle 15 Sekunden, solange sie zu sehen sind.
 """
 
 from __future__ import annotations
 
+import sys
 import time
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
-    QStackedWidget, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
+from shiboken6 import isValid
 
 from bony_netz import Konto
-from bonys_agents import kurse, netz
+from bonys_agents import hilfe, kurse, netz
 from bonys_agents.gui.kurse_dialog import (
     Hintergrund, Seite, auswahl, kursraum_oeffnen, nachfragen, tabelle, zeile,
 )
@@ -301,8 +305,12 @@ class KursAnsicht(QDialog, Hintergrund):
         self.empty = _muted("Noch niemand beigetreten.")
         root.addWidget(self.empty)
         row = QHBoxLayout()
+        self.help_btn = QPushButton("Helfen")
+        self.help_btn.setToolTip("Agent-PC des Teilnehmers ansehen und bedienen – nur wenn er zustimmt "
+                                 "(beide müssen im Kursraum sein)")
         self.remove_btn = QPushButton("Entfernen …")
         self.remove_btn.setObjectName("Danger")
+        row.addWidget(self.help_btn)
         row.addWidget(self.remove_btn)
         row.addStretch(1)
         root.addLayout(row)
@@ -324,6 +332,7 @@ class KursAnsicht(QDialog, Hintergrund):
         self.end_btn.clicked.connect(self._end)
         self.room_btn.clicked.connect(lambda: kursraum_oeffnen(self, self.kurs.kurs_id, self.kurs.name))
         self.remove_btn.clicked.connect(self._remove)
+        self.help_btn.clicked.connect(self._help)
         self.table.itemSelectionChanged.connect(self._update)
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
@@ -363,6 +372,8 @@ class KursAnsicht(QDialog, Hintergrund):
             b.setEnabled(idle)
         self.copy_btn.setEnabled(bool(k.code) and not k.beendet)
         self.remove_btn.setEnabled(idle and not k.beendet and auswahl(self.table) is not None)
+        self.help_btn.setVisible(k.laeuft)
+        self.help_btn.setEnabled(idle and auswahl(self.table) is not None)
         self.status.setText("Frage den Server …" if self.busy else self.status_text)
 
     # ---------------------------------------------------------------- Hintergrund
@@ -412,6 +423,8 @@ class KursAnsicht(QDialog, Hintergrund):
                                 kurse.BEENDET: "Der Kurs ist beendet."}[status]
             self._zeigen()
             self.zuletzt = 0.0   # gleich frisch holen (Netzadressen der Teilnehmer)
+            if status == kurse.LAEUFT:
+                self._netz_pruefen()
 
         self._run(lambda: kurse.status_setzen(kurs_id, status), done)
 
@@ -439,6 +452,61 @@ class KursAnsicht(QDialog, Hintergrund):
             self._zeigen()
 
         self._run(lambda: kurse.teilnehmer_entfernen(kurs_id, instanz_id), done)
+
+    def _help(self) -> None:
+        from bonys_agents.gui.kursraum_fenster import helfen
+
+        instanz_id = auswahl(self.table)
+        if instanz_id is None or not self.kurs.laeuft:
+            return
+        self.busy += 1
+        self.status_text = ""
+        self._update()
+        self.status.setText("Öffne den Kursraum …")
+
+        def fertig(fehler: str | None) -> None:
+            if not isValid(self):
+                return
+            self.busy -= 1
+            self.status_text = f"Kursraum: {fehler}" if fehler else ("Anfrage geschickt – der Teilnehmer wird im "
+                                                                    "Kursraum gefragt.")
+            self._update()
+
+        helfen(self.kurs.kurs_id, self.kurs.name, instanz_id, self, fertig)
+
+    def _netz_pruefen(self) -> None:
+        """Beim Kursstart: Ist dieser Rechner im Bony-Netz? Sonst erreicht der Betrachter keinen Agent-PC."""
+        def done(w: TaskWorker) -> None:
+            if w.error is not None or w.result.verbunden:
+                return
+            QTimer.singleShot(0, lambda r=w.result: self._netz_anbieten(r))
+
+        self._run(hilfe.rechner_im_netz, done)
+
+    def _netz_anbieten(self, rechner: hilfe.Rechner) -> None:
+        """Hinweis ohne zu blockieren – die Kursansicht fragt weiter die Zentrale."""
+        if not isValid(self) or not self.isVisible():
+            return
+        box = QMessageBox(QMessageBox.Information, "Dieser Rechner ist nicht im Bony-Netz",
+                          "Für „Helfen“ muss dieser Rechner im Bony-Netz sein.", QMessageBox.NoButton, self)
+        box.setAttribute(Qt.WA_DeleteOnClose)
+        box.setWindowModality(Qt.NonModal)
+        box.setInformativeText(f"{rechner.text}\n\n{hilfe.verbinden_hinweis()}")
+        vpn = None
+        if sys.platform.startswith("linux"):
+            from bonys_agents.gui import host_vpn
+
+            vpn = box.addButton(host_vpn.button_text(), QMessageBox.AcceptRole)
+        box.addButton("Später", QMessageBox.RejectRole)
+
+        def geklickt(knopf) -> None:
+            if vpn is not None and knopf is vpn and isValid(self):
+                from bonys_agents.gui import host_vpn
+
+                self._vpn = host_vpn.linux_vpn(self)
+
+        box.buttonClicked.connect(geklickt)
+        box.show()
 
     def done(self, r: int) -> None:
         self.timer.stop()

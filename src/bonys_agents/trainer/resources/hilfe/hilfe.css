@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Farben wie der Kursraum (resources/kursraum/kursraum.css) */
+:root {
+  --bg: #0d141d; --panel: #162130; --panel2: #1f2d40; --rand: #2b3c52; --text: #e8eef5; --leise: #93a4b8;
+  --hell: #3fa9f5; --ok: #4cc38a; --warn: #ffd166; --gefahr: #ef6b6b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: #000; color: var(--text); font: 14px/1.4 system-ui, "Segoe UI", "Noto Sans", sans-serif;
+  display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+[hidden] { display: none !important; }
+button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--rand);
+  border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover { border-color: var(--hell); }
+button.gefahr { border-color: var(--gefahr); color: var(--gefahr); }
+#leiste { display: flex; gap: 14px; align-items: center; padding: 6px 12px; background: var(--panel);
+  border-bottom: 1px solid var(--rand); }
+#info { color: var(--leise); }
+.platz { flex: 1; }
+.zustand { font-weight: 600; }
+.zustand.ok { color: var(--ok); }
+.zustand.warn { color: var(--warn); }
+.zustand.aus { color: var(--gefahr); }
+#bild { position: relative; overflow: hidden; }
+#meldung { position: fixed; inset: 0; background: rgba(5, 10, 16, .75); display: grid; place-items: center; }
+#meldung-box { background: var(--panel); border: 1px solid var(--rand); border-radius: 10px; padding: 18px 22px;
+  max-width: 480px; text-align: center; }
+#meldung-text { white-space: pre-line; }
