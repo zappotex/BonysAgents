@@ -28,7 +28,7 @@ einfuehrung-hermes-agent/
         └── bilder/              Bilder der Anleitung (optional), im Text z. B. ![Terminal](bilder/terminal.png)
 ```
 
-**Erlaubte Dateien:** `.md`, `.txt`, `.json`, `.sh`, `.py`, `.png`, `.jpg`/`.jpeg`, `.gif`, `.webp` und Dateien
+**Erlaubte Dateien:** `.md`, `.txt`, `.json`, `.sh`, `.py`, `.png`, `.jpg`/`.jpeg`, `.gif`, `.webp`, `.minisig` und Dateien
 ohne Endung (z. B. `LICENSE`). Versteckte Dateien (`.git`, `.DS_Store` …) und `__MACOSX` werden beim Packen und
 Importieren weggelassen. Alle Texte in UTF-8.
 
@@ -145,7 +145,7 @@ Beispiel (gekürzt):
 | `titel` | ✓ | Titel der Lektion |
 | `dauer_minuten`, `art`, `ziel` | | z. B. `20`, `"Übung"`, `"Hermes löst eine kleine Aufgabe."` |
 | `pruefung` | | Prüfaufgabe (siehe unten) |
-| `start` | | `{"skript": "start/einrichten.sh", "zeitlimit": 120, "als": "root"}` – Startzustand (ab Sitzung 2) |
+| `start` | | `{"skript": "start/einrichten.sh", "zeitlimit": 120, "als": "root"}` – Startskript (siehe unten) |
 
 ### Prüfaufgabe
 
@@ -167,6 +167,34 @@ eingerichtet“ nur, ob in `~/.hermes/config.yaml` ein Anbieter und ein Modell e
 `~/.hermes/.env` oder `auth.json`.
 
 `agent-pc-laeuft` und `vorlage-vorhanden` prüft Bony's Agents selbst – ohne Code aus dem Paket.
+
+### Startzustand und Startskript
+
+Sobald jemand eine Lektion zum ersten Mal betritt und der Agent-PC fertig ist, sichert Bony's Agents ihren
+**Startzustand** – einen Schnappschuss der Festplatte des Agent-PCs (nur auf dem Rechner der Teilnehmer, er kostet
+nur den Platz der danach geänderten Daten). Mit **„Zurücksetzen“** bzw. beim **Springen zu einer früheren Lektion**
+geht der Agent-PC auf diesen Stand zurück; alles danach Geänderte – auch eigene Dateien – geht verloren, darauf
+weist Bony's Agents vorher hin.
+
+Ein optionales **Startskript** (`"start": {"skript": "start/einrichten.sh"}`) läuft vor dem Sichern im Agent-PC,
+z. B. um einen Übungsordner und Beispieldateien anzulegen. Springt jemand nach vorn, laufen die Startskripte der
+übersprungenen Lektionen der Reihe nach. Startskripte sollen wiederholbar sein (`mkdir -p`, Dateien überschreiben)
+und brauchen keine Zugangsdaten. Wird der Agent-PC auf ein anderes Laufwerk verschoben oder unabhängig gemacht,
+gehen die Startzustände verloren; sie entstehen beim nächsten Betreten der Lektion neu.
+
+## Geprüfte Kurspakete (Signatur)
+
+Mitgelieferte Kurspakete gelten als geprüft. Andere Pakete können mit dem Release-Schlüssel von Bony's Agents
+signiert werden: Im Paket liegen dann
+
+- `pruefsummen.txt` – SHA-256 aller Dateien im Format von `sha256sum` (Pfade relativ, mit `/`), ohne die
+  beiden Signaturdateien selbst;
+- `pruefsummen.txt.minisig` – minisign-Signatur von `pruefsummen.txt`.
+
+Stimmt die Signatur und passt `pruefsummen.txt` genau zu den Dateien des Pakets (keine fehlt, keine ist dazugekommen,
+keine geändert), zeigt die Bibliothek „Geprüftes Kurspaket“. Bei allen anderen Paketen mit Skripten erscheint vor dem
+ersten Start der Hinweis **„Dieses Kurspaket führt Skripte im Agent-PC aus“** mit der Liste der Skripte; die
+Zustimmung gilt für genau diese Fassung und wird bei geänderten Skripten erneut eingeholt.
 
 ## `quiz.json`
 

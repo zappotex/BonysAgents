@@ -79,6 +79,25 @@ einfuehrung-hermes-agent/          Ordner – oder einfuehrung-hermes-agent-1.0.
    `~/.hermes/config.yaml` (`model.provider`, `model.default`) – die Prüfung „Hermes eingerichtet“ liest nur diese
    Einträge, nie `.env` oder `auth.json`.
 
+8. **Startzustand je Lektion (Sitzung 2): Mischform.** Beim ersten Betreten einer Lektion läuft ihr Startskript
+   (falls vorhanden) im Agent-PC, danach entsteht ein **interner qcow2-Schnappschuss nur der Festplatte**
+   (`bonys-paket-<id>-<NN>`; laufend per Monitor `snapshot_blkdev_internal disk0` nach `sync` im Gast, sonst
+   `qemu-img snapshot -c`). Gründe: Platz – nur die danach geänderten Blöcke; Zuverlässigkeit – unabhängig davon,
+   was im Gast kaputtgespielt wurde; und er behält, was der Teilnehmer vorher selbst eingerichtet hat (z. B.
+   Hermes-Anmeldung mit eigenem Konto), was kein Skript nachbauen könnte. Alle Startzustände schon beim Kursstart
+   anzulegen geht aus genau diesem Grund nicht. Zurücksetzen: herunterfahren (nach 90 s hart),
+   `qemu-img snapshot -a`, Startzustände späterer Lektionen löschen, neu starten. Gesichert wird erst, wenn der
+   Agent-PC fertig eingerichtet ist. `qemu-img resize` geht weiter (getestet mit 8.2); beim Kopieren der Platte
+   (Verschieben auf anderes Laufwerk, unabhängig machen, Vorlage) gehen die Schnappschüsse verloren – sie
+   entstehen beim nächsten Betreten neu.
+9. **Prüf- und Startskripte nur über den Gast-Agent** (`guest-exec` mit `timeout -k 3 N`, `runuser -u <benutzer>`,
+   `env -i`, Skript über stdin an `bash -s`/`python3 -`), **kein SSH-Rückfallweg**. Ausgabe wird verworfen.
+   Eingebaute Prüfungen (`agent-pc-laeuft`, `vorlage-vorhanden`) prüft die App selbst.
+10. **Vertrauen:** mitgeliefert oder `pruefsummen.txt` + `.minisig` (Release-Schlüssel, `UPDATE_PUBLIC_KEY`) und
+    Prüfsummen passen genau → „Geprüftes Kurspaket“. Sonst vor dem ersten Start Hinweis mit Skriptliste; die
+    Zustimmung (`Fortschritt.skripte_erlaubt`) gilt für die SHA-256 über alle Skripte. Signieren der mitgelieferten
+    bzw. ins Repo hochgeladenen Pakete: in Sitzung 4 über die Release-Aktion (minisign, wie SHA256SUMS).
+
 ## Sicherheitsregeln
 
 - Keine API-Keys, Tokens, Passwörter oder Zugangsdaten in Kurspaketen; Editor prüft vor Speichern/Export wie beim
@@ -135,7 +154,7 @@ pytest/ruff beider Editionen, Minor-Version, .deb (Installation nach Rückfrage)
 
 ## Stand
 
-Zuletzt aktualisiert: 18.10.2026 (Sitzung 1).
+Zuletzt aktualisiert: 19.10.2026 (Sitzung 2 fertig).
 
 ### Sitzung 1
 - [x] Plan `docs/dev/plan-kurspakete.md`, Auftrag in `.gitignore`
@@ -160,10 +179,16 @@ Zuletzt aktualisiert: 18.10.2026 (Sitzung 1).
   Ende erhöht wird (Tests nutzen `min_version` 0.1.0).
 
 ### Sitzung 2
-- [ ] Startzustände, Zurücksetzen, Springen
-- [ ] Prüfaufgaben im Agent-PC mit Zeitlimit
-- [ ] Hinweis bei fremden Paketen, optional Signatur
-- [ ] Quiz
+- [x] Startzustände (`kurslauf.py`, Entscheidung 8), „↺ Zurücksetzen“, „Zu Lektion X springen“ (Auswahlliste:
+      „Nur ansehen“ oder „Zurücksetzen“), Warnung vor Verlust eigener Dateien, „Startzustände löschen …“
+- [x] Prüfaufgaben nur im Agent-PC über den Gast-Agent, Zeitlimit, Ergebnis „✓/✗ + Hinweis“ (Entscheidung 9)
+- [x] Hinweis „Dieses Kurspaket führt Skripte im Agent-PC aus“ mit Skriptliste; Signaturprüfung und
+      „Geprüftes Kurspaket“ (Entscheidung 10) – Signieren selbst kommt in Sitzung 4
+- [x] Quiz-Dialog (beim „Weiter“ angeboten oder Knopf „Quiz“), Ergebnis nur lokal
+- [x] Tests: `tests/test_kurslauf.py` (echte qcow2-Schnappschüsse mit qemu-img/qemu-io, Gast-Agent-Attrappe,
+      kein Prozess auf dem Rechner), Fenster-Tests in `tests/test_kurspaket.py`
+- Noch nicht echt getestet: Schnappschuss/Zurücksetzen mit laufendem echten Agent-PC, Prüfskript im echten Gast
+  (`runuser`, `xdg-user-dir`) – gehört in den echten Test (Sitzung 4).
 
 ### Sitzung 3
 - [ ] Editor, Startzustand übernehmen, Speichern/Laden/Duplizieren/Version

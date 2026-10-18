@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, kurspaket, vm
+from bonys_agents import apps, desktops, host, kurslauf, kurspaket, vm
 
 from .workers import TaskWorker
 
@@ -52,6 +52,16 @@ def _paket_text(p: kurspaket.Kurspaket) -> str:
     autor = f"{p.autor} · " if p.autor else ""
     zeilen.append(f"{autor}Version {p.version} · Lizenz {p.lizenz} · {kurspaket.HERKUNFT_TEXT.get(p.herkunft, '')}")
     return "\n".join(zeilen)
+
+
+def _vertrauen_text(p: kurspaket.Kurspaket) -> str:
+    if kurslauf.geprueft(p):
+        return "\n\n✓ **Geprüftes Kurspaket** (von Bony's Agents)"
+    n = len(p.skripte())
+    if not n:
+        return "\n\nNicht geprüft – enthält aber keine Skripte."
+    return (f"\n\n⚠ Nicht geprüft – enthält {n} Skript{'e' if n > 1 else ''}, die nur im Agent-PC laufen. "
+            "Vor dem ersten Start wirst du gefragt.")
 
 
 def _md(text: str) -> str:
@@ -90,6 +100,29 @@ def importieren(parent: QWidget, quelle: Path, fertig: Callable[[kurspaket.Kursp
         w.start()
 
     lauf(False)
+
+
+def skripte_erlauben(parent: QWidget | None, paket: kurspaket.Kurspaket) -> bool:
+    """Vor dem ersten Start eines fremden (nicht geprüften) Kurspakets: Hinweis mit der Liste seiner Skripte.
+
+    True, wenn es losgehen darf (keine Skripte, geprüft, schon zugestimmt oder jetzt zugestimmt)."""
+    if not kurslauf.zustimmung_noetig(paket):
+        return True
+    liste = "\n".join(f"• Lektion „{lek.titel}“ – {art}: {pfad}" for lek, art, pfad in paket.skripte())
+    box = QMessageBox(QMessageBox.Warning, paket.name, "Dieses Kurspaket führt Skripte im Agent-PC aus.",
+                      QMessageBox.NoButton, parent)
+    box.setInformativeText(
+        "Das Kurspaket ist nicht von Bony's Agents geprüft. Seine Skripte laufen ausschließlich im abgeschotteten "
+        "Agent-PC – nie auf deinem Rechner – und können dort Dateien anlegen oder ändern. Öffne das Paket nur, wenn "
+        f"du der Quelle vertraust.\n\n{liste}")
+    ja = box.addButton("Erlauben und starten", QMessageBox.AcceptRole)
+    nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
+    box.setDefaultButton(nein)
+    box.exec()
+    if box.clickedButton() is not ja:
+        return False
+    kurslauf.zustimmen(paket)
+    return True
 
 
 def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | None:
@@ -335,7 +368,7 @@ class BibliothekSeite(QWidget):
 
     def _auswahl(self) -> None:
         p = self.paket()
-        self.details.setText(_md_ganz(p) if p else ("Noch keine Kurspakete. Importiere eine "
+        self.details.setText(_md_ganz(p) + _vertrauen_text(p) if p else ("Noch keine Kurspakete. Importiere eine "
                                                      f"{kurspaket.SUFFIX}-Datei oder lade eines aus dem Internet."))
         self.start_knopf.setEnabled(p is not None and bool(p.lektionen))
         self.export_knopf.setEnabled(p is not None)

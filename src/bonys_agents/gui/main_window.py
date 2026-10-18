@@ -1625,8 +1625,10 @@ class MainWindow(QMainWindow):
     def kurspaket_durcharbeiten(self, paket) -> None:
         """Selbstlern-Modus: Agent-PC für das Kurspaket wählen/erstellen, dann die Anleitung daneben öffnen."""
         from .kurspaket_anleitung import oeffnen
-        from .kurspaket_bibliothek import agent_pc_einrichten
+        from .kurspaket_bibliothek import agent_pc_einrichten, skripte_erlauben
 
+        if not skripte_erlauben(self, paket):
+            return
         if not deps.check(self.info).can_run and kurspaket.agent_pc(paket) is None:
             self.show_doctor()
             if not deps.check(self.info).can_run:

@@ -527,6 +527,7 @@ def test_anleitung_fenster(qapp, datadir, tmp_path, monkeypatch):
     kp.importieren(d)
     paket = kp.holen("test-paket")
     gezeigt = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)   # Quiz „später“
     f = ka.oeffnen(paket, gezeigt.append)
     assert ka.oeffnen(paket) is f                 # zweites Öffnen holt dasselbe Fenster
     assert f.info.text().startswith("Lektion 1 von 3") and not f.zurueck.isEnabled()
@@ -534,7 +535,7 @@ def test_anleitung_fenster(qapp, datadir, tmp_path, monkeypatch):
     assert not f.pc_knopf.isEnabled()             # noch kein Agent-PC
     f.weiter.click()
     assert kp.Fortschritt.laden(paket.id).lektion == 1 and kp.Fortschritt.laden(paket.id).erledigt == ["01-ankommen"]
-    assert f.aufgabe.isVisibleTo(f) and "Prüfaufgabe" in f.aufgabe_text.text()
+    assert f.aufgabe.isVisibleTo(f) and "Prüfaufgabe" in f.aufgabe_text.text() and f.pruefen_knopf.isVisibleTo(f)
     f.weiter.click()
     assert f.weiter.text().startswith("Abschließen")
     infos = []
@@ -592,3 +593,96 @@ def test_doku_beispiel_und_schema_gueltig(monkeypatch):
     assert set(schema["properties"]["stufe"]["enum"]) == set(kp.STUFEN)
     assert set(schema["properties"]["lektionen"]["items"]["properties"]["pruefung"]["properties"]["typ"]["enum"]) \
         == {kp.SKRIPT, *kp.EINGEBAUTE_PRUEFUNGEN}
+
+
+def test_quiz_dialog(qapp):
+    from bonys_agents.gui.kurspaket_anleitung import QuizDialog
+
+    fragen = kp.quiz_pruefen({"fragen": [
+        {"frage": "1?", "antworten": ["a", "b"], "richtig": 1, "erklaerung": "weil b"},
+        {"frage": "2?", "antworten": ["x", "y", "z"], "richtig": 0}]})
+    d = QuizDialog("Test", fragen)
+    d.knopf.click()
+    assert "Bitte eine Antwort" in d.rueckmeldung.text()
+    d.gruppe.button(1).setChecked(True)
+    d.knopf.click()
+    assert d.rueckmeldung.text().startswith("Richtig!") and "weil b" in d.rueckmeldung.text()
+    d.knopf.click()                                  # nächste Frage
+    assert d.kopf.text() == "Frage 2 von 2"
+    d.gruppe.button(2).setChecked(True)
+    d.knopf.click()
+    assert "Richtig ist: x" in d.rueckmeldung.text() and d.knopf.text() == "Fertig"
+    d.knopf.click()
+    assert d.result() == 1 and d.ergebnis == [1, 2]
+
+
+def test_anleitung_pruefen_zuruecksetzen(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents import kurslauf
+    from bonys_agents.gui import kurspaket_anleitung as ka
+
+    paket = kp.importieren(paket_ordner(tmp_path))
+    kp.agent_pc_merken(paket, "agent-kurs")
+
+    class M:
+        name = "agent-kurs"
+
+        def status(self):
+            return "läuft"
+
+    m = M()
+    monkeypatch.setattr(ka.AnleitungFenster, "maschine", lambda self: m)
+    zustaende = {"01-ankommen", "02-uebung"}
+    monkeypatch.setattr(kurslauf, "startzustaende", lambda maschine, p: set(zustaende))
+    aufrufe = []
+    monkeypatch.setattr(kurslauf, "pruefen", lambda maschine, p, lek: aufrufe.append(("pruefen", lek.ordner))
+                        or kurslauf.Ergebnis(False, "Fehlt noch."))
+    monkeypatch.setattr(kurslauf, "lektion_zuruecksetzen",
+                        lambda maschine, p, i: aufrufe.append(("zurueck", i)))
+    f = ka.AnleitungFenster(paket)
+    f.show()
+    f._takt()
+    f._gehe(1)
+    _warten(qapp, lambda: not f.beschaeftigt())
+    assert f.reset_knopf.isVisibleTo(f) and "Startzustand gesichert" in f.info.text()
+    f.pruefen_knopf.click()
+    _warten(qapp, lambda: not f.beschaeftigt())
+    assert aufrufe == [("pruefen", "02-uebung")]
+    assert f.ergebnis_text.text() == "✗ Fehlt noch." and kp.Fortschritt.laden(paket.id).pruefungen == {
+        "02-uebung": False}
+    # Zurücksetzen nur nach Bestätigung – „Abbrechen“ ändert nichts
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda self: None)
+    f.reset_knopf.click()
+    assert aufrufe == [("pruefen", "02-uebung")]
+    f._zuruecksetzen(1)
+    _warten(qapp, lambda: not f.beschaeftigt())
+    assert aufrufe[-1] == ("zurueck", 1)
+    assert kp.Fortschritt.laden(paket.id).pruefungen == {} and f.fortschritt.lektion == 1
+    f.close()
+
+
+def test_skripte_erlauben(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents import kurslauf
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    paket = kp.importieren(paket_ordner(tmp_path))
+    gezeigt = []
+
+    def exec_(self):
+        gezeigt.append(self.informativeText())
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", exec_)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda self: None)     # „Abbrechen“
+    assert not kb.skripte_erlauben(None, paket)
+    assert "lektionen/02-uebung/pruefung/datei.sh" in gezeigt[0] and "nie auf deinem Rechner" in gezeigt[0]
+    assert kurslauf.zustimmung_noetig(paket)
+    monkeypatch.setattr(QMessageBox, "clickedButton",
+                        lambda self: next(b for b in self.buttons() if b.text() == "Erlauben und starten"))
+    assert kb.skripte_erlauben(None, paket) and not kurslauf.zustimmung_noetig(paket)
+    assert kb.skripte_erlauben(None, paket) and len(gezeigt) == 2              # kein drittes Mal gefragt
+    assert "Nicht geprüft" in kb._vertrauen_text(paket)
