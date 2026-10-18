@@ -624,8 +624,7 @@ def test_teilnehmer_hilfe_endet_mit_kurs_und_kursraum(qapp, teilnehmer, monkeypa
     assert "kann ihn bedienen" in th.hinweis.text.text()
     monkeypatch.setattr(hilfe, "kurs_laeuft", lambda k: False)   # Kurs pausiert
     th.kurs_zuletzt = 0.0
-    _warten(qapp, lambda: th.zustand is None)
-    assert ("stop",) in aufrufe
+    _warten(qapp, lambda: th.zustand is None and ("stop",) in aufrufe)   # Stoppen läuft im Hintergrund
     # neue Anfrage, dann Kursraum verlassen, während gefragt wird
     th.anfrage({"id": "h3", "identity": "i-leiter", "name": "Bony"})
     _warten(qapp, lambda: th.dialog is not None)
