@@ -559,3 +559,44 @@ def test_first_automatic_update_check_asks_first(app, window, monkeypatch):
     assert not updates.needs_consent() and updates.settings()["auto"] is False
     window.check_updates(manual=False)
     assert len(asked) == 1  # nur einmal gefragt
+
+
+def _luminanz(farbe) -> float:
+    def kanal(c: float) -> float:
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * kanal(farbe.redF()) + 0.7152 * kanal(farbe.greenF()) + 0.0722 * kanal(farbe.blueF())
+
+
+def _kontrast(a, b) -> float:
+    hell, dunkel = sorted((_luminanz(a), _luminanz(b)), reverse=True)
+    return (hell + 0.05) / (dunkel + 0.05)
+
+
+def test_tooltips_and_menus_are_readable_even_with_light_system_theme(app):
+    """Tooltip-Palette und Stylesheet bleiben lesbar, auch wenn das System ein helles Theme liefert."""
+    import re
+
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QToolTip
+
+    from bonys_agents.gui import style
+
+    hell = QPalette()
+    hell.setColor(QPalette.ToolTipBase, QColor("#ffffdc"))
+    hell.setColor(QPalette.ToolTipText, QColor("black"))
+    app.setPalette(hell)
+    QToolTip.setPalette(hell)
+    style.apply(app)  # muss die Systemfarben überschreiben
+
+    pal = QToolTip.palette()
+    assert _kontrast(pal.color(QPalette.ToolTipText), pal.color(QPalette.ToolTipBase)) >= 4.5
+
+    css = style.stylesheet()
+    for selektor, farbe_vorn, farbe_hinten in (
+        ("QToolTip", style.TEXT, style.PANEL_2),
+        ("QMenu", style.TEXT, style.PANEL),
+    ):
+        block = re.search(rf"^{selektor} \{{\s*(.*?)\}}", css, re.S | re.M).group(1)
+        assert f"color: {farbe_vorn}" in block and f"background-color: {farbe_hinten}" in block
+        assert _kontrast(QColor(farbe_vorn), QColor(farbe_hinten)) >= 4.5
+    assert _kontrast(QColor(style.MUTED), QColor(style.PANEL)) >= 4.5  # deaktivierte Einträge

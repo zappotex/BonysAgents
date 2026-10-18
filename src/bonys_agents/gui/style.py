@@ -102,6 +102,7 @@ def apply(app) -> None:
     die das Stylesheet nicht selbst zeichnet.
     """
     from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QToolTip
 
     app.setStyle("Fusion")
     pal = QPalette()
@@ -116,7 +117,12 @@ def apply(app) -> None:
         pal.setColor(role, QColor(color))
     for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, QColor(MUTED))
+    for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
+        pal.setColor(group, QPalette.ToolTipBase, QColor(PANEL_2))
+        pal.setColor(group, QPalette.ToolTipText, QColor(TEXT))
     app.setPalette(pal)
+    # Tooltips haben eine eigene Palette, die sonst vom System-Theme kommt (z. B. schwarze Schrift).
+    QToolTip.setPalette(pal)
     set_zoom(app, saved_zoom(), save=False)
 
 
@@ -136,8 +142,32 @@ QWidget {{
     color: {TEXT};
     font-size: 14px;
 }}
-QMainWindow, QDialog, QMessageBox, QMenu, QToolTip, QStatusBar {{ background: {BG}; }}
-QToolTip {{ border: 1px solid {BORDER}; padding: 4px; }}
+QMainWindow, QDialog, QMessageBox, QStatusBar {{ background: {BG}; }}
+QToolTip {{
+    color: {TEXT};
+    background-color: {PANEL_2};
+    border: 1px solid {BORDER};
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+}}
+QMenu {{ background-color: {PANEL}; color: {TEXT}; border: 1px solid {BORDER}; padding: 4px; }}
+QMenu::item {{ padding: 6px 24px 6px 16px; border-radius: 4px; }}
+QMenu::item:selected {{ background-color: {PANEL_2}; color: {TEXT}; }}
+QMenu::item:disabled {{ color: {MUTED}; background: transparent; }}
+QMenu::separator {{ height: 1px; background: {BORDER}; margin: 4px 8px; }}
+QMenuBar {{ background: {BG}; color: {TEXT}; }}
+QMenuBar::item:selected {{ background: {PANEL_2}; }}
+QMessageBox QLabel {{ color: {TEXT}; }}
+QFileDialog QAbstractItemView, QTableView, QTreeView, QListView {{
+    background-color: {PANEL}; color: {TEXT}; alternate-background-color: {PANEL_2};
+    selection-background-color: {HIGHLIGHT}; selection-color: #04121d;
+}}
+QHeaderView::section {{
+    background: {PANEL_2}; color: {TEXT}; border: none; border-right: 1px solid {BORDER}; padding: 4px 8px;
+}}
+QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{ color: {MUTED}; background: {PANEL}; }}
+QCheckBox:disabled, QLabel:disabled {{ color: {MUTED}; }}
 QLabel, QCheckBox {{ background: transparent; }}
 QLabel#Title {{ font-size: 22px; font-weight: 600; }}
 QLabel#Tagline {{ color: {HIGHLIGHT}; font-size: 13px; }}

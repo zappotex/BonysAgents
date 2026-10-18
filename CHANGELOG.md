@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.22.1 – Handbücher, lesbare Tooltips
 
 ### Neu
 - **Handbücher als PDF** (`docs/handbuch/`): Benutzerhandbuch, Kursleiter-Handbuch und Beispielkurs „Einführung in
@@ -15,6 +15,9 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   „Kursleiter-Handbuch“).
 
 ### Behoben
+- **Hilfetexte (Tooltips) unlesbar:** Auf Systemen mit hellem Theme (z. B. Linux Mint) war die Schrift schwarz auf
+  dunklem Grund. Tooltips, Kontextmenüs, Meldungsfenster, Dateiauswahl, Tabellen/Listen und deaktivierte Elemente
+  haben jetzt feste, kontrastreiche Farben, unabhängig vom System-Theme.
 - **Hilfe-Funktion:** Die Rückfrage „Hilfe-Anfrage des Kursleiters“ schnitt den Erklärtext unten ab („Nur ansehen“ /
   „Ansehen und bedienen“, „… endet nach spätestens 30 Minuten“). Fenster und Hinweis „Hilfe läuft“ sind jetzt so hoch
   wie der umgebrochene Text.
