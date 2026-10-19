@@ -445,6 +445,11 @@ def test_editor_fenster(qapp, datadir, tmp_path, monkeypatch):
 
     from bonys_agents.trainer.gui import kurspaket_editor as ke
 
+    def unerwartet(*a, **k):   # ein Meldungsfenster würde den Test (ohne Bildschirm) blockieren
+        raise AssertionError(f"Unerwartete Meldung: {a[1:3]}")
+
+    monkeypatch.setattr(QMessageBox, "warning", unerwartet)
+    monkeypatch.setattr(QMessageBox, "critical", unerwartet)
     p = ed.neu_anlegen("Fenstertest")
     gespeichert = []
     f = ke.oeffnen(p.pfad, gespeichert.append)
