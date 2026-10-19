@@ -80,8 +80,9 @@ EINGEBAUTE_PRUEFUNGEN = {
     "vorlage-vorhanden": "Es gibt mindestens eine Vorlage.",
 }
 
-MITGELIEFERT, DATEI, INTERNET = "mitgeliefert", "datei", "internet"
-HERKUNFT_TEXT = {MITGELIEFERT: "mitgeliefert", DATEI: "aus Datei", INTERNET: "aus dem Internet"}
+MITGELIEFERT, DATEI, INTERNET, EIGEN = "mitgeliefert", "datei", "internet", "eigen"
+HERKUNFT_TEXT = {MITGELIEFERT: "mitgeliefert", DATEI: "aus Datei", INTERNET: "aus dem Internet",
+                 EIGEN: "selbst erstellt"}
 
 # Kurspakete aus dem Internet: Liste aus einem öffentlichen GitHub-Repo. Platzhalter, bis das Repo feststeht.
 KATALOG_REPO = "zappotex/bonys-agents-kurspakete"
@@ -235,6 +236,7 @@ class Pruefung:
     noch_nicht: str = "Noch nicht geschafft."
     zeitlimit: int = PRUEF_ZEIT_STANDARD
     als: str = "benutzer"          # „benutzer“ (Benutzer des Agent-PCs) oder „root“
+    loesung: str = ""              # optional: Skript, das die Aufgabe löst – nur für „Kurspaket prüfen“ im Editor
 
 
 @dataclass
@@ -399,6 +401,9 @@ class Kurspaket:
                 out.append((lek, "Startzustand", f"{LEKTIONEN}/{lek.ordner}/{lek.start.skript}"))
             if lek.pruefung and lek.pruefung.typ == SKRIPT:
                 out.append((lek, "Prüfung", f"{LEKTIONEN}/{lek.ordner}/{lek.pruefung.skript}"))
+                if lek.pruefung.loesung:
+                    out.append((lek, "Lösung (nur „Kurspaket prüfen“)",
+                                f"{LEKTIONEN}/{lek.ordner}/{lek.pruefung.loesung}"))
         return out
 
     def lektion(self, index: int) -> Lektion:
@@ -444,8 +449,13 @@ def _pruefung(d: object, wo: str) -> Pruefung | None:
         raise PaketFehler(f"{w}: unbekannter „typ“ „{typ}“ (bekannt: {SKRIPT}, {', '.join(EINGEBAUTE_PRUEFUNGEN)}) "
                           "– vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
     skript = _relpfad(_feld(d, "skript", w, pflicht=True), w, "skript", SKRIPT_ENDUNGEN) if typ == SKRIPT else ""
+    loesung = _feld(d, "loesung", w) if typ == SKRIPT else ""
+    if loesung:
+        loesung = _relpfad(loesung, w, "loesung", SKRIPT_ENDUNGEN)
+        if loesung == skript:
+            raise PaketFehler(f"{w}: „loesung“ muss ein anderes Skript sein als „skript“.")
     return Pruefung(
-        typ=typ, skript=skript,
+        typ=typ, skript=skript, loesung=loesung,
         aufgabe=_feld(d, "aufgabe", w, max_len=300),
         geschafft=_feld(d, "geschafft", w, max_len=300) or "Geschafft!",
         noch_nicht=_feld(d, "noch_nicht", w, max_len=500) or "Noch nicht geschafft.",
@@ -642,6 +652,7 @@ def laden(ordner: Path, herkunft: str = DATEI) -> Kurspaket:
             raise PaketFehler(f"{w}: {ANLEITUNG} fehlt.")
         lek.anleitung()
         for was, skript in (("Prüfskript", lek.pruefung.skript if lek.pruefung else ""),
+                            ("Lösungsskript", lek.pruefung.loesung if lek.pruefung else ""),
                             ("Startskript", lek.start.skript if lek.start else "")):
             if skript:
                 p = lek.pfad / skript
@@ -651,6 +662,205 @@ def laden(ordner: Path, herkunft: str = DATEI) -> Kurspaket:
         if lek.hat_quiz:
             lek.quiz()
     return paket
+
+
+# ---------------------------------------------------------------- paket.json schreiben (Editor)
+def paket_json(paket: Kurspaket) -> dict:
+    """Gegenstück zu ``paket_pruefen``: ``paket.json`` als Dict – Standardwerte bleiben weg, damit die Datei kurz
+    und gut lesbar bleibt (und sich mit Git gut vergleichen lässt)."""
+    d: dict = {"format": FORMAT_ID, "format_version": FORMAT_VERSION, "min_version": paket.min_version,
+               "id": paket.id, "name": paket.name, "beschreibung": paket.beschreibung, "stufe": paket.stufe,
+               "sprache": paket.sprache}
+    if paket.autor:
+        d["autor"] = paket.autor
+    d["lizenz"] = paket.lizenz or LIZENZ_STANDARD
+    d["version"] = paket.version
+    if paket.entwurf:
+        d["entwurf"] = True
+    summe = sum(lek.dauer_minuten for lek in paket.lektionen)
+    if paket.dauer_minuten and paket.dauer_minuten != summe:
+        d["dauer_minuten"] = paket.dauer_minuten
+    if paket.pause_minuten:
+        d["pause_minuten"] = paket.pause_minuten
+    if paket.teilnehmer_min or paket.teilnehmer_max:
+        d["teilnehmer"] = {k: v for k, v in (("min", paket.teilnehmer_min), ("max", paket.teilnehmer_max)) if v}
+    for key in ("zielgruppe", "kosten"):
+        if getattr(paket, key):
+            d[key] = getattr(paket, key)
+    for key in ("voraussetzungen", "lernziele", "quellen"):
+        if getattr(paket, key):
+            d[key] = list(getattr(paket, key))
+    r, standard = paket.rezept, Rezept()
+    rezept: dict = {}
+    if r.name:
+        rezept["name"] = r.name
+    rezept["desktop"] = r.desktop
+    if r.apps:
+        rezept["apps"] = list(r.apps)
+    for key in ("ram_mb", "cpus", "disk_gb"):
+        if getattr(r, key):
+            rezept[key] = getattr(r, key)
+    for key in ("username", "keyboard", "timezone"):
+        if getattr(r, key) != getattr(standard, key):
+            rezept[key] = getattr(r, key)
+    if r.vorlage:
+        rezept["vorlage"] = r.vorlage
+    if r.vorlage_sha256:
+        rezept["vorlage_sha256"] = r.vorlage_sha256
+    d["rezept"] = rezept
+    lektionen = []
+    for lek in paket.lektionen:
+        ld: dict = {"ordner": lek.ordner, "titel": lek.titel}
+        if lek.dauer_minuten:
+            ld["dauer_minuten"] = lek.dauer_minuten
+        if lek.art:
+            ld["art"] = lek.art
+        if lek.ziel:
+            ld["ziel"] = lek.ziel
+        if lek.pruefung:
+            p, pd = lek.pruefung, {}
+            if p.typ == SKRIPT:
+                pd["skript"] = p.skript
+                if p.loesung:
+                    pd["loesung"] = p.loesung
+            else:
+                pd["typ"] = p.typ
+            if p.aufgabe:
+                pd["aufgabe"] = p.aufgabe
+            pd["geschafft"] = p.geschafft or "Geschafft!"
+            pd["noch_nicht"] = p.noch_nicht or "Noch nicht geschafft."
+            if p.typ == SKRIPT:
+                if p.zeitlimit != PRUEF_ZEIT_STANDARD:
+                    pd["zeitlimit"] = p.zeitlimit
+                if p.als != "benutzer":
+                    pd["als"] = p.als
+            ld["pruefung"] = pd
+        if lek.start:
+            sd: dict = {"skript": lek.start.skript}
+            if lek.start.zeitlimit != START_ZEIT_STANDARD:
+                sd["zeitlimit"] = lek.start.zeitlimit
+            if lek.start.als != "root":
+                sd["als"] = lek.start.als
+            ld["start"] = sd
+        lektionen.append(ld)
+    d["lektionen"] = lektionen
+    return d
+
+
+def quiz_json(fragen: list[Frage]) -> dict:
+    out = []
+    for f in fragen:
+        fd = {"frage": f.frage, "antworten": list(f.antworten), "richtig": f.richtig}
+        if f.erklaerung:
+            fd["erklaerung"] = f.erklaerung
+        out.append(fd)
+    return {"fragen": out}
+
+
+def json_text(d: object) -> str:
+    """JSON so, wie Bony's Agents es in Kurspaketen schreibt: UTF-8 lesbar, eingerückt, Zeilenende am Schluss."""
+    return json.dumps(d, ensure_ascii=False, indent=2) + "\n"
+
+
+# ---------------------------------------------------------------- Geheimnis-Prüfung
+@dataclass
+class Fund:
+    """Fundstelle der Geheimnis-Prüfung – ohne den Wert selbst (der soll nirgends angezeigt werden)."""
+    datei: str
+    zeile: int
+    art: str
+
+    def __str__(self) -> str:
+        return f"{self.datei}, Zeile {self.zeile}: {self.art}"
+
+
+class GeheimnisGefunden(PaketFehler):
+    """Im Kurspaket stehen Zugangsdaten oder persönliche Daten – Speichern/Export ist blockiert, bis bereinigt."""
+
+    def __init__(self, funde: list[Fund]):
+        self.funde = funde
+        liste = "\n".join(f"• {f}" for f in funde[:20]) + (f"\n• … und {len(funde) - 20} weitere"
+                                                             if len(funde) > 20 else "")
+        super().__init__("Im Kurspaket stehen Zugangsdaten oder persönliche Daten – das Kurspaket wird so nicht "
+                         f"gespeichert bzw. exportiert, bis sie entfernt sind:\n{liste}\n\nSchreibe stattdessen "
+                         "einen Platzhalter wie „<dein-schlüssel>“ – Teilnehmer nutzen ihr eigenes Konto.")
+
+
+# Die erste passende Regel je Zeile zählt – die genaueren stehen daher vorn.
+_GEHEIMNIS_MUSTER: list[tuple[str, re.Pattern]] = [
+    ("privater Schlüssel", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY")),
+    ("API-Schlüssel (Anthropic)", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{16,}")),
+    ("API-Schlüssel (OpenRouter)", re.compile(r"\bsk-or-[A-Za-z0-9_-]{16,}")),
+    ("API-Schlüssel (sk-…)", re.compile(r"\bsk-(?:proj-|live-|test-)?[A-Za-z0-9_-]{20,}")),
+    ("API-Schlüssel (Stripe)", re.compile(r"\b[rs]k_live_[A-Za-z0-9]{16,}")),
+    ("GitHub-Token", re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})")),
+    ("GitLab-Token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}")),
+    ("AWS-Zugangsschlüssel", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("Google-API-Schlüssel", re.compile(r"\bAIza[0-9A-Za-z_-]{35}")),
+    ("Slack-Token", re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}")),
+    ("Telegram-Bot-Token", re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{30,}")),
+    ("Hugging-Face-Token", re.compile(r"\bhf_[A-Za-z0-9]{30,}")),
+    ("Token (JWT)", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
+    ("Zugangsdaten in einer Adresse", re.compile(r"\b[a-z][a-z0-9+.-]{1,15}://[^\s/:@\"'<>]+:[^\s/@\"'<>]+@")),
+    ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?: ?[0-9]{4}){4}(?: ?[0-9]{1,4})?\b")),
+]
+# Zuweisung wie API_KEY=… / "password": "…" – zählt nur, wenn der Wert nach einem echten Geheimnis aussieht
+_ZUWEISUNG = re.compile(
+    r"(?i)\b[\w-]*(?:api[_-]?key|token|secret|passwor[dt]|passwd|kennwort|client[_-]?secret)[\w-]*[\"']?\s*[:=]\s*"
+    r"[\"']?([^\s\"'`,;]+)")
+_PLATZHALTER = re.compile(r"(?i)^[<\[{($%]|^\.\.\.|…|dein|deine|your|xxx|beispiel|example|platzhalter|placeholder|"
+                          r"changeme|^none$|^null$|^true$|^false$|getpass|environ|input\(")
+_EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b")
+_EMAIL_ERLAUBT = re.compile(r"(?i)(^|\.)(example\.(com|org|net)|beispiel\.(de|org)|example|invalid|test|localhost|"
+                            r"users\.noreply\.github\.com|github\.com)$")
+_TELEFON = re.compile(r"(?<![\w+])(?:\+|00)(?:49|43|41)[ /-]?\(?0?\)?\d{2,5}[ /-]?\d{3,}(?:[ -]?\d{2,})?|"
+                      r"(?<![\w/])01[5-7]\d[ /-]?\d{6,8}\b")
+TEXT_ENDUNGEN = {".md", ".txt", ".json", ".sh", ".py", ""}
+
+
+def _sieht_geheim_aus(wert: str) -> bool:
+    if len(wert) < 8 or _PLATZHALTER.search(wert):
+        return False
+    hat_ziffer, hat_buchstabe = any(c.isdigit() for c in wert), any(c.isalpha() for c in wert)
+    return (hat_ziffer and hat_buchstabe) or len(wert) >= 20
+
+
+def geheimnisse_suchen_text(text: str, datei: str = "") -> list[Fund]:
+    funde = []
+    for nr, zeile in enumerate(text.splitlines(), 1):
+        art = next((a for a, muster in _GEHEIMNIS_MUSTER if muster.search(zeile)), "")
+        if not art:
+            m = _ZUWEISUNG.search(zeile)
+            if m and _sieht_geheim_aus(m.group(1)):
+                art = "Passwort oder Schlüssel"
+        if not art:
+            if any(not _EMAIL_ERLAUBT.search(m.group(1)) for m in _EMAIL.finditer(zeile)):
+                art = "E-Mail-Adresse (persönliche Daten)"
+            elif _TELEFON.search(zeile):
+                art = "Telefonnummer (persönliche Daten)"
+        if art:
+            funde.append(Fund(datei, nr, art))
+    return funde
+
+
+def geheimnisse_suchen(ordner: Path) -> list[Fund]:
+    """Alle Textdateien eines Paket-Ordners nach Zugangsdaten und persönlichen Daten durchsuchen."""
+    funde: list[Fund] = []
+    for p, rel in _dateien(Path(ordner)):
+        if rel.suffix.lower() not in TEXT_ENDUNGEN or p.is_symlink() or rel.name == HERKUNFT:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace") if p.stat().st_size <= MAX_TEXT else ""
+        except OSError:
+            continue
+        funde += geheimnisse_suchen_text(text, rel.as_posix())
+    return funde
+
+
+def geheimnisse_pruefen(ordner: Path) -> None:
+    funde = geheimnisse_suchen(ordner)
+    if funde:
+        raise GeheimnisGefunden(funde)
 
 
 # ---------------------------------------------------------------- ZIP: prüfen, entpacken, packen
@@ -761,8 +971,11 @@ def _dateien(ordner: Path):
 
 
 def packen(ordner: Path, datei: Path) -> Path:
-    """Paket-Ordner prüfen und als ``.bonyspaket`` speichern (``.herkunft.json`` und Versteckte bleiben weg)."""
+    """Paket-Ordner prüfen und als ``.bonyspaket`` speichern (``.herkunft.json`` und Versteckte bleiben weg).
+
+    Enthält das Paket Zugangsdaten oder persönliche Daten, wird nichts gespeichert (``GeheimnisGefunden``)."""
     laden(ordner)
+    geheimnisse_pruefen(ordner)
     datei = Path(datei)
     tmp = datei.with_name(f".{datei.name}.{os.getpid()}.tmp")
     try:
@@ -820,7 +1033,7 @@ def bestand() -> Bestand:
                 continue
             herkunft = _herkunft_lesen(ordner).get("quelle")
             try:
-                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET) else DATEI)
+                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET, EIGEN) else DATEI)
             except PaketFehler as e:
                 fehler.append((ordner.name, str(e)))
                 continue

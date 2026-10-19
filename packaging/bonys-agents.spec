@@ -42,6 +42,8 @@ VERSION = next(
 )
 # Anwender: nichts aus trainer/ (Seiten der Vorführung, noVNC) – Kursleiter: alles
 datas = [d for d in collect_data_files("bonys_agents") if editions.keep(EDITION, d[1])]
+if TRAINER:   # Vorlage der Handbücher – der Kurspaket-Editor baut damit Ablaufplan und Handout als PDF
+    datas.append((str(ROOT / "docs" / "handbuch" / "vorlage"), "bonys_agents/trainer/resources/handbuch-vorlage"))
 
 # Nicht benötigte Qt-Teile weglassen. Qt WebEngine (Kursraum) bleibt drin – es bringt QtNetwork, QtWebChannel und
 # die Qt-Bibliotheken von Qml/Quick selbst mit (als Abhängigkeit von libQt6WebEngineCore, nicht als Python-Modul).

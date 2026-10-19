@@ -42,6 +42,11 @@ Skripte je 2 MB, JSON-Dateien je 1 MB.
 - Keine persönlichen Daten (Namen, E-Mail-Adressen, Telefonnummern von Teilnehmern).
 - Kein Festplatten-Abbild – stattdessen das **Rezept** (siehe unten) bzw. ein Verweis auf eine Vorlage.
 
+Bony's Agents sucht beim Speichern im Editor und beim Exportieren in allen Textdateien nach Schlüsseln, Tokens,
+Passwörtern, E-Mail-Adressen, Telefonnummern und IBANs und **blockiert**, bis sie entfernt sind (angezeigt wird nur
+Datei, Zeile und Art – nie der Wert). Platzhalter wie `<dein-schlüssel>` oder `$OPENROUTER_API_KEY` sind in Ordnung,
+ebenso Beispieladressen wie `kurs@example.com`.
+
 ## Markdown
 
 `anleitung.md`, `kursleitung.md`, `ablaufplan.md` und `handout.md` sind Markdown wie in den Handbüchern von
@@ -160,6 +165,7 @@ Skripts sieht niemand.
 | `geschafft`, `noch_nicht` | Hinweistexte |
 | `zeitlimit` | Sekunden, 1–300 (Standard 30) |
 | `als` | `benutzer` (Standard, Benutzer des Agent-PCs) oder `root` |
+| `loesung` | optional, bei `typ: skript`: Skript, das die Aufgabe löst, z. B. `pruefung/loesung.sh` – läuft nur bei **„Kurspaket prüfen“** im Editor (Test-Agent-PC), nie bei Teilnehmern |
 
 **Prüfskripte laufen nur im Agent-PC**, nie auf dem Rechner der Teilnehmer. Exit-Code `0` heißt „geschafft“.
 Sie sollen nichts ausgeben, nichts verändern und **niemals Schlüssel auslesen** – z. B. prüft „Hermes ist
@@ -287,6 +293,7 @@ den Einstellungen).
             "properties": {
               "typ": {"enum": ["skript", "agent-pc-laeuft", "vorlage-vorhanden"]},
               "skript": {"type": "string", "pattern": "^[^/\\\\.][^\\\\]*\\.(sh|py)$"},
+              "loesung": {"type": "string", "pattern": "^[^/\\\\.][^\\\\]*\\.(sh|py)$"},
               "aufgabe": {"type": "string", "maxLength": 300},
               "geschafft": {"type": "string", "maxLength": 300},
               "noch_nicht": {"type": "string", "maxLength": 500},

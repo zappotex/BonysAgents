@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, kurslauf, kurspaket, vm
+from bonys_agents import apps, desktops, edition, host, kurslauf, kurspaket, vm
 
 from .workers import TaskWorker
 
@@ -328,6 +328,13 @@ class BibliothekSeite(QWidget):
         knoepfe.addStretch(1)
         knoepfe.addWidget(self.start_knopf)
         root.addLayout(knoepfe)
+        if edition.IS_TRAINER:   # Editor (Neu, Bearbeiten, Duplizieren) nur in der Kursleiter-Version
+            from bonys_agents.trainer.gui.kurspaket_editor import bibliothek_knoepfe
+
+            editor_leiste = QHBoxLayout()
+            editor_leiste.addStretch(1)
+            bibliothek_knoepfe(self, editor_leiste)
+            root.addLayout(editor_leiste)
 
         self.start_knopf.clicked.connect(self._durcharbeiten)
         self.tabelle.doubleClicked.connect(lambda _i: self._durcharbeiten())

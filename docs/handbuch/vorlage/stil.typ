@@ -33,7 +33,7 @@
 
 #let conf(
   titel: none, untertitel: none, dokument: "", version: "", datum: "", inhalt-zeigen: true, kurz: false,
-  kapitel-seite: true, doc,
+  kapitel-seite: true, fuss: none, versionszeile: none, kopf: none, doc,
 ) = {
   set document(title: titel, author: "Bony")
   set text(font: ("Source Sans 3", "DejaVu Sans", "Noto Color Emoji"), size: 11pt, lang: "de", region: "de",
@@ -78,7 +78,7 @@
     header: context {
       if here().page() > 1 {
         set text(size: 9pt, fill: grau)
-        grid(columns: (1fr, auto), dokument, [Bony's Agents #version])
+        grid(columns: (1fr, auto), dokument, if kopf != none { kopf } else [Bony's Agents #version])
         v(-0.5em)
         line(length: 100%, stroke: 0.5pt + rgb("#d5dbe3"))
       }
@@ -86,7 +86,8 @@
     footer: context {
       if here().page() > 1 {
         set text(size: 9pt, fill: grau)
-        grid(columns: (1fr, auto), [Stand: #datum · Lizenz: CC BY-SA 4.0], counter(page).display("1"))
+        grid(columns: (1fr, auto), if fuss != none { fuss } else [Stand: #datum · Lizenz: CC BY-SA 4.0],
+          counter(page).display("1"))
       }
     })
 
@@ -110,7 +111,7 @@
         #v(1.2cm)
         #line(length: 6cm, stroke: 2pt + orange)
         #v(0.3cm)
-        #text(size: 12pt, fill: white)[Bony's Agents #version · Stand #datum]
+        #text(size: 12pt, fill: white)[#if versionszeile != none { versionszeile } else [Bony's Agents #version · Stand #datum]]
       ])
     ]
     counter(page).update(1)
@@ -144,4 +145,12 @@
     [Schriften: Source Sans 3 und Source Code Pro (Adobe, SIL Open Font License 1.1). Gesetzt mit Pandoc und
     Typst.]
   }
+}
+
+// Schluss bei Kurspaketen (Ablaufplan, Handout): Autor und Lizenz des Kurspakets statt der des Handbuchs
+#let paket-lizenz(autor: [], lizenz: []) = {
+  v(1.5em)
+  set text(size: 8.5pt, fill: grau)
+  [Kurspaket#if autor != [] [ von #autor] · Lizenz: #lizenz · erstellt mit Bony's Agents
+  (#link("https://github.com/zappotex/BonysAgents")).]
 }

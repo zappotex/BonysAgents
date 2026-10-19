@@ -154,7 +154,7 @@ pytest/ruff beider Editionen, Minor-Version, .deb (Installation nach Rückfrage)
 
 ## Stand
 
-Zuletzt aktualisiert: 19.10.2026 (Sitzung 2 fertig).
+Zuletzt aktualisiert: 19.10.2026 (Sitzung 3 fertig).
 
 ### Sitzung 1
 - [x] Plan `docs/dev/plan-kurspakete.md`, Auftrag in `.gitignore`
@@ -191,8 +191,30 @@ Zuletzt aktualisiert: 19.10.2026 (Sitzung 2 fertig).
   (`runuser`, `xdg-user-dir`) – gehört in den echten Test (Sitzung 4).
 
 ### Sitzung 3
-- [ ] Editor, Startzustand übernehmen, Speichern/Laden/Duplizieren/Version
-- [ ] Geheimnis-Prüfung, PDFs, „Kurspaket prüfen“
+- [x] Editor (`trainer/gui/kurspaket_editor.py`, Logik `trainer/kurspaket_editor.py`, nur Kursleiter): Knöpfe
+      „Neu …“, „Bearbeiten …“, „Duplizieren …“, „Ordner öffnen …“ in der Bibliothek; eigenes Fenster mit
+      Gliederung (Steckbrief, Rezept, Ablaufplan, Handout, Lektionen +/−/↑/↓), Markdown mit Vorschau, Kästen,
+      Bild einfügen, Bildschirmfoto des Agent-PCs (QMP/HMP `screendump -f png`, mit leerem QEMU 8.2 getestet),
+      Kursleitungs-Notizen, Zeiten, Quiz, Prüfung (Vorlagen „Datei existiert“, „Dienst läuft“, „Hermes
+      eingerichtet“), Startskript
+- [x] „Startzustand übernehmen“ = (a) Rezept aus einem Agent-PC (Desktop, Apps, RAM/CPU/Platte, Benutzer,
+      Vorlage) und (b) Startskript aus einem Ordner im Agent-PC (z. B. `~/Kurs`, über den Gast-Agent gepackt
+      gelesen, Skript packt ihn als Benutzer wieder aus) – ein Festplatten-Abbild kommt nie ins Paket
+- [x] Speichern: erst Bauordner + volle Prüfung, dann Datei-Abgleich (Versteckte/`.git` bleiben, Signatur fällt
+      weg); Lektionsordner werden nach Position neu nummeriert; mitgelieferte → „Eigene Fassung“ (gleiche ID)
+      oder „Duplizieren“; Version erhöhen (Korrektur/Neue Inhalte/Grundlegend); eigene Skripte gelten als zugestimmt
+- [x] Geheimnis-Prüfung (`kurspaket.geheimnisse_suchen`): Schlüssel/Tokens (OpenRouter, Anthropic, sk-, GitHub,
+      GitLab, AWS, Google, Slack, Telegram, HF, JWT, private Schlüssel), Passwort-Zuweisungen, Zugangsdaten in
+      URLs, E-Mail, Telefon, IBAN; blockiert Speichern im Editor und jeden Export (`packen`); zeigt nie den Wert
+- [x] PDF für Ablaufplan/Handout mit der Handbuch-Vorlage (pandoc + typst, eigener Root-Ordner, Kurspaket-Lizenz
+      statt Handbuch-Lizenz; Vorlage kommt per pyproject/spec als `trainer/resources/handbuch-vorlage` mit)
+- [x] „Kurspaket prüfen“: statisch (Format, Geheimnisse, fehlende Bilder, http-Links, HTML, unbekannte/veraltete
+      Apps, Vorlage, Dauer, Python-Syntax per `compile`), optional Links online, optional Test-Agent-PC: je Lektion
+      `bash -n`, Startskript, Prüfung vorher (darf nicht erfüllt sein), neues optionales Format-Feld
+      `pruefung.loesung` (Lösungsskript) und Prüfung danach; Schnappschuss `bonys-paket-test` und Zurücksetzen
+- [x] Tests `tests/test_kurspaket_editor.py` (42), Doku `docs/kurspaket-format.md` (loesung, Geheimnis-Prüfung)
+- Noch nicht echt getestet: Bildschirmfoto/Startskript übernehmen/„Kurspaket prüfen“ mit echtem Agent-PC –
+  gehört in den echten Test (Sitzung 4). Handbücher/editionen.md: Abschnitt Editor kommt in Sitzung 4.
 
 ### Sitzung 4
 - [ ] Kurspaket bei Kurs/Schulung, Kursansicht mit Fortschritt

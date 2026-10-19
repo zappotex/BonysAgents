@@ -191,8 +191,11 @@ def lektion_zuruecksetzen(machine: vm.VM, paket: kurspaket.Kurspaket, index: int
 
 
 # ---------------------------------------------------------------- Skripte im Agent-PC
-def befehl_im_gast(skript: Path, als: str, username: str, zeitlimit: int) -> tuple[str, list[str]]:
-    """(Programm, Argumente) für guest-exec: ``timeout`` im Gast, saubere Umgebung, Interpreter liest stdin."""
+def befehl_im_gast(skript: Path, als: str, username: str, zeitlimit: int,
+                   nur_syntax: bool = False) -> tuple[str, list[str]]:
+    """(Programm, Argumente) für guest-exec: ``timeout`` im Gast, saubere Umgebung, Interpreter liest stdin.
+
+    ``nur_syntax`` (nur Bash, für „Kurspaket prüfen“): ``bash -n`` – liest das Skript, führt aber nichts aus."""
     interpreter = INTERPRETER.get(skript.suffix.lower())
     if interpreter is None:
         raise ValueError(f"Unbekannte Skriptart: {skript.name}")
@@ -202,20 +205,23 @@ def befehl_im_gast(skript: Path, als: str, username: str, zeitlimit: int) -> tup
     user = "root" if als == "root" else username
     umgebung = ["/usr/bin/env", "-i", f"HOME={home}", f"USER={user}", f"LOGNAME={user}", "LANG=de_DE.UTF-8",
                 f"PATH={home}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"]
-    lesen = [interpreter, "-s"] if interpreter.endswith("bash") else [interpreter, "-"]
+    if nur_syntax and not interpreter.endswith("bash"):
+        raise ValueError("Syntaxprüfung im Agent-PC gibt es nur für Bash-Skripte")
+    lesen = ([interpreter, "-n"] if nur_syntax else [interpreter, "-s"]) if interpreter.endswith("bash") \
+        else [interpreter, "-"]
     wer = [] if als == "root" else ["/usr/sbin/runuser", "-u", username, "--"]
     args = ["-k", "3", str(int(zeitlimit)), *wer, *umgebung, *lesen]
     return "/usr/bin/timeout", args
 
 
-def im_agent_pc_ausfuehren(machine: vm.VM, skript: Path, als: str, zeitlimit: int) -> int:
+def im_agent_pc_ausfuehren(machine: vm.VM, skript: Path, als: str, zeitlimit: int, nur_syntax: bool = False) -> int:
     """Skript aus einem Kurspaket im Agent-PC ausführen – nur über den Gast-Agent. Gibt den Exit-Code zurück,
     nie die Ausgabe. Ohne erreichbaren Gast-Agent: NichtBereit (es gibt bewusst keinen Weg über SSH)."""
     if not machine.is_running():
         raise NichtBereit("Der Agent-PC läuft nicht – bitte zuerst starten.")
     # Unter Windows geschriebene Skripte haben \r\n – daran scheitern bash und python im Gast
     inhalt = skript.read_bytes().replace(b"\r\n", b"\n")
-    programm, args = befehl_im_gast(skript, als, machine.config.username, zeitlimit)
+    programm, args = befehl_im_gast(skript, als, machine.config.username, zeitlimit, nur_syntax)
     try:
         with qemu.GuestAgent(machine.qga_endpoint(), timeout=5) as ga:
             rc, _out, _err = ga.exec(programm, args, stdin=inhalt, timeout=zeitlimit + 15)
@@ -282,6 +288,8 @@ def skripte_kennung(paket: kurspaket.Kurspaket) -> str:
         rel = [lek.start.skript] if lek.start else []
         if lek.pruefung and lek.pruefung.typ == kurspaket.SKRIPT:
             rel.append(lek.pruefung.skript)
+            if lek.pruefung.loesung:
+                rel.append(lek.pruefung.loesung)
         for r in rel:
             h.update(f"{lek.ordner}/{r}".encode() + b"\0" + (lek.pfad / r).read_bytes() + b"\0")
     return h.hexdigest()

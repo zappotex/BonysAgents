@@ -32,6 +32,8 @@ behält Agent-PCs, Vorlagen, Bibliotheken und Einstellungen – beide nutzen den
 | **Kursleiter:** Vorlage im Netzwerk freigeben (HTTPS-Server, mDNS-Ankündigung, `bonys-agents share`) | – | ✅ |
 | **Kursleiter:** Vorführen (Kurs-Server, WebSocket-Proxy, noVNC, `bonys-agents present`) | – | ✅ |
 | **Kursleiter:** Hilfe-Anfragen annehmen, Teilnehmer-Agent-PCs ansehen und (nach Zustimmung) steuern | – | ✅ |
+| Kurspakete: Bibliothek, Selbstlern-Modus, Anleitung, Startzustände, Prüfaufgaben, Quiz | ✅ | ✅ |
+| **Kursleiter:** Kurspaket-Editor – anlegen, bearbeiten, duplizieren, Geheimnis-Prüfung, PDF, „Kurspaket prüfen“ (`trainer/gui/kurspaket_editor.py`) | – | ✅ |
 | **Kursleiter:** Dashboard (Stufe 4, geplant) | – | ✅ |
 | Hinweis „Du möchtest selbst Schulungen geben? → Bony's Agents Kursleiter“ (Menü ⓘ, „Über“) | ✅ | – |
 
