@@ -3,6 +3,7 @@
 „Kurspaket prüfen“ (nur im Agent-PC) und das Editor-Fenster."""
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -224,7 +225,8 @@ def test_vorlagen_pruefskripte(tmp_path):
         cfg.unlink(missing_ok=True)
         if config is not None:
             cfg.write_text(config, encoding="utf-8")
-        return subprocess.run(["python3", str(skript)], env={"HOME": str(home)}).returncode
+        env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home)}   # Windows: Path.home() = USERPROFILE
+        return subprocess.run([sys.executable, "-I", str(skript)], env=env).returncode
 
     assert lauf(None) == 1
     assert lauf("model:\n  provider: nous\n  default: hermes-4-free\n") == 0
