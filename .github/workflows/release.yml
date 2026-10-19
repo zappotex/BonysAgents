@@ -443,7 +443,7 @@ jobs:
           trap 'rm -f "$KEY"' EXIT
           # Mitgelieferte Kurspakete signieren (pruefsummen.txt.minisig) und als .bonyspaket packen – samt
           # kurspakete-index.json für das Repo zappotex/bonys-agents-kurspakete (docs/RELEASE.md)
-          pip install -q "platformdirs==4.13.2" "psutil==7.2.2"
+          pip install -q "platformdirs==4.13.2" "psutil==7.2.2" "pycdlib==1.22.0"
           python3 packaging/kurspakete.py vorbereiten "$RUNNER_TEMP/kurspakete"
           for f in "$RUNNER_TEMP"/kurspakete/*/pruefsummen.txt; do
             minisign -S -s "$KEY" -m "$f" -x "$f.minisig" -t "Kurspaket von Bony's Agents ${GITHUB_REF_NAME}"

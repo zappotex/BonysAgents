@@ -8,7 +8,7 @@ Zwei Schritte, dazwischen signiert die Release-Aktion jede ``pruefsummen.txt`` m
     python3 packaging/kurspakete.py packen BAU AUSGABE   # AUSGABE/<id>-<version>.bonyspaket + kurspakete-index.json
 
 ``kurspakete-index.json`` ist die ``index.json`` für das öffentliche Repo zappotex/bonys-agents-kurspakete (Dateien
-dort unter ``pakete/``) – siehe docs/RELEASE.md. Braucht nur platformdirs und psutil (kein Qt).
+dort unter ``pakete/``) – siehe docs/RELEASE.md. Braucht nur platformdirs, psutil und pycdlib (kein Qt).
 """
 
 from __future__ import annotations
