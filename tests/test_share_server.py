@@ -180,7 +180,7 @@ def test_resume_discards_part_of_other_file(running, tmp_path):
     dest = tmp_path / "laden"
     dest.mkdir()
     (dest / "kurs-1.0.bonys.teil").write_bytes(b"alt" * 1000)
-    (dest / "kurs-1.0.bonys.teil.json").write_text(json.dumps({"sha256": "0" * 64, "size": 1}))
+    (dest / "kurs-1.0.bonys.teil.json").write_text(json.dumps({"sha256": "0" * 64, "size": 1}), encoding="utf-8")
     out = share.download(info, dest)
     assert hashlib.sha256(out.read_bytes()).hexdigest() == running.sha256
 

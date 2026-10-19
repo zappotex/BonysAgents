@@ -48,7 +48,7 @@ def paket_ordner(basis: Path, daten: dict | None = None, name: str = "test-paket
         (d / "lektionen" / o / "anleitung.md").write_text(f"# {o}\n\n1. Schritt\n", encoding="utf-8")
     (d / "lektionen" / "01-ankommen" / "quiz.json").write_text(json.dumps(QUIZ), encoding="utf-8")
     (d / "lektionen" / "01-ankommen" / "kursleitung.md").write_text("Nur für die Kursleitung", encoding="utf-8")
-    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\ntest -s ~/x\n")
+    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\ntest -s ~/x\n", encoding="utf-8")
     return d
 
 
@@ -136,7 +136,7 @@ def test_fehlende_dateien(tmp_path):
     with pytest.raises(kp.PaketFehler, match="anleitung.md fehlt"):
         kp.laden(d)
     d = paket_ordner(tmp_path / "d")
-    (d / "paket.json").write_text("{kaputt")
+    (d / "paket.json").write_text("{kaputt", encoding="utf-8")
     with pytest.raises(kp.PaketFehler, match="kein gültiges JSON"):
         kp.laden(d)
 
@@ -267,7 +267,7 @@ def test_beiwerk_wird_uebersprungen(tmp_path):
 
 def test_packen_und_wieder_laden(tmp_path):
     src = paket_ordner(tmp_path / "src")
-    (src / ".herkunft.json").write_text("{}")
+    (src / ".herkunft.json").write_text("{}", encoding="utf-8")
     datei = kp.packen(src, tmp_path / kp.dateiname(kp.laden(src)))
     assert datei.name == "test-paket-1.0.0.bonyspaket"
     with zipfile.ZipFile(datei) as zf:
@@ -312,7 +312,7 @@ def test_mitgelieferte(datadir, tmp_path, monkeypatch):
     basis = tmp_path / "mit"
     paket_ordner(basis)
     (basis / "nur-entwurf").mkdir()
-    (basis / "nur-entwurf" / "kurs.md").write_text("# Entwurf")
+    (basis / "nur-entwurf" / "kurs.md").write_text("# Entwurf", encoding="utf-8")
     monkeypatch.setattr(kp, "mitgeliefert_dirs", lambda: [basis])
     (p,) = kp.liste()
     assert p.mitgeliefert
@@ -326,7 +326,7 @@ def test_mitgelieferte(datadir, tmp_path, monkeypatch):
 def test_kaputtes_paket_in_der_bibliothek(datadir):
     kaputt = kp.bibliothek_dir() / "kaputt"
     kaputt.mkdir(parents=True)
-    (kaputt / "paket.json").write_text("[]")
+    (kaputt / "paket.json").write_text("[]", encoding="utf-8")
     b = kp.bestand()
     assert b.pakete == [] and b.fehler[0][0] == "kaputt"
 
@@ -400,7 +400,7 @@ def test_fortschritt(datadir, tmp_path):
     f.erledigen(p.lektionen[2])
     assert f.text(p) == "abgeschlossen"
     # kaputte Datei → leerer Fortschritt statt Absturz
-    kp._fortschritt_datei().write_text('{"test-paket": {"lektion": "x", "erledigt": 5}}')
+    kp._fortschritt_datei().write_text('{"test-paket": {"lektion": "x", "erledigt": 5}}', encoding="utf-8")
     assert kp.Fortschritt.laden(p.id).lektion == 0
 
 

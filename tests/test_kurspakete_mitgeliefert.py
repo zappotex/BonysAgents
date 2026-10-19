@@ -70,9 +70,10 @@ def test_hermes_pruefskripte_in_einem_test_home(tmp_path):
 
     hermes = lek / "03-hermes-startklar" / "pruefung" / "hermes-eingerichtet.py"
     assert rc(sys.executable, "-I", str(hermes)) == 1
-    (home / ".hermes" / ".env").write_text("OPENROUTER_API_KEY=x\n")      # Schlüssel allein genügt nicht
+    (home / ".hermes" / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")   # Schlüssel genügt nicht
     assert rc(sys.executable, "-I", str(hermes)) == 1
-    (home / ".hermes" / "config.yaml").write_text("model:\n  provider: nous\n  default: hermes-free\n")
+    (home / ".hermes" / "config.yaml").write_text("model:\n  provider: nous\n  default: hermes-free\n",
+                                                  encoding="utf-8")
     assert rc(sys.executable, "-I", str(hermes)) == 0
     assert ".env" not in [z for z in hermes.read_text().splitlines() if not z.lstrip().startswith("#")][0]
 
@@ -82,7 +83,7 @@ def test_hermes_pruefskripte_in_einem_test_home(tmp_path):
     start = lek / "04-uebung-dateien" / "start" / "kurs-ordner.sh"
     assert rc("bash", str(liste / "einkaufsliste.sh")) == 1
     assert rc("bash", str(start)) == 0 and (home / "Kurs").is_dir()
-    (home / "Kurs" / "einkaufsliste.txt").write_text("Brot\nMilch\n")
+    (home / "Kurs" / "einkaufsliste.txt").write_text("Brot\nMilch\n", encoding="utf-8")
     assert rc("bash", str(liste / "einkaufsliste.sh")) == 1
     assert rc("bash", str(liste / "loesung.sh")) == 0
     assert rc("bash", str(liste / "einkaufsliste.sh")) == 0
@@ -116,7 +117,8 @@ def test_pack_skript_der_release_aktion(tmp_path):
         m.packen(bau, tmp_path / "out", public)
     for o in ordner:
         daten = (o / kurslauf.PRUEFSUMMEN).read_bytes()
-        (o / kurslauf.SIGNATUR).write_text(signing.sign(daten, secret, key_id, "Kurspaket von Bony's Agents v0"))
+        (o / kurslauf.SIGNATUR).write_text(signing.sign(daten, secret, key_id, "Kurspaket von Bony's Agents v0"),
+                                           encoding="utf-8")
     index = m.packen(bau, tmp_path / "out", public)
     katalog = json.loads(index.read_text())
     assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 6

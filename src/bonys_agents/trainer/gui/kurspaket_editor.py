@@ -13,7 +13,7 @@ from __future__ import annotations
 import shutil
 from collections.abc import Callable
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFontDatabase
@@ -428,7 +428,7 @@ class SkriptFeld(QWidget):
     def skript_pfad(self, ordner: str, standard: str) -> str:
         """Pfad im Lektionsordner – mit der gewählten Endung."""
         basis = self.pfad if getattr(self, "pfad", "") else f"{ordner}/{standard}"
-        return str(Path(basis).with_suffix(self.sprache.currentData()))
+        return PurePosixPath(basis).with_suffix(self.sprache.currentData()).as_posix()   # auch unter Windows mit „/“
 
     def setzen_vorlage(self, inhalt: str) -> None:
         if self.text.toPlainText().strip() and QMessageBox.question(
@@ -706,7 +706,7 @@ class LektionSeite(QWidget):
             loesung = self.loesung_skript.skript_pfad("pruefung", "loesung.sh") \
                 if typ == kurspaket.SKRIPT and self.loesung_skript.text.toPlainText().strip() else ""
             if loesung == skript:
-                loesung = str(Path(loesung).with_name("loesung" + Path(loesung).suffix))
+                loesung = PurePosixPath(loesung).with_name("loesung" + PurePosixPath(loesung).suffix).as_posix()
             lek.pruefung = kurspaket.Pruefung(
                 typ=typ, skript=skript, loesung=loesung, aufgabe=self.aufgabe.text().strip(),
                 geschafft=self.geschafft.text().strip(), noch_nicht=self.noch_nicht.text().strip(),

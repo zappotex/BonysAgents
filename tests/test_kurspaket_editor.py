@@ -5,6 +5,7 @@
 import json
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -49,7 +50,7 @@ def test_loesung_im_format(tmp_path):
     d = paket_ordner(tmp_path, daten)
     with pytest.raises(kp.PaketFehler, match="Lösungsskript"):
         kp.laden(d)
-    (d / "lektionen/02-uebung/pruefung/loesung.sh").write_text("echo Käse > ~/x\n")
+    (d / "lektionen/02-uebung/pruefung/loesung.sh").write_text("echo Käse > ~/x\n", encoding="utf-8")
     p = kp.laden(d)
     assert p.lektionen[1].pruefung.loesung == "pruefung/loesung.sh"
     assert [a for _l, a, _p in p.skripte()] == ["Prüfung", "Lösung (nur „Kurspaket prüfen“)"]
@@ -97,7 +98,7 @@ def test_keine_falschen_funde(zeile):
 
 def test_export_blockiert_bei_geheimnis(tmp_path):
     d = paket_ordner(tmp_path)
-    (d / "handout.md").write_text("Schlüssel: sk-or-v1-0123456789abcdef0123456789abcdef\n")
+    (d / "handout.md").write_text("Schlüssel: sk-or-v1-0123456789abcdef0123456789abcdef\n", encoding="utf-8")
     with pytest.raises(kp.GeheimnisGefunden) as e:
         kp.packen(d, tmp_path / "x.bonyspaket")
     assert "handout.md, Zeile 1" in str(e.value) and "0123456789abcdef" not in str(e.value)
@@ -127,7 +128,7 @@ def test_eigene_fassung_eines_mitgelieferten(datadir, tmp_path, monkeypatch):
     basis = tmp_path / "mit"
     basis.mkdir()
     paket_ordner(basis)
-    (basis / "test-paket" / kurslauf.PRUEFSUMMEN).write_text("x")
+    (basis / "test-paket" / kurslauf.PRUEFSUMMEN).write_text("x", encoding="utf-8")
     monkeypatch.setattr(kp, "mitgeliefert_dirs", lambda: [basis])
     original = kp.holen("test-paket")
     assert original.mitgeliefert and not ed.bearbeitbar(original)
@@ -190,7 +191,7 @@ def test_speichern_mit_fehler_aendert_nichts(datadir):
 def test_speichern_in_git_ordner_behaelt_versteckte(datadir, tmp_path):
     d = paket_ordner(tmp_path)
     (d / ".git").mkdir()
-    (d / ".git" / "HEAD").write_text("ref")
+    (d / ".git" / "HEAD").write_text("ref", encoding="utf-8")
     e = ed.Entwurf.laden(d)
     e.lektionen.pop(0)
     p = ed.speichern(e)
@@ -216,13 +217,13 @@ def test_vorlagen_pruefskripte(tmp_path):
     home = tmp_path / "home"
     (home / ".hermes").mkdir(parents=True)
     skript = tmp_path / "h.py"
-    skript.write_text(h)
+    skript.write_text(h, encoding="utf-8")
 
     def lauf(config: str | None) -> int:
         cfg = home / ".hermes" / "config.yaml"
         cfg.unlink(missing_ok=True)
         if config is not None:
-            cfg.write_text(config)
+            cfg.write_text(config, encoding="utf-8")
         return subprocess.run(["python3", str(skript)], env={"HOME": str(home)}).returncode
 
     assert lauf(None) == 1
@@ -298,6 +299,8 @@ def test_startskript_aus_agent_pc(tmp_path, monkeypatch):
     with pytest.raises(ValueError):
         ed.startskript_aus_agent_pc(_VM(tmp_path), "/etc")
     # Das erzeugte Skript stellt den Ordner wieder her (hier mit einem Fake-HOME – im echten Betrieb im Agent-PC)
+    if sys.platform.startswith("win"):
+        return   # bash ist unter Windows nur der WSL-Platzhalter
     home = tmp_path / "home"
     home.mkdir()
     subprocess.run(["bash", "-s"], input=s.encode(), env={"HOME": str(home), "PATH": "/usr/bin:/bin"}, check=True)
@@ -311,8 +314,8 @@ def test_startskript_aus_agent_pc(tmp_path, monkeypatch):
 def test_pdf(tmp_path):
     d = paket_ordner(tmp_path)
     (d / "handout.md").write_text("---\ntitle: Handout\n---\n\n## Kurs\n\n::: tipp\nTipp\n:::\n\n"
-                                  "::: {.feld text=\"Kurscode\"}\n:::\n\n![Bild](bilder/x.png)\n")
-    (d / "ablaufplan.md").write_text("## Block 1\n\nText mit #raute und \"Anführung\"\n")
+                                  "::: {.feld text=\"Kurscode\"}\n:::\n\n![Bild](bilder/x.png)\n", encoding="utf-8")
+    (d / "ablaufplan.md").write_text("## Block 1\n\nText mit #raute und \"Anführung\"\n", encoding="utf-8")
     p = kp.laden(d)
     p.name = 'Name mit "Zeichen" #x'
     for welches in ("handout", "ablaufplan"):
@@ -332,12 +335,13 @@ def test_pruefen_statisch(datadir, tmp_path):
     d = paket_ordner(tmp_path)
     m = ed.pruefen_statisch(d)
     assert m[0].stufe == ed.OK and not [x for x in m if x.stufe == ed.FEHLER]
-    (d / "lektionen/01-ankommen/anleitung.md").write_text("![x](bilder/fehlt.png)\n[alt](http://x.de)\n")
-    (d / "handout.md").write_text("Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789\n")
+    (d / "lektionen/01-ankommen/anleitung.md").write_text("![x](bilder/fehlt.png)\n[alt](http://x.de)\n",
+                                                          encoding="utf-8")
+    (d / "handout.md").write_text("Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789\n", encoding="utf-8")
     daten = json.loads(json.dumps(PAKET))
     daten["rezept"]["apps"] = ["brave", "gibtsnicht"]
     daten["lektionen"][1]["pruefung"]["skript"] = "pruefung/p.py"
-    (d / "paket.json").write_text(json.dumps(daten))
+    (d / "paket.json").write_text(json.dumps(daten), encoding="utf-8")
     (d / "lektionen/02-uebung/pruefung/p.py").write_text("def (:\n")
     texte = [str(x) for x in ed.pruefen_statisch(d)]
     assert any("fehlt.png" in t and t.startswith("✗") for t in texte)
@@ -345,7 +349,7 @@ def test_pruefen_statisch(datadir, tmp_path):
     assert any("GitHub-Token" in t for t in texte)
     assert any("gibtsnicht" in t for t in texte)
     assert any("Syntaxfehler in Zeile 1" in t for t in texte)
-    (d / "paket.json").write_text("{")
+    (d / "paket.json").write_text("{", encoding="utf-8")
     assert ed.pruefen_statisch(d)[0].stufe == ed.FEHLER
 
 
@@ -353,7 +357,8 @@ def test_links_pruefen(tmp_path):
     import urllib.error
 
     d = paket_ordner(tmp_path)
-    (d / "handout.md").write_text("[a](https://gut.example) [b](https://weg.example) <https://gut.example>\n")
+    (d / "handout.md").write_text("[a](https://gut.example) [b](https://weg.example) <https://gut.example>\n",
+                                  encoding="utf-8")
     p = kp.laden(d)
 
     class R:
@@ -379,9 +384,9 @@ def test_durchspielen_nur_im_agent_pc(datadir, tmp_path, monkeypatch):
     daten["lektionen"][1]["pruefung"]["loesung"] = "pruefung/loesung.sh"
     daten["lektionen"][0]["start"] = {"skript": "start/s.sh"}
     d = paket_ordner(tmp_path, daten)
-    (d / "lektionen/02-uebung/pruefung/loesung.sh").write_text("touch ~/x\n")
+    (d / "lektionen/02-uebung/pruefung/loesung.sh").write_text("touch ~/x\n", encoding="utf-8")
     (d / "lektionen/01-ankommen/start").mkdir()
-    (d / "lektionen/01-ankommen/start/s.sh").write_text("true\n")
+    (d / "lektionen/01-ankommen/start/s.sh").write_text("true\n", encoding="utf-8")
     p = kp.laden(d)
     machine = _VM(tmp_path)
     zustand = {"geloest": False}

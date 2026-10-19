@@ -179,7 +179,7 @@ def test_kurspaket_im_kurs(leiter, zentrale, datadir, tmp_path, monkeypatch):
     assert k.kurspaket.paket_id == "test-paket" and k.kurspaket.lektionen == 3
     assert k.kurspaket.text == "Testpaket 1.0.0 · 3 Lektionen"
     # Zugangsdaten im Paket: nichts wird hochgeladen
-    (paket.pfad / "handout.md").write_text("Schlüssel: sk-or-v1-" + "a1" * 32 + "\n")
+    (paket.pfad / "handout.md").write_text("Schlüssel: sk-or-v1-" + "a1" * 32 + "\n", encoding="utf-8")
     zentrale.anfragen.clear()
     with pytest.raises(kurspaket.GeheimnisGefunden):
         kurse.kurspaket_hochladen(kurs.kurs_id, paket)

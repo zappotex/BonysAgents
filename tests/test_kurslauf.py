@@ -230,7 +230,7 @@ def test_startzustand_im_laufenden_betrieb(datadir, tmp_path, ga, monkeypatch):
     import json
     daten = json.loads((d / "paket.json").read_text())
     daten["lektionen"][1]["start"] = {"skript": "start/ordner.sh", "als": "benutzer"}
-    (d / "paket.json").write_text(json.dumps(daten))
+    (d / "paket.json").write_text(json.dumps(daten), encoding="utf-8")
     paket = kurspaket.laden(d)
     m = FakeVM()
     assert kurslauf.lektion_vorbereiten(m, paket, 1)
@@ -266,11 +266,11 @@ def test_signatur(datadir, tmp_path):
     paket = kurspaket.laden(d)
     assert kurslauf.signatur_pruefen(paket, public)
     assert not kurslauf.signatur_pruefen(paket)               # anderer (offizieller) Schlüssel
-    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("rm -rf ~\n")
+    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("rm -rf ~\n", encoding="utf-8")
     assert not kurslauf.signatur_pruefen(paket, public)       # Datei verändert
-    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\ntest -s ~/x\n")
+    (d / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\ntest -s ~/x\n", encoding="utf-8")
     assert kurslauf.signatur_pruefen(paket, public)
-    (d / "extra.txt").write_text("dazugeschmuggelt")
+    (d / "extra.txt").write_text("dazugeschmuggelt", encoding="utf-8")
     assert not kurslauf.signatur_pruefen(paket, public)       # zusätzliche Datei
     # die Signatur übersteht Packen und Importieren
     (d / "extra.txt").unlink()
@@ -286,7 +286,8 @@ def test_zustimmung_zu_skripten(datadir, tmp_path):
     kurslauf.zustimmen(paket)
     assert not kurslauf.zustimmung_noetig(paket)
     # geänderte Fassung: erneut fragen
-    (paket.pfad / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\nexit 0\n")
+    (paket.pfad / "lektionen" / "02-uebung" / "pruefung" / "datei.sh").write_text("#!/bin/bash\nexit 0\n",
+                                                                                  encoding="utf-8")
     assert kurslauf.zustimmung_noetig(paket)
     paket.herkunft = kurspaket.MITGELIEFERT
     assert not kurslauf.zustimmung_noetig(paket)
