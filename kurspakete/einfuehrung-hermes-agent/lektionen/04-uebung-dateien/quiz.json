@@ -1,0 +1,14 @@
+{
+  "fragen": [
+    {
+      "frage": "Was ist eine gute Aufgabe für einen Agenten?",
+      "antworten": [
+        "„Mach was“",
+        "Ein klares Ziel mit erwartetem Ergebnis",
+        "Möglichst viele Aufgaben gleichzeitig"
+      ],
+      "richtig": 1,
+      "erklaerung": "Je klarer Ziel und Ergebnis („Lege die Datei X mit Y an“), desto besser kann der Agent planen – und desto leichter kannst du prüfen."
+    }
+  ]
+}

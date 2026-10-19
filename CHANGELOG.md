@@ -3,6 +3,35 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.23.0 – Kurspakete
+
+### Neu
+- **Kurspakete** (`.bonyspaket`): fertige Lerninhalte – Lektionen mit Anleitung, Prüfaufgaben, Quiz, Ablaufplan
+  und Handout. Fenster „Kurse“ → Reiter **„Kurspakete“**: Bibliothek mit Import (Datei, Drag & Drop), Export und
+  „Aus dem Internet …“ (Repository [bonys-agents-kurspakete](https://github.com/zappotex/bonys-agents-kurspakete),
+  nur HTTPS, Größe und SHA-256 geprüft). Format: `docs/kurspaket-format.md`.
+- **Selbstlern-Modus** (beide Editionen): „Durcharbeiten“ richtet einen eigenen Agent-PC nach dem Rezept des Pakets
+  ein und öffnet daneben das Fenster **„Anleitung“** – Weiter/Zurück, Springen, **„Prüfen“** (Skripte laufen nur im
+  Agent-PC über den Gast-Agent, Ergebnis nur „geschafft / noch nicht“), Quiz und **„Zurücksetzen“** auf den
+  Startzustand der Lektion (qcow2-Schnappschuss). Fremde Pakete zeigen vor dem ersten Start ihre Skripte;
+  mitgelieferte und signierte gelten als geprüft.
+- **Kurspaket im Kurs:** beim Anlegen eines Bony-Netz-Kurses oder in der Kursansicht wählen – die Teilnehmer bekommen
+  es automatisch und öffnen es mit „Anleitung“; die Kursansicht zeigt je Teilnehmer Lektion und „geschafft / noch
+  nicht“ (braucht einen Bony-Netz-Server ab 0.2.0). Ebenso bei der Schulung im eigenen Netz („Im Netzwerk
+  freigeben“ → „Kurspaket“).
+- **Kurspaket-Editor** (Kursleiter-Version): anlegen, bearbeiten, duplizieren; Markdown mit Vorschau, Bildschirmfoto
+  des Agent-PCs, Prüfskript-Vorlagen („Datei existiert“, „Dienst läuft“, „Hermes eingerichtet“), Startskript aus
+  einem Ordner im Agent-PC, Quiz; Speichern und Export nur ohne Zugangsdaten (Schlüssel, Tokens, Passwörter,
+  E-Mail, Telefon, IBAN); PDF von Ablaufplan und Handout; **„Kurspaket prüfen“** – auch in einem Test-Agent-PC.
+- **Mitgeliefert:** „Einführung in Hermes Agent“ (2 Stunden, 9 Lektionen mit Quiz und Prüfaufgaben, Standardweg
+  `hermes setup` → Nous → kostenloses Modell) und fünf Entwürfe bis zur Stufe Experte. Die Release-Aktion signiert
+  sie und hängt sie als `.bonyspaket` an.
+- Handbücher: Kapitel „Kurspakete“ (beide), Glossar, neue Bildschirmfotos. Der Beispielkurs hat nur noch eine
+  Quelle – das Kurspaket.
+
+### Geändert
+- Baustein `bony_netz` 0.2.0 (Kurspaket hoch-/herunterladen, Fortschritt melden).
+
 ## 0.22.1 – Handbücher, lesbare Tooltips
 
 ### Neu

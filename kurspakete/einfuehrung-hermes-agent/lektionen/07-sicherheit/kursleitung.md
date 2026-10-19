@@ -1,0 +1,4 @@
+- Liste zeigen und erzählen, dann: „Was davon nehmt ihr mit?“ – jeder schreibt einen Punkt in den Chat.
+- **API-Schlüssel nie im Kursraum zeigen** – beim Vorführen das Fenster vorher nicht teilen.
+- Prompt-Injection nur als kurzes Beispiel; vertieft im Kurspaket „Sicherheit für KI-Agenten“.
+- Botschaft wiederholen: Im Agent-PC darf man Fehler machen – im Notfall aus der Vorlage neu erstellen.

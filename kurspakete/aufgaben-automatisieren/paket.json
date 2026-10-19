@@ -1,0 +1,88 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "aufgaben-automatisieren",
+  "name": "Aufgaben automatisieren: Recherche, Zusammenfassungen, Dateien",
+  "beschreibung": "Hermes wiederkehrende Aufgaben erledigen lassen: Recherche mit Quellen, Zusammenfassungen von Dokumenten, Ordnung in Dateien – und die Ergebnisse zuverlässig prüfen.",
+  "stufe": "fortgeschritten",
+  "sprache": "de",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 120,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Menschen, die Hermes schon benutzt haben",
+  "voraussetzungen": [
+    "Agent-PC mit eingerichtetem Hermes",
+    "Grundkenntnisse aus „Einführung in Hermes Agent“"
+  ],
+  "kosten": "keine – kostenloses Modell (eigenes Konto)",
+  "lernziele": [
+    "Aufgaben so beschreiben, dass Ergebnis und Format klar sind",
+    "Hermes Recherchen mit Quellenangaben erstellen lassen und die Quellen prüfen",
+    "Dokumente zusammenfassen lassen und die Zusammenfassung gegen das Original prüfen",
+    "Dateien sortieren und umbenennen lassen – mit Probelauf vor dem echten Lauf",
+    "wiederkehrende Aufgaben zeitgesteuert ausführen lassen"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – Dokumentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    }
+  ],
+  "rezept": {
+    "name": "automatik-kurs",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "obsidian"
+    ],
+    "username": "agent",
+    "keyboard": "de",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-gute-auftraege",
+      "titel": "Gute Aufträge schreiben",
+      "dauer_minuten": 20,
+      "art": "Erklärung + Übung",
+      "ziel": "Aufträge mit Ziel, Format und Grenzen formulieren."
+    },
+    {
+      "ordner": "02-recherche",
+      "titel": "Recherche mit Quellen",
+      "dauer_minuten": 25,
+      "art": "Übung",
+      "ziel": "Eine Recherche als Datei mit Quellen."
+    },
+    {
+      "ordner": "03-zusammenfassen",
+      "titel": "Zusammenfassen",
+      "dauer_minuten": 20,
+      "art": "Übung",
+      "ziel": "Eine Zusammenfassung, die zum Original passt."
+    },
+    {
+      "ordner": "04-dateien-ordnen",
+      "titel": "Dateien ordnen",
+      "dauer_minuten": 25,
+      "art": "Übung",
+      "ziel": "Ein unordentlicher Ordner wird sortiert – erst als Probelauf."
+    },
+    {
+      "ordner": "05-zeitgesteuert",
+      "titel": "Wiederkehrende Aufgaben",
+      "dauer_minuten": 20,
+      "art": "Mitmachen",
+      "ziel": "Eine Aufgabe läuft zu einer festen Zeit."
+    }
+  ]
+}

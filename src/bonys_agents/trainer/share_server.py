@@ -8,7 +8,9 @@ Sicherheit:
   des Kursleiters und im QR-Code. Teilnehmer prüfen ihn (und brechen ab, wenn er nicht passt).
 - Zugriff nur mit Freigabe-Code (z. B. ``4711-BONY``), Vergleich in konstanter Zeit, Sperre nach mehreren
   Fehlversuchen je Adresse, die Freigabe endet nach zu vielen Fehlversuchen insgesamt.
-- nur lesend: GET/HEAD auf ``/bonys/v1/info`` und ``/bonys/v1/download`` – keine anderen Dateien erreichbar.
+- nur lesend: GET/HEAD auf ``/bonys/v1/info`` und ``/bonys/v1/download`` – keine anderen Dateien erreichbar. Mit
+  Kurspaket zusätzlich ``GET /bonys/v1/kurspaket`` und ``POST /bonys/v1/fortschritt`` (höchstens 1 KB: nur Lektion und
+  „geschafft / noch nicht“ – nichts wird auf diesem Rechner gespeichert, nur angezeigt).
 - endet automatisch nach der eingestellten Zeit; höchstens N gleichzeitige Downloads, der Rest wartet in
   einer Schlange (Antwort 503 mit Platz in der Schlange).
 - passt das Kurs-Protokoll eines Teilnehmers nicht (``share.PROTOCOL``), Antwort 426 mit beiden Versionen.
@@ -39,8 +41,8 @@ from bonys_agents import __version__, bonysfile, templates, x509
 from bonys_agents.trainer import announce
 from bonys_agents.share import (
     API, CHUNK, CLIENT_HEADER, CODE_HEADER, CODE_LETTERS, DEFAULT_MAX_DOWNLOADS, DEFAULT_PORT, DEFAULT_TIMEOUT_MIN,
-    LOCK_SECONDS, MAX_FAILS_PER_ADDR, MAX_FAILS_TOTAL, PROTOCOL, PROTOCOL_HEADER, VERSION_HEADER, WAITING_STALE,
-    ProtocolMismatch, ShareError, check_protocol, local_addresses, normalize_code, share_link,
+    FORTSCHRITT_MAX, LOCK_SECONDS, MAX_FAILS_PER_ADDR, MAX_FAILS_TOTAL, PROTOCOL, PROTOCOL_HEADER, VERSION_HEADER,
+    WAITING_STALE, ProtocolMismatch, ShareError, check_protocol, local_addresses, normalize_code, share_link,
 )
 
 FIREWALL_HINTS = {
@@ -132,6 +134,8 @@ class Participant:
     started: float = 0.0
     last: float = field(default_factory=time.monotonic)
     speed: float = 0.0            # Bytes/s (geglättet)
+    lektion: int = 0              # Kurspaket: aktuelle Lektion (ab 1), 0 = noch nichts gemeldet
+    geschafft: bool | None = None
 
     @property
     def percent(self) -> float:
@@ -208,8 +212,13 @@ class Share(Guarded):
 
     def __init__(self, file: Path, *, port: int = DEFAULT_PORT, timeout_min: int = DEFAULT_TIMEOUT_MIN,
                  max_downloads: int = DEFAULT_MAX_DOWNLOADS, code: str | None = None, sha256: str | None = None,
-                 bind: str = "", advertise: bool = True):
+                 bind: str = "", advertise: bool = True, kurspaket: tuple[bytes, dict] | None = None):
+        """``kurspaket``: (gepackte Datei, Angaben ``paket_id``, ``name``, ``version``, ``lektionen``) – die
+        Teilnehmer bekommen es mit der Vorlage und melden ihren Fortschritt."""
         super().__init__(code, timeout_min)
+        self.kurspaket_daten = kurspaket[0] if kurspaket else b""
+        self.kurspaket = {**kurspaket[1], "sha256": hashlib.sha256(kurspaket[0]).hexdigest(),
+                          "groesse": len(kurspaket[0])} if kurspaket else None
         self.file = Path(file)
         self.manifest = bonysfile.read_manifest(self.file)
         self.size = self.file.stat().st_size
@@ -331,7 +340,21 @@ class Share(Guarded):
         return {"app": "bonys-agents", "api": 1, "protocol": PROTOCOL, "version": __version__,
                 "manifest": self.manifest,
                 "file": {"name": self.file.name, "size": self.size, "sha256": self.sha256},
-                "max_downloads": self.max_downloads, "ends_in": int(self.remaining())}
+                "max_downloads": self.max_downloads, "ends_in": int(self.remaining()),
+                **({"kurspaket": self.kurspaket} if self.kurspaket else {})}
+
+    def fortschritt(self, p: Participant, d) -> bool:
+        """Gemeldeten Fortschritt übernehmen (nur Lektion und geschafft) – False, wenn er nicht passt."""
+        if self.kurspaket is None or not isinstance(d, dict):
+            return False
+        lektion, geschafft = d.get("lektion"), d.get("geschafft")
+        if not isinstance(lektion, int) or isinstance(lektion, bool) or not 1 <= lektion <= 100 \
+                or (self.kurspaket["lektionen"] and lektion > self.kurspaket["lektionen"]) \
+                or not (geschafft is None or isinstance(geschafft, bool)):
+            return False
+        with self.lock:
+            p.lektion, p.geschafft = lektion, geschafft
+        return True
 
 
 class _Server(ThreadingHTTPServer):
@@ -396,7 +419,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
-        if path not in (f"{API}/info", f"{API}/download"):
+        if path not in (f"{API}/info", f"{API}/download", f"{API}/kurspaket") \
+                or (path == f"{API}/kurspaket" and self.share.kurspaket is None):
             self._json(404, {"error": "Nicht gefunden."})
             return
         p = self._auth()
@@ -405,12 +429,46 @@ class _Handler(BaseHTTPRequestHandler):
         if path == f"{API}/info":
             self._json(200, self.share.info())
             return
+        if path == f"{API}/kurspaket":
+            daten = self.share.kurspaket_daten
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(daten)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(daten)
+            return
         self._download(p)
+
+    def do_POST(self) -> None:  # noqa: N802
+        """Nur der Fortschritt im Kurspaket – klein, ohne Inhalte aus dem Agent-PC."""
+        if urlsplit(self.path).path != f"{API}/fortschritt" or self.share.kurspaket is None:
+            self._method_not_allowed()
+            return
+        laenge = self.headers.get("Content-Length", "")
+        if not laenge.isdigit() or int(laenge) > FORTSCHRITT_MAX:
+            self._json(413, {"error": "Zu groß."})
+            self.close_connection = True
+            return
+        roh = self.rfile.read(int(laenge))
+        p = self._auth()
+        if p is None:
+            return
+        try:
+            d = json.loads(roh.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            d = None
+        if not self.share.fortschritt(p, d):
+            self._json(422, {"error": "Fortschritt nicht verstanden."})
+            return
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _method_not_allowed(self) -> None:
         self._json(405, {"error": "Nur lesend."}, {"Allow": "GET, HEAD"})
 
-    do_POST = do_PUT = do_DELETE = do_PATCH = _method_not_allowed  # noqa: N815
+    do_PUT = do_DELETE = do_PATCH = _method_not_allowed  # noqa: N815
 
     def _download(self, p: Participant) -> None:
         s = self.share

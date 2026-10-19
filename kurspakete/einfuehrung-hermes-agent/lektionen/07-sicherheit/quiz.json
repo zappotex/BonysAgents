@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "Der Agent hat im Agent-PC etwas kaputtgemacht. Was tust du?",
+      "antworten": [
+        "Den eigenen Rechner neu installieren",
+        "Agent-PC löschen und aus der Vorlage neu erstellen (oder zurücksetzen)",
+        "Nichts – das geht nicht mehr"
+      ],
+      "richtig": 1,
+      "erklaerung": "Der eigene Rechner war nie betroffen. Den Agent-PC setzt du zurück oder erstellst ihn aus einer Vorlage neu."
+    },
+    {
+      "frage": "Was darfst du in den Chat mit Hermes schreiben?",
+      "antworten": [
+        "Mein Passwort, damit Hermes sich für mich anmeldet",
+        "Die Kontodaten meiner Bank",
+        "Eine Einkaufsliste für das Wochenende"
+      ],
+      "richtig": 2,
+      "erklaerung": "Passwörter, Kontodaten und Gesundheitsdaten gehören nicht in den Chat – alles geht an den Anbieter."
+    }
+  ]
+}

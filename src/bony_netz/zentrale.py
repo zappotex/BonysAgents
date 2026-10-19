@@ -36,15 +36,22 @@ class Zentrale:
     # -----------------------------------------------------------------------
 
     def _anfrage(self, methode: str, pfad: str, daten: dict | None = None,
-                 anmeldung: bool = True, parameter: dict | None = None):
+                 anmeldung: bool = True, parameter: dict | None = None, *,
+                 roh_senden: bytes | None = None, roh_lesen: int = 0, zeitlimit: float | None = None):
+        """JSON hin und zurück. ``roh_senden``: Bytes statt JSON schicken; ``roh_lesen`` > 0: Antwort als Bytes
+        (höchstens so viele) statt JSON."""
         url = self.server + pfad
         if parameter:
             url += "?" + urllib.parse.urlencode(parameter)
-        koepfe = {"Accept": "application/json", "User-Agent": "bony-netz/0.1"}
+        koepfe = {"Accept": "application/octet-stream" if roh_lesen else "application/json",
+                  "User-Agent": "bony-netz/0.2"}
         rumpf = None
         if daten is not None:
             rumpf = json.dumps(daten).encode()
             koepfe["Content-Type"] = "application/json"
+        elif roh_senden is not None:
+            rumpf = roh_senden
+            koepfe["Content-Type"] = "application/octet-stream"
         if anmeldung:
             if not self.token:
                 raise ZentraleFehler(401, "Diese Instanz ist noch nicht angemeldet.")
@@ -53,7 +60,12 @@ class Zentrale:
         anfrage = urllib.request.Request(url, data=rumpf, headers=koepfe, method=methode)
         kontext = self._ssl if url.startswith("https://") else None
         try:
-            with urllib.request.urlopen(anfrage, timeout=self.zeitlimit, context=kontext) as antwort:
+            with urllib.request.urlopen(anfrage, timeout=zeitlimit or self.zeitlimit, context=kontext) as antwort:
+                if roh_lesen:
+                    inhalt = antwort.read(roh_lesen + 1)
+                    if len(inhalt) > roh_lesen:
+                        raise NetzFehler(f"Die Antwort von {self.server} ist zu groß.")
+                    return inhalt
                 inhalt = antwort.read()
                 return json.loads(inhalt) if inhalt else None
         except urllib.error.HTTPError as e:
@@ -141,6 +153,18 @@ class Zentrale:
     def teilnehmer_entfernen(self, kurs_id: str, instanz_id: str) -> None:
         self._anfrage("DELETE", f"/api/v1/kurse/{kurs_id}/teilnehmer/{instanz_id}")
 
+    def kurspaket_hochladen(self, kurs_id: str, datei: bytes, paket_id: str, name: str, version: str,
+                            lektionen: int = 0) -> dict:
+        """Kurspaket (.bonyspaket) zum Kurs hochladen – ersetzt ein vorhandenes. Liefert den Kurs (mit „kurspaket“:
+        paket_id, name, version, lektionen, sha256, groesse, hochgeladen)."""
+        return self._anfrage("PUT", f"/api/v1/kurse/{kurs_id}/kurspaket", roh_senden=datei,
+                             parameter={"paket_id": paket_id, "name": name, "version": version,
+                                        "lektionen": int(lektionen)},
+                             zeitlimit=max(self.zeitlimit, 120))
+
+    def kurspaket_entfernen(self, kurs_id: str) -> None:
+        self._anfrage("DELETE", f"/api/v1/kurse/{kurs_id}/kurspaket")
+
     # -----------------------------------------------------------------------
     # Kurse – Teilnehmer
     # -----------------------------------------------------------------------
@@ -155,6 +179,16 @@ class Zentrale:
 
     def kurs_verlassen(self, kurs_id: str) -> None:
         self._anfrage("DELETE", f"/api/v1/kurse/{kurs_id}/teilnahme")
+
+    def kurspaket_holen(self, kurs_id: str, max_bytes: int = 25 * 1024 * 1024) -> bytes:
+        """Die .bonyspaket-Datei des Kurses (Teilnehmer und Kursleiter). Prüfsumme selbst vergleichen!"""
+        return self._anfrage("GET", f"/api/v1/kurse/{kurs_id}/kurspaket", roh_lesen=max_bytes,
+                             zeitlimit=max(self.zeitlimit, 120))
+
+    def fortschritt_melden(self, kurs_id: str, lektion: int, geschafft: bool | None = None) -> None:
+        """Nur Lektion (ab 1) und „geschafft / noch nicht“ (None: keine Prüfaufgabe bzw. nicht geprüft)."""
+        self._anfrage("POST", f"/api/v1/kurse/{kurs_id}/fortschritt",
+                      {"lektion": int(lektion), "geschafft": geschafft})
 
     # -----------------------------------------------------------------------
     # Kursraum

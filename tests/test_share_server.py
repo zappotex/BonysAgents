@@ -110,6 +110,52 @@ def test_read_only_and_nothing_else_reachable(running):
     assert _raw(running, "GET", f"{share.API}/info", code="falsch")[0] == 403
 
 
+def test_kurspaket_in_der_schulung(tmp_path, datadir, monkeypatch):
+    """Kurspaket mit der Vorlage: Teilnehmer holt es (gleicher Fingerabdruck), meldet nur Lektion und geschafft."""
+    from test_kurspaket import paket_ordner
+
+    from bonys_agents import kurse, kurspaket
+
+    monkeypatch.setattr(kurspaket, "mitgeliefert_dirs", lambda: [])
+    paket = kurspaket.laden(paket_ordner(tmp_path / "pakete"))
+    daten = kurse.paket_packen(paket)
+    s = share_server.Share(_bundle(tmp_path), port=0, bind="127.0.0.1", advertise=False,
+                           kurspaket=(daten, {"paket_id": paket.id, "name": paket.name, "version": paket.version,
+                                              "lektionen": len(paket.lektionen)}))
+    s.start()
+    try:
+        # ohne Code: nichts
+        assert _raw(s, "GET", f"{share.API}/kurspaket", code="falsch")[0] == 403
+        info = share.fetch_info(_target(s))
+        assert info.kurspaket["paket_id"] == "test-paket" and info.kurspaket["lektionen"] == 3
+        assert info.kurspaket["sha256"] == hashlib.sha256(daten).hexdigest()
+        geladen = share.kurspaket_holen(info)
+        uebernommen = kurse.paket_uebernehmen(geladen, info.kurspaket["paket_id"], info.kurspaket["sha256"])
+        assert uebernommen.herkunft == kurspaket.KURS
+        share.fortschritt_melden(info, 1, True)
+        [p] = s.participants.values()
+        assert (p.lektion, p.geschafft) == (2, True)
+        # nur gültige Meldungen, nur klein, nur mit Code
+        with pytest.raises(share.ShareError):
+            share.fortschritt_melden(info, 7, True)          # Lektion 8 gibt es nicht
+        conn = http.client.HTTPSConnection("127.0.0.1", s.port, timeout=10, context=share.client_context())
+        conn.request("POST", f"{share.API}/fortschritt", body=b"x" * 2000,
+                     headers={share.CODE_HEADER: s.code, "Content-Type": "application/json"})
+        assert conn.getresponse().status == 413
+        conn.close()
+        assert _raw(s, "POST", f"{share.API}/fortschritt", code="falsch")[0] in (403, 413)
+        assert _raw(s, "PUT", f"{share.API}/fortschritt")[0] == 405
+        assert (p.lektion, p.geschafft) == (2, True)
+    finally:
+        s.stop()
+
+
+def test_ohne_kurspaket_kein_fortschritt(running):
+    assert _raw(running, "GET", f"{share.API}/kurspaket")[0] == 404
+    assert _raw(running, "POST", f"{share.API}/fortschritt")[0] == 405
+    assert share.fetch_info(_target(running)).kurspaket is None
+
+
 def test_cancel_and_resume_download(running, tmp_path):
     info = share.fetch_info(_target(running))
     cancel = threading.Event()

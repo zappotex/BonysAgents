@@ -3,7 +3,9 @@
 Netz.
 
 - Reiter „Kurspakete“ (beide Editionen): Bibliothek der Kurspakete, Selbstlern-Modus (``kurspaket_bibliothek``).
-- Reiter „Teilnahme“ (beide Editionen): Kurs mit Kurscode beitreten, Agent-PC wählen, „Meine Kurse“.
+- Reiter „Teilnahme“ (beide Editionen): Kurs mit Kurscode beitreten, Agent-PC wählen, „Meine Kurse“. Hat ein Kurs
+  ein Kurspaket, holt die Seite es automatisch in die Bibliothek; „Anleitung“ öffnet es neben dem Agent-PC des Kurses
+  und meldet dem Kursleiter nur Lektion und „geschafft / noch nicht“.
 - Reiter „Kursleitung“ (nur Kursleiter-Version, ``bonys_agents.trainer.gui.kurse_leiten``).
 - „Schulung im Netzwerk beitreten …“ öffnet wie bisher ``JoinDialog`` (LAN/VPN, ohne Internet und Bony-Netz).
 
@@ -185,6 +187,9 @@ class TeilnahmeSeite(Seite):
         self.lokal: dict[str, str] = {}
         self.status_text = ""
         self.geladen = False
+        self.paket_fehler: dict[str, str] = {}      # kurs_id → warum das Kurspaket nicht geholt werden konnte
+        # (Kurspaket, kurs_id, Name des Agent-PCs hier oder "") – setzt das Fenster „Kurse“
+        self.anleitung_oeffnen: Callable[[kurspaket.Kurspaket, str, str], None] | None = None
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 10, 10, 10)
@@ -216,16 +221,20 @@ class TeilnahmeSeite(Seite):
         lay.addWidget(card)
 
         lay.addWidget(_section("Meine Kurse"))
-        self.table = tabelle(["Kurs", "Kursleiter", "Status", "Agent-PC"])
+        self.table = tabelle(["Kurs", "Kursleiter", "Status", "Agent-PC", "Kurspaket"])
         lay.addWidget(self.table)
         self.empty = _muted("Du nimmst an keinem Kurs teil.")
         lay.addWidget(self.empty)
         row = QHBoxLayout()
         self.room_btn = QPushButton("Kursraum betreten")
         self.room_btn.setToolTip("Nur, solange der Kurs läuft")
+        self.anleitung_btn = QPushButton("Anleitung")
+        self.anleitung_btn.setToolTip("Das Kurspaket des Kurses neben deinem Agent-PC öffnen – der Kursleiter sieht "
+                                      "nur deine Lektion und ob die Prüfaufgabe geschafft ist")
         self.leave_btn = QPushButton("Kurs verlassen …")
         self.leave_btn.setObjectName("Danger")
         row.addWidget(self.room_btn)
+        row.addWidget(self.anleitung_btn)
         row.addWidget(self.leave_btn)
         row.addStretch(1)
         lay.addLayout(row)
@@ -235,6 +244,7 @@ class TeilnahmeSeite(Seite):
         self.join_btn.clicked.connect(self._join)
         self.code.returnPressed.connect(self._join)
         self.room_btn.clicked.connect(self._room)
+        self.anleitung_btn.clicked.connect(self._anleitung)
         self.leave_btn.clicked.connect(self._leave)
         self.table.itemSelectionChanged.connect(self._update)
         self.code.textChanged.connect(lambda _t: self._update())
@@ -251,21 +261,31 @@ class TeilnahmeSeite(Seite):
         self.join_btn.setEnabled(idle and bool(self.code.text().strip()) and self.geraet.currentData() is not None)
         k = self._kurs()
         self.room_btn.setEnabled(idle and k is not None and k.laeuft)
+        self.anleitung_btn.setEnabled(idle and k is not None and k.kurspaket is not None)
         self.leave_btn.setEnabled(idle and k is not None)
         self.empty.setVisible(self.geladen and not self.kurse)
         self.status.setText("Frage den Server …" if self.busy else self.status_text)
 
     def laden(self) -> None:
         def run():
-            return kurse.eigene_geraete(), kurse.teilnahmen(), _lokale_namen()
+            geraete, teilnahmen = kurse.eigene_geraete(), kurse.teilnahmen()
+            fehler = {}
+            for k in teilnahmen:   # Kurspakete automatisch in die Bibliothek holen
+                if k.kurspaket is not None:
+                    try:
+                        kurse.kurspaket_fuer_kurs(k)
+                    except Exception as e:  # noqa: BLE001 – nur anzeigen, die Liste soll trotzdem kommen
+                        fehler[k.kurs_id] = netz.fehlertext(e)
+            return geraete, teilnahmen, _lokale_namen(), fehler
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
                 self.status_text = netz.fehlertext(w.error)
                 return
-            self.geraete, self.kurse, self.lokal = w.result
+            self.geraete, self.kurse, self.lokal, self.paket_fehler = w.result
             self.geladen = True
-            self.status_text = ""
+            self.status_text = next((f"Kurspaket von „{k.name}“ nicht geholt: {self.paket_fehler[k.kurs_id]}"
+                                     for k in self.kurse if k.kurs_id in self.paket_fehler), "")
             self._zeigen()
 
         self._run(run, done)
@@ -286,7 +306,8 @@ class TeilnahmeSeite(Seite):
         for k in self.kurse:
             netzname = namen.get(k.mein_geraet_id, "")
             pc = self.lokal.get(netzname) or netzname or "–"
-            zeile(self.table, [k.name, k.kursleiter_name or "–", k.status_text, pc], k.kurs_id)
+            zeile(self.table, [k.name, k.kursleiter_name or "–", k.status_text, pc,
+                               k.kurspaket.name if k.kurspaket else "–"], k.kurs_id)
         for r in range(self.table.rowCount()):
             if self.table.item(r, 0).data(Qt.UserRole) == kurs_id:
                 self.table.selectRow(r)
@@ -312,6 +333,30 @@ class TeilnahmeSeite(Seite):
         if k is not None and k.laeuft:
             kursraum_oeffnen(self, k.kurs_id, k.name)
 
+    def _agent_pc_hier(self, k: kurse.Kurs) -> str:
+        """Name des Agent-PCs, mit dem du am Kurs teilnimmst – wenn er auf diesem Rechner liegt, sonst ""."""
+        netzname = next((str(g.get("name") or "") for g in self.geraete if str(g["geraet_id"]) == k.mein_geraet_id),
+                        "")
+        return self.lokal.get(netzname, "") if netzname else ""
+
+    def _anleitung(self) -> None:
+        k = self._kurs()
+        if k is None or k.kurspaket is None:
+            return
+        pc = self._agent_pc_hier(k)
+
+        def done(w: TaskWorker) -> None:
+            if w.error is not None:
+                self.status_text = f"Kurspaket nicht geholt: {netz.fehlertext(w.error)}"
+                return
+            self.status_text = ""
+            if self.anleitung_oeffnen is not None:
+                self.anleitung_oeffnen(w.result, k.kurs_id, pc)
+
+        self.status_text = ""
+        self._run(lambda: kurse.kurspaket_fuer_kurs(k), done)
+        self.status.setText("Hole das Kurspaket …")
+
     def _leave(self) -> None:
         k = self._kurs()
         if k is None or not nachfragen(
@@ -332,9 +377,11 @@ class TeilnahmeSeite(Seite):
 
 class KurseDialog(QDialog):
     def __init__(self, parent=None, join_local: Callable[[], None] | None = None,
-                 durcharbeiten: Callable[[kurspaket.Kurspaket], None] | None = None):
+                 durcharbeiten: Callable[[kurspaket.Kurspaket], None] | None = None,
+                 im_kurs: Callable[[kurspaket.Kurspaket, str, str], None] | None = None):
         super().__init__(parent)
         self.durcharbeiten = durcharbeiten
+        self.im_kurs = im_kurs
         self.setWindowModality(Qt.WindowModal)   # sperrt nur das Hauptfenster, nicht den Kursraum
         self.setWindowTitle("Kurse")
         self.join_local = join_local
@@ -369,6 +416,7 @@ class KurseDialog(QDialog):
             self.tabs.addTab(self.leitung, "Kursleitung")
             self.seiten.append(self.leitung)
         self.teilnahme = TeilnahmeSeite(self)
+        self.teilnahme.anleitung_oeffnen = self._im_kurs
         self.tabs.addTab(self.teilnahme, "Teilnahme")
         self.seiten.append(self.teilnahme)
         root.addWidget(self.tabs, 1)
@@ -400,6 +448,16 @@ class KurseDialog(QDialog):
         """Selbstlern-Modus: Fenster schließen (es sperrt das Hauptfenster), dann übernimmt das Hauptfenster."""
         self.accept()
         QTimer.singleShot(0, lambda: self.durcharbeiten(paket))
+
+    def _im_kurs(self, paket: kurspaket.Kurspaket, kurs_id: str, agent_pc: str) -> None:
+        """Anleitung im Kurs: wie „Durcharbeiten“ erst dieses Fenster schließen, dann übernimmt das Hauptfenster."""
+        if self.im_kurs is None:
+            from .kurspaket_anleitung import oeffnen
+
+            oeffnen(paket, melden=lambda i, g: kurse.fortschritt_melden(kurs_id, i, g))
+            return
+        self.accept()
+        QTimer.singleShot(0, lambda: self.im_kurs(paket, kurs_id, agent_pc))
 
     def _hinweise(self) -> None:
         """Erklärung und „Bony-Netz aus“ gehören nur zu den Reitern der Kurse über das Bony-Netz."""

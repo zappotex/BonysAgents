@@ -17,6 +17,7 @@ Stand: Aufgaben 01 (Baustein und Einstellungen), 02 (Agenten-PCs ins Netz), 04 (
 | Reiter „Kursleitung“, „Neuer Kurs“, Kursansicht (nur Kursleiter-Version) | `src/bonys_agents/trainer/gui/kurse_leiten.py` |
 | „Der Kurs X hat begonnen“ | `gui/main_window.py` (`_check_kurse`) |
 | Tests gegen eine Test-Zentrale auf 127.0.0.1 (mit Kurs-Endpunkten) | `tests/test_netz.py`, `tests/test_kurse.py` |
+| Kurspaket im Kurs (Baustein 0.2.0, Zentrale 0.2.0): hochladen, holen, Fortschritt melden | `src/bonys_agents/kurse.py` (`kurspaket_hochladen`, `kurspaket_fuer_kurs`, `fortschritt_melden`), Fenster wie oben, `gui/kurspaket_anleitung.py` |
 | Hilfe-Funktion (Aufgabe 06): Logik ohne Qt, x11vnc im Agent-PC | `src/bonys_agents/hilfe.py`, `vncauth.py` |
 | Hilfe beim Teilnehmer: Rückfrage, Hinweis mit „Beenden“ | `src/bonys_agents/gui/hilfe_ui.py` |
 | Hilfe beim Kursleiter: Betrachter (noVNC/TigerVNC), Brücke | `trainer/gui/hilfe_fenster.py`, `trainer/hilfe_betrachter.py`, `trainer/resources/hilfe/` |

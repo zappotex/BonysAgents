@@ -4,9 +4,6 @@ subtitle: Handout für Teilnehmerinnen und Teilnehmer
 lang: de
 ---
 
-<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- Teil B des Beispielkurses: Handout (2–4 Seiten, ohne Inhaltsverzeichnis). -->
-
 ## Dein Kurs
 
 ::: {.feld hoehe="1.3cm" text="Kurscode (bekommst du von der Kursleitung, z. B. K7QX-M3PA)"}
@@ -21,6 +18,8 @@ lang: de
 ## A – Vor dem Kurs: Bony's Agents einrichten
 
 Bitte **spätestens zwei Tage vor dem Kurs** erledigen. Es dauert etwa eine Stunde – das meiste davon ist Warten.
+Dein Rechner braucht mindestens **8 GB RAM** und **40 GB freien Speicher**. Der Kurs kostet nichts: Hermes läuft mit
+einem kostenlosen Modell.
 
 1. **Installieren:** Lade Bony's Agents von **github.com/zappotex/BonysAgents/releases/latest** und installiere es.
    Windows und macOS warnen beim ersten Start – das ist normal (Windows: „Weitere Informationen“ → „Trotzdem
@@ -37,16 +36,21 @@ Bitte **spätestens zwei Tage vor dem Kurs** erledigen. Es dauert etwa eine Stun
 ## B – Vor dem Kurs: Hermes einrichten
 
 1. Im Agent-PC das Symbol **Hermes Agent** doppelklicken.
-2. `hermes setup` eingeben und den Fragen folgen. Für den Einstieg: Anbieter **OpenRouter**, ein Modell mit
-   `:free` im Namen. Dafür brauchst du ein kostenloses Konto bei **openrouter.ai** und dort einen **API-Schlüssel**.
-3. Zum Test: `hermes` eingeben und `Hallo!` schreiben.
+2. `hermes setup` eingeben und den Fragen folgen. Bei der Anbieter-Wahl den obersten Punkt **Nous** wählen und dort
+   ein **kostenloses (free) Modell**. Fragt Hermes nach einer Anmeldung, meldest du dich mit deinem **eigenen**
+   Konto an – nie mit einem fremden.
+   *Alternative:* Anbieter **OpenRouter** mit einem Modell mit `:free` im Namen. Dafür brauchst du ein kostenloses
+   Konto bei **openrouter.ai** und dort einen eigenen **API-Schlüssel**.
+3. Zum Test: `hermes --tui` (oder `hermes`) eingeben und `Hallo!` schreiben.
 
 Klappt etwas nicht? Kein Problem – im Kurs nehmen wir uns Zeit dafür.
 
 ## C – Am Kurstag
 
 1. Bony's Agents öffnen, deinen Agent-PC **starten**.
-2. **„Kurse“** → Kurs wählen → **„Kursraum betreten“**.
+2. **„Kurse“** → Kurs wählen → **„Kursraum betreten“**. Mit **„Anleitung“** öffnest du daneben die Schritte jeder
+   Lektion – mit Quiz und **„Prüfen“**. Die Kursleitung sieht dabei nur, in welcher Lektion du bist und ob die
+   Prüfaufgabe geschafft ist – nichts von deinen Dateien.
 3. Du kommst mit Mikrofon und Kamera **aus** herein. Schalte sie selbst ein, wenn du möchtest.
 4. **✋ Hand heben**, wenn du etwas sagen möchtest. **🆘 Hilfe anfordern**, wenn du festhängst.
 5. Möchte die Kursleitung deinen Agent-PC sehen, wirst du **jedes Mal gefragt**: „Nur ansehen“, „Ansehen und
@@ -105,5 +109,8 @@ Und: Antworten **prüfen**, besonders Zahlen, Termine und alles Rechtliche.
 - **Benutzerhandbuch** von Bony's Agents: auf der Releases-Seite (github.com/zappotex/BonysAgents/releases) und
   im Programm unter ⓘ → „Hilfe (Anleitung)“.
 - **Videos:** youtube.com/@BonysAgents
-- **Hermes Agent:** github.com/NousResearch/hermes-agent (Befehle: `hermes model` wechselt das Modell,
+- **Weitere Kurspakete:** „Kurse“ → Reiter „Kurspakete“ – zum Beispiel **„Hermes über Telegram steuern“**. Jedes
+  Kurspaket kannst du auch **allein** durcharbeiten („Durcharbeiten“, Selbstlern-Modus).
+- **Hermes Agent:** github.com/NousResearch/hermes-agent (Befehle: `hermes --tui` startet die übersichtliche
+  Oberfläche, `/tools` zeigt die Werkzeuge, `/help` alle Befehle, `hermes model` bzw. `/model` wechselt das Modell,
   `hermes update` aktualisiert, `hermes doctor` prüft)

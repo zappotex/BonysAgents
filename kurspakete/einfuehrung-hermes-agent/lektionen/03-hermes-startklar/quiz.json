@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "Wie heißt der Benutzer im Agent-PC (wenn du nichts anderes eingestellt hast)?",
+      "antworten": [
+        "admin",
+        "agent",
+        "root"
+      ],
+      "richtig": 1,
+      "erklaerung": "Bony's Agents legt den Benutzer „agent“ an. Deshalb liegen die Übungsdateien in /home/agent/Kurs."
+    },
+    {
+      "frage": "Was zeigt /tools in Hermes?",
+      "antworten": [
+        "Die Einstellungen des Agent-PCs",
+        "Die Werkzeuge, die Hermes benutzen darf",
+        "Die installierten Apps"
+      ],
+      "richtig": 1,
+      "erklaerung": "Mit /tools siehst du, welche Werkzeuge (z. B. Terminal, Dateien, Websuche) Hermes einsetzen darf."
+    }
+  ]
+}

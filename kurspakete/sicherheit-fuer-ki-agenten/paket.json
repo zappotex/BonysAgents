@@ -1,0 +1,87 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "sicherheit-fuer-ki-agenten",
+  "name": "Sicherheit für KI-Agenten: Rechte begrenzen, Prompt-Injection erkennen",
+  "beschreibung": "Was darf ein Agent? Versteckte Anweisungen (Prompt-Injection) erkennen, Rechte und Werkzeuge begrenzen, Zugangsdaten schützen und im Ernstfall richtig reagieren.",
+  "stufe": "fortgeschritten",
+  "sprache": "de",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 120,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Menschen, die Agenten im Alltag oder im Beruf einsetzen wollen",
+  "voraussetzungen": [
+    "Agent-PC mit eingerichtetem Hermes",
+    "Grundkenntnisse aus „Einführung in Hermes Agent“"
+  ],
+  "kosten": "keine – kostenloses Modell (eigenes Konto)",
+  "lernziele": [
+    "erklären, warum ein Agent mehr Risiken hat als ein Chatbot",
+    "Prompt-Injection an Beispielen erkennen",
+    "Werkzeuge und Freigaben von Hermes einschränken",
+    "Zugangsdaten so ablegen, dass der Agent sie nicht braucht oder nicht sieht",
+    "im Ernstfall den Agent-PC zurücksetzen und Schlüssel zurückziehen"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – Dokumentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    }
+  ],
+  "rezept": {
+    "name": "sicherheit-kurs",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes"
+    ],
+    "username": "agent",
+    "keyboard": "de",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-risiken",
+      "titel": "Was kann schiefgehen?",
+      "dauer_minuten": 20,
+      "art": "Erklärung + Quiz",
+      "ziel": "Die wichtigsten Risiken kennen."
+    },
+    {
+      "ordner": "02-prompt-injection",
+      "titel": "Prompt-Injection erkennen",
+      "dauer_minuten": 30,
+      "art": "Übung",
+      "ziel": "Versteckte Anweisungen in Texten finden."
+    },
+    {
+      "ordner": "03-rechte-begrenzen",
+      "titel": "Rechte und Werkzeuge begrenzen",
+      "dauer_minuten": 25,
+      "art": "Mitmachen",
+      "ziel": "Hermes darf nur, was nötig ist."
+    },
+    {
+      "ordner": "04-zugangsdaten",
+      "titel": "Zugangsdaten schützen",
+      "dauer_minuten": 20,
+      "art": "Erklärung + Übung",
+      "ziel": "Schlüssel richtig ablegen und zurückziehen."
+    },
+    {
+      "ordner": "05-ernstfall",
+      "titel": "Der Ernstfall",
+      "dauer_minuten": 15,
+      "art": "Übung",
+      "ziel": "Wissen, was zu tun ist."
+    }
+  ]
+}

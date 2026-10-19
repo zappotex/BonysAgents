@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from bony_netz import STANDARD_SERVER, Konto, Zentrale, ZentraleFehler, erstbeitritt_skript, geraetename
+from bony_netz import STANDARD_SERVER, Konto, NetzFehler, Zentrale, ZentraleFehler, erstbeitritt_skript, geraetename
 from bony_netz.zentrale import kurscode_formatieren
 
 
@@ -125,3 +125,64 @@ def test_skript_installiert_und_behaelt_den_geraetenamen(tmp_path):
     up = next(z for z in zeilen if z.startswith("tailscale up"))
     assert "--hostname agent-pc-7 " in up and "Debian" not in up
     assert not datei.exists()   # Skript mit Schlüssel entfernt
+
+
+def test_kurspaket_und_fortschritt_anfragen():
+    """Form der neuen Anfragen (0.2.0) gegen einen kleinen Server auf 127.0.0.1."""
+    import http.server
+    import threading
+
+    gesehen = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _antwort(self, code, inhalt=b"", art="application/json"):
+            self.send_response(code)
+            self.send_header("Content-Type", art)
+            self.send_header("Content-Length", str(len(inhalt)))
+            self.end_headers()
+            self.wfile.write(inhalt)
+
+        def _merken(self):
+            laenge = int(self.headers.get("Content-Length") or 0)
+            gesehen.append((self.command, self.path, self.headers.get("Content-Type"),
+                            self.rfile.read(laenge) if laenge else b""))
+
+        def do_PUT(self):
+            self._merken()
+            self._antwort(200, b'{"kurspaket": {"paket_id": "p"}}')
+
+        def do_GET(self):
+            self._merken()
+            self._antwort(200, b"PK\x03\x04" + b"x" * 100, "application/octet-stream")
+
+        def do_POST(self):
+            self._merken()
+            self._antwort(204)
+
+        def do_DELETE(self):
+            self._merken()
+            self._antwort(204)
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        z = Zentrale(f"http://127.0.0.1:{server.server_port}", token="t")
+        assert z.kurspaket_hochladen("k1", b"PK\x03\x04abc", "p", "Ein Kurs ä", "1.0.0", 9) == \
+            {"kurspaket": {"paket_id": "p"}}
+        assert z.kurspaket_holen("k1") == b"PK\x03\x04" + b"x" * 100
+        with pytest.raises(NetzFehler, match="zu groß"):
+            z.kurspaket_holen("k1", max_bytes=10)
+        z.fortschritt_melden("k1", 3, True)
+        z.kurspaket_entfernen("k1")
+    finally:
+        server.shutdown()
+    put = gesehen[0]
+    assert put[0] == "PUT" and put[1].startswith("/api/v1/kurse/k1/kurspaket?paket_id=p&name=Ein+Kurs+%C3%A4")
+    assert put[2] == "application/octet-stream" and put[3] == b"PK\x03\x04abc"
+    assert gesehen[1][:2] == ("GET", "/api/v1/kurse/k1/kurspaket")
+    assert gesehen[3] == ("POST", "/api/v1/kurse/k1/fortschritt", "application/json",
+                          b'{"lektion": 3, "geschafft": true}')
+    assert gesehen[4][:2] == ("DELETE", "/api/v1/kurse/k1/kurspaket")

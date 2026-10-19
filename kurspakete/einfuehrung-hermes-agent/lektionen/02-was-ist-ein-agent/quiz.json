@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "Was unterscheidet einen Agenten von einem Chatbot?",
+      "antworten": [
+        "Er ist schneller",
+        "Er führt mit Werkzeugen selbst Schritte aus",
+        "Er braucht kein Internet"
+      ],
+      "richtig": 1,
+      "erklaerung": "Ein Agent handelt: Er führt Befehle aus, legt Dateien an und öffnet Webseiten."
+    },
+    {
+      "frage": "Wo liegen deine eigenen Dateien, während der Agent arbeitet?",
+      "antworten": [
+        "Getrennt auf deinem Rechner – der Agent kommt nicht heran",
+        "Im Agent-PC",
+        "In der Cloud"
+      ],
+      "richtig": 0,
+      "erklaerung": "Der Agent arbeitet nur im Agent-PC. Dein eigener Rechner und deine Dateien bleiben getrennt."
+    }
+  ]
+}

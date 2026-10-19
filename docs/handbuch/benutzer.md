@@ -313,13 +313,20 @@ hinter Hermes. Die Modelle laufen bei Anbietern im Internet. Dafür brauchst du 
 
 ## Kostenlos anfangen
 
-Einige Anbieter haben Modelle, die du **kostenlos** nutzen kannst – meist mit einer Grenze, wie viele Anfragen
-am Tag gehen. Bekannt ist zum Beispiel **OpenRouter**: Modelle mit dem Zusatz `:free` im Namen kosten nichts.
-Dafür brauchst du ein kostenloses Konto bei openrouter.ai und dort einen API-Schlüssel.
+Der einfachste Weg: In `hermes setup` bei der Anbieter-Wahl den **obersten Punkt „Nous“** wählen und dort ein
+**kostenloses (free) Modell**. Fragt Hermes nach einer Anmeldung, meldest du dich mit deinem **eigenen** Konto an –
+nie mit einem fremden. So arbeiten auch die mitgelieferten Kurspakete.
+
+Eine Alternative ist **OpenRouter**: Modelle mit dem Zusatz `:free` im Namen kosten nichts. Dafür brauchst du ein
+kostenloses Konto bei openrouter.ai und dort einen eigenen API-Schlüssel.
+
+Nützlich in Hermes: `hermes --tui` startet eine übersichtlichere Oberfläche, `/tools` zeigt die Werkzeuge, die
+Hermes benutzen darf, `/help` alle Befehle, `/model` wechselt das Modell. Hermes braucht ein Modell mit mindestens
+64K Kontext.
 
 ::: hinweis
 Welche Modelle kostenlos sind und wie viele Anfragen gehen, ändern die Anbieter oft (Stand Oktober 2026: bei
-OpenRouter etwa 50 Anfragen am Tag ohne Guthaben). Für ein paar Übungen reicht das. Wer viel mit Hermes arbeitet,
+OpenRouter etwa 50 Anfragen am Tag ohne Guthaben). Kostenlose Modelle sind außerdem manchmal langsam. Für ein paar Übungen reicht das. Wer viel mit Hermes arbeitet,
 stößt schnell an die Grenze und lädt dann Guthaben auf oder wechselt den Anbieter.
 :::
 
@@ -491,6 +498,64 @@ Wer selbst einen Bony-Netz-Server betreibt (zum Beispiel ein Verein oder eine Sc
 Fenster „Bony-Netz“ ins Feld **Server** ein und klickt auf **„Prüfen“**. Beim Wechsel des Servers wird die
 Anmeldung beim alten Server verworfen; du legst beim neuen eine neue Instanz an.
 
+# Kurspakete – Schritt für Schritt lernen
+
+Ein **Kurspaket** ist ein fertiger Lerninhalt: Lektionen mit Anleitung, kleine Prüfaufgaben, ein Quiz und ein
+Handout zum Ausdrucken. Du kannst ein Kurspaket **allein** durcharbeiten (Selbstlern-Modus) – oder es kommt in einem
+**Kurs** von deiner Kursleitung. Ein Kurs ist die Veranstaltung, das Kurspaket ihr Inhalt.
+
+## Die Bibliothek
+
+Klicke im Hauptfenster auf **„Kurse“**. Der erste Reiter **„Kurspakete“** zeigt alle Kurspakete auf deinem Rechner
+mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
+
+![Die Bibliothek „Kurspakete“](bilder/kurspakete.png){width=80%}
+
+- **Mitgeliefert** sind „Einführung in Hermes Agent“ (fertig) und fünf **Entwürfe** – Gliederungen für weitere
+  Kurspakete von „Hermes über Telegram steuern“ bis „Lokale Modelle, VPN und mehrere Agenten“.
+- **„Importieren …“** übernimmt eine `.bonyspaket`-Datei, die du bekommen hast. Du kannst sie auch einfach auf das
+  Fenster ziehen.
+- **„Aus dem Internet …“** zeigt die Kurspakete aus der offenen Bibliothek von Bony's Agents. Bony's Agents lädt
+  nur über HTTPS und prüft jede Datei, bevor sie in die Bibliothek kommt.
+- **„Exportieren …“** speichert ein Kurspaket als Datei zum Weitergeben.
+
+## Durcharbeiten
+
+1. Kurspaket wählen → **„Durcharbeiten“**.
+2. Bony's Agents schlägt einen **eigenen Agent-PC** für das Kurspaket vor (mit den Programmen, die es braucht) – oder
+   du wählst einen vorhandenen. Ein eigener Agent-PC ist besser: Beim Üben geht dann nichts an deinen anderen
+   Agent-PCs kaputt.
+3. Neben dem Agent-PC öffnet sich das Fenster **„Anleitung“**. Es bleibt über allen Fenstern am rechten Rand, damit
+   du lesen und gleichzeitig im Agent-PC arbeiten kannst („Immer im Vordergrund“ lässt sich abschalten).
+
+![Die Anleitung neben dem Agent-PC](bilder/kurspaket-anleitung.png){width=45%}
+
+Im Fenster „Anleitung“:
+
+- Oben ① springst du direkt zu einer Lektion; **„Weiter“** ⑤ und **„Zurück“** blättern.
+- **„Prüfen“** ② schaut im Agent-PC nach, ob du die Aufgabe geschafft hast, zum Beispiel ob eine Datei da ist. Du
+  siehst nur **„geschafft“** oder **„noch nicht“** mit einem Tipp.
+- **„Quiz“** ③ stellt ein paar Fragen zur Lektion. Das Ergebnis bleibt auf deinem Rechner.
+- **„↺ Zurücksetzen“** ④ setzt den Agent-PC auf den Stand vom Beginn der Lektion zurück. Bony's Agents sichert diesen
+  Stand von selbst, sobald du eine Lektion zum ersten Mal betrittst. Alles, was du danach im Agent-PC geändert hast,
+  geht dabei verloren – Bony's Agents fragt vorher.
+- **„Agent-PC zeigen“** holt den Agent-PC nach vorn bzw. startet ihn.
+- Unter **„⋯“** findest du das Handout, „Startzustände löschen …“ (gibt Speicher frei) und „Fortschritt
+  zurücksetzen …“.
+
+::: hinweis
+Manche Kurspakete richten zu Beginn einer Lektion etwas im Agent-PC ein, zum Beispiel einen Übungsordner, und prüfen
+deine Aufgaben mit kleinen Skripten. Diese Skripte laufen **nur im Agent-PC**, nie auf deinem Rechner. Bei
+Kurspaketen, die nicht von Bony's Agents geprüft sind, siehst du vorher die Liste der Skripte und entscheidest
+selbst.
+:::
+
+::: datenschutz
+Im Selbstlern-Modus bleibt alles auf deinem Rechner: Fortschritt, Prüfergebnisse und Quiz. In einem Kurs sieht die
+Kursleitung nur, **in welcher Lektion** du bist und ob die **Prüfaufgabe geschafft** ist – nie deine Dateien und nie
+deine Antworten im Quiz.
+:::
+
 # An einem Kurs teilnehmen
 
 ## Zwei Arten von Kursen
@@ -540,6 +605,14 @@ ist noch keiner deiner Agent-PCs im Bony-Netz.
 
 **„Kurs verlassen …“** beendet deine Teilnahme. Danach erreicht die Kursleitung deinen Agent-PC über diesen Kurs
 nicht mehr.
+
+## Kurs mit Kurspaket
+
+Hat die Kursleitung ein Kurspaket gewählt, steht es in „Meine Kurse“ in der Spalte **„Kurspaket“**. Bony's Agents
+holt es von selbst in deine Bibliothek. Mit **„Anleitung“** öffnest du es neben dem Agent-PC, mit dem du am Kurs
+teilnimmst – wie beim Durcharbeiten (Kapitel „Kurspakete“). Die Kursleitung sieht dabei in ihrer Kursansicht nur
+deine **Lektion** und ob die **Prüfaufgabe geschafft** ist, und nur solange der Kurs läuft. Das Kurspaket
+bleibt nach dem Kurs in deiner Bibliothek.
 
 ## Der Kursraum
 
@@ -623,6 +696,10 @@ die Freigabe von selbst. Wähle sie aus, gib den **Freigabe-Code** ein, den die 
 Vergleiche danach den **Fingerabdruck** mit dem auf dem Bildschirm der Kursleitung und setze das Häkchen. Klicke
 auf **„Laden und importieren“**. Aus der geladenen Vorlage entsteht dein Agent-PC in wenigen Minuten.
 
+Gibt die Kursleitung ein **Kurspaket** mit frei, steht es unter den Angaben zur Vorlage. Es kommt mit in deine
+Bibliothek, und Bony's Agents bietet an, es gleich durchzuarbeiten. Die Kursleitung sieht dann deine Lektion und ob
+die Prüfaufgabe geschafft ist – solange ihre Freigabe läuft.
+
 **Vorführung ansehen:** Die Kursleitung zeigt dir eine Adresse wie `https://192.168.178.30:47120` und einen QR-Code.
 Öffne die Adresse im Browser (oder scanne den QR-Code mit dem Handy), gib deinen Namen und den Code ein. Der
 Browser warnt vor dem Zertifikat (Brave: „Dies ist keine sichere Verbindung“, Firefox: „Warnung: Mögliches
@@ -654,7 +731,9 @@ Ins Internet geht nur das:
 | Neuen Agent-PC einrichten | Debian und die offiziellen Quellen der Programme | Downloads – der Agent-PC lädt sie selbst |
 | Bony-Netz (nur, wenn eingeschaltet) | der gewählte Bony-Netz-Server | Instanz, Namen und Adressen deiner Agent-PCs im Netz; bei Kursen Kursname und Anzeigenamen |
 | Kursraum | der Kursraum-Server des Kurses | Bild, Ton und Chat – nur, was du einschaltest |
-| Schulung im eigenen Netz | nur der Rechner der Kursleitung | dein Rechnername bzw. der Name, den du eingibst |
+| Schulung im eigenen Netz | nur der Rechner der Kursleitung | dein Rechnername bzw. der Name, den du eingibst; mit Kurspaket deine Lektion und „geschafft / noch nicht“ |
+| Kurspakete aus dem Internet (nur auf Klick) | GitHub (Repository bonys-agents-kurspakete) | die Liste der Kurspakete bzw. den Download |
+| Kurs mit Kurspaket | der Bony-Netz-Server | deine Lektion und ob die Prüfaufgabe geschafft ist |
 
 **Was im Agent-PC passiert**, entscheidest du: Die KI und der Browser im Agent-PC schicken Daten an die Dienste,
 die du dort benutzt (zum Beispiel an den Anbieter deines KI-Modells).
@@ -746,6 +825,13 @@ Dafür gibt es **Bony's Agents Kursleiter** und das Kursleiter-Handbuch. Im Men�
 **Instanz**
 : deine Anmeldung bei einem Bony-Netz-Server – ohne Name, E-Mail oder Passwort.
 
+**Kurs**
+: eine Veranstaltung mit Kursleitung – über das Internet (Kurscode) oder im eigenen Netz (Freigabe-Code).
+
+**Kurspaket**
+: der Inhalt zum Lernen: Lektionen mit Anleitung, Prüfaufgaben, Quiz und Handout. Als Datei `.bonyspaket`. Geht
+  allein (Selbstlern-Modus) oder in einem Kurs.
+
 **Kill-Switch**
 : Sperre, die ohne verbundenen VPN-Tunnel jeden Internetverkehr verhindert.
 
@@ -758,8 +844,14 @@ Dafür gibt es **Bony's Agents Kursleiter** und das Kursleiter-Handbuch. Im Men�
 **Kursraum**
 : das Fenster für Bild, Ton, Kamera und Chat während eines Kurses.
 
+**Lektion**
+: ein Abschnitt eines Kurspakets mit Anleitung, oft mit Prüfaufgabe und Quiz.
+
 **Modell**
 : das „Gehirn“ einer KI. Es läuft bei einem Anbieter im Internet.
+
+**Prüfaufgabe**
+: kleine Kontrolle im Agent-PC, ob eine Aufgabe geschafft ist – Ergebnis nur „geschafft“ oder „noch nicht“.
 
 **QEMU**
 : das freie Programm, das Agent-PCs laufen lässt.
@@ -767,11 +859,20 @@ Dafür gibt es **Bony's Agents Kursleiter** und das Kursleiter-Handbuch. Im Men�
 **RDP / SPICE**
 : zwei Wege für den Fernzugriff auf einen Agent-PC.
 
+**Selbstlern-Modus**
+: ein Kurspaket allein durcharbeiten, ohne Kurs und ohne Kursleitung.
+
+**Startzustand**
+: der gesicherte Stand des Agent-PCs zu Beginn einer Lektion – „Zurücksetzen“ kehrt dorthin zurück.
+
 **Vorlage**
 : ein fertig eingerichteter Agent-PC zum Kopieren.
 
 **.bonys-Datei**
 : eine Vorlage als eine einzige Datei zum Weitergeben.
+
+**.bonyspaket-Datei**
+: ein Kurspaket als eine einzige Datei zum Weitergeben.
 
 **Zentrale**
 : der Teil des Bony-Netz-Servers, der Instanzen, Agent-PCs und Kurse verwaltet.

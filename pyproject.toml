@@ -64,6 +64,8 @@ artifacts = ["src/bonys_agents/trainer/resources/novnc/", "src/bonys_agents/reso
 "THIRD-PARTY-LICENSES" = "bonys_agents/licenses/THIRD-PARTY-LICENSES"
 # Vorlage der Handbücher – der Kurspaket-Editor (Kursleiter) baut damit Ablaufplan und Handout als PDF
 "docs/handbuch/vorlage" = "bonys_agents/trainer/resources/handbuch-vorlage"
+# Mitgelieferte Kurspakete (beide Editionen – Selbstlern-Modus)
+"kurspakete" = "bonys_agents/resources/kurspakete"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

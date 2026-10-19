@@ -7,8 +7,9 @@
 📖 **Handbücher (PDF, an jedem Release):** Benutzerhandbuch, Kursleiter-Handbuch und Beispielkurs „Einführung in
 Hermes Agent“ – auf der [Releases-Seite](https://github.com/zappotex/BonysAgents/releases/latest) bzw. als Quelltext
 in [docs/handbuch/](docs/handbuch/) ([Benutzerhandbuch](docs/handbuch/benutzer.md),
-[Kursleiter-Handbuch](docs/handbuch/kursleiter.md), [Beispielkurs](docs/handbuch/beispielkurs.md),
-[Handout](docs/handbuch/beispielkurs-handout.md)).
+[Kursleiter-Handbuch](docs/handbuch/kursleiter.md)). Der Beispielkurs ist das mitgelieferte Kurspaket
+[kurspakete/einfuehrung-hermes-agent](kurspakete/einfuehrung-hermes-agent/) ([Ablaufplan](kurspakete/einfuehrung-hermes-agent/ablaufplan.md),
+[Handout](kurspakete/einfuehrung-hermes-agent/handout.md)).
 
 **Virtuelle Agent-PCs per Mausklick – mit Brave, Telegram und Hermes Agent.**
 Läuft auf Linux, macOS und Windows. Freie Software unter GPL-3.0-or-later.
@@ -49,6 +50,11 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Unterbrochene Einrichtung (QEMU beendet, Neustart, Speichermangel) läuft beim nächsten Start dort weiter, wo sie war
 - Selbsttest `bonys-agents selftest`: prüft, ob QEMU auf diesem Rechner startet
 - Vorlagen: einen fertig eingerichteten Agent-PC als Vorlage speichern – neue Agent-PCs entstehen daraus in Sekunden, ohne Downloads und Einrichtung (siehe „Vorlagen“)
+- **Kurspakete** (`.bonyspaket`): fertige Lerninhalte mit Lektionen, Anleitung neben dem Agent-PC, Prüfaufgaben,
+  Quiz, Startzuständen zum Zurücksetzen und Handout – allein durcharbeiten (Selbstlern-Modus) oder im Kurs;
+  mitgeliefert „Einführung in Hermes Agent“ und fünf Entwürfe, weitere aus der offenen Bibliothek
+  [bonys-agents-kurspakete](https://github.com/zappotex/bonys-agents-kurspakete); Editor in der Kursleiter-Version
+  (siehe „Kurspakete“ und [docs/kurspaket-format.md](docs/kurspaket-format.md))
 - Schulungen: Vorlagen als eine `.bonys`-Datei weitergeben – mit Frisch-Prüfung auf Geheimnisse, ohne nicht weitergebbare Programme, mit Prüfsumme (siehe „Schulungen: Agent-PCs weitergeben“)
 - **[Bony's VPN](https://github.com/zappotex/bonys-vpn)** (eigenes Projekt): eigene WireGuard-Tunnel im Agent-PC und auf dem eigenen Linux-Rechner, mit Kill-Switch (siehe „VPN“)
 - Optional **Obsidian** für Notizen im Agent-PC (siehe „Obsidian“)
@@ -682,8 +688,37 @@ weiter wie bisher. Hauptfenster → **„Kurse“**:
   (Systemeinstellungen → Datenschutz & Sicherheit). Im Paket für Linux auf ARM (arm64) gibt es den Kursraum noch
   nicht.
 
-An den Server gehen dabei nur Kursname, die Anzeigenamen und welcher Agent-PC teilnimmt. Die Fehlermeldungen des
+- **Kurspaket** (optional): beim Anlegen oder in der Kursansicht wählen. Die App lädt es zum Server hoch (höchstens
+  25 MB, vorher Prüfung auf Zugangsdaten), die Teilnehmer bekommen es automatisch und öffnen es mit **„Anleitung“**
+  neben ihrem Agent-PC. Die Kursansicht zeigt je Teilnehmer nur Lektion und „geschafft / noch nicht“ – solange der
+  Kurs läuft; beim Beenden löscht der Server Kurspaket und Fortschritt. Bei der Schulung im eigenen Netz
+  gibt es dasselbe im Fenster „Im Netzwerk freigeben“.
+
+An den Server gehen dabei nur Kursname, die Anzeigenamen, welcher Agent-PC teilnimmt und – mit Kurspaket – das
+Kurspaket des Kursleiters sowie Lektion und „geschafft / noch nicht“ der Teilnehmer. Die Fehlermeldungen des
 Servers (Code abgelaufen, Kurs voll, zu viele aktive Kurse …) zeigt die App unverändert an.
+
+## Kurspakete
+
+Ein **Kurspaket** ist der Inhalt einer Schulung (ein **Kurs** ist ihre Durchführung): Lektionen mit Anleitung,
+Prüfaufgaben, Quiz, Ablaufplan für die Kursleitung und Handout – als Ordner oder als ZIP-Datei `.bonyspaket`.
+Hauptfenster → **„Kurse“** → Reiter **„Kurspakete“**:
+
+- **Durcharbeiten** (beide Versionen): eigener Agent-PC nach dem Rezept des Pakets (oder ein vorhandener), daneben
+  das Fenster „Anleitung“ mit Weiter/Zurück, **„Prüfen“** (Skript nur im Agent-PC über den Gast-Agent, Ergebnis nur
+  „geschafft / noch nicht“), Quiz und **„Zurücksetzen“** auf den Startzustand der Lektion (qcow2-Schnappschuss).
+  Fortschritt bleibt auf diesem Rechner.
+- **Importieren / Exportieren / Aus dem Internet …**: `.bonyspaket` per Datei oder Drag & Drop; die Liste aus dem
+  Repo [bonys-agents-kurspakete](https://github.com/zappotex/bonys-agents-kurspakete) wird nur über HTTPS geladen,
+  Größe und SHA-256 müssen passen. Mitgelieferte und mit dem Release-Schlüssel signierte Pakete gelten als
+  „geprüft“; bei allen anderen fragt die App vor dem ersten Start mit der Liste ihrer Skripte.
+- **Editor** (nur Kursleiter-Version): Neu, Bearbeiten, Duplizieren; Steckbrief, Rezept, Ablaufplan, Handout,
+  Lektionen mit Markdown-Vorschau, Bildschirmfoto des Agent-PCs, Prüfskript-Vorlagen, Startskript, Quiz; Speichern
+  nur ohne Zugangsdaten; PDF von Ablaufplan und Handout; „Kurspaket prüfen“ (auch in einem Test-Agent-PC).
+
+Das Format beschreibt [docs/kurspaket-format.md](docs/kurspaket-format.md). Die mitgelieferten Pakete liegen in
+[`kurspakete/`](kurspakete/); jede Release-Aktion signiert sie und hängt sie als `.bonyspaket` samt
+`kurspakete-index.json` an.
 
 ## Fernzugriff (RDP und SPICE)
 
@@ -939,6 +974,9 @@ Bony's Agents hat **keine Telemetrie** und kein Konto. Nach außen geht nur, was
 | Schulung: Freigabe/Vorführung suchen | nur im lokalen Netz (mDNS) | Suchanfrage; ein Kursleiter kündigt dabei den Namen des Kurses und seinen Rechnernamen an |
 | Schulung: Vorlage laden, Vorführung ansehen | nur zum Rechner des Kursleiters | dein Rechnername (zur Anzeige beim Kursleiter) |
 | Schulung: Hilfe anfordern | nur zum Rechner des Kursleiters | der Name, den du eingibst, und deine Nachricht; Bild und Steuerung des Agent-PCs erst nach deiner zweiten Zustimmung |
+| Schulung mit Kurspaket | nur zum Rechner des Kursleiters | Lektion und „geschafft / noch nicht“, solange die Anleitung offen ist |
+| Kurs mit Kurspaket (Bony-Netz) | der Bony-Netz-Server | Kursleiter: das Kurspaket; Teilnehmer: Lektion und „geschafft / noch nicht“ |
+| Kurspakete „Aus dem Internet …“ (nur auf Klick) | raw.githubusercontent.com (Repo bonys-agents-kurspakete) | Abruf der Liste bzw. des Pakets |
 
 Was in den Agent-PCs passiert (Browser, KI-Agenten, Telegram …), entscheidest du – das sind eigene Rechner mit
 eigenen Programmen. Fehler der App landen nur lokal in `fehler.log` im Datenordner (siehe unten) und werden nirgends
@@ -975,7 +1013,10 @@ src/bonys_agents/
   rfb.py, websocket.py, vncbridge.py  Filter (Eingaben nur mit Erlaubnis), WebSocket, Brücke zum lokalen VNC
   mdns.py        kleines mDNS/DNS-SD: Freigaben finden (_bonys-agents._tcp)
   netz.py        Bony-Netz: Server, Instanz, Agent-PCs ins Netz (Baustein bony_netz in src/bony_netz/)
-  kurse.py       Kurse über das Bony-Netz: anlegen, steuern, beitreten (Fenster gui/kurse_dialog.py, trainer/gui/)
+  kurse.py       Kurse über das Bony-Netz: anlegen, steuern, beitreten, Kurspaket hoch-/herunterladen, Fortschritt
+  kurspaket.py   Kurspakete: Format, Prüfung, Entpack-Schutz, Bibliothek, Katalog, Fortschritt, Geheimnis-Suche
+  kurslauf.py    Kurspakete im Agent-PC: Startzustände (Schnappschüsse), Prüf-/Startskripte über den Gast-Agent,
+                 Signatur und Zustimmung
   trainer/       nur Kursleiter-Version: Freigabe-Server (share_server), Vorführen (present, noVNC), Hilfe-Schalter
                  (helpdesk), mDNS-Ankündigung (announce), Befehle share/present (cli), Dialoge (gui/)
   procutil.py    externe Programme mit sauberer Umgebung starten (ohne Bibliotheken des Bundles)
@@ -993,10 +1034,12 @@ src/bonys_agents/
 packaging/
   bonys-agents.spec      PyInstaller-Bauplan (Programm inkl. Python & Qt), je Edition (editions.py)
   check-edition.py       prüft ein gebautes Programm: Anwender ohne trainer/ und noVNC, Kursleiter mit
+  kurspakete.py          mitgelieferte Kurspakete für das Release signierbar vorbereiten und packen (+ index.json)
   linux/build-deb.sh     .deb-Paket
   linux/build-apt-repo.sh  signierte APT-Paketquelle (für GitHub Pages)
   windows/*.iss          Windows-Installer (Inno Setup)
   make-resources.py      Logo, Icons und Hintergrundbilder aus Bilder/ erzeugen
+kurspakete/              mitgelieferte Kurspakete (CC BY-SA 4.0), im Programm unter bonys_agents/resources/kurspakete
 install.sh / install.cmd Installation aus dem Quellcode
 ```
 

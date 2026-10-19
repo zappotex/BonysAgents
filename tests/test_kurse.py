@@ -160,6 +160,102 @@ def test_kurs_voll_und_teilnehmer_entfernen(leiter, zentrale):
     assert kurse.geleiteter_kurs(kurs.kurs_id).teilnehmer == []
 
 
+def _testpaket(basis, version="1.0.0"):
+    from test_kurspaket import mit, paket_ordner
+
+    from bonys_agents import kurspaket
+
+    return kurspaket.laden(paket_ordner(basis, mit(version=version)))
+
+
+def test_kurspaket_im_kurs(leiter, zentrale, datadir, tmp_path, monkeypatch):
+    from bonys_agents import kurslauf, kurspaket
+
+    monkeypatch.setattr(kurspaket, "mitgeliefert_dirs", lambda: [])
+    kurs = kurse.kurs_anlegen("Hermes", "Bony")
+    assert kurs.kurspaket is None
+    paket = _testpaket(tmp_path / "leiter")
+    k = kurse.kurspaket_hochladen(kurs.kurs_id, paket)
+    assert k.kurspaket.paket_id == "test-paket" and k.kurspaket.lektionen == 3
+    assert k.kurspaket.text == "Testpaket 1.0.0 · 3 Lektionen"
+    # Zugangsdaten im Paket: nichts wird hochgeladen
+    (paket.pfad / "handout.md").write_text("Schlüssel: sk-or-v1-" + "a1" * 32 + "\n")
+    zentrale.anfragen.clear()
+    with pytest.raises(kurspaket.GeheimnisGefunden):
+        kurse.kurspaket_hochladen(kurs.kurs_id, paket)
+    assert not [a for a in zentrale.anfragen if a.startswith("PUT")]
+
+    anna = _zweite_instanz(zentrale)
+    _als(anna)
+    zentrale.geraete = [_geraet("g2", "pc-b")]
+    kurse.kurs_beitreten(kurs.code, "g2", "Anna")
+    [t] = kurse.teilnahmen()
+    assert t.kurspaket is not None
+    p = kurse.kurspaket_fuer_kurs(t)
+    assert p.herkunft == kurspaket.KURS and p.version == "1.0.0" and not kurslauf.geprueft(p)
+    assert kurspaket.holen("test-paket").herkunft == kurspaket.KURS   # bleibt nach dem Neuladen „aus einem Kurs“
+    zentrale.anfragen.clear()
+    assert kurse.kurspaket_fuer_kurs(t).pfad == p.pfad                  # schon da: kein zweiter Download
+    assert not [a for a in zentrale.anfragen if a.startswith("GET /api/v1/kurse/k")]
+    kurse.fortschritt_melden(t.kurs_id, 1, True)
+
+    _als(leiter)
+    [g] = kurse.geleitete_kurse()
+    assert g.teilnehmer[0].stand is None            # nur solange der Kurs läuft
+    kurse.status_setzen(kurs.kurs_id, kurse.LAEUFT)
+    [g] = kurse.geleitete_kurse()
+    stand = g.teilnehmer[0].stand
+    assert (stand.lektion, stand.geschafft) == (2, True)
+    assert stand.lektion_text(p) == "2. Übung" and stand.lektion_text(None, 3) == "2 von 3"
+    assert stand.pruefung_text == "✓ geschafft"
+    assert kurse.Stand(3).pruefung_text == "–" and kurse.Stand(3, False).pruefung_text == "✗ noch nicht"
+
+    # Datei unterwegs verändert: Prüfsumme passt nicht, nichts wird übernommen
+    zentrale.kurse[kurs.kurs_id]["_datei"] += b"x"
+    zentrale.kurse[kurs.kurs_id]["kurspaket"]["version"] = "1.0.1"
+    _als(anna)
+    [t] = kurse.teilnahmen()
+    with pytest.raises(kurspaket.PaketFehler, match="Prüfsumme"):
+        kurse.kurspaket_fuer_kurs(t)
+    assert kurspaket.holen("test-paket").version == "1.0.0"
+
+    _als(leiter)
+    kurse.kurspaket_entfernen(kurs.kurs_id)
+    assert kurse.geleiteter_kurs(kurs.kurs_id).kurspaket is None
+    with pytest.raises(ValueError, match="kein Kurspaket"):
+        kurse.kurspaket_fuer_kurs(kurse.geleiteter_kurs(kurs.kurs_id))
+
+
+def test_kurspaket_gleich_dem_mitgelieferten(leiter, zentrale, datadir, tmp_path, monkeypatch):
+    """Inhaltsgleich mit dem mitgelieferten Paket: kein Import – es bleibt „geprüft“."""
+    from bonys_agents import kurslauf, kurspaket
+
+    mitgeliefert = _testpaket(tmp_path / "mit")
+    monkeypatch.setattr(kurspaket, "mitgeliefert_dirs", lambda: [tmp_path / "mit"])
+    kurs = kurse.kurs_anlegen("Hermes", "Bony")
+    kurse.kurspaket_hochladen(kurs.kurs_id, mitgeliefert)
+    anna = _zweite_instanz(zentrale)
+    _als(anna)
+    zentrale.geraete = [_geraet("g2", "pc-b")]
+    kurse.kurs_beitreten(kurs.code, "g2", "Anna")
+    [t] = kurse.teilnahmen()
+    p = kurse.kurspaket_fuer_kurs(t)
+    assert p.mitgeliefert and kurslauf.geprueft(p) and not kurspaket.bibliothek_dir().joinpath("test-paket").exists()
+    # Ein eigenes Paket mit derselben Kennung wird nie überschrieben
+    from bonys_agents import storage
+
+    eigen = kurspaket.importieren(paket_ordner_mit(tmp_path / "eigen", "2.0.0"), ersetzen=True)
+    storage.write_json(eigen.pfad / kurspaket.HERKUNFT, {"quelle": kurspaket.EIGEN})   # wie der Editor
+    with pytest.raises(kurspaket.PaketFehler, match="selbst"):
+        kurse.kurspaket_fuer_kurs(t)
+
+
+def paket_ordner_mit(basis, version):
+    from test_kurspaket import mit, paket_ordner
+
+    return paket_ordner(basis, mit(version=version))
+
+
 def test_rechner_aus_bonys_vpn_ist_kein_agent_pc(leiter, zentrale):
     zentrale.geraete = [_geraet("g1", "pc-a"), _geraet("g9", "rechner-laptop")]
     netz.aendern(lambda k: k.extra.__setitem__(kurse.VPN_RECHNER, {"instanz_id": k.instanz_id,
@@ -391,6 +487,84 @@ def test_fenster_kursleitung(qapp, datadir, zentrale, monkeypatch):
     v.done(0)
     d.done(0)
     d.deleteLater()
+
+
+@pytest.mark.kursleiter
+def test_fenster_kurspaket_im_kurs(qapp, datadir, zentrale, monkeypatch, tmp_path):
+    """Kursleiter wählt ein Kurspaket, Teilnehmerin bekommt es automatisch, Anleitung meldet den Fortschritt."""
+    from bonys_agents import kurspaket
+    from bonys_agents.gui import kurse_dialog, kurspaket_anleitung
+    from bonys_agents.trainer.gui import kurse_leiten
+
+    _testpaket(tmp_path / "mit")
+    monkeypatch.setattr(kurspaket, "mitgeliefert_dirs", lambda: [tmp_path / "mit"])
+    leiter = _anmelden(zentrale)
+    kurse.kursleiter_freischalten("LEITER-OK")
+    seite = kurse_leiten.KursleitungSeite()
+    n = kurse_leiten.NeuerKursDialog(seite)
+    assert n.paket.itemText(0) == "Ohne Kurspaket" and n.paket.itemData(1) == "test-paket"
+    n.leader.setText("Bony")
+    n.paket.setCurrentIndex(1)
+    assert n.name.text() == "Testpaket"          # Name aus dem Kurspaket vorgeschlagen
+    n.ok_btn.click()
+    _wait(qapp, n)
+    assert n.kurs.kurspaket.paket_id == "test-paket" and n.paket_fehler == ""
+    [k] = zentrale.kurse.values()
+
+    # Teilnehmerin: Kurspaket kommt automatisch, „Anleitung“ übergibt Paket, Kurs und Agent-PC
+    zentrale.geraete = [_geraet("g1", "pc-a")]
+    anna = _zweite_instanz(zentrale)
+    _als(anna)
+    kurse.kurs_beitreten(k["code"], "g1", "Anna")
+    monkeypatch.setattr(kurse_dialog, "_lokale_namen", lambda: {"pc-a": "mein-agent"})
+    d = kurse_dialog.KurseDialog()
+    d.tabs.setCurrentWidget(d.teilnahme)
+    d.show()
+    s = d.teilnahme
+    geoeffnet = []
+    s.anleitung_oeffnen = lambda paket, kurs_id, pc: geoeffnet.append((paket.id, kurs_id, pc))
+    d._tick()
+    _wait(qapp, s)
+    assert s.table.item(0, 4).text() == "Testpaket"
+    s.table.selectRow(0)
+    assert s.anleitung_btn.isEnabled()
+    s.anleitung_btn.click()
+    _wait(qapp, s)
+    assert geoeffnet == [("test-paket", k["kurs_id"], "mein-agent")]
+    d.done(0)
+    d.deleteLater()
+
+    # Anleitung im Kurs meldet die Lektion (und nach dem Prüfen das Ergebnis)
+    paket = kurspaket.holen("test-paket")
+    f = kurspaket_anleitung.oeffnen(paket, melden=lambda i, g: kurse.fortschritt_melden(k["kurs_id"], i, g))
+    ende = time.monotonic() + 10
+    while time.monotonic() < ende and f._gemeldet is None:
+        qapp.processEvents()
+    assert f._gemeldet == (0, None)
+    f._gehe(1)
+    f.fortschritt.pruefungen["02-uebung"] = False
+    f._zeigen()
+    ende = time.monotonic() + 10
+    while time.monotonic() < ende and f._gemeldet != (1, False):
+        qapp.processEvents()
+    assert [e["fortschritt"] for e in k["_teiln"].values()] == [
+        {"lektion": 2, "geschafft": False, "aktualisiert": 1760000900}]
+    f.close()
+
+    # Kursansicht: Lektion mit Titel aus dem eigenen Paket, „noch nicht“
+    _als(leiter)
+    kurse.status_setzen(k["kurs_id"], kurse.LAEUFT)
+    v = kurse_leiten.KursAnsicht(kurse.geleiteter_kurs(k["kurs_id"]), seite)
+    v.show()
+    qapp.processEvents()
+    assert [v.table.item(0, i).text() for i in (4, 5)] == ["2. Übung", "✗ noch nicht"]
+    assert v.paket_text.text() == "Testpaket 1.0.0 · 3 Lektionen" and v.anleitung_btn.isVisible()
+    monkeypatch.setattr(kurse_leiten, "nachfragen", lambda *a, **kw: True)
+    v.paket_weg_btn.click()
+    _wait(qapp, v)
+    assert k["kurspaket"] is None and v.table.isColumnHidden(4) and not v.paket_weg_btn.isVisible()
+    v.done(0)
+    seite.deleteLater()
 
 
 def test_hauptfenster_meldet_kursbeginn(qapp, datadir, zentrale, monkeypatch):

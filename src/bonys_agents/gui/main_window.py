@@ -1614,16 +1614,27 @@ class MainWindow(QMainWindow):
         """Schulung im selben Netz (LAN/VPN) – ohne Bony-Netz, wie bisher."""
         from .share_dialogs import JoinDialog
 
-        JoinDialog(self).exec()
+        d = JoinDialog(self)
+        d.exec()
         self.refresh()
+        paket, info = d.result_paket, d.info
+        if paket is not None and info is not None and QMessageBox.question(
+                self, APP_NAME, f"Zur Schulung gehört das Kurspaket „{paket.name}“. Jetzt neben dem Agent-PC "
+                "durcharbeiten?\n\nDie Kursleitung sieht dabei nur, in welcher Lektion du bist und ob die "
+                "Prüfaufgabe geschafft ist – solange ihre Freigabe läuft.") == QMessageBox.Yes:
+            from bonys_agents import share
+
+            self.kurspaket_durcharbeiten(paket, melden=lambda i, g: share.fortschritt_melden(info, i, g))
 
     def show_courses(self) -> None:
-        KurseDialog(self, join_local=self.join_training, durcharbeiten=self.kurspaket_durcharbeiten).exec()
+        KurseDialog(self, join_local=self.join_training, durcharbeiten=self.kurspaket_durcharbeiten,
+                    im_kurs=self.kurspaket_im_kurs).exec()
         self._kurse_aktiv = None   # vielleicht beigetreten oder verlassen – bei der nächsten Abfrage nachsehen
         self.refresh()
 
-    def kurspaket_durcharbeiten(self, paket) -> None:
-        """Selbstlern-Modus: Agent-PC für das Kurspaket wählen/erstellen, dann die Anleitung daneben öffnen."""
+    def kurspaket_durcharbeiten(self, paket, melden=None) -> None:
+        """Selbstlern-Modus: Agent-PC für das Kurspaket wählen/erstellen, dann die Anleitung daneben öffnen.
+        ``melden``: in einer Schulung den Fortschritt an den Kursleiter melden."""
         from .kurspaket_anleitung import oeffnen
         from .kurspaket_bibliothek import agent_pc_einrichten, skripte_erlauben
 
@@ -1638,7 +1649,27 @@ class MainWindow(QMainWindow):
             return
         self.refresh()
         self._waehlen(name)
-        oeffnen(paket, self.kurspaket_agent_pc_zeigen, self)
+        oeffnen(paket, self.kurspaket_agent_pc_zeigen, self, melden=melden)
+
+    def kurspaket_im_kurs(self, paket, kurs_id: str, agent_pc: str) -> None:
+        """Kurspaket eines Bony-Netz-Kurses: Anleitung neben dem Agent-PC des Kurses, Fortschritt an den Kursleiter."""
+        from bonys_agents import kurse
+
+        from .kurspaket_anleitung import oeffnen
+        from .kurspaket_bibliothek import skripte_erlauben
+
+        if not skripte_erlauben(self, paket):
+            return
+        if agent_pc:
+            kurspaket.agent_pc_merken(paket, agent_pc)
+            self.refresh()
+            self._waehlen(agent_pc)
+        elif kurspaket.agent_pc(paket) is None:
+            QMessageBox.information(self, APP_NAME, "Der Agent-PC, mit dem du am Kurs teilnimmst, liegt nicht auf "
+                                    "diesem Rechner. Die Anleitung öffnet sich trotzdem – Prüfaufgaben und "
+                                    "„Zurücksetzen“ gehen nur mit dem Agent-PC.")
+        oeffnen(paket, self.kurspaket_agent_pc_zeigen, self,
+                melden=lambda index, geschafft: kurse.fortschritt_melden(kurs_id, index, geschafft))
 
     def _waehlen(self, name: str) -> None:
         for i in range(self.list.count()):

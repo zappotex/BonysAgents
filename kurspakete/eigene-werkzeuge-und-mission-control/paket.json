@@ -1,0 +1,97 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "eigene-werkzeuge-und-mission-control",
+  "name": "Eigene Werkzeuge und Skills für Hermes, Mission Control mit Docker",
+  "beschreibung": "Hermes mit eigenen Werkzeugen und Skills erweitern, MCP-Server anbinden und mehrere Agenten mit Mission Control (Docker) im Blick behalten.",
+  "stufe": "experte",
+  "sprache": "de",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 180,
+  "pause_minuten": 15,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Menschen mit Erfahrung in Terminal und Skripten",
+  "voraussetzungen": [
+    "Agent-PC mit eingerichtetem Hermes und Docker",
+    "Sicherer Umgang mit dem Terminal",
+    "Grundkenntnisse in Python oder Bash"
+  ],
+  "kosten": "keine – kostenloses Modell (eigenes Konto)",
+  "lernziele": [
+    "den Aufbau von Werkzeugen und Skills in Hermes erklären",
+    "einen eigenen Skill schreiben und testen",
+    "einen MCP-Server anbinden",
+    "Mission Control mit Docker starten und Agenten beobachten",
+    "Rechte und Grenzen eigener Werkzeuge festlegen"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – Dokumentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "Mission Control für Bony's Agents",
+      "url": "https://github.com/zappotex/bonys-agents-mission-control"
+    },
+    {
+      "titel": "Model Context Protocol",
+      "url": "https://modelcontextprotocol.io"
+    }
+  ],
+  "rezept": {
+    "name": "werkzeuge-kurs",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "mission-control"
+    ],
+    "username": "agent",
+    "keyboard": "de",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-aufbau",
+      "titel": "Wie Hermes Werkzeuge nutzt",
+      "dauer_minuten": 25,
+      "art": "Erklärung",
+      "ziel": "Werkzeuge, Skills und MCP unterscheiden."
+    },
+    {
+      "ordner": "02-skill-schreiben",
+      "titel": "Einen eigenen Skill schreiben",
+      "dauer_minuten": 40,
+      "art": "Übung",
+      "ziel": "Ein eigener Skill funktioniert."
+    },
+    {
+      "ordner": "03-mcp",
+      "titel": "Einen MCP-Server anbinden",
+      "dauer_minuten": 35,
+      "art": "Mitmachen",
+      "ziel": "Hermes nutzt ein Werkzeug über MCP."
+    },
+    {
+      "ordner": "04-mission-control",
+      "titel": "Mission Control",
+      "dauer_minuten": 40,
+      "art": "Mitmachen",
+      "ziel": "Mission Control läuft und zeigt den Agenten."
+    },
+    {
+      "ordner": "05-abschluss",
+      "titel": "Grenzen und Abschluss",
+      "dauer_minuten": 25,
+      "art": "Gespräch",
+      "ziel": "Eigene Werkzeuge verantwortungsvoll einsetzen."
+    }
+  ]
+}

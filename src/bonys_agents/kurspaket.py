@@ -80,11 +80,11 @@ EINGEBAUTE_PRUEFUNGEN = {
     "vorlage-vorhanden": "Es gibt mindestens eine Vorlage.",
 }
 
-MITGELIEFERT, DATEI, INTERNET, EIGEN = "mitgeliefert", "datei", "internet", "eigen"
+MITGELIEFERT, DATEI, INTERNET, EIGEN, KURS = "mitgeliefert", "datei", "internet", "eigen", "kurs"
 HERKUNFT_TEXT = {MITGELIEFERT: "mitgeliefert", DATEI: "aus Datei", INTERNET: "aus dem Internet",
-                 EIGEN: "selbst erstellt"}
+                 EIGEN: "selbst erstellt", KURS: "aus einem Kurs"}
 
-# Kurspakete aus dem Internet: Liste aus einem öffentlichen GitHub-Repo. Platzhalter, bis das Repo feststeht.
+# Kurspakete aus dem Internet: Liste aus dem öffentlichen GitHub-Repo (index.json, Dateien unter pakete/).
 KATALOG_REPO = "zappotex/bonys-agents-kurspakete"
 KATALOG_URL = f"https://raw.githubusercontent.com/{KATALOG_REPO}/main/index.json"
 KATALOG_ENV = "BONYS_AGENTS_PAKET_KATALOG"   # andere Adresse (Tests, eigener Katalog)
@@ -1007,6 +1007,12 @@ def mitgeliefert_dirs() -> list[Path]:
     return [k for k in kandidaten if k.is_dir()]
 
 
+def herkunft_sha256(paket: Kurspaket) -> str:
+    """SHA-256 der Datei, aus der das Kurspaket importiert wurde (Download, Kurs) – sonst ""."""
+    wert = _herkunft_lesen(paket.pfad).get("sha256") if not paket.mitgeliefert else ""
+    return wert if isinstance(wert, str) else ""
+
+
 def _herkunft_lesen(ordner: Path) -> dict:
     try:
         d = storage.read_json(ordner / HERKUNFT)
@@ -1033,7 +1039,7 @@ def bestand() -> Bestand:
                 continue
             herkunft = _herkunft_lesen(ordner).get("quelle")
             try:
-                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET, EIGEN) else DATEI)
+                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET, EIGEN, KURS) else DATEI)
             except PaketFehler as e:
                 fehler.append((ordner.name, str(e)))
                 continue

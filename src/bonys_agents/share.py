@@ -246,6 +246,12 @@ class RemoteInfo:
     size: int
     sha256: str
     ends_in: int = 0
+    kurspaket: dict | None = None   # {paket_id, name, version, lektionen, sha256, groesse} – Schulung mit Kurspaket
+
+    @property
+    def pinned(self) -> Target:
+        """Ziel mit festem Fingerabdruck – für weitere Verbindungen zur selben Freigabe."""
+        return Target(self.target.host, self.target.port, self.target.code, self.fingerprint)
 
 
 def _client_name() -> str:
@@ -321,7 +327,64 @@ def fetch_info(target: Target) -> RemoteInfo:
         raise ShareError("Antwort des Kursleiter-Rechners unvollständig.")
     name = bonysfile.default_filename(m["name"], m.get("version") or "1")
     return RemoteInfo(target=target, fingerprint=fp, manifest=m, file_name=name, size=f["size"],
-                      sha256=f["sha256"], ends_in=int(data.get("ends_in") or 0))
+                      sha256=f["sha256"], ends_in=int(data.get("ends_in") or 0),
+                      kurspaket=_kurspaket_angaben(data.get("kurspaket")))
+
+
+KURSPAKET_MAX = 25 * 1024 * 1024
+FORTSCHRITT_MAX = 1024        # Bytes – nur {"lektion": …, "geschafft": …}
+
+
+def _kurspaket_angaben(d) -> dict | None:
+    """Angaben zum Kurspaket der Schulung prüfen – unbrauchbare werden ignoriert (die Vorlage geht trotzdem)."""
+    if not isinstance(d, dict):
+        return None
+    pid, sha, groesse = d.get("paket_id"), str(d.get("sha256", "")), d.get("groesse")
+    if not (isinstance(pid, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{1,58}[a-z0-9]", pid)
+            and re.fullmatch(r"[0-9a-f]{64}", sha) and isinstance(groesse, int) and 0 < groesse <= KURSPAKET_MAX):
+        return None
+    lektionen = d.get("lektionen")
+    return {"paket_id": pid, "name": str(d.get("name") or pid)[:120], "version": str(d.get("version") or "")[:20],
+            "lektionen": lektionen if isinstance(lektionen, int) and 0 <= lektionen <= 100 else 0,
+            "sha256": sha, "groesse": groesse}
+
+
+def kurspaket_holen(info: RemoteInfo) -> bytes:
+    """Kurspaket der Schulung laden (gleicher Fingerabdruck wie beim Verbinden). Prüfsumme prüft der Aufrufer."""
+    a = info.kurspaket
+    if a is None:
+        raise ShareError("Diese Schulung hat kein Kurspaket.")
+    conn, _fp = _connect(info.pinned)
+    try:
+        conn.request("GET", f"{API}/kurspaket", headers=_headers(info.target))
+        resp = conn.getresponse()
+        if resp.status != 200:
+            raise _error(resp)
+        daten = resp.read(a["groesse"] + 1)
+    except (OSError, http.client.HTTPException) as e:
+        raise ShareError(f"Kurspaket nicht geladen: {e}") from e
+    finally:
+        conn.close()
+    if len(daten) != a["groesse"]:
+        raise ShareError("Das Kurspaket kam nicht vollständig an.")
+    return daten
+
+
+def fortschritt_melden(info: RemoteInfo, lektion_index: int, geschafft: bool | None) -> None:
+    """Dem Kursleiter nur die Lektion (ab 1) und „geschafft / noch nicht“ melden – sonst nichts."""
+    body = json.dumps({"lektion": int(lektion_index) + 1, "geschafft": geschafft}).encode()
+    conn, _fp = _connect(info.pinned, timeout=10)
+    try:
+        conn.request("POST", f"{API}/fortschritt", body=body,
+                     headers=_headers(info.target, {"Content-Type": "application/json"}))
+        resp = conn.getresponse()
+        if resp.status != 204:
+            raise _error(resp)
+        resp.read()
+    except (OSError, http.client.HTTPException) as e:
+        raise ShareError(f"Fortschritt nicht gemeldet: {e}") from e
+    finally:
+        conn.close()
 
 
 def download(info: RemoteInfo, dest_dir: Path, progress: Callable[[str, float, str], None] | None = None,

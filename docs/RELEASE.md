@@ -174,10 +174,29 @@ notarisiert mit `xcrun notarytool` (Schritt „Notarisieren“ im Release-Workfl
      einen Agent-PC, bis QEMU läuft (`bonys-agents selftest --boot`),
    - installiert das `.deb` testweise in **Debian 13** und **Ubuntu 24.04** und führt dort
      `bonys-agents selftest` aus,
+   - signiert die mitgelieferten Kurspakete (`kurspakete/`, `packaging/kurspakete.py`: je `pruefsummen.txt` +
+     `.minisig`) und hängt sie als `.bonyspaket` samt `kurspakete-index.json` an,
    - erzeugt `SHA256SUMS`, signiert sie mit minisign (vertrauenswürdiger Kommentar
      „Bony's Agents v0.9.0“) und prüft die Signatur gegen den Schlüssel im Programm,
    - veröffentlicht alles auf der Release-Seite,
    - baut danach die signierte APT-Paketquelle (`apt-repo.yml`) und veröffentlicht sie auf GitHub Pages.
+
+### Kurspakete im Repository bonys-agents-kurspakete
+
+„Kurse“ → „Kurspakete“ → „Aus dem Internet …“ liest `index.json` aus dem öffentlichen Repository
+[zappotex/bonys-agents-kurspakete](https://github.com/zappotex/bonys-agents-kurspakete) (Dateien unter `pakete/`).
+Nach einem Release mit neuen oder geänderten Kurspaketen (von Hand, braucht Schreibrechte im Repository):
+
+```bash
+gh release download v0.9.0 -R zappotex/BonysAgents -p '*.bonyspaket' -p kurspakete-index.json -D /tmp/kp
+cd bonys-agents-kurspakete
+cp /tmp/kp/*.bonyspaket pakete/ && cp /tmp/kp/kurspakete-index.json index.json
+git add pakete index.json && git commit -m "Kurspakete aus Bony's Agents v0.9.0" && git push
+```
+
+Die Pakete sind signiert (Release-Schlüssel) und erscheinen in der App deshalb als „Geprüftes Kurspaket“.
+Kurspakete anderer Autoren kommen per Pull Request – ohne Signatur sehen die Teilnehmer vor dem ersten Start die
+Liste ihrer Skripte.
 
 ### Gemeinsame Paketquelle mit Bony's VPN
 

@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Kursleiter: „Im Netzwerk freigeben“ – Vorlage im LAN/VPN an die Teilnehmer geben (nur Kursleiter-Version)."""
+"""Kursleiter: „Im Netzwerk freigeben“ – Vorlage im LAN/VPN an die Teilnehmer geben (nur Kursleiter-Version).
+
+Optional mit Kurspaket: Die Teilnehmer bekommen es mit der Vorlage und melden nur Lektion und „geschafft / noch
+nicht“ – die Tabelle zeigt das, solange die Freigabe läuft."""
 
 from __future__ import annotations
 
@@ -11,7 +14,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, host, share, storage, templates
+from bonys_agents import APP_NAME, host, kurse, kurspaket, share, storage, templates
 from bonys_agents.gui import style
 from bonys_agents.gui.share_dialogs import _eta, code_style, qr_pixmap
 from bonys_agents.gui.template_dialogs import ExportDialog, FnWorker
@@ -26,6 +29,7 @@ class ShareDialog(QDialog):
         super().__init__(parent)
         self.t = t
         self.share: share_server.Share | None = None
+        self.paket_lokal: kurspaket.Kurspaket | None = None
         self.worker: FnWorker | None = None
         self.setWindowTitle("Im Netzwerk freigeben")
         root = QVBoxLayout(self)
@@ -56,6 +60,10 @@ class ShareDialog(QDialog):
         self.settings.addRow("Port", self.port)
         self.settings.addRow("Endet nach", self.minutes)
         self.settings.addRow("Gleichzeitige Downloads", self.parallel)
+        from bonys_agents.trainer.gui.kurse_leiten import paket_auswahl
+
+        self.paket = paket_auswahl()
+        self.settings.addRow("Kurspaket", self.paket)
         root.addLayout(self.settings)
 
         # Während der Freigabe
@@ -77,8 +85,9 @@ class ShareDialog(QDialog):
                            "bei „Schulung beitreten“ einfügen.")
         self.live.addWidget(self.qr, 0, Qt.AlignTop)
         root.addLayout(self.live)
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Teilnehmer", "Adresse", "Status", "Fortschritt", "Restzeit"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["Teilnehmer", "Adresse", "Status", "Fortschritt", "Restzeit", "Lektion",
+                                              "Prüfung"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -159,15 +168,22 @@ class ShareDialog(QDialog):
         self.worker = None
         self.progress.setVisible(False)
         file, sha = cached
+        paket = next((p for p in kurspaket.liste() if p.id == self.paket.currentData()), None) \
+            if self.paket.currentData() else None
         try:
+            mit = (kurse.paket_packen(paket), {"paket_id": paket.id, "name": paket.name, "version": paket.version,
+                                               "lektionen": len(paket.lektionen)}) if paket else None
             s = share_server.Share(file, port=self.port.value(), timeout_min=self.minutes.value(),
-                            max_downloads=self.parallel.value(), sha256=sha)
+                                   max_downloads=self.parallel.value(), sha256=sha, kurspaket=mit)
             s.start()
-        except (OSError, ValueError, share_server.ShareError) as e:
+        except (OSError, ValueError, share_server.ShareError, kurspaket.PaketFehler) as e:
             self._failed(str(e))
             return
         self.share = s
-        for w in (self.port, self.minutes, self.parallel, self.start_btn):
+        self.paket_lokal = paket
+        for spalte in (5, 6):
+            self.table.setColumnHidden(spalte, paket is None)
+        for w in (self.port, self.minutes, self.parallel, self.paket, self.start_btn):
             w.setEnabled(False)
         self.start_btn.setVisible(False)
         self.stop_btn.setVisible(True)
@@ -180,6 +196,8 @@ class ShareDialog(QDialog):
         rows.append(f"Fingerabdruck: <b>{share.short_fingerprint(s.fingerprint)}</b> – Teilnehmer vergleichen ihn")
         rows.append(f"<span style='font-size:small'>{share.format_fingerprint(s.fingerprint)}</span>")
         rows.append(f"Datei: {file.name} ({s.size / storage.GB:.2f} GB)")
+        if paket is not None:
+            rows.append(f"Kurspaket: {paket.name} {paket.version} – die Teilnehmer bekommen es mit")
         self.info.setText("<br>".join(rows))
         pix = qr_pixmap(s.link(addrs[0] if addrs else None), style.px(200))
         if pix is not None:
@@ -199,8 +217,10 @@ class ShareDialog(QDialog):
         self.table.setRowCount(len(people))
         for i, p in enumerate(people):
             status = {"wartet": f"wartet (Platz {p.queue})"}.get(p.status, p.status)
+            stand = kurse.Stand(p.lektion, p.geschafft) if p.lektion else None
             for col, text in enumerate((p.name, p.address, status, f"{p.percent:.0f} %" if p.total else "",
-                                        _eta(p.eta()))):
+                                        _eta(p.eta()), stand.lektion_text(self.paket_lokal) if stand else "–",
+                                        stand.pruefung_text if stand else "–")):
                 self.table.setItem(i, col, QTableWidgetItem(text))
         text = "\n".join(events)
         if text != self.events.toPlainText():

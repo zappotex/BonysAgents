@@ -66,6 +66,7 @@ class JoinDialog(QDialog):
         self.info: share.RemoteInfo | None = None
         self.cancel = threading.Event()
         self.result_template: str | None = None
+        self.result_paket = None             # Kurspaket der Schulung (bonys_agents.kurspaket.Kurspaket)
         self.setWindowTitle("Schulung beitreten")
         root = QVBoxLayout(self)
         root.setSpacing(10)
@@ -232,6 +233,9 @@ class JoinDialog(QDialog):
         if not bonysfile.arch_matches(info.manifest):
             fp += (f"<br><span style='color:{style.DANGER}'>⚠ Andere Architektur ({info.manifest['arch']}) – "
                    "nach dem Laden wird das Rezept angeboten.</span>")
+        if info.kurspaket:
+            text += (f"<br>Kurspaket: <b>{html.escape(info.kurspaket['name'])} "
+                     f"{html.escape(info.kurspaket['version'])}</b> – kommt mit (Anleitung zum Durcharbeiten)")
         self.details.setText(text + fp)
         self.details.setVisible(True)
         self.fp_ok.setVisible(not info.target.fingerprint)
@@ -250,7 +254,20 @@ class JoinDialog(QDialog):
         self.cancel.clear()
         cancel = self.cancel
         dest = share.downloads_dir()
-        self.worker = FnWorker(lambda progress: share.download(info, dest, progress=progress, cancel=cancel))
+        def laden(progress):
+            datei = share.download(info, dest, progress=progress, cancel=cancel)
+            if info.kurspaket is None:
+                return datei, None, ""
+            from bonys_agents import kurse
+
+            try:
+                paket = kurse.paket_uebernehmen(share.kurspaket_holen(info), info.kurspaket["paket_id"],
+                                                info.kurspaket["sha256"])
+                return datei, paket, ""
+            except Exception as e:  # noqa: BLE001 – die Vorlage ist trotzdem da
+                return datei, None, str(e)
+
+        self.worker = FnWorker(laden)
         self.worker.progress.connect(lambda _p, f, msg: (self.progress.set_percent(f * 100), self.status.setText(msg)))
         self.worker.done.connect(self._loaded)
         self.worker.failed.connect(self._load_failed)
@@ -258,11 +275,13 @@ class JoinDialog(QDialog):
         self._busy(True)
         self.worker.start()
 
-    def _loaded(self, file: Path) -> None:
+    def _loaded(self, ergebnis: tuple[Path, object, str]) -> None:
+        file, self.result_paket, paket_fehler = ergebnis
         self.worker = None
         self._busy(False)
         self.progress.setVisible(False)
-        self.status.setText(f"Geladen und geprüft: {file}")
+        self.status.setText(f"Geladen und geprüft: {file}" + (
+            f"\nKurspaket nicht übernommen: {paket_fehler}" if paket_fehler else ""))
         name = open_bonys_file(self, file)
         if name:
             self.result_template = name

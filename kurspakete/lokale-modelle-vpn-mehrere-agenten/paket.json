@@ -1,0 +1,93 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "lokale-modelle-vpn-mehrere-agenten",
+  "name": "Lokale Modelle, VPN und mehrere Agenten",
+  "beschreibung": "Ein Modell auf dem eigenen Rechner statt in der Cloud betreiben, Agent-PCs per VPN verbinden und mehrere Agenten gemeinsam an einer Aufgabe arbeiten lassen.",
+  "stufe": "experte",
+  "sprache": "de",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 180,
+  "pause_minuten": 15,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Menschen mit Erfahrung in Netzwerk und Terminal",
+  "voraussetzungen": [
+    "Rechner mit mind. 16 GB RAM (besser 32 GB) oder Grafikkarte für lokale Modelle",
+    "Zwei Agent-PCs mit Hermes",
+    "Bony's VPN (optional)"
+  ],
+  "kosten": "keine – lokales Modell oder kostenloses Modell",
+  "lernziele": [
+    "Vor- und Nachteile lokaler Modelle benennen",
+    "ein lokales Modell mit OpenAI-kompatibler Schnittstelle in Hermes eintragen",
+    "Agent-PCs über das VPN bzw. das Bony-Netz erreichbar machen",
+    "zwei Agenten mit getrennten Rollen an einer Aufgabe arbeiten lassen",
+    "Datenschutz und Ressourcen bei lokalen Modellen einschätzen"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – Dokumentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "Bony's VPN",
+      "url": "https://github.com/zappotex/bonys-vpn"
+    }
+  ],
+  "rezept": {
+    "name": "lokal-kurs",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "vpn"
+    ],
+    "username": "agent",
+    "keyboard": "de",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-lokal-oder-cloud",
+      "titel": "Lokal oder Cloud?",
+      "dauer_minuten": 25,
+      "art": "Erklärung + Quiz",
+      "ziel": "Wissen, wann ein lokales Modell passt."
+    },
+    {
+      "ordner": "02-lokales-modell",
+      "titel": "Ein lokales Modell anbinden",
+      "dauer_minuten": 45,
+      "art": "Mitmachen",
+      "ziel": "Hermes antwortet mit einem lokalen Modell."
+    },
+    {
+      "ordner": "03-vpn",
+      "titel": "Agent-PCs verbinden",
+      "dauer_minuten": 35,
+      "art": "Mitmachen",
+      "ziel": "Zwei Agent-PCs erreichen sich."
+    },
+    {
+      "ordner": "04-mehrere-agenten",
+      "titel": "Mehrere Agenten",
+      "dauer_minuten": 45,
+      "art": "Übung",
+      "ziel": "Zwei Agenten erledigen gemeinsam eine Aufgabe."
+    },
+    {
+      "ordner": "05-abschluss",
+      "titel": "Abschluss",
+      "dauer_minuten": 15,
+      "art": "Gespräch",
+      "ziel": "Erfahrungen festhalten."
+    }
+  ]
+}

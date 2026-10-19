@@ -46,10 +46,12 @@ class FakeZentrale:
                 pass
 
             def _send(self, code, data=None, html=False):
-                body = (b"<html>Hallo</html>" if html else json.dumps(data).encode()) if data is not None or html \
-                    else b""
+                roh = isinstance(data, bytes)
+                body = data if roh else (b"<html>Hallo</html>" if html else json.dumps(data).encode()) \
+                    if data is not None or html else b""
                 self.send_response(code)
-                self.send_header("Content-Type", "text/html" if html else "application/json")
+                self.send_header("Content-Type", "application/octet-stream" if roh else
+                                 "text/html" if html else "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -98,9 +100,12 @@ class FakeZentrale:
 
             def _body(self):
                 n = int(self.headers.get("Content-Length") or 0)
-                return json.loads(self.rfile.read(n)) if n else {}
+                roh = self.rfile.read(n) if n else b""
+                if self.headers.get("Content-Type") == "application/octet-stream":
+                    return {"_roh": roh}
+                return json.loads(roh) if roh else {}
 
-            do_GET = do_POST = do_DELETE = _route
+            do_GET = do_POST = do_DELETE = do_PUT = _route
 
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
@@ -110,7 +115,8 @@ class FakeZentrale:
     @staticmethod
     def _oeffentlich(k: dict, mit_code: bool = True) -> dict:
         d = {x: y for x, y in k.items() if not x.startswith("_")}
-        d["teilnehmer"] = [{x: y for x, y in t.items() if not x.startswith("_")} for t in k["_teiln"].values()]
+        d["teilnehmer"] = [{x: (y if x != "fortschritt" or k["status"] == "laeuft" else None)
+                            for x, y in t.items() if not x.startswith("_")} for t in k["_teiln"].values()]
         if not mit_code:
             d.pop("code", None)
         return d
@@ -138,9 +144,10 @@ class FakeZentrale:
             if self.kurs_grenze is not None and token not in k["_teiln"] and len(k["_teiln"]) >= self.kurs_grenze:
                 return 409, {"detail": "Der Kurs ist voll."}
             g = next(g for g in self.geraete if g["geraet_id"] == body["geraet_id"])
+            alt = k["_teiln"].get(token, {}).get("fortschritt")
             k["_teiln"][token] = {"instanz_id": instanz["instanz_id"], "anzeigename": body["anzeigename"],
                                   "geraet_name": g["name"], "geraet_ip": g["ip"], "beigetreten": 1760000100,
-                                  "_geraet_id": g["geraet_id"]}
+                                  "fortschritt": alt, "_geraet_id": g["geraet_id"]}
             return 200, self._oeffentlich(k, mit_code=False)
         if (methode, pfad) == ("GET", "/api/v1/kurse/teilnahmen"):
             return 200, [{**self._oeffentlich(k, mit_code=False), "mein_geraet_id": k["_teiln"][token]["_geraet_id"],
@@ -162,6 +169,19 @@ class FakeZentrale:
             self.karten.append(karte_fuer(k["_leiter"] == token))
             return 200, {"kursraum_url": self.kursraum_url, "raum": k["raum"], "eintrittskarte": self.karten[-1],
                          "rolle": "kursleiter" if k["_leiter"] == token else "teilnehmer"}
+        if len(teil) == 6 and teil[5] in ("kurspaket", "fortschritt") and methode in ("GET", "POST"):
+            k = self.kurse.get(teil[4])
+            if k is None or (k["_leiter"] != token and token not in k["_teiln"]):
+                return 403, {"detail": "Du nimmst an diesem Kurs nicht teil."}
+            if k["status"] == "beendet":
+                return 409, {"detail": "Der Kurs ist schon beendet."}
+            if k["kurspaket"] is None:
+                return (404 if methode == "GET" else 409), {"detail": "Dieser Kurs hat kein Kurspaket."}
+            if methode == "GET":
+                return 200, k["_datei"]
+            k["_teiln"][token]["fortschritt"] = {"lektion": body["lektion"], "geschafft": body.get("geschafft"),
+                                                 "aktualisiert": 1760000900}
+            return 204, None
         # ab hier nur Kursleiter
         if not instanz["ist_kursleiter"]:
             return 403, {"detail": "Diese Instanz ist nicht als Kursleiter freigeschaltet."}
@@ -174,7 +194,7 @@ class FakeZentrale:
                 "kurs_id": kurs_id, "name": body["name"], "kursleiter_name": body["kursleiter_name"],
                 "status": "offen", "raum": kurs_id, "code": f"K{n:03d}-M3PA",
                 "code_gueltig_bis": int(time.time()) + 86400 * body.get("code_gueltig_tage", 14),
-                "erstellt": 1760000000 + n, "_leiter": token, "_teiln": {}}
+                "erstellt": 1760000000 + n, "kurspaket": None, "_leiter": token, "_teiln": {}}
             return 201, self._oeffentlich(self.kurse[kurs_id])
         if (methode, pfad) == ("GET", "/api/v1/kurse/geleitet"):
             alle = query.get("alle") == ["true"]
@@ -187,6 +207,25 @@ class FakeZentrale:
                 return 409, {"detail": "Der Kurs ist schon beendet."}
             k["status"] = body["status"]
             return 200, self._oeffentlich(k)
+        if teil[5:] == ["kurspaket"] and methode == "PUT":
+            import hashlib
+
+            roh = body["_roh"]
+            if not roh.startswith(b"PK\x03\x04"):
+                return 400, {"detail": "Das ist kein Kurspaket (.bonyspaket)."}
+            k["_datei"] = roh
+            k["kurspaket"] = {"paket_id": query["paket_id"][0], "name": query["name"][0],
+                              "version": query["version"][0], "lektionen": int(query["lektionen"][0]),
+                              "sha256": hashlib.sha256(roh).hexdigest(), "groesse": len(roh),
+                              "hochgeladen": 1760000050}
+            return 200, self._oeffentlich(k)
+        if teil[5:] == ["kurspaket"] and methode == "DELETE":
+            if k["kurspaket"] is None:
+                return 404, {"detail": "Dieser Kurs hat kein Kurspaket."}
+            k["kurspaket"] = None
+            for e in k["_teiln"].values():
+                e["fortschritt"] = None
+            return 204, None
         if methode == "DELETE" and len(teil) == 7 and teil[5] == "teilnehmer":
             vorher = len(k["_teiln"])
             k["_teiln"] = {t: e for t, e in k["_teiln"].items() if e["instanz_id"] != teil[6]}

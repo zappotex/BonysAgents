@@ -317,6 +317,28 @@ den Einstellungen).
 }
 ```
 
+## Mitgelieferte Kurspakete
+
+Im Quellcode liegen sie im Ordner `kurspakete/` (im Programm unter `bonys_agents/resources/kurspakete`, beide
+Editionen): „Einführung in Hermes Agent“ (fertig, zugleich der Beispielkurs der Handbücher) und fünf Entwürfe
+(`"entwurf": true`). Jede Release-Aktion signiert sie (`packaging/kurspakete.py`) und hängt sie als `.bonyspaket`
+samt `kurspakete-index.json` an – die Vorlage für `index.json` im Repository unten.
+
+## Kurspakete in Kursen
+
+Ein Kurs kann ein Kurspaket mitbringen:
+
+- **Kurs über das Bony-Netz:** Der Kursleiter lädt die gepackte Datei zur Zentrale hoch (höchstens 25 MB,
+  `PUT /api/v1/kurse/{id}/kurspaket`, siehe API.md von bonys-netz). Die Teilnehmer holen sie automatisch; sie muss zur
+  SHA-256 der Zentrale passen und wird wie jeder Import vollständig geprüft. In der Bibliothek steht sie dann als
+  „aus einem Kurs“. Ist der Inhalt gleich einem vorhandenen Paket (z. B. dem mitgelieferten), bleibt das vorhandene.
+  Ein selbst erstelltes Paket mit derselben Kennung wird nie überschrieben.
+- **Schulung im eigenen Netz:** Die Freigabe liefert das Paket zusätzlich unter `GET /bonys/v1/kurspaket` aus
+  (gleicher Code und Fingerabdruck wie die Vorlage).
+- **Fortschritt:** Die Anleitung meldet nur die aktuelle Lektion (ab 1) und ob ihre Prüfaufgabe geschafft ist
+  (`true`, `false` oder `null`) – an die Zentrale bzw. an `POST /bonys/v1/fortschritt` (höchstens 1 KB). Quiz,
+  Dateien und Ausgaben von Skripten verlassen den Rechner nie.
+
 ## Kurspakete aus dem Internet
 
 Die Bibliothek kann eine Liste aus einem öffentlichen GitHub-Repository laden (`index.json`):

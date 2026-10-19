@@ -529,6 +529,35 @@ def bilder_anwender(kamera: Kamera, wurzel: Path) -> None:
                                                  seite.room_btn])
     d.close()
 
+    # ---------- Kurspakete: Bibliothek und Anleitung (Anna arbeitet „Einführung in Hermes Agent“ durch)
+    from bonys_agents import kurslauf, kurspaket
+    from bonys_agents.gui import kurspaket_anleitung
+
+    paket = kurspaket.holen("einfuehrung-hermes-agent")
+    f = kurspaket.agent_pc_merken(paket, "agent-kurs")
+    f.erledigt = [lek.ordner for lek in paket.lektionen[:3]]
+    f.gehe_zu(paket, 3)
+    d = KurseDialog(win)
+    d.tabs.setCurrentWidget(d.pakete)
+    d.resize(900, 660)
+    d.show()
+    kamera.warten(0.5)
+    d.pakete.tabelle.selectRow(0)
+    kamera.fenster(d, "kurspakete")
+    d.close()
+    lek = paket.lektionen[3]
+    kurslauf.startzustaende = lambda m, p: {x.ordner for x in p.lektionen[:4]}   # nichts im Agent-PC ansehen
+    kurslauf.bereit = lambda m: False
+    a = kurspaket_anleitung.AnleitungFenster(paket)
+    a.timer.stop()
+    a.oben.setChecked(False)
+    a.startzustaende = {x.ordner for x in paket.lektionen[:4]}
+    a.ergebnis[lek.ordner] = kurslauf.Ergebnis(True, lek.pruefung.geschafft)
+    a._zeigen()
+    kamera.fenster(a, "kurspaket-anleitung", groesse=(440, 780),
+                   marken=[a.auswahl, a.pruefen_knopf, a.quiz_knopf, a.reset_knopf, a.weiter])
+    a.close()
+
     from bonys_agents import kurse
 
     win.statusBar().showMessage(kurse.begonnen_text(kurse.teilnahmen()))
@@ -757,11 +786,11 @@ class KursServer:
                        "10:03  Clara (clara-pc) verbunden"]
         self.participants = {
             "a": NS(name="annas-laptop", address="192.168.178.41", status="fertig", queue=0, percent=100, total=1,
-                    eta=lambda: None),
+                    eta=lambda: None, lektion=3, geschafft=True),
             "b": NS(name="ben-laptop", address="192.168.178.42", status="lädt", queue=0, percent=63, total=1,
-                    eta=lambda: 95),
+                    eta=lambda: 95, lektion=0, geschafft=None),
             "c": NS(name="clara-pc", address="192.168.178.43", status="wartet", queue=1, percent=0, total=0,
-                    eta=lambda: None),
+                    eta=lambda: None, lektion=0, geschafft=None),
         }
         self._zuschauer = [NS(id="v1", name="Anna", address="192.168.178.41", connected=True, dropped_input=0),
                            NS(id="v2", name="Ben", address="192.168.178.42", connected=True, dropped_input=3),
@@ -866,9 +895,25 @@ def bilder_kursleiter(kamera: Kamera, wurzel: Path) -> None:
     kurs = next(k for k in d.leitung.kurse if k.kurs_id == zentrale.KURS_ID)
     a = KursAnsicht(kurs, d)
     a.table.selectRow(1)
-    kamera.fenster(a, "kl-kursansicht", groesse=(780, 760),
+    kamera.fenster(a, "kl-kursansicht", groesse=(820, 860),
                    marken=[a.code, a.pause_btn, a.room_btn, a.table, a.help_btn])
+    a.table.clearSelection()
+    kamera.fenster(a, "kl-kurspaket-kursansicht", groesse=(820, 860),
+                   marken=[a.paket_text, a.anleitung_btn, a.paket_btn, a.table])
     a.close()
+
+    # Kurspaket-Editor mit einer Kopie von „Einführung in Hermes Agent“ (Lektion 4, Reiter „Prüfung“)
+    from bonys_agents.trainer.gui.kurspaket_editor import EditorFenster
+
+    kopie = Path(os.environ["HOME"]) / "Kurspakete" / "einfuehrung-hermes-agent"
+    shutil.copytree(REPO / "kurspakete" / "einfuehrung-hermes-agent", kopie)
+    e = EditorFenster(kopie)
+    e.gliederung.setCurrentRow(7)
+    e.lektion_seite.tabs.setCurrentIndex(3)                      # „Prüfung“
+    e.status.setText("Ordner: ~/Kurspakete/hermes")   # nicht der Ordner des Vorführmodus
+    kamera.warten(0.3)
+    kamera.fenster(e, "kl-kurspaket-editor", groesse=(1180, 760))
+    e.close()
 
     # Kursstart: dieser Rechner ist noch nicht im Bony-Netz
     from bonys_agents import hilfe
@@ -896,6 +941,7 @@ def bilder_kursleiter(kamera: Kamera, wurzel: Path) -> None:
 
     t = templates.get("kurs-basis")
     s = share_dialog.ShareDialog(t, win)
+    s.paket.setCurrentIndex(max(0, s.paket.findData("einfuehrung-hermes-agent")))
     server = KursServer(47110)
 
     echt_share = share_dialog.share_server.Share
@@ -904,7 +950,7 @@ def bilder_kursleiter(kamera: Kamera, wurzel: Path) -> None:
     share_dialog.share_server.Share = echt_share
     s.timer.stop()
     s._refresh()
-    kamera.fenster(s, "kl-freigeben", groesse=(820, 780), marken=[s.code, s.qr, s.table])
+    kamera.fenster(s, "kl-freigeben", groesse=(1000, 820), marken=[s.code, s.qr, s.table])
     s.share = None
     s.close()
 

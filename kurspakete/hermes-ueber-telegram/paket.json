@@ -1,0 +1,84 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "hermes-ueber-telegram",
+  "name": "Hermes über Telegram steuern",
+  "beschreibung": "Hermes mit einem eigenen Telegram-Bot verbinden und den Agenten vom Handy aus nutzen – sicher, mit eigener Freigabeliste.",
+  "stufe": "anfaenger",
+  "sprache": "de",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 90,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Teilnehmer von „Einführung in Hermes Agent“ oder mit erstem Agent-PC",
+  "voraussetzungen": [
+    "Agent-PC mit eingerichtetem Hermes (Kurspaket „Einführung in Hermes Agent“)",
+    "Telegram auf dem Handy"
+  ],
+  "kosten": "keine – kostenloses Modell (eigenes Konto)",
+  "lernziele": [
+    "einen eigenen Telegram-Bot anlegen und mit Hermes verbinden",
+    "festlegen, wer dem Bot schreiben darf",
+    "Hermes vom Handy aus Aufgaben geben und das Ergebnis im Agent-PC prüfen",
+    "das Bot-Token wie ein Passwort behandeln"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – Dokumentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "Telegram – Bots",
+      "url": "https://core.telegram.org/bots"
+    }
+  ],
+  "rezept": {
+    "name": "telegram-kurs",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "telegram",
+      "hermes"
+    ],
+    "username": "agent",
+    "keyboard": "de",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-bot-anlegen",
+      "titel": "Einen Telegram-Bot anlegen",
+      "dauer_minuten": 20,
+      "art": "Mitmachen",
+      "ziel": "Ein eigener Bot mit Token existiert."
+    },
+    {
+      "ordner": "02-hermes-verbinden",
+      "titel": "Hermes mit dem Bot verbinden",
+      "dauer_minuten": 25,
+      "art": "Mitmachen",
+      "ziel": "Hermes antwortet in Telegram."
+    },
+    {
+      "ordner": "03-vom-handy",
+      "titel": "Aufgaben vom Handy",
+      "dauer_minuten": 25,
+      "art": "Übung",
+      "ziel": "Hermes erledigt eine Aufgabe, die per Handy kam."
+    },
+    {
+      "ordner": "04-sicherheit",
+      "titel": "Sicherheit und Abschluss",
+      "dauer_minuten": 10,
+      "art": "Erklärung + Quiz",
+      "ziel": "Risiken eines erreichbaren Agenten kennen."
+    }
+  ]
+}

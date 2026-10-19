@@ -33,6 +33,9 @@ behält Agent-PCs, Vorlagen, Bibliotheken und Einstellungen – beide nutzen den
 | **Kursleiter:** Vorführen (Kurs-Server, WebSocket-Proxy, noVNC, `bonys-agents present`) | – | ✅ |
 | **Kursleiter:** Hilfe-Anfragen annehmen, Teilnehmer-Agent-PCs ansehen und (nach Zustimmung) steuern | – | ✅ |
 | Kurspakete: Bibliothek, Selbstlern-Modus, Anleitung, Startzustände, Prüfaufgaben, Quiz | ✅ | ✅ |
+| Mitgelieferte Kurspakete („Einführung in Hermes Agent“ und fünf Entwürfe, `resources/kurspakete`) – Ablaufplan und Notizen für die Kursleitung zeigt nur die Kursleiter-Version | ✅ | ✅ |
+| **Teilnehmer:** Kurspaket eines Kurses automatisch holen, „Anleitung“, Fortschritt (Lektion, geschafft) melden – Bony-Netz-Kurs und Schulung im eigenen Netz | ✅ | ✅ |
+| **Kursleiter:** Kurspaket zum Kurs wählen (Upload zur Zentrale) bzw. mit der Vorlage freigeben, Fortschritt der Teilnehmer in Kursansicht bzw. Freigabe-Fenster | – | ✅ |
 | **Kursleiter:** Kurspaket-Editor – anlegen, bearbeiten, duplizieren, Geheimnis-Prüfung, PDF, „Kurspaket prüfen“ (`trainer/gui/kurspaket_editor.py`) | – | ✅ |
 | **Kursleiter:** Dashboard (Stufe 4, geplant) | – | ✅ |
 | Hinweis „Du möchtest selbst Schulungen geben? → Bony's Agents Kursleiter“ (Menü ⓘ, „Über“) | ✅ | – |

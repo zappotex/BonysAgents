@@ -98,6 +98,12 @@ einfuehrung-hermes-agent/          Ordner – oder einfuehrung-hermes-agent-1.0.
     Zustimmung (`Fortschritt.skripte_erlaubt`) gilt für die SHA-256 über alle Skripte. Signieren der mitgelieferten
     bzw. ins Repo hochgeladenen Pakete: in Sitzung 4 über die Release-Aktion (minisign, wie SHA256SUMS).
 
+11. **Kurspaket beim Bony-Netz-Kurs (Sitzung 4, vom Nutzer am 19.10.2026 gewählt: „Zentrale + Upload“):** Die
+    Zentrale (bonys-netz) speichert zum Kurs die Paket-Angaben (ID, Name, Version, SHA-256, Größe), die
+    `.bonyspaket`-Datei (bis 25 MB, hochladen nur der Kursleiter des Kurses, gelöscht beim Beenden) und je Teilnehmer
+    den Fortschritt (Lektion, geschafft / noch nicht – sichtbar nur dem Kursleiter, nur solange der Kurs läuft). Teilnehmer bekommen das Paket automatisch. Braucht Server-Update und Baustein `bony_netz` 0.2.0 in allen
+    drei Repos (Agents, VPN, bonys-netz).
+
 ## Sicherheitsregeln
 
 - Keine API-Keys, Tokens, Passwörter oder Zugangsdaten in Kurspaketen; Editor prüft vor Speichern/Export wie beim
@@ -134,8 +140,7 @@ pytest/ruff beider Editionen, Minor-Version, .deb (Installation nach Rückfrage)
 
 ## Vorschläge aus dem Entwurf `kurse/01-ki-agenten-fuer-einsteiger/kurs.md`
 
-**Vom Nutzer am 19.10.2026 alle freigegeben.** In Sitzung 4 einarbeiten, danach die Datei (samt Ordner
-`kurse/`) entfernen.
+**Vom Nutzer am 19.10.2026 alle freigegeben, in Sitzung 4 eingearbeitet; `kurse/` ist entfernt.**
 
 1. **Quizfragen** je Lektion übernehmen: Agent vs. Chatbot (Block 2), Wo liegen deine Dateien (Block 2), Benutzer
    im Agent-PC heißt `agent` (Block 3), Was zeigt `/tools` (Block 3), Was ist eine gute Aufgabe (Block 4),
@@ -154,7 +159,7 @@ pytest/ruff beider Editionen, Minor-Version, .deb (Installation nach Rückfrage)
 
 ## Stand
 
-Zuletzt aktualisiert: 19.10.2026 (Sitzung 3 fertig).
+Zuletzt aktualisiert: 19.10.2026 (Sitzung 4: alles umgesetzt bis auf echten Test, Server-Update und Release).
 
 ### Sitzung 1
 - [x] Plan `docs/dev/plan-kurspakete.md`, Auftrag in `.gitignore`
@@ -217,10 +222,38 @@ Zuletzt aktualisiert: 19.10.2026 (Sitzung 3 fertig).
   gehört in den echten Test (Sitzung 4). Handbücher/editionen.md: Abschnitt Editor kommt in Sitzung 4.
 
 ### Sitzung 4
-- [ ] Kurspaket bei Kurs/Schulung, Kursansicht mit Fortschritt
-- [ ] Beispielpaket Hermes vollständig, fünf Entwürfe
-- [ ] Doku (editionen.md, Handbücher, Glossar, Bilder, README, kurspaket-format.md)
-- [ ] Tests, echter Test, Version, .deb, Commit
+- [x] Bony-Netz-Kurs (Entscheidung 11): bonys-netz Zentrale 0.2.0 (Tabellen `kurspakete`, `fortschritt`, Datei in
+      `/data/kurspakete/`, `PUT/GET/DELETE /kurse/{id}/kurspaket`, `POST /kurse/{id}/fortschritt`, Löschen beim
+      Beenden und mit der Instanz) + Baustein 0.2.0 (`kurspaket_hochladen/-entfernen/-holen`, `fortschritt_melden`)
+      dateigleich in bonys-netz, Agents und VPN; Tests dort grün (Zentrale 5, Baustein 9, VPN 196)
+- [x] Agents: `kurse.py` (`PaketAngaben`, `Stand`, `paket_packen`, `kurspaket_hochladen`, `kurspaket_fuer_kurs`,
+      `paket_uebernehmen` – inhaltsgleich mit vorhandenem → vorhandenes bleibt „geprüft“, eigenes nie überschreiben,
+      Herkunft „aus einem Kurs“), Kursleitung: Kurspaket beim Anlegen/in der Kursansicht, Spalten Lektion/Prüfung,
+      „Anleitung“; Teilnahme: Spalte Kurspaket, automatisch holen, „Anleitung“ → Hauptfenster
+      (`kurspaket_im_kurs`); Anleitung meldet `(Lektion, geschafft)` bei Änderung (30 s Pause nach Fehler)
+- [x] Schulung im eigenen Netz: `Share(kurspaket=…)`, `GET /bonys/v1/kurspaket`, `POST /bonys/v1/fortschritt`
+      (≤ 1 KB, nur mit Code), Freigabe-Fenster mit Feld „Kurspaket“ und Spalten; JoinDialog holt es mit der Vorlage,
+      Hauptfenster bietet „Durcharbeiten“ mit Meldung an
+- [x] Beispielpaket `kurspakete/einfuehrung-hermes-agent/` (9 Lektionen, alle 7 Vorschlagsgruppen) – Ablaufplan
+      und Handout sind jetzt nur dort (`git mv` aus docs/handbuch), `erstellen.sh` baut die PDFs von dort; fünf
+      Entwürfe (Telegram, Automatisieren, Sicherheit, Werkzeuge/Mission Control, Lokale Modelle/VPN)
+- [x] Programm: `pyproject` force-include und Spec → `bonys_agents/resources/kurspakete` (beide Editionen);
+      Release-Aktion signiert und packt sie (`packaging/kurspakete.py`, Anhänge `*.bonyspaket`,
+      `kurspakete-index.json`), Veröffentlichen im Repo bonys-agents-kurspakete von Hand (docs/RELEASE.md)
+- [x] Doku: Benutzerhandbuch (Kapitel Kurspakete, Kurs mit Kurspaket, Nous als Standard, Glossar, Datenschutz),
+      Kursleiter-Handbuch (Kapitel Kurspakete: mitgelieferte, im Kurs, Editor, prüfen, veröffentlichen),
+      editionen.md, README, kurspaket-format.md, RELEASE.md, bony-netz.md, CHANGELOG 0.23.0; 4 neue
+      Bildschirmfotos (Vorführ-Zentrale kennt Kurspaket/Fortschritt), Texterkennung ohne neue Funde
+- [x] Version 0.23.0, Tests `tests/test_kurspakete_mitgeliefert.py`, Erweiterungen in test_kurse/test_share_server
+- [ ] .deb bauen, echter Test (Server-Update nötig!), Commit/Push, Release nach OK
+
+### Für den echten Test (Sitzung 4)
+- Server zentrale.bony23.de auf bonys-netz 0.2.0 bringen (`server/install.sh` erneut ausführen – kopiert die
+  Zentrale neu, Daten bleiben; die neuen Tabellen entstehen beim Start). Vorher bleibt der Kurs-mit-Paket-Weg
+  mit „Nicht gefunden“ stehen, alles andere läuft weiter.
+- Prüfen: Kurs mit Kurspaket anlegen → Teilnehmer bekommt es → Anleitung, Prüfen (echter Gast: `runuser`,
+  `xdg-user-dir`), Kursansicht zeigt Lektion/Prüfung; Zurücksetzen/Schnappschuss mit laufendem Agent-PC;
+  Bildschirmfoto/Startskript übernehmen/„Kurspaket prüfen“ im Editor; LAN-Freigabe mit Kurspaket; Drag & Drop.
 
 ### Offene Fragen an den Nutzer
-- keine
+- keine (Weg für Bony-Netz-Kurse entschieden, Entscheidung 11)

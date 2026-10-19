@@ -23,6 +23,9 @@ geben. Deine Teilnehmer brauchen nur die normale Version.
 | Im Kursraum: Bildschirm teilen, stumm schalten, Sprechen freigeben, aus dem Raum nehmen | – | ✓ |
 | „Helfen“: Agent-PC eines Teilnehmers ansehen und bedienen (nach Zustimmung) | – | ✓ |
 | Schulung im eigenen Netz: Vorlage freigeben, vorführen, Hilfe-Anfragen annehmen | – | ✓ |
+| Kurspakete durcharbeiten (Selbstlern-Modus), im Kurs mit Anleitung arbeiten | ✓ | ✓ |
+| Kurspaket zum Kurs wählen, Fortschritt der Teilnehmer sehen, Notizen und Ablaufplan | – | ✓ |
+| Kurspaket-Editor: eigene Kurspakete erstellen, prüfen, als PDF drucken | – | ✓ |
 
 Dieses Handbuch setzt voraus, dass du die normalen Funktionen kennst (Benutzerhandbuch: Agent-PC erstellen,
 Hermes einrichten, Bony-Netz einschalten).
@@ -121,7 +124,9 @@ offiziellen Quelle.
 2. **Kursname** ①: zum Beispiel „Einführung in Hermes Agent“.
 3. **Dein Anzeigename** ②: so sehen dich die Teilnehmer.
 4. **Code gültig für** ③: 1 bis 60 Tage (Standard 14). So lange können Teilnehmer mit dem Code beitreten.
-5. **„Kurs anlegen“** ④.
+5. **Kurspaket** (optional): zum Beispiel „Einführung in Hermes Agent“ – die Teilnehmer bekommen es automatisch
+   (Kapitel „Kurspakete“). Ist der Kursname noch leer, schlägt Bony's Agents den Namen des Kurspakets vor.
+6. **„Kurs anlegen“** ④.
 
 ![Neuer Kurs](bilder/kl-neuer-kurs.png){width=60%}
 
@@ -224,8 +229,8 @@ In der Kursansicht:
 | **Kursraum öffnen** ③ | öffnet das Fenster „Kursraum“ (nur, solange der Kurs läuft) |
 
 Unten in der Kursansicht steht die **Teilnehmertabelle** ④ mit Anzeigename, Agent-PC, Netzadresse und
-Beitrittszeit. **„Helfen“** ⑤ öffnet den Kursraum und fragt den ausgewählten Teilnehmer. **„Entfernen …“** nimmt
-einen Teilnehmer ganz aus dem Kurs.
+Beitrittszeit – mit Kurspaket zusätzlich Lektion und Prüfung (Kapitel „Kurspakete“). **„Helfen“** ⑤ öffnet den
+Kursraum und fragt den ausgewählten Teilnehmer. **„Entfernen …“** nimmt einen Teilnehmer ganz aus dem Kurs.
 
 Teilnehmer erreichen sich untereinander nie. Und du erreichst nur den einen Agent-PC, den ein Teilnehmer beim
 Beitreten gewählt hat – nie seinen eigenen Rechner.
@@ -306,7 +311,8 @@ Vorlage wird dafür einmal geprüft und verpackt. Dann zeigt das Fenster den **F
 ![Eine Vorlage im Netzwerk freigeben](bilder/kl-freigeben.png){width=80%}
 
 Höchstens 4 Teilnehmer laden gleichzeitig (einstellbar), die anderen warten in einer Schlange. Die Freigabe endet
-nach 120 Minuten von selbst oder mit „Freigabe beenden“.
+nach 120 Minuten von selbst oder mit „Freigabe beenden“. Mit einem **Kurspaket** (Feld „Kurspaket“) bekommen die
+Teilnehmer es zur Vorlage dazu; die Tabelle zeigt dann ihre Lektion und Prüfung.
 
 **Vorführen:** Agent-PC starten → **„Vorführen …“** → Qualität, Zuschauerzahl, Dauer wählen → „Vorführung
 starten“. Die Teilnehmer öffnen die angezeigte Adresse im Browser (oder scannen den QR-Code) und sehen deinen
@@ -333,6 +339,95 @@ ufw und firewalld. Im VPN funktioniert die automatische Suche nicht: Die Teilneh
 dem Fenster ein oder fügen den Link aus dem QR-Code ein.
 :::
 
+# Kurspakete
+
+Ein **Kurspaket** ist der *Inhalt* eines Kurses: Lektionen mit Anleitung für die Teilnehmer, Prüfaufgaben, Quiz,
+dein **Ablaufplan** mit Zeiten und Lösungen und ein **Handout**. Der **Kurs** ist die *Durchführung* (Kurscode,
+Teilnehmer, Kursraum). Ein Kurs braucht kein Kurspaket – mit einem wird er aber viel einfacher: Jeder Teilnehmer hat
+die Schritte neben seinem Agent-PC, und du siehst, wer wo steht.
+
+## Mitgelieferte Kurspakete
+
+| Stufe | Kurspaket | Stand |
+|---|---|---|
+| Anfänger | **Einführung in Hermes Agent** – 2 Stunden, 9 Lektionen (die neunte ist ein Zusatz) | fertig |
+| Anfänger | Hermes über Telegram steuern | Entwurf |
+| Fortgeschritten | Aufgaben automatisieren: Recherche, Zusammenfassungen, Dateien | Entwurf |
+| Fortgeschritten | Sicherheit für KI-Agenten: Rechte begrenzen, Prompt-Injection erkennen | Entwurf |
+| Experte | Eigene Werkzeuge und Skills für Hermes, Mission Control mit Docker | Entwurf |
+| Experte | Lokale Modelle, VPN und mehrere Agenten | Entwurf |
+
+Ein **Entwurf** enthält Gliederung, Lernziele und Zeitplan, aber noch keine ausgearbeiteten Anleitungen. Mit dem
+Editor („Duplizieren …“ oder „Bearbeiten …“ → eigene Fassung) machst du daraus dein eigenes Kurspaket. Der
+Ablaufplan von „Einführung in Hermes Agent“ ist zugleich der Beispielkurs zu diesem Handbuch (eigenes PDF beim
+Release).
+
+## Kurspaket für einen Kurs wählen
+
+Beim Anlegen (**„+ Neuer Kurs …“**) oder später in der Kursansicht unter **„Kurspaket“** → **„Wählen …“**. Bony's
+Agents packt das Kurspaket, prüft es auf Zugangsdaten und lädt es zum Bony-Netz-Server hoch (höchstens 25 MB). Die
+Teilnehmer bekommen es automatisch in ihre Bibliothek und öffnen es mit **„Anleitung“** neben ihrem Agent-PC.
+
+In der Kursansicht steht das Kurspaket ① mit **„Anleitung“** ② und **„Ändern …“** ③, und die Teilnehmertabelle ④
+bekommt zwei Spalten: **„Lektion“** (zum Beispiel „3. Hermes startklar“) und **„Prüfung“** („✓ geschafft“, „✗ noch
+nicht“ oder „–“ ohne Prüfaufgabe):
+
+![Kursansicht mit Kurspaket: Lektion und Prüfung je Teilnehmer](bilder/kl-kurspaket-kursansicht.png){width=85%}
+
+Mehr siehst du nicht – keine Dateien, keine Quiz-Antworten – und nur, solange der Kurs läuft. Beim **Beenden** löscht der Server das Kurspaket und den
+Fortschritt. **„Anleitung“** öffnet das Kurspaket bei dir, mit dem Ablaufplan (Menü „⋯“) und den **Notizen für die
+Kursleitung** zu jeder Lektion – die sehen nur Kursleiter.
+
+::: tipp
+Wählst du ein anderes Kurspaket, ersetzt es das bisherige; der Fortschritt der Teilnehmer beginnt dann neu. Kleine
+Korrekturen am selben Kurspaket (gleiche Kennung) behalten den Fortschritt.
+:::
+
+**Schulung im eigenen Netz:** Im Fenster „Im Netzwerk freigeben“ gibt es dasselbe Feld **„Kurspaket“**. Die
+Teilnehmer bekommen es mit der Vorlage; die Tabelle zeigt ihre Lektion und Prüfung, solange die Freigabe läuft.
+
+## Ein eigenes Kurspaket erstellen
+
+**„Kurse“** → **„Kurspakete“** → **„Neu …“** (oder ein vorhandenes **„Bearbeiten …“** / **„Duplizieren …“**). Der
+Editor zeigt links die Gliederung, rechts den gewählten Teil:
+
+![Der Kurspaket-Editor](bilder/kl-kurspaket-editor.png){width=90%}
+
+- **Steckbrief:** Name, Beschreibung, Stufe, Dauer, Teilnehmerzahl, Zielgruppe, Voraussetzungen, Lernziele,
+  Quellen.
+- **Rezept:** wie der Agent-PC der Teilnehmer aussehen soll (Desktop, Programme, Größe) – **„Aus einem Agent-PC
+  übernehmen …“** liest das aus einem deiner Agent-PCs. Ins Kurspaket kommt nie ein Festplatten-Abbild.
+- **Ablaufplan** und **Handout:** Markdown mit Vorschau, Kästen (Tipp, Hinweis, Warnung, Datenschutz) und Feldern
+  zum Ausfüllen. **„PDF ▾“** baut daraus die Druckfassung.
+- **Lektionen** (**„+ Lektion“**, ↑ ↓): Reiter **Anleitung** (mit **„Bild einfügen …“** und **„Bildschirmfoto des
+  Agent-PCs“**), **Kursleitung** (deine Notizen), **Prüfung**, **Startzustand** und **Quiz**.
+- **Prüfung:** eingebaut („Agent-PC läuft“, „Vorlage vorhanden“) oder ein kleines Skript. **„Vorlage einfügen ▾“**
+  bietet „Datei existiert …“, „Dienst läuft …“ und „Hermes eingerichtet“. Ein Prüfskript gibt nichts aus und liest
+  nie Schlüssel – „Hermes eingerichtet“ schaut nur nach Anbieter und Modell in `~/.hermes/config.yaml`.
+- **Startzustand:** optionales Skript, das zu Beginn der Lektion im Agent-PC läuft (z. B. Übungsdateien anlegen).
+  **„Aus Ordner im Agent-PC übernehmen …“** macht aus einem Ordner wie `~/Kurs` ein solches Skript.
+
+**„Speichern“** prüft zuerst alles. Findet Bony's Agents **Schlüssel, Tokens, Passwörter, E-Mail-Adressen,
+Telefonnummern oder IBANs**, speichert es nicht und zeigt Datei und Zeile (nie den Wert). **„Version erhöhen ▾“**
+zählt die Version hoch – mach das vor dem Weitergeben.
+
+## Kurspaket prüfen
+
+**„Kurspaket prüfen …“** im Editor meldet, was nicht passt: fehlende Bilder, Links ohne https, veraltete Programme
+im Rezept, Fehler in Skripten. Optional prüft es die Links im Internet und spielt die Lektionen in einem
+**Test-Agent-PC** durch: Startzustand, Prüfung vorher (darf noch nicht geschafft sein), Lösungsskript, Prüfung
+danach. So merkst du, wenn ein Kurspaket nach einem Update von Hermes nicht mehr stimmt. Danach setzt Bony's Agents
+den Test-Agent-PC zurück.
+
+## Weitergeben und veröffentlichen
+
+- **„Exportieren …“** in der Bibliothek speichert eine `.bonyspaket`-Datei, zum Beispiel für die Einladung.
+- In die offene Bibliothek (**„Aus dem Internet …“**, Repository `zappotex/bonys-agents-kurspakete` auf GitHub)
+  kommt ein Kurspaket über einen Pull Request. Kurspakete dort stehen unter **CC BY-SA 4.0**.
+- Kurspakete, die nicht mitgeliefert oder mit dem Schlüssel von Bony's Agents signiert sind, zeigen den Teilnehmern
+  vor dem ersten Start die Liste ihrer Skripte. Das ist gewollt: Die Skripte laufen zwar nur im Agent-PC, aber jeder
+  soll wissen, was dort passiert.
+
 # Nach dem Kurs
 
 ## Kurs beenden
@@ -344,6 +439,8 @@ Kursansicht → **„Beenden …“** → Rückfrage bestätigen. Dann gilt sofo
   oder pausiert.“ Ein neuer Eintritt ist nicht mehr möglich.
 - Eine laufende **Hilfe endet.**
 - Der **Kurscode** gilt nicht mehr.
+- Das **Kurspaket** und der Fortschritt der Teilnehmer werden auf dem Server gelöscht. Die Teilnehmer behalten ihre
+  Kopie in der Bibliothek.
 
 Das lässt sich nicht rückgängig machen. Für einen Folgetermin legst du einen neuen Kurs an. Mit **„Beendete
 anzeigen“** in der Kursliste siehst du alte Kurse weiter.
@@ -373,6 +470,8 @@ Hause weiterüben. Auch ihre Instanz im Bony-Netz bleibt; nur die Verbindung zu 
 - **Vorführung im eigenen Netz:** kein Ton. Nutze den Raum oder zusätzlich Jitsi.
 - **Kill-Switch** von Bony's VPN im Agent-PC eines Teilnehmers: Ohne verbundenen Tunnel kommt auch das Bony-Netz
   nicht durch.
+- **Kurspakete im Kurs:** höchstens 25 MB (gepackt). Den Fortschritt siehst du nur, solange der Kurs läuft bzw. die
+  Freigabe im eigenen Netz läuft. Teilnehmer melden ihn nur, solange ihre Anleitung offen ist.
 - **Noch wenig erprobt** (Stand dieser Version): Kursraum und „Helfen“ unter Windows und macOS sind bisher nur
   unter Linux ausführlich getestet. Mach dort unbedingt vorher einen Probelauf.
 
@@ -386,6 +485,7 @@ Hause weiterüben. Auch ihre Instanz im Bony-Netz bleibt; nur die Verbindung zu 
 - [ ] Eigener Rechner im Bony-Netz (Bony's VPN bzw. Tailscale) – für „Helfen“
 - [ ] Vorführ-Agent-PC eingerichtet, Hermes läuft, keine privaten Daten darin
 - [ ] Kurs angelegt, Code-Gültigkeit reicht bis nach dem Kurstag
+- [ ] Kurspaket gewählt und mit „Kurspaket prüfen …“ getestet (oder bewusst ohne)
 - [ ] Einladung mit Code und Handout verschickt
 - [ ] Bei vielen Teilnehmern am selben Anschluss: Server-Betreiber wegen „Instanzen pro Tag“ gefragt
 - [ ] Plan B festgelegt (z. B. Jitsi-Link) und in der Einladung genannt

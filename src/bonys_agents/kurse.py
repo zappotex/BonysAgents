@@ -9,19 +9,26 @@ Wie ``bonys_agents.netz``: Alle Aufrufe blockieren bis zu 15 Sekunden (nur im Hi
 Bony-Netz mit angemeldeter Instanz gibt es keinen Kontakt zur Zentrale (RuntimeError). Fehlermeldungen der Zentrale
 (Code abgelaufen, Kurs voll, kein Kursleiter …) kommen unverändert als ``ZentraleFehler.meldung`` an die Oberfläche –
 anders als in ``netz._fragen`` wird ein 404 hier also nicht als „kein Bony-Netz-Server“ gedeutet.
+
+Kurspakete (Entscheidung 11 in ``docs/dev/plan-kurspakete.md``): Der Kursleiter lädt das Kurspaket zum Kurs hoch, die
+Teilnehmer holen es (Prüfsumme muss passen, danach volle Prüfung wie beim Import) und melden nur Lektion und
+„geschafft / noch nicht“. Der Kursleiter sieht das in der Kursansicht, solange der Kurs läuft.
 """
 
 from __future__ import annotations
 
+import hashlib
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import TypeVar
 
 from bony_netz import Konto, Zentrale, ZentraleFehler
 from bony_netz.zentrale import kurscode_formatieren
 
-from bonys_agents import netz
+from bonys_agents import kurslauf, kurspaket, netz
 
 T = TypeVar("T")
 
@@ -36,6 +43,9 @@ TAGE_MIN, TAGE_MAX, TAGE_STANDARD = 1, 60, 14
 NAME_MAX = 80
 KURSANSICHT_SEKUNDEN = 15     # Kursansicht und Kursliste, solange sichtbar
 TEILNAHMEN_SEKUNDEN = 60      # „Der Kurs X hat begonnen“ – höchstens so oft fragen
+
+MAX_PAKET_MB = 25            # wie MAX_KURSPAKET_MB der Zentrale (Standard)
+MAX_PAKET = MAX_PAKET_MB * 1024 * 1024
 
 NETZ_HINWEIS = ("Solange der Kurs läuft, kannst du die gewählten Agenten-PCs der Teilnehmer über das Bony-Netz "
                 "erreichen.")
@@ -70,6 +80,56 @@ def datum(ts: float | None, uhrzeit: bool = True) -> str:
         return "–"
 
 
+def _ganz(wert, standard: int = 0) -> int:
+    return wert if isinstance(wert, int) and not isinstance(wert, bool) else standard
+
+
+@dataclass
+class PaketAngaben:
+    """Kurspaket eines Kurses, wie die Zentrale es kennt (die Datei selbst holt ``kurspaket_fuer_kurs``)."""
+    paket_id: str
+    name: str
+    version: str
+    lektionen: int = 0
+    sha256: str = ""
+    groesse: int = 0
+
+    @classmethod
+    def aus(cls, d) -> PaketAngaben | None:
+        if not isinstance(d, dict) or not isinstance(d.get("paket_id"), str):
+            return None
+        return cls(d["paket_id"], str(d.get("name") or d["paket_id"]), str(d.get("version") or ""),
+                   _ganz(d.get("lektionen")), str(d.get("sha256") or "").lower(), _ganz(d.get("groesse")))
+
+    @property
+    def text(self) -> str:
+        return f"{self.name} {self.version}" + (f" · {self.lektionen} Lektionen" if self.lektionen else "")
+
+
+@dataclass
+class Stand:
+    """Fortschritt eines Teilnehmers im Kurspaket: nur Lektion (ab 1) und „geschafft / noch nicht“."""
+    lektion: int
+    geschafft: bool | None = None
+    aktualisiert: float | None = None
+
+    @classmethod
+    def aus(cls, d) -> Stand | None:
+        if not isinstance(d, dict) or _ganz(d.get("lektion")) < 1:
+            return None
+        g = d.get("geschafft")
+        return cls(d["lektion"], g if isinstance(g, bool) else None, _zeit(d.get("aktualisiert")))
+
+    def lektion_text(self, paket: kurspaket.Kurspaket | None = None, gesamt: int = 0) -> str:
+        if paket is not None and 0 < self.lektion <= len(paket.lektionen):
+            return f"{self.lektion}. {paket.lektionen[self.lektion - 1].titel}"
+        return f"{self.lektion} von {gesamt}" if gesamt else str(self.lektion)
+
+    @property
+    def pruefung_text(self) -> str:
+        return {True: "✓ geschafft", False: "✗ noch nicht"}.get(self.geschafft, "–")
+
+
 @dataclass
 class Teilnehmer:
     instanz_id: str
@@ -77,11 +137,12 @@ class Teilnehmer:
     geraet_name: str = ""
     geraet_ip: str = ""
     beigetreten: float | None = None
+    stand: Stand | None = None
 
     @classmethod
     def aus(cls, d: dict) -> Teilnehmer:
         return cls(str(d["instanz_id"]), str(d.get("anzeigename") or "?"), str(d.get("geraet_name") or ""),
-                   str(d.get("geraet_ip") or ""), _zeit(d.get("beigetreten")))
+                   str(d.get("geraet_ip") or ""), _zeit(d.get("beigetreten")), Stand.aus(d.get("fortschritt")))
 
 
 @dataclass
@@ -95,6 +156,7 @@ class Kurs:
     erstellt: float | None = None
     teilnehmer: list[Teilnehmer] = field(default_factory=list)
     mein_geraet_id: str = ""        # nur bei eigenen Teilnahmen
+    kurspaket: PaketAngaben | None = None
 
     @classmethod
     def aus(cls, d) -> Kurs:
@@ -107,6 +169,7 @@ class Kurs:
             erstellt=_zeit(d.get("erstellt")),
             teilnehmer=[Teilnehmer.aus(t) for t in d.get("teilnehmer") or [] if isinstance(t, dict)],
             mein_geraet_id=str(d.get("mein_geraet_id") or ""),
+            kurspaket=PaketAngaben.aus(d.get("kurspaket")),
         )
 
     @property
@@ -217,6 +280,32 @@ def teilnehmer_entfernen(kurs_id: str, instanz_id: str) -> None:
     _aufruf(lambda z: z.teilnehmer_entfernen(kurs_id, instanz_id))
 
 
+def paket_packen(paket: kurspaket.Kurspaket) -> bytes:
+    """Kurspaket für einen Kurs packen – mit Prüfung auf Zugangsdaten und der Größengrenze für Kurse."""
+    with tempfile.TemporaryDirectory(prefix="bonys-kurspaket-") as tmp:
+        datei = kurspaket.packen(paket.pfad, Path(tmp) / kurspaket.dateiname(paket))
+        daten = datei.read_bytes()
+    if len(daten) > MAX_PAKET:
+        raise ValueError(f"Das Kurspaket ist gepackt {len(daten) / 1024 ** 2:.1f} MB groß – für einen Kurs gehen "
+                         f"höchstens {MAX_PAKET_MB} MB. Große Bilder verkleinern oder weglassen.")
+    return daten
+
+
+def kurspaket_hochladen(kurs_id: str, paket: kurspaket.Kurspaket) -> Kurs:
+    """Kurspaket packen (mit Prüfung auf Zugangsdaten) und zum Kurs hochladen – ersetzt ein vorhandenes."""
+    daten = paket_packen(paket)
+    antwort = _aufruf(lambda z: z.kurspaket_hochladen(kurs_id, daten, paket.id, paket.name, paket.version,
+                                                      len(paket.lektionen)))
+    try:
+        return Kurs.aus(antwort)
+    except (KeyError, TypeError):
+        return geleiteter_kurs(kurs_id) or Kurs(kurs_id, "?")
+
+
+def kurspaket_entfernen(kurs_id: str) -> None:
+    _aufruf(lambda z: z.kurspaket_entfernen(kurs_id))
+
+
 # ---------------------------------------------------------------- Teilnehmer
 VPN_RECHNER = "vpn_rechner"   # merkt Bony's VPN in konto.extra: {instanz_id, name} des Rechners selbst
 
@@ -266,6 +355,69 @@ def teilnahmen() -> list[Kurs]:
 
 def kurs_verlassen(kurs_id: str) -> None:
     _aufruf(lambda z: z.kurs_verlassen(kurs_id))
+
+
+_GLEICH: dict[str, str] = {}   # SHA-256 der Kurs-Datei → Ordner des inhaltsgleichen Pakets (z. B. mitgeliefert)
+
+
+def kurspaket_vorhanden(angaben: PaketAngaben) -> kurspaket.Kurspaket | None:
+    """Das Kurspaket des Kurses, wenn es schon in der Bibliothek liegt (aus diesem Kurs, gleiche Prüfsumme – oder
+    in dieser Sitzung schon als inhaltsgleich erkannt)."""
+    for p in kurspaket.liste():
+        if p.id == angaben.paket_id and p.version == angaben.version and angaben.sha256 and (
+                kurspaket.herkunft_sha256(p) == angaben.sha256 or _GLEICH.get(angaben.sha256) == str(p.pfad)):
+            return p
+    return None
+
+
+def kurspaket_fuer_kurs(kurs: Kurs) -> kurspaket.Kurspaket:
+    """Teilnehmer: Kurspaket des Kurses holen und in die Bibliothek übernehmen (oder das vorhandene nehmen).
+
+    Die Datei muss zur Prüfsumme der Zentrale passen und wird wie jeder Import vollständig geprüft. Ist der Inhalt
+    gleich einem vorhandenen Kurspaket (z. B. dem mitgelieferten), bleibt das vorhandene – mitgelieferte bleiben so
+    „geprüft“. Ein selbst erstelltes Kurspaket mit derselben Kennung wird nie überschrieben.
+    """
+    a = kurs.kurspaket
+    if a is None:
+        raise ValueError(f"Der Kurs „{kurs.name}“ hat kein Kurspaket.")
+    schon = kurspaket_vorhanden(a)
+    if schon is not None:
+        return schon
+    daten = _aufruf(lambda z: z.kurspaket_holen(kurs.kurs_id, MAX_PAKET))
+    return paket_uebernehmen(daten, a.paket_id, a.sha256)
+
+
+def paket_uebernehmen(daten: bytes, paket_id: str, sha256: str) -> kurspaket.Kurspaket:
+    """Kurspaket-Datei aus einem Kurs (Bony-Netz oder Schulung im eigenen Netz) in die Bibliothek übernehmen.
+
+    ``daten`` muss genau ``sha256`` haben; ist der Inhalt gleich einem vorhandenen Paket, bleibt das vorhandene."""
+    if not isinstance(daten, bytes) or hashlib.sha256(daten).hexdigest() != sha256:
+        raise kurspaket.PaketFehler("Das Kurspaket kam nicht vollständig an (Prüfsumme passt nicht) – bitte später "
+                                    "noch einmal versuchen.")
+    with tempfile.TemporaryDirectory(prefix="bonys-kurspaket-") as tmp:
+        datei = Path(tmp) / "kurs.bonyspaket"
+        datei.write_bytes(daten)
+        inhalt = Path(tmp) / "inhalt"
+        kurspaket.entpacken(datei, inhalt)
+        neu = kurspaket.laden(inhalt)
+        if neu.id != paket_id:
+            raise kurspaket.PaketFehler("Das Kurspaket des Kurses passt nicht zu seinen Angaben.")
+        vorhanden = next((p for p in kurspaket.liste() if p.id == neu.id), None)
+        if vorhanden is not None and vorhanden.version == neu.version \
+                and kurslauf.pruefsummen_text(vorhanden.pfad) == kurslauf.pruefsummen_text(neu.pfad):
+            _GLEICH[sha256] = str(vorhanden.pfad)
+            return vorhanden
+        if vorhanden is not None and vorhanden.herkunft == kurspaket.EIGEN:
+            raise kurspaket.PaketFehler(
+                f"Du hast selbst ein Kurspaket mit derselben Kennung („{neu.id}“) erstellt. Damit es nicht "
+                "überschrieben wird, übernimmt Bony's Agents das Kurspaket des Kurses nicht – bitte dein eigenes "
+                "unter „Kurspakete“ duplizieren oder löschen.")
+        return kurspaket.importieren(datei, ersetzen=True, herkunft=kurspaket.KURS, sha256=sha256)
+
+
+def fortschritt_melden(kurs_id: str, lektion_index: int, geschafft: bool | None) -> None:
+    """Teilnehmer: aktuelle Lektion (Index ab 0) und ob ihre Prüfaufgabe geschafft ist – sonst nichts."""
+    _aufruf(lambda z: z.fortschritt_melden(kurs_id, lektion_index + 1, geschafft))
 
 
 class Beobachter:

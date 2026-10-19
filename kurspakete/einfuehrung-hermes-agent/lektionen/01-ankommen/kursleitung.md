@@ -1,0 +1,5 @@
+- Begrüße alle mit Namen, sobald sie eintreten. Technik-Check: einmal „Hallo“ sagen lassen.
+- Einstieg: „Wer hat schon ChatGPT oder einen anderen KI-Chat benutzt?“
+- Botschaft gleich am Anfang: **Im Agent-PC darf man Fehler machen.**
+- Wer die Anleitung nicht findet: „Kurse“ → Kurs wählen → „Anleitung“.
+- Wer nach 5 Minuten fehlt, bekommt eine Nachricht.

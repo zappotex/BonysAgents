@@ -10,12 +10,16 @@ Notizen für die Kursleitung und der Ablaufplan.
 Startzustände (``kurslauf``): Sobald eine Lektion zum ersten Mal betreten wird und der Agent-PC fertig ist, legt das
 Fenster im Hintergrund ihren Startzustand an. Prüfungen und Startskripte laufen nur im Agent-PC.
 
+Im Kurs über das Bony-Netz (``melden``) meldet das Fenster nur die aktuelle Lektion und ob ihre Prüfaufgabe geschafft
+ist – nie Inhalte aus dem Agent-PC.
+
 Die Anzeige lädt nur Bilder aus dem Kurspaket selbst (nichts aus dem Internet, keine anderen Dateien des Rechners),
 zeigt kein HTML und öffnet Links nur nach Klick und nur mit https im Browser.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -25,6 +29,8 @@ from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QMenu, QMessageBox, QProgressBar,
     QPushButton, QRadioButton, QTextBrowser, QVBoxLayout, QWidget,
 )
+
+from shiboken6 import isValid
 
 from bonys_agents import edition, kurslauf, kurspaket, storage, vm
 
@@ -36,6 +42,9 @@ BILD_ENDUNGEN = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 EINSTELLUNG = "kurspaket_anleitung"      # Position/Größe und „Immer im Vordergrund“
 BREITE = 440
 _FENSTER: dict[str, AnleitungFenster] = {}
+_MELDUNGEN: set[TaskWorker] = set()      # laufende Meldungen an die Zentrale (überleben das Schließen)
+MELDEN_PAUSE = 30                        # nach einem Fehler so lange nicht erneut melden (Sekunden)
+Melden = Callable[[int, "bool | None"], None]   # (Lektion ab 0, geschafft) – z. B. kurse.fortschritt_melden
 RESET_TEXT = ("Alles, was seit dem Beginn dieser Lektion im Agent-PC geändert wurde – auch eigene Dateien –, geht "
               "verloren. Der Agent-PC wird dafür heruntergefahren und wieder gestartet. Hast du etwas Wichtiges im "
               "Agent-PC, sichere es vorher.")
@@ -170,12 +179,18 @@ class QuizDialog(QDialog):
 
 
 def oeffnen(paket: kurspaket.Kurspaket, agent_pc_zeigen: Callable[[str], None] | None = None,
-            parent: QWidget | None = None) -> AnleitungFenster:
-    """Fenster für dieses Kurspaket öffnen (oder nach vorn holen, wenn es schon offen ist)."""
+            parent: QWidget | None = None, melden: Melden | None = None) -> AnleitungFenster:
+    """Fenster für dieses Kurspaket öffnen (oder nach vorn holen, wenn es schon offen ist). ``melden``: im Kurs den
+    Fortschritt (Lektion, geschafft) an den Kursleiter melden."""
     f = _FENSTER.get(paket.id)
+    if f is not None and not isValid(f):
+        f = None
     if f is None:
         f = AnleitungFenster(paket, agent_pc_zeigen, parent)
         _FENSTER[paket.id] = f
+    if melden is not None:
+        f.melden, f._gemeldet = melden, None
+        QTimer.singleShot(0, f._melden)
     f.show()
     f.raise_()
     f.activateWindow()
@@ -198,6 +213,10 @@ class AnleitungFenster(QWidget):
         self.vorbereiten_fehler = ""
         self.ergebnis: dict[str, kurslauf.Ergebnis] = {}
         self._angezeigt: tuple[str, str] | None = None
+        self.melden: Melden | None = None      # im Kurs: Fortschritt an den Kursleiter
+        self._gemeldet: tuple[int, bool | None] | None = None
+        self._meldung: TaskWorker | None = None
+        self._melde_fehler = 0.0
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 12, 14, 12)
@@ -469,6 +488,35 @@ class AnleitungFenster(QWidget):
         self.notiz.setVisible(bool(notiz) and self.notiz_knopf.isChecked())
         self.zurueck.setEnabled(i > 0 and not beschaeftigt)
         self.weiter.setText("Abschließen  ✓" if i == n - 1 else "Weiter  ▶")
+        self._melden()
+
+    def _melden(self) -> None:
+        """Im Kurs: Lektion und „geschafft / noch nicht“ melden, sobald sich etwas geändert hat."""
+        if self.melden is None or not self.paket.lektionen or self._meldung is not None:
+            return
+        i = self._index()
+        lek = self.paket.lektionen[i]
+        stand = (i, self.fortschritt.pruefungen.get(lek.ordner) if lek.pruefung else None)
+        if stand == self._gemeldet or time.monotonic() - self._melde_fehler < MELDEN_PAUSE:
+            return
+        melden = self.melden
+        w = TaskWorker(lambda: melden(*stand))
+        self._meldung = w
+        _MELDUNGEN.add(w)
+
+        def ende() -> None:
+            _MELDUNGEN.discard(w)
+            if not isValid(self):
+                return
+            self._meldung = None
+            if w.error is None:
+                self._gemeldet = stand
+            else:
+                self._melde_fehler = time.monotonic()
+            self._melden()
+
+        w.finished.connect(ende)
+        w.start()
 
     _notiz_ordner = ""
 
@@ -509,6 +557,7 @@ class AnleitungFenster(QWidget):
     # ---------------------------------------------------------------- Startzustände im Hintergrund
     def _takt(self) -> None:
         """Alle paar Sekunden: Startzustände lesen; fehlt der der aktuellen Lektion, ihn sichern, sobald es geht."""
+        self._melden()
         if self.beschaeftigt() or not self.paket.lektionen:
             self._pc_status()
             return

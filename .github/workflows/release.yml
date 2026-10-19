@@ -433,9 +433,6 @@ jobs:
         env:
           MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
         run: |
-          cd out
-          sha256sum -- *.deb *.exe *.dmg *.pdf > SHA256SUMS
-          cat SHA256SUMS
           if [ -z "$MINISIGN_SECRET_KEY" ]; then
             echo "::error::Secret MINISIGN_SECRET_KEY fehlt – ohne signierte SHA256SUMS wird nichts veröffentlicht (siehe docs/RELEASE.md)."
             exit 1
@@ -443,6 +440,18 @@ jobs:
           sudo apt-get install -y -qq minisign
           KEY="$RUNNER_TEMP/minisign.key"
           (umask 077; printf '%s\n' "$MINISIGN_SECRET_KEY" > "$KEY")
+          trap 'rm -f "$KEY"' EXIT
+          # Mitgelieferte Kurspakete signieren (pruefsummen.txt.minisig) und als .bonyspaket packen – samt
+          # kurspakete-index.json für das Repo zappotex/bonys-agents-kurspakete (docs/RELEASE.md)
+          pip install -q "platformdirs==4.13.2" "psutil==7.2.2"
+          python3 packaging/kurspakete.py vorbereiten "$RUNNER_TEMP/kurspakete"
+          for f in "$RUNNER_TEMP"/kurspakete/*/pruefsummen.txt; do
+            minisign -S -s "$KEY" -m "$f" -x "$f.minisig" -t "Kurspaket von Bony's Agents ${GITHUB_REF_NAME}"
+          done
+          python3 packaging/kurspakete.py packen "$RUNNER_TEMP/kurspakete" out
+          cd out
+          sha256sum -- *.deb *.exe *.dmg *.pdf *.bonyspaket kurspakete-index.json > SHA256SUMS
+          cat SHA256SUMS
           # Die App prüft, dass der vertrauenswürdige Kommentar genau diese Version nennt.
           minisign -S -s "$KEY" -m SHA256SUMS -t "Bony's Agents ${GITHUB_REF_NAME}"
           rm -f "$KEY"
@@ -460,6 +469,8 @@ jobs:
             out/*.exe
             out/*.dmg
             out/*.pdf
+            out/*.bonyspaket
+            out/kurspakete-index.json
             out/SHA256SUMS
             out/SHA256SUMS.minisig
           body: |
@@ -475,6 +486,9 @@ jobs:
 
             **Handbücher (PDF):** `BonysAgents-Benutzerhandbuch-….pdf` für alle, `BonysAgents-Kursleiter-Handbuch-….pdf` für
             Kursleiter, dazu der Beispielkurs „Einführung in Hermes Agent“ (Ablaufplan und Handout).
+
+            **Kurspakete (`.bonyspaket`):** die mitgelieferten Kurspakete, signiert – auch zum Weitergeben (Fenster „Kurse“ →
+            „Kurspakete“ → „Importieren …“).
 
             **Installieren – ganz ohne Terminal:**
             - **Windows:** `BonysAgents-Setup-….exe` (bzw. `BonysAgents-Kursleiter-Setup-….exe`) herunterladen und doppelklicken.

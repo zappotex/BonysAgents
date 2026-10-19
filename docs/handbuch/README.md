@@ -7,8 +7,11 @@ Release (`.github/workflows/release.yml`, Job `handbuch`) – im Repository lieg
 |---|---|
 | [benutzer.md](benutzer.md) | `BonysAgents-Benutzerhandbuch-<Version>.pdf` |
 | [kursleiter.md](kursleiter.md) | `BonysAgents-Kursleiter-Handbuch-<Version>.pdf` |
-| [beispielkurs.md](beispielkurs.md) | `BonysAgents-Beispielkurs-Hermes-Kursleitung-<Version>.pdf` |
-| [beispielkurs-handout.md](beispielkurs-handout.md) | `BonysAgents-Beispielkurs-Hermes-Handout-<Version>.pdf` |
+| [ablaufplan.md](../../kurspakete/einfuehrung-hermes-agent/ablaufplan.md) (Kurspaket) | `BonysAgents-Beispielkurs-Hermes-Kursleitung-<Version>.pdf` |
+| [handout.md](../../kurspakete/einfuehrung-hermes-agent/handout.md) (Kurspaket) | `BonysAgents-Beispielkurs-Hermes-Handout-<Version>.pdf` |
+
+Der Beispielkurs hat **eine** Quelle: das mitgelieferte Kurspaket `kurspakete/einfuehrung-hermes-agent/`. Ablaufplan
+und Handout dort ändern – `erstellen.sh` baut die PDFs von dort.
 
 Lizenz der Handbücher: **CC BY-SA 4.0** (Name und Logo ausgenommen, siehe letzte Seite der PDFs).
 
@@ -38,7 +41,7 @@ Die PDFs landen in `docs/handbuch/pdf/`. Version und Datum kommen automatisch au
 
 ```
 docs/handbuch/
-├── benutzer.md, kursleiter.md, beispielkurs.md, beispielkurs-handout.md
+├── benutzer.md, kursleiter.md        (Beispielkurs: kurspakete/einfuehrung-hermes-agent/)
 ├── bilder/              automatisch erzeugte Bildschirmfotos (erstellen.sh ersetzt sie)
 │   └── eigene/          von Hand gemachte Bilder (bleiben)
 ├── vorlage/             Gestaltung: stil.typ (Typst), pandoc.typ (Pandoc-Vorlage), filter.lua, schriften/

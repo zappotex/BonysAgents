@@ -76,6 +76,8 @@ if [ "$PDFS" = 1 ]; then
   echo "== PDFs (Version $VERSION, Stand $DATUM) → $AUSGABE"
   bauen benutzer.md Benutzerhandbuch "Benutzerhandbuch"
   bauen kursleiter.md Kursleiter-Handbuch "Kursleiter-Handbuch"
-  bauen beispielkurs.md Beispielkurs-Hermes-Kursleitung "Beispielkurs „Einführung in Hermes Agent“ – Kursleitung" kompakt
-  bauen beispielkurs-handout.md Beispielkurs-Hermes-Handout "Handout „Einführung in Hermes Agent“" kurz
+  # Der Beispielkurs ist das mitgelieferte Kurspaket „Einführung in Hermes Agent“ – nur dort gepflegt
+  BEISPIEL="../../kurspakete/einfuehrung-hermes-agent"
+  bauen "$BEISPIEL/ablaufplan.md" Beispielkurs-Hermes-Kursleitung "Beispielkurs „Einführung in Hermes Agent“ – Kursleitung" kompakt
+  bauen "$BEISPIEL/handout.md" Beispielkurs-Hermes-Handout "Handout „Einführung in Hermes Agent“" kurz
 fi
