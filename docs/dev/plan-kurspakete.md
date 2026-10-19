@@ -245,7 +245,8 @@ Zuletzt aktualisiert: 19.10.2026 (Sitzung 4: alles umgesetzt bis auf echten Test
       editionen.md, README, kurspaket-format.md, RELEASE.md, bony-netz.md, CHANGELOG 0.23.0; 4 neue
       Bildschirmfotos (Vorführ-Zentrale kennt Kurspaket/Fortschritt), Texterkennung ohne neue Funde
 - [x] Version 0.23.0, Tests `tests/test_kurspakete_mitgeliefert.py`, Erweiterungen in test_kurse/test_share_server
-- [ ] .deb bauen, echter Test (Server-Update nötig!), Commit/Push, Release nach OK
+- [x] .deb kursleiter 0.23.0 gebaut und installiert, bonys-netz gepusht, zentrale.bony23.de läuft 0.2.0 (19.10.2026)
+- [ ] echter Test durch den Nutzer, Push Agents/VPN, Release nach OK
 
 ### Für den echten Test (Sitzung 4)
 - Server zentrale.bony23.de auf bonys-netz 0.2.0 bringen (`server/install.sh` erneut ausführen – kopiert die
