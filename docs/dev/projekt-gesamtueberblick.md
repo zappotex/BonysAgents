@@ -1,6 +1,6 @@
 # Bony's Agents – Gesamtüberblick von der Idee bis heute
 
-Stand: 18.10.2026 · Bony's Agents 0.22.1 · Bony's VPN 1.0.1 · Mission Control 0.1.0
+Stand: 20.10.2026 · Bony's Agents 0.23.0 · Bony's VPN 1.0.1 · Mission Control 0.1.0 · Bony-Netz 0.2.0
 
 Dieses Dokument fasst das ganze Projekt für Claude Code (und andere KI-Helfer) zusammen: Idee, Entscheidungen,
 feste Regeln, aktueller Stand, offene Punkte und die nächsten Aufträge. **Vor jeder größeren Aufgabe lesen.**
@@ -35,7 +35,8 @@ Empfohlener Ablageort (intern, nicht im README verlinken): `docs/dev/projekt-ges
 | **Bony's Agents** | Hauptprogramm (GUI + CLI), zwei Editionen: Anwender und Kursleiter | https://github.com/zappotex/BonysAgents |
 | **Bony's VPN** | eigenes WireGuard-Tool für Linux (Vorbild: wireguird, aber selbst entwickelt), im Agent-PC und auf dem Linux-Rechner, mit Kill-Switch | https://github.com/zappotex/bonys-vpn |
 | **Mission Control** | Steuerzentrale für Agenten im Browser, läuft mit Docker nur im Agent-PC (wird mit ChatGPT/Hermes weiterentwickelt, Schnittstelle siehe dort `AGENTS.md` / `docs/installation-agent-pc.md`) | https://github.com/zappotex/bonys-agents-mission-control |
-| **Bony-Netz-Zentrale** | Server `zentrale.bony23.de` (Headscale/Tailscale, LiveKit) für Kurse über das Internet | nicht in diesen Repos |
+| **Bony-Netz** | Zentrale `zentrale.bony23.de` (Headscale/Tailscale, LiveKit, Kurse, Kurspakete zum Kurs, Fortschritt) für Kurse über das Internet; dazu der Baustein `bony_netz`, der in Bony's Agents und Bony's VPN dateigleich steckt (Quelle: `baustein/` im Repo) | https://github.com/zappotex/bonys-netz |
+| **Kurspakete** | öffentlicher Katalog für „Aus dem Internet …“ (`index.json` + `pakete/*.bonyspaket`, signiert), nach jedem Release mit geänderten Paketen von Hand befüllt (`docs/RELEASE.md`) | https://github.com/zappotex/bonys-agents-kurspakete |
 
 Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
 
@@ -69,7 +70,10 @@ Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
   auch nachträglich („Programme hinzufügen …“).
 - Pakete: .deb (amd64/arm64), Setup.exe, .dmg (Apple-Chip/Intel), APT-Quelle auf GitHub Pages, minisign-signierte
   Updates, Auto-Update in der eigenen Edition.
-- Umfang: ca. 29.000 Zeilen Code, 10.000 Zeilen Tests, CI auf Linux/macOS/Windows.
+- Kurspakete: `.bonyspaket` (ZIP, textbasiert), Format in `docs/kurspaket-format.md`; mitgelieferte Pakete in
+  `kurspakete/`, beim Release mit dem Release-Schlüssel signiert und als Assets angehängt.
+- Umfang (20.10.2026): ca. 35.000 Zeilen Python in `src/` (ca. 29.700 ohne Leer- und Kommentarzeilen, davon ca.
+  6.200 Kursleiter-Teil `trainer/`), ca. 12.400 Zeilen Tests, CI auf Linux/macOS/Windows.
 
 ---
 
@@ -90,6 +94,7 @@ Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
 | Kurse + Kursraum (0.21) | Kurse mit Kurscode über das Bony-Netz; Kursraum mit Bildschirm, Ton, Kamera, Chat (LiveKit, Qt WebEngine, ca. +290 MB) |
 | Hilfe online (0.22) | Hilfe über das Bony-Netz mit x11vnc, Einmal-Passwort, nur nach Zustimmung |
 | Handbücher (0.22.1) | Benutzer-, Kursleiter-Handbuch, Beispielkurs „Einführung in Hermes Agent“ + Handout als PDF; Bildschirmfotos automatisch im Vorführmodus mit OCR-Datenschutzprüfung |
+| Kurspakete (0.23, vorgezogen vor 1.0) | Bibliothek in beiden Editionen (Import, Drag & Drop, „Aus dem Internet …“), Anleitung neben dem Agent-PC, Selbstlern-Modus, Startzustände je Lektion (qcow2-Schnappschuss/Startskript), Prüfaufgaben nur im Agent-PC („geschafft / noch nicht“), Quiz nur lokal, signierte „Geprüfte Kurspakete“; Editor + „Kurspaket prüfen“ + PDF nur Kursleiter; Kurspaket zum Bony-Netz-Kurs (Upload zur Zentrale) und zur Schulung im eigenen Netz, Kursansicht mit Lektion + Prüfung je Teilnehmer nur solange der Kurs läuft; „Einführung in Hermes Agent“ 1.0.0 fertig + 5 Entwürfe; Nous als Standard-Modell in allen Unterlagen. Plan und Entscheidungen: `docs/dev/plan-kurspakete.md` |
 
 ---
 
@@ -103,7 +108,9 @@ Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
 | **Schulung im eigenen Netz** | Freigabe/Vorführen/Hilfe-Schalter ohne Server, mit Freigabe-Code (z. B. `4711-BONY`) |
 | **Kurs** | LIVE-Veranstaltung im Bony-Netz mit Kurscode (z. B. `K7QX-M3PA`), Teilnehmern, Kursraum |
 | **Kursraum** | Video-/Ton-/Chat-Fenster während eines Kurses |
-| **Kurspaket** (geplant) | INHALT eines Kurses (Ablaufplan, Handout, Lektionen, Prüfungen, Quiz) als `.bonyspaket` |
+| **Kurspaket** | INHALT eines Kurses (Ablaufplan, Handout, Lektionen, Prüfungen, Quiz) als `.bonyspaket`; ein Kurs ist die DURCHFÜHRUNG |
+| **Prüfaufgabe** | kleines Skript im Agent-PC, Ergebnis nur „geschafft“ oder „noch nicht“ |
+| **Geprüftes Kurspaket** | mit dem Release-Schlüssel signiert (mitgeliefert bzw. aus dem Katalog) |
 | **Instanz** | Anmeldung beim Bony-Netz-Server (ohne E-Mail) |
 
 ---
@@ -112,8 +119,8 @@ Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
 
 - Installation: offizieller Installer (`curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`) als Benutzer `agent`.
 - Einrichten: `hermes setup` → **bei der Anbieter-Wahl oberster Punkt „Nous“ → dort ein Free-Modell** (von Bony
-  getestet). Alternative: OpenRouter-Modelle mit `:free` (API-Schlüssel, Tageslimit). Die Unterlagen nennen bisher
-  OpenRouter – **vereinheitlichen** (Nous Standard, OpenRouter Alternative).
+  getestet). Alternative: OpenRouter-Modelle mit `:free` (API-Schlüssel, Tageslimit). Seit 0.23.0 einheitlich in
+  Benutzerhandbuch, Beispielkurs, Handout und Kurspaketen (Nous Standard, OpenRouter Alternative).
 - Starten: `hermes --tui` oder `hermes`; Prüfen: `hermes doctor`; Modell wechseln: `hermes model` bzw. `/model`;
   Werkzeuge: `/tools`; Hilfe: `/help`. Modell braucht mindestens 64K Kontext.
 - Telegram: Token bei @BotFather, `hermes gateway setup` oder `~/.hermes/.env` (`TELEGRAM_BOT_TOKEN`,
@@ -122,23 +129,27 @@ Lokaler Projektordner: `/media/zappotex/bonysagent/BonysAgents/`
 
 ---
 
-## 8. Aktuelle Einschätzung (18.10.2026)
+## 8. Aktuelle Einschätzung (20.10.2026)
 
 **Stärken:** echte Nische (Klassenzimmer für KI-Agenten in sicheren Agent-PCs), sehr sorgfältig getestet,
-gehärtet und dokumentiert, Lizenzen nachgezogen, professionelle Handbuch-Erzeugung.
+gehärtet und dokumentiert, Lizenzen nachgezogen, professionelle Handbuch-Erzeugung, jetzt mit fertigen
+Kursinhalten (Kurspakete).
 
 **Risiken und offene Punkte:**
 
 1. **Neue Teile ungeprüft:** Die Durchsicht lief über 0.19.0. Bony-Netz, Kursraum und Hilfe online (0.21/0.22)
-   haben die meiste Angriffsfläche und sind unter Windows/macOS kaum getestet.
+   und Kurspakete (0.23: Skripte im Agent-PC, Upload zur Zentrale, Fortschritt) haben die meiste Angriffsfläche
+   und sind unter Windows/macOS kaum getestet. Echter Test von 0.23.0 durch Bony läuft (Release auf Wunsch vor
+   dem Test); 3-Rechner-Test des Bony-Netzes steht aus.
 2. **Betrieb eines Dienstes:** `zentrale.bony23.de` verarbeitet Instanzen, Netzadressen, Video/Ton → Erreichbarkeit,
    Kosten, Missbrauch (Instanzen ohne E-Mail); rechtlich wahrscheinlich Impressum, Datenschutzerklärung, ggf.
    Absprachen mit Kursleitern (fachkundig prüfen lassen, keine Rechtsberatung).
 3. **Umfang/Tempo:** drei Programme, ein Server, Video-Infrastruktur, eine Person. „Sollte vor 1.0“-Liste aus
    `docs/review-1.0.md` großteils offen.
-4. **Begriff „Kurs“** ist für Live-Veranstaltungen vergeben → Inhalte heißen „Kurspaket“.
-5. **Beispielkurs existiert** (`docs/handbuch/beispielkurs.md` + Handout); ein zweiter Entwurf
-   (`kurse/01-ki-agenten-fuer-einsteiger/kurs.md`, falls abgelegt) dient nur als Ideenquelle.
+4. **Begriff „Kurs“** ist für Live-Veranstaltungen vergeben → Inhalte heißen „Kurspaket“ (umgesetzt, Glossar).
+5. **Beispielkurs ist jetzt ein Kurspaket:** `kurspakete/einfuehrung-hermes-agent/` (Ablaufplan + Handout dort,
+   die Handbuch-PDFs werden daraus gebaut); `docs/handbuch/beispielkurs*.md` und `kurse/` gibt es nicht mehr.
+   Die fünf weiteren Pakete sind Entwürfe (Gliederung + Lernziele) und müssen noch ausgearbeitet werden.
 
 ---
 
@@ -148,9 +159,11 @@ gehärtet und dokumentiert, Lizenzen nachgezogen, professionelle Handbuch-Erzeug
 - [ ] „Muss“-Punkte aus Teil 2 umsetzen
 - [ ] Echter Probekurs über das Internet mit 2–3 Bekannten, mindestens ein Windows-Rechner
 - [ ] Rechtliches zum Server klären
-- [ ] Kostenloses Modell in allen Unterlagen vereinheitlichen
+- [x] Kostenloses Modell in allen Unterlagen vereinheitlichen (0.23.0)
+- [x] **Auftrag B:** Kurspakete – vorgezogen und mit v0.23.0 veröffentlicht (19.10.2026), Pakete im Katalog-Repo
+- [ ] Echter Test von 0.23.0 (Selbstlernen, Editor, Kurs mit Kurspaket über Bony-Netz und im eigenen Netz)
+- [ ] Die fünf Entwurfs-Kurspakete ausarbeiten
 - [ ] **Version 1.0** veröffentlichen, Video drehen, Rückmeldungen über GitHub-Issues sammeln
-- [ ] **Auftrag B:** Kurspakete (erst nach 1.0)
 - [ ] Später: Kursleiter-Dashboard (Teilnehmer-Übersicht, alle zurücksetzen, Dateien verteilen)
 
 ---
@@ -162,7 +175,7 @@ Vorher `/clear`, mit Opus, im BonysAgents-Ordner.
 ```text
 Zweite Durchsicht vor Version 1.0 – NUR prüfen und berichten, NICHTS am Code, an Paketen, Releases, Servern oder der Git-Historie ändern. Einzige Ausnahme: du schreibst den Bericht nach docs/review-1.0-teil2.md und committest nur diese Datei (nach meinem OK).
 
-Hintergrund: docs/review-1.0.md hat 0.19.0 geprüft; alle „Muss“-Punkte sind seit 0.20.0 umgesetzt. Danach kamen dazu: Bony-Netz (0.21.0, Headscale/Tailscale, Zentrale zentrale.bony23.de), Kurse über das Bony-Netz, Kursraum mit LiveKit/Qt WebEngine (0.21.0) und die Hilfe-Funktion über das Bony-Netz mit x11vnc (0.22.0). Genau diese Teile sind noch nicht geprüft. Lies zuerst docs/dev/projekt-gesamtueberblick.md, docs/review-1.0.md, docs/bony-netz.md, docs/editionen.md, CHANGELOG.md und die Handbücher in docs/handbuch/.
+Hintergrund: docs/review-1.0.md hat 0.19.0 geprüft; alle „Muss“-Punkte sind seit 0.20.0 umgesetzt. Danach kamen dazu: Bony-Netz (0.21.0, Headscale/Tailscale, Zentrale zentrale.bony23.de), Kurse über das Bony-Netz, Kursraum mit LiveKit/Qt WebEngine (0.21.0) die Hilfe-Funktion über das Bony-Netz mit x11vnc (0.22.0) und die Kurspakete (0.23.0: Prüfskripte im Agent-PC, Startzustände, Signaturen, Upload zur Zentrale, Fortschritt der Teilnehmer). Genau diese Teile sind noch nicht geprüft. Lies zuerst docs/dev/projekt-gesamtueberblick.md, docs/review-1.0.md, docs/bony-netz.md, docs/editionen.md, docs/kurspaket-format.md, docs/dev/plan-kurspakete.md, CHANGELOG.md und die Handbücher in docs/handbuch/.
 
 Arbeitsweise
 - Teile die Prüfung in unabhängige Bereiche und lass sie, wenn möglich, von getrennten Unteragenten unvoreingenommen prüfen; danach jeden wichtigen Fund selbst am Code nachprüfen (Datei/Zeile oder konkreter Ablauf, Vermutungen als solche kennzeichnen) – Format und Schwere-Stufen wie in docs/review-1.0.md.
@@ -178,7 +191,8 @@ Zu prüfen
 6) Missbrauch und Betrieb: Instanzen ohne E-Mail (Massenanlage, Spam-Kurse), Kurscodes (Länge, Raten), Grenzen pro Instanz/Tag, was passiert bei Ausfall der Zentrale (App bleibt bedienbar?), Kosten-/Lastrisiken.
 7) Wirkung auf die Anwender-Edition: Prüfe, dass das Bony-Netz standardmäßig aus ist und ohne Einschalten wirklich kein Kontakt zum Server entsteht (Code + Test); Kursleiter-Teile fehlen weiterhin in der Anwender-Version.
 8) Plattformen: Was ist unter Windows und macOS (Kursraum, Bildschirm teilen, Hilfe, Tailscale) wirklich getestet? Konkrete Testanleitung für mich.
-9) Server: Der Code der Zentrale liegt nicht in diesem Repo. Frag mich, ob und wo ich ihn lokal habe (z. B. bony-netz-paket oder ein eigenes Repo). Falls ja: dieselbe Prüfung in Kurzform (Authentisierung, Headscale-ACLs, LiveKit-Tokens, Rate-Limits, Logs mit personenbezogenen Daten). Falls nein: aufschreiben, was ich auf dem Server selbst prüfen muss.
+9) Server: Der Code der Zentrale liegt im Repo zappotex/bonys-netz (lokal ../bonys-netz, Ordner server/ und baustein/). Dieselbe Prüfung in Kurzform (Authentisierung, Headscale-ACLs, LiveKit-Tokens, Rate-Limits, Upload der Kurspakete und Fortschritt, Logs mit personenbezogenen Daten); aufschreiben, was ich auf dem laufenden Server selbst prüfen muss.
+9a) Kurspakete (kurspaket.py, kurslauf.py, gui/kurspaket_*.py, trainer/kurspaket_editor.py, packaging/kurspakete.py): Entpack-Schutz, was ein fremdes oder präpariertes Paket im Agent-PC und auf dem Rechner anrichten kann, Signaturprüfung und „Geprüftes Kurspaket“, Upload/Download über Zentrale und Freigabe im eigenen Netz, Fortschrittsmeldungen (nur Lektion + geschafft, nur solange der Kurs läuft).
 10) Stand der offenen „Sollte vor 1.0“-Punkte aus docs/review-1.0.md: kurz je Punkt erledigt/offen.
 
 Bericht docs/review-1.0-teil2.md
@@ -194,58 +208,26 @@ Zeig mir am Ende die Zusammenfassung und die „Muss vor 1.0“-Liste im Chat un
 
 ---
 
-## 11. Auftrag B – Kurspakete (erst nach 1.0)
+## 11. Auftrag B – Kurspakete (erledigt)
 
-Vorher `/clear`, mit Opus, im BonysAgents-Ordner.
+Vorgezogen vor 1.0 und in vier Sitzungen umgesetzt, veröffentlicht mit **v0.23.0 am 19.10.2026**. Plan, Begriffe,
+Entscheidungen und Checkliste: `docs/dev/plan-kurspakete.md` (Abschnitt „Stand“). Der ursprüngliche Auftragstext
+steht in der Git-Historie dieser Datei (Commit 1b56a30).
 
-```text
-Neue Funktion nach Version 1.0: KURSPAKETE – fertige, speicher- und ladbare Kursinhalte, die ein Kursleiter erstellt und wiederverwendet (Anfänger bis Experte). Lies zuerst docs/dev/projekt-gesamtueberblick.md.
+Wichtige Entscheidungen in Kürze:
+- Kurspaket = Inhalt, Kurs = Durchführung; ohne Kurspaket funktioniert alles wie bisher.
+- Bony-Netz-Kurse: Kursleiter lädt das Paket zur Zentrale hoch (höchstens 25 MB), Teilnehmer holen es beim
+  Beitritt; Schulung im eigenen Netz: Paket kommt direkt vom Kursleiter-Rechner.
+- Kursleitung sieht je Teilnehmer nur Lektion und „geschafft / noch nicht“, nur solange der Kurs läuft.
+- Mitgelieferte Pakete werden in der Release-Aktion signiert; der Katalog `zappotex/bonys-agents-kurspakete` wird
+  danach von Hand befüllt (`docs/RELEASE.md`).
 
-WICHTIG – Begriffe: In Bony's Agents ist ein „Kurs“ bereits eine LIVE-VERANSTALTUNG (Bony-Netz-Kurs mit Kurscode, Teilnehmern, Kursraum, starten/pausieren/beenden; Logik in kurse.py, gui/kurse_dialog.py, trainer/gui/kurse_leiten.py) bzw. eine „Schulung im eigenen Netz“ (Freigabe, Vorführen, Hilfe-Schalter). Das Neue heißt durchgängig „Kurspaket“ (Datei .bonyspaket) – im Code, in der Oberfläche, in den Handbüchern. Ein Kurspaket ist der INHALT, ein Kurs die DURCHFÜHRUNG: Beim Anlegen eines Kurses (Bony-Netz) oder einer Schulung im eigenen Netz kann der Kursleiter ein Kurspaket auswählen; ohne Kurspaket funktioniert alles wie bisher. Prüfe alle bestehenden Texte, damit die beiden Begriffe nie verwechselt werden, und ergänze das Glossar im Benutzerhandbuch.
-
-Vorhandenes nutzen, nicht doppelt bauen:
-- Der erste Beispielkurs existiert bereits: docs/handbuch/beispielkurs.md (Ablaufplan Kursleitung, „Einführung in Hermes Agent“, 2 Stunden, 8 Blöcke, Übungen mit Lösungen) und docs/handbuch/beispielkurs-handout.md (Handout). Er wird das ERSTE Kurspaket. Die PDF-Erzeugung (docs/handbuch/erstellen.sh, Pandoc/Typst, Kästen, Felder) für Ablaufplan und Handout weiterverwenden – Kurspakete sollen ihr Handout und ihren Ablaufplan genauso als PDF erzeugen können.
-- Falls kurse/01-ki-agenten-fuer-einsteiger/kurs.md existiert: ein zusätzlicher Entwurf von mir. Nicht als zweiten Kurs anlegen, sondern prüfen, welche Ideen daraus (z. B. Quizfragen, Prüfaufgaben je Lektion, Lektion „Zurücksetzen und Vorlage“) den vorhandenen Beispielkurs sinnvoll ergänzen; mir die Vorschläge zeigen, nach meinem OK einarbeiten, danach die Datei entfernen.
-- Kostenloses Modell: In den Unterlagen steht bisher OpenRouter (:free, API-Schlüssel). Mein getesteter Weg ist: `hermes setup` → bei der Anbieter-Wahl oberster Punkt „Nous“ → dort ein Free-Modell. Prüfe in der aktuellen Hermes-Doku (https://hermes-agent.nousresearch.com/docs), schreib Nous als Standardweg und OpenRouter als Alternative – einheitlich in Benutzerhandbuch, Beispielkurs, Handout und Kurspaketen.
-- Bestehende Bausteine wiederverwenden: Vorlagen und .bonys (statt neuer Festplatten-Abbilder), Geheimnis-/Frisch-Prüfung, Editionstrennung (trainer/), Kursraum, Hilfe, signierte Downloads.
-
-Arbeite in Sitzungen. Lege zuerst docs/dev/plan-kurspakete.md an (Begriffe, Format, Sitzungsplan, Sicherheitsregeln, „Stand“ mit Checkliste) – intern, nicht im README verlinkt. Committe nach jedem Teil. Reicht eine Sitzung nicht: Stand festhalten, ich starte neu mit „Mach weiter laut docs/dev/plan-kurspakete.md“. Release erst nach meinem Test und OK.
-
-SITZUNG 1 – Format, Bibliothek, Anzeige
-1) Format .bonyspaket (Ordner bzw. ZIP, textbasiert, mit Git versionierbar): paket.json (Name, Beschreibung, Stufe Anfänger/Fortgeschritten/Experte, Sprache, Autor, Lizenz – Standard CC BY-SA 4.0 –, Version, Mindestversion Bony's Agents, Dauer, Teilnehmerzahl), rezept bzw. Verweis auf eine Vorlage/.bonys, ablaufplan.md (Kursleitung, Blöcke mit Zeiten, Notizen), handout.md (Teilnehmer), optional lektionen/ mit anleitung.md, pruefung/ (Prüfskripte), quiz.json, bilder/. Schema in docs/kurspaket-format.md, Validierung mit deutschen Fehlermeldungen, Entpack-Schutz (kein Pfad-Ausbruch, Größenlimit).
-2) Bibliothek „Kurspakete“ (beide Editionen): lokal importieren/löschen/aktualisieren; optional Download aus einem öffentlichen GitHub-Repo (frag mich nach dem Repo), signiert bzw. mit Prüfsumme.
-3) Teilnehmer-Ansicht: Anleitung der aktuellen Lektion neben dem Agent-PC (Fenster in Bony's Agents oder im Kursraum – entscheide und begründe kurz), Zurück/Weiter, Fortschritt. Selbstlern-Modus: ein Kurspaket auch ohne Kurs allein durcharbeiten (beide Editionen).
-
-SITZUNG 2 – Startzustände, Prüfaufgaben, Quiz
-1) Startzustand je Lektion (qcow2-Schnappschuss oder Startskript), „Lektion zurücksetzen“, „Zu Lektion X springen“, Warnung vor Verlust eigener Dateien.
-2) Prüfaufgaben laufen NUR im Agent-PC (Gast-Agent), Ergebnis nur „geschafft/noch nicht“ mit Hinweistext, Zeitlimit. Fremde Pakete: Hinweis mit Liste der Skripte vor dem ersten Start.
-3) Quiz am Lektionsende, Ergebnis nur lokal.
-
-SITZUNG 3 – Editor (nur Kursleiter-Edition)
-1) Kurspaket anlegen/bearbeiten: Blöcke/Lektionen, Markdown mit Vorschau, Bilder (Screenshot des Agent-PCs per Knopf), Notizen, Zeiten, Quiz, Prüfskripte mit Vorlagen (Datei existiert, Dienst läuft, Hermes eingerichtet – ohne Schlüssel auszulesen).
-2) Startzustand aus aktuellem Agent-PC übernehmen, Speichern/Laden/Duplizieren/Version erhöhen.
-3) Vor dem Export Geheimnis-Prüfung (wie beim .bonys-Export), Export blockieren bis bereinigt.
-4) Ablaufplan und Handout als PDF (vorhandene Handbuch-Vorlage).
-5) „Kurspaket prüfen“: spielt Lektionen in einem Test-Agent-PC durch und meldet Veraltetes.
-
-SITZUNG 4 – Anbindung an Kurse, Beispielpakete, Abschluss
-1) Beim Anlegen eines Bony-Netz-Kurses und bei der Schulung im eigenen Netz ein Kurspaket wählen; Teilnehmer bekommen es automatisch. Kursansicht zeigt pro Teilnehmer aktuelle Lektion und „geschafft/noch nicht“ (keine Inhalte, nur solange der Kurs läuft; Datenschutz-Abschnitt ergänzen).
-2) Beispielpakete:
-   - Anfänger: „Einführung in Hermes Agent“ – VOLLSTÄNDIG aus docs/handbuch/beispielkurs.md + beispielkurs-handout.md (Inhalte nicht kürzen, ergänzt um die freigegebenen Ideen aus meinem Entwurf).
-   - Als Entwurf (Gliederung + Lernziele, gleicher Aufbau): „Hermes über Telegram steuern“ (Anfänger), „Aufgaben automatisieren“ und „Sicherheit: Was darf ein Agent? Prompt-Injection erkennen“ (Fortgeschritten), „Eigene Werkzeuge und Skills, Mission Control“ und „Lokale Modelle, VPN, mehrere Agenten“ (Experte). Hermes-Befehle in der aktuellen Doku prüfen, nicht raten. Keine API-Keys in Paketen.
-3) Editionstrennung: Editor und Kurs-Zuordnung nur Kursleiter; Bibliothek, Anzeige, Selbstlern-Modus, Prüfungen, Quiz in beiden. docs/editionen.md aktualisieren.
-4) Handbücher: Benutzerhandbuch (Kurspakete durcharbeiten, Selbstlernen), Kursleiter-Handbuch (Kurspakete erstellen und einem Kurs zuordnen), Glossar; Bildschirmfotos über den Vorführmodus (erstellen.sh) inkl. Texterkennungs-Prüfung.
-5) Tests: Format-Validierung, Entpack-Schutz, Geheimnis-Prüfung, Prüfskripte nur im Agent-PC, Startzustände, Editionstrennung, Zuordnung zu Kursen.
-6) Echter Test: Beispielpaket im Selbstlern-Modus (Anwender-Edition) durchspielen; Kurs mit Kurspaket über das Bony-Netz mit einem zweiten Rechner; Lektion zurücksetzen; Prüfungen grün/rot; Screenshots.
-7) pytest und ruff für beide Editionen, Version erhöhen (Minor), .deb bauen, installieren (vorher fragen), committen; Zusammenfassung, was ich selbst testen soll. Release nach meinem OK.
-
-Regeln: Frag mich, bevor du etwas mit sudo ausführst. Gib niemals Passwörter, Tokens oder Schlüssel im Klartext aus. Programme nur aus offiziellen Quellen. Keine Zugangsdaten in Kurspaketen.
-```
+Offen: echter Test durch Bony, die fünf Entwürfe ausarbeiten.
 
 ---
 
 ## 12. Kurzbefehle für Claude Code
 
-- Weitermachen nach Abbruch: `Mach weiter laut docs/dev/plan-kurspakete.md (Abschnitt „Stand“) mit dem nächsten offenen Teil.`
-- Release nach eigenem Test: `Ich habe getestet, alles funktioniert. Bitte veröffentlichen: Tests und ruff, gitleaks, CHANGELOG/README prüfen, Version erhöhen, .deb bauen und installieren (vorher fragen), committen, Tag, Release, CI-Ergebnisse zeigen.`
+- Weitermachen nach Abbruch: `Mach weiter laut docs/dev/<plan-datei>.md (Abschnitt „Stand“) mit dem nächsten offenen Teil.`
+- Release nach eigenem Test: `Ich habe getestet, alles funktioniert. Bitte veröffentlichen: Tests und ruff, gitleaks, CHANGELOG/README prüfen, Version erhöhen, .deb bauen und installieren (vorher fragen), committen, Tag, Release, CI-Ergebnisse zeigen; geänderte Kurspakete ins Repo bonys-agents-kurspakete.`
 - Neue Mission-Control-Version übernehmen: `Mission Control hat ein neues Release vX.Y.Z. Schnittstelle prüfen (CHANGELOG, docs/installation-agent-pc.md, BREAKING), feste Version in Bony's Agents anheben, neuer und bestehender Agent-PC testen, committen, Release nach meinem OK.`
