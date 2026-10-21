@@ -72,6 +72,10 @@ def test_hermes_pruefskripte_in_einem_test_home(tmp_path):
     assert rc(sys.executable, "-I", str(hermes)) == 1
     (home / ".hermes" / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")   # Schlüssel genügt nicht
     assert rc(sys.executable, "-I", str(hermes)) == 1
+    # Standard-Einstellung eines frisch installierten Hermes: „auto“ ist noch keine Wahl
+    frisch = 'model:\n  default: "anthropic/claude-opus-4.6"\n  provider: "auto"\n'
+    (home / ".hermes" / "config.yaml").write_text(frisch, encoding="utf-8")
+    assert rc(sys.executable, "-I", str(hermes)) == 1
     (home / ".hermes" / "config.yaml").write_text("model:\n  provider: nous\n  default: hermes-free\n",
                                                   encoding="utf-8")
     assert rc(sys.executable, "-I", str(hermes)) == 0
@@ -123,8 +127,8 @@ def test_pack_skript_der_release_aktion(tmp_path):
     katalog = json.loads(index.read_text())
     assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 6
     hermes = next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent")
-    assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.0.bonyspaket" and "entwurf" not in hermes
-    datei = tmp_path / "out" / "einfuehrung-hermes-agent-1.0.0.bonyspaket"
+    assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.1.bonyspaket" and "entwurf" not in hermes
+    datei = tmp_path / "out" / "einfuehrung-hermes-agent-1.0.1.bonyspaket"
     assert hermes["groesse"] == datei.stat().st_size
 
     # Die App liest die index.json wie aus dem Repo – und die Signatur übersteht den Import

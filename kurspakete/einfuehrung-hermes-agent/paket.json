@@ -9,7 +9,7 @@
   "sprache": "de",
   "autor": "Bony",
   "lizenz": "CC-BY-SA-4.0",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "dauer_minuten": 120,
   "pause_minuten": 10,
   "teilnehmer": {"min": 5, "max": 10},

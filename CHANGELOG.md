@@ -3,6 +3,13 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Behoben
+- Kurspaket „Einführung in Hermes Agent“ 1.0.1: Die Prüfung „Hermes eingerichtet“ (Lektion 3) meldete bei einem
+  frisch installierten Hermes schon „geschafft“ – dessen Standard-Einstellung enthält `provider: "auto"`. „auto“
+  gilt jetzt als „noch nicht eingerichtet“; ebenso in der Prüfskript-Vorlage des Kurspaket-Editors.
+
 ## 0.23.0 – Kurspakete
 
 ### Neu

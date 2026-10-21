@@ -232,6 +232,8 @@ def test_vorlagen_pruefskripte(tmp_path):
     assert lauf("model:\n  provider: nous\n  default: hermes-4-free\n") == 0
     assert lauf("model:\n  provider: nous\n  default: ''\n") == 1
     assert lauf("model:\n  extra:\n    provider: x\n    default: y\n") == 1
+    # Standard-Einstellung eines frisch installierten Hermes – noch nicht eingerichtet
+    assert lauf("model:\n  default: \"anthropic/claude-opus-4.6\"\n  provider: \"auto\"\n") == 1
     assert lauf("# Kommentar\nmodel:\n  default: \"x\"  # Kommentar\n  provider: openrouter\nagent:\n  x: 1\n") == 0
 
 

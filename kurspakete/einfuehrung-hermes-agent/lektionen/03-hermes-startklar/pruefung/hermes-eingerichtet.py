@@ -25,4 +25,6 @@ for zeile in zeilen:
         m = re.match(r"\s+(provider|default)\s*:\s*(.*?)\s*(#.*)?$", zeile)
         if tiefe == einzug and m:
             werte[m.group(1)] = m.group(2).strip("\"'")
-sys.exit(0 if werte.get("provider") and werte.get("default") else 1)
+# „auto“ steht schon in der Standard-Einstellung eines frisch installierten Hermes – das ist noch keine Wahl
+anbieter = werte.get("provider", "")
+sys.exit(0 if anbieter and anbieter.lower() != "auto" and werte.get("default") else 1)
