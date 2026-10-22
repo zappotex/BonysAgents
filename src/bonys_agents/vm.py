@@ -29,7 +29,8 @@ from pathlib import Path
 import psutil
 
 from bonys_agents import (
-    apps, cloudinit, desktops, diagnose, host, images, mission_control, qemu, remote, screen, storage, vpnlink, x509,
+    apps, cloudinit, desktops, diagnose, host, images, mission_control, n8n, qemu, remote, screen, storage, vpnlink,
+    x509,
 )
 from bonys_agents import progress as pct
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
@@ -50,6 +51,21 @@ def format_gb(gb: int) -> str:
 def check_disk_gb(gb: int) -> None:
     if not MIN_DISK_GB <= gb <= MAX_DISK_GB:
         raise ValueError(f"Festplatte: {MIN_DISK_GB} bis {MAX_DISK_GB} GB erlaubt (angegeben: {gb} GB)")
+
+
+# Puffer über dem Mindestbedarf: Brave und der Agent brauchen nebenher spürbar Speicher. Mit genau dem Minimum
+# (Cinnamon + n8n = 4 GB) blieb Brave beim Start hängen, mit 6 GB nicht.
+RAM_RESERVE_MB = 2048
+
+
+def recommended_ram_mb(desktop_id: str, app_ids: list[str]) -> int:
+    """Empfohlener Arbeitsspeicher für einen Agent-PC mit diesem Desktop und diesen Apps (auf 512 MB gerundet)."""
+    need = desktops.get(desktop_id).min_ram_mb + RAM_RESERVE_MB
+    if n8n.APP_ID in app_ids:
+        need += n8n.MIN_RAM_MB
+    if mission_control.APP_ID in app_ids:
+        need += mission_control.requirements(fetch=False).min_ram_mb
+    return -(-need // 512) * 512
 
 
 IMAGES_DIRNAME = "_images"  # Bild-Cache je Speicherort (kann nie ein VM-Name sein)
@@ -1450,6 +1466,26 @@ class VM:
                              f"gewünscht {format_gb(new_gb)}.")
         qemu.resize_disk(qemu.find_binary("qemu-img", host.detect().os), self.disk, new_gb)
         self.config.disk_gb = new_gb
+        self.save()
+
+    def recommended_ram_mb(self) -> int:
+        """Empfohlener Arbeitsspeicher: Desktop + Docker-Apps (n8n, Mission Control) + Puffer für Browser/Agent."""
+        return recommended_ram_mb(self.config.desktop, self.config.apps)
+
+    def set_resources(self, cpus: int, ram_mb: int) -> None:
+        """CPU-Kerne und Arbeitsspeicher ändern – gilt ab dem nächsten Start, daher nur ausgeschaltet."""
+        info = host.detect()
+        if not 1 <= cpus <= info.cpus:
+            raise ValueError(f"CPU-Kerne: 1 bis {info.cpus} möglich (angegeben: {cpus}).")
+        if not host.MIN_VM_RAM_MB <= ram_mb <= info.max_vm_ram_mb:
+            raise ValueError(f"Arbeitsspeicher: {desktops.format_ram(host.MIN_VM_RAM_MB)} bis "
+                             f"{desktops.format_ram(info.max_vm_ram_mb)} möglich – der Rest bleibt für diesen "
+                             f"Rechner (angegeben: {desktops.format_ram(ram_mb)}).")
+        if self.is_running():
+            raise RuntimeError("Bitte den Agent-PC zuerst herunterfahren.")
+        self._check_usable()
+        self.config.cpus = cpus
+        self.config.ram_mb = ram_mb
         self.save()
 
     def delete(self) -> None:

@@ -677,6 +677,30 @@ def test_resize_only_grows(datadir, monkeypatch):
         m.resize(256)
 
 
+def test_set_resources_and_recommendation(datadir, monkeypatch):
+    info = host.HostInfo(os="linux", arch="x86_64", cpus=8, ram_mb=16384, accel="kvm")
+    monkeypatch.setattr(vm.host, "detect", lambda: info)
+    m = _fake_vm(datadir)  # Cinnamon, 2 Kerne, 2 GB, ohne n8n
+    # Cinnamon 3 GB + Puffer 2 GB; mit n8n 1 GB mehr – genau das, was beim hängenden Brave gefehlt hat
+    assert m.recommended_ram_mb() == 5120
+    assert vm.recommended_ram_mb("cinnamon", ["brave", "n8n"]) == 6144
+    with pytest.raises(ValueError, match="CPU-Kerne"):
+        m.set_resources(9, 4096)
+    with pytest.raises(ValueError, match="Arbeitsspeicher"):
+        m.set_resources(2, info.max_vm_ram_mb + 512)
+    with pytest.raises(ValueError, match="Arbeitsspeicher"):
+        m.set_resources(2, 1024)
+    assert cli.main(["resources", m.name]) == 0  # nur anzeigen
+    assert cli.main(["resources", m.name, "--cpus", "4", "--ram", "5,5"]) == 0
+    c = vm.get(m.name).config
+    assert (c.cpus, c.ram_mb) == (4, 5632)
+    monkeypatch.setattr(vm.VM, "is_running", lambda self: True)
+    with pytest.raises(RuntimeError, match="herunterfahren"):
+        m.set_resources(2, 4096)
+    assert cli.main(["resources", m.name, "--ram", "6"]) == 1  # läuft, ohne --restart
+    assert vm.get(m.name).config.ram_mb == 5632
+
+
 def test_guest_grows_root_partition_on_every_boot():
     script = cloudinit.provision_script(_guest())
     assert "cloud-guest-utils" in script

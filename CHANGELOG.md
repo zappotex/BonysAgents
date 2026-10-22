@@ -3,6 +3,16 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Neu
+- **Leistung ändern …** (beim Arbeitsspeicher eines Agent-PCs): CPU-Kerne und Arbeitsspeicher lassen sich jetzt auch
+  nach dem Anlegen ändern. Läuft der Agent-PC, fährt Bony's Agents ihn dafür herunter und startet ihn mit den neuen
+  Werten neu. Der Dialog empfiehlt eine Größe (Desktop + n8n/Mission Control + 2 GB Puffer für Browser und Agent);
+  liegt ein Agent-PC darunter, steht beim Arbeitsspeicher „⚠ empfohlen: …“. Anlass: Mit genau dem bisherigen
+  Minimum (Cinnamon + n8n = 4 GB) blieb Brave beim Start hängen – das Fenster von „Agenten-Apps“ erschien nie.
+  Auf der Kommandozeile: `bonys-agents resources NAME [--cpus N] [--ram GB] [--restart]`.
+
 ## 0.24.1 – Kurspakete MCP-Server und n8n, Gast-Agent blockiert nicht mehr
 
 ### Neu

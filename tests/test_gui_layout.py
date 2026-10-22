@@ -253,7 +253,7 @@ def _dialogs(window, monkeypatch):
     from bonys_agents import host
     from bonys_agents.gui import (
         about_dialog, create_dialog, desktop_dialog, install_dialog, main_window, move_dialog, netz_dialog,
-        remote_panel, resize_dialog, setup_dialog, template_dialogs, updates_ui,
+        remote_panel, resize_dialog, resources_dialog, setup_dialog, template_dialogs, updates_ui,
     )
 
     # Nie wirklich installieren oder aktualisieren
@@ -293,6 +293,8 @@ def _dialogs(window, monkeypatch):
         "Einrichtung": lambda: setup_dialog.SetupDialog(info, window),
         "Verschieben": lambda: move_dialog.MoveDialog(m, window),
         "Festplatte": lambda: resize_dialog.ResizeDialog(m, window),
+        "Leistung ändern": lambda: resources_dialog.ResourcesDialog(m, info, False, window),
+        "Leistung ändern (läuft)": lambda: resources_dialog.ResourcesDialog(m, info, True, window),
         "Als Vorlage speichern": lambda: template_dialogs.SaveTemplateDialog(m, window),
         "Vorlagen": lambda: template_dialogs.TemplatesDialog(window),
         "Weitergeben": lambda: template_dialogs.ExportDialog(tpl, window),

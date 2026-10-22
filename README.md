@@ -263,6 +263,7 @@ bonys-agents upgrade mein-agent            # Agent-PC aktualisieren (--all = all
 bonys-agents update --check                # gibt es eine neue Version von Bony's Agents?
 bonys-agents update                        # … und installieren (fragt vorher)
 bonys-agents resize mein-agent 128        # Festplatte auf 128 GB vergrößern (ausgeschaltet)
+bonys-agents resources mein-agent --ram 6 --restart   # Arbeitsspeicher auf 6 GB (ohne Angaben: Werte + Empfehlung)
 bonys-agents delete mein-agent             # löschen
 ```
 

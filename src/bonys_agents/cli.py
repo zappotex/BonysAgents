@@ -439,6 +439,45 @@ def cmd_start(args) -> int:
     return 0
 
 
+def _ram_gb(text: str) -> int:
+    """argparse-Typ für Arbeitsspeicher in GB (auch 5,5 oder 5.5) – Ergebnis in MB, auf 512 MB gerundet."""
+    try:
+        gb = float(text.replace(",", "."))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{text}' ist keine Zahl (Arbeitsspeicher in GB, z. B. 6)") from None
+    return round(gb * 2) * 512
+
+
+def cmd_resources(args) -> int:
+    m = vm.get(args.name)
+    c = m.config
+    recommended = min(m.recommended_ram_mb(), host.detect().max_vm_ram_mb)
+    if args.cpus is None and args.ram is None:
+        print(f"'{m.name}': {c.cpus} Kerne, {desktops.format_ram(c.ram_mb)} RAM "
+              f"(empfohlen: {desktops.format_ram(recommended)}).")
+        return 0
+    cpus = c.cpus if args.cpus is None else args.cpus
+    ram_mb = c.ram_mb if args.ram is None else args.ram
+    running = m.is_running()
+    if running and not args.restart:
+        print(f"'{m.name}' läuft – zuerst herunterfahren oder mit --restart neu starten lassen.", file=sys.stderr)
+        return 1
+    if running:
+        print(f"'{m.name}' wird heruntergefahren …")
+        m.stop()
+    m.set_resources(cpus, ram_mb)
+    print(f"'{m.name}': {cpus} Kerne, {desktops.format_ram(ram_mb)} RAM.")
+    if ram_mb < recommended:
+        print(f"⚠ Weniger als empfohlen ({desktops.format_ram(recommended)}) – mit Browser, Docker und Agent "
+              "gleichzeitig kann es eng werden.")
+    if running:
+        m.start()
+        print(f"'{m.name}' neu gestartet.")
+    else:
+        print("Gilt ab dem nächsten Start.")
+    return 0
+
+
 def cmd_resize(args) -> int:
     m = vm.get(args.name)
     old = m.config.disk_gb
@@ -1473,6 +1512,13 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument("name")
     rs.add_argument("size", type=_disk_gb, metavar="GRÖSSE", help="Neue Größe in GB, z. B. 128")
     rs.set_defaults(func=cmd_resize)
+    rc = sub.add_parser("resources", help="CPU-Kerne und Arbeitsspeicher anzeigen oder ändern (ohne Angaben: "
+                                          "aktuelle Werte und Empfehlung)")
+    rc.add_argument("name")
+    rc.add_argument("--cpus", type=int, metavar="N", help="Anzahl CPU-Kerne")
+    rc.add_argument("--ram", type=_ram_gb, metavar="GB", help="Arbeitsspeicher in GB, z. B. 6")
+    rc.add_argument("--restart", action="store_true", help="Läuft der Agent-PC, ihn dafür neu starten")
+    rc.set_defaults(func=cmd_resources)
     dl = sub.add_parser("default-location", help="Standard-Speicherort anzeigen oder ändern")
     dl.add_argument("path", nargs="?", metavar="ORDNER")
     dl.add_argument("--reset", action="store_true", help="Zurück zum Hauptsystem")

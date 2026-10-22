@@ -259,6 +259,10 @@ In der Detailansicht findest du diese Knöpfe:
 | **Als Vorlage speichern …** | macht aus dem Agent-PC eine Vorlage (siehe Kapitel „Vorlagen“) |
 | **Löschen** | löscht den Agent-PC mit allen Dateien darin |
 
+Neben den Werten in der Detailansicht stehen kleine Knöpfe: **„Leistung ändern …“** beim Arbeitsspeicher (siehe
+„Programme hängen oder ein Fenster geht nicht auf“ unter „Häufige Fragen“) und **„Festplatte vergrößern …“** bei
+der Festplatte.
+
 Die Bildschirmgröße des Agent-PCs folgt dem Fenster: Zieh einfach am Fensterrand. Falls das einmal nicht klappt,
 kannst du unter **„Bildschirm“** eine feste Auflösung wählen. Das gilt ab dem nächsten Start.
 
@@ -841,6 +845,15 @@ Ohne Beschleunigung (unten in der Statuszeile steht „Beschleuniger: tcg“) da
 15 bis 60 Minuten sind normal. Steht der Fortschritt lange still, klicke auf **„Trotzdem anzeigen“** und schau
 in die Konsole. **„Einrichtungsprotokoll holen“** kopiert die Protokolle in den Ordner des Agent-PCs,
 **„Protokolle öffnen“** zeigt ihn.
+
+## Programme hängen oder ein Fenster geht nicht auf
+
+Meist ist der **Arbeitsspeicher** des Agent-PCs zu knapp – etwa wenn Brave, n8n und Hermes gleichzeitig laufen.
+Steht in der Detailansicht beim Arbeitsspeicher **„⚠ empfohlen: …“**, klicke daneben auf **„Leistung ändern …“**,
+dann auf **„Empfehlung übernehmen“** und **„Übernehmen und neu starten“**. Bony's Agents fährt den Agent-PC
+herunter und startet ihn mit mehr Arbeitsspeicher neu. Speichere vorher offene Dateien im Agent-PC.
+
+Hängt nur ein Programm, hilft oft schon: das Programm ganz schließen und noch einmal starten.
 
 ## Mein Agent-PC erscheint nicht im Bony-Netz
 

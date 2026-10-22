@@ -37,6 +37,7 @@ from .vpn_panel import VpnPanel
 from .move_dialog import MoveDialog
 from .netz_dialog import NetzDialog
 from .resize_dialog import ResizeDialog
+from .resources_dialog import ResourcesDialog
 from .setup_dialog import SetupDialog
 from .template_dialogs import FnWorker, SaveTemplateDialog, TemplatesDialog
 from .updates_ui import CheckWorker, UpdateBanner, UpgradeDialog, start_update
@@ -571,6 +572,9 @@ class MainWindow(QMainWindow):
         self.move_btn.setToolTip("Auf ein anderes Laufwerk oder in einen anderen Ordner verschieben (ausgeschaltet)")
         self.resize_btn = QPushButton("Festplatte vergrößern …")
         self.resize_btn.setToolTip("Nur im ausgeschalteten Zustand – vergrößern geht, verkleinern nicht")
+        self.resources_btn = QPushButton("Leistung ändern …")
+        self.resources_btn.setToolTip("CPU-Kerne und Arbeitsspeicher ändern – ein laufender Agent-PC wird dafür neu "
+                                      "gestartet")
         self.upgrade_btn = QPushButton("Agent-PC aktualisieren")
         self.upgrade_btn.setToolTip("System, Flatpak-Programme und KI-Werkzeuge im laufenden Agent-PC aktualisieren")
         self.template_btn = QPushButton("Als Vorlage speichern …")
@@ -596,8 +600,8 @@ class MainWindow(QMainWindow):
                                         "ansehen)")
         self.add_apps_btn = QPushButton("Programme hinzufügen …")
         self.add_apps_btn.setToolTip("Fehlende Programme oder KI-Werkzeuge nachinstallieren – der Agent-PC muss laufen")
-        for b in (self.move_btn, self.resize_btn, self.add_apps_btn, self.template_btn, self.independent_btn,
-                  self.add_desktop_btn):
+        for b in (self.move_btn, self.resize_btn, self.resources_btn, self.add_apps_btn, self.template_btn,
+                  self.independent_btn, self.add_desktop_btn):
             b.setObjectName("Small")
         for b in (self.start_btn, self.stop_btn, self.fullscreen_btn, self.ssh_btn, self.remote_btn, self.present_btn,
                   self.help_btn, self.upgrade_btn, self.template_btn, self.delete_btn):
@@ -682,7 +686,7 @@ class MainWindow(QMainWindow):
             if key == "Speicherort":
                 self.d_path = PathLabel()
                 cl.addWidget(self.d_path)
-            extra = {"Festplatte": self.resize_btn, "Speicherort": self.move_btn,
+            extra = {"RAM": self.resources_btn, "Festplatte": self.resize_btn, "Speicherort": self.move_btn,
                      "Programme": self.add_apps_btn, "Desktop": self.add_desktop_btn}.get(key)
             if extra:
                 br = FlowLayout()
@@ -805,6 +809,7 @@ class MainWindow(QMainWindow):
         self.wallpaper_btn.clicked.connect(lambda: self._update_wallpaper())
         self.move_btn.clicked.connect(self.move_vm)
         self.resize_btn.clicked.connect(self.resize_vm)
+        self.resources_btn.clicked.connect(self.change_resources)
         self.add_apps_btn.clicked.connect(lambda: self.add_apps())
         self.add_desktop_btn.clicked.connect(self.add_desktop)
         self.template_btn.clicked.connect(self.save_template)
@@ -1158,7 +1163,11 @@ class MainWindow(QMainWindow):
         self.d_status.setText(f"●  {shown}")
         self.d_status.setStyleSheet(f"color: {style.STATUS_COLORS.get(status, style.MUTED)};")
         self.d_fields["CPU"].setText(f"{c.cpus} Kerne")
-        self.d_fields["RAM"].setText(f"{c.ram_mb / 1024:.1f} GB")
+        ram_text = f"{c.ram_mb / 1024:.1f} GB"
+        recommended = min(m.recommended_ram_mb(), self.info.max_vm_ram_mb)
+        if c.ram_mb < recommended:
+            ram_text += f"\n⚠ empfohlen: {desktops.format_ram(recommended)}"
+        self.d_fields["RAM"].setText(ram_text)
         linked = m.is_linked()
         disk_text = f"{vm.format_gb(c.disk_gb)} (dynamisch)"
         if linked:
@@ -1205,6 +1214,8 @@ class MainWindow(QMainWindow):
         self.remote_btn.setEnabled(not busy and not stopping and (status in ("läuft", "gestoppt") or remote_on))
         self.move_btn.setEnabled(not running and not busy and not blocked)
         self.resize_btn.setEnabled(not running and not busy and not blocked and c.disk_gb < vm.MAX_DISK_GB)
+        self.resources_btn.setEnabled(not busy and not blocked and not stopping and not about_to_start
+                                      and m.progress().ready and not c.first_boot_pending)
         self.independent_btn.setVisible(linked)
         self.independent_btn.setEnabled(not running and not busy and not blocked)
         finished = m.progress().ready and not c.first_boot_pending
@@ -1727,6 +1738,41 @@ class MainWindow(QMainWindow):
             self.refresh()
             self.statusBar().showMessage(
                 f"Festplatte von „{m.name}“ ist jetzt {vm.format_gb(m.config.disk_gb)} groß.", 6000)
+
+    def change_resources(self) -> None:
+        """CPU/RAM ändern – läuft der Agent-PC, wird er heruntergefahren, geändert und wieder gestartet."""
+        m = self.current()
+        if not m:
+            return
+        running = m.is_running()
+        dlg = ResourcesDialog(m, self.info, running, self)
+        if not dlg.exec():
+            return
+        cpus, ram_mb = dlg.cpus, dlg.ram_mb
+        if not running:
+            try:
+                m.set_resources(cpus, ram_mb)
+            except Exception as e:  # noqa: BLE001 – Fehler gehen an die Oberfläche
+                QMessageBox.critical(self, APP_NAME, str(e))
+                return
+            self.refresh()
+            self.statusBar().showMessage(f"„{m.name}“: {cpus} Kerne, {desktops.format_ram(ram_mb)} RAM – "
+                                         "gilt ab dem nächsten Start.", 8000)
+            return
+        self._clear_notice()
+        m.mark_stopping()
+
+        def restart() -> None:
+            m.stop()
+            m.set_resources(cpus, ram_mb)
+            m.start()
+
+        w = TaskWorker(restart)
+        w.failed.connect(lambda msg: QMessageBox.critical(self, APP_NAME, msg))
+        w.finished.connect(lambda: (self.refresh(), w.error is None and self.statusBar().showMessage(
+            f"„{m.name}“ läuft jetzt mit {cpus} Kernen und {desktops.format_ram(ram_mb)} RAM.", 8000)))
+        self._keep(w)
+        self.refresh_detail()
 
     def import_vm(self) -> None:
         start = str(storage.preferred_library().parent)
