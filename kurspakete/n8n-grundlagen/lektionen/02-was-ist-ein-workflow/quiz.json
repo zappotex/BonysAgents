@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "Was ist ein Auslöser (Trigger) in n8n?",
+      "antworten": [
+        "Der Schritt, der den Workflow startet",
+        "Ein Fehler im Workflow",
+        "Der letzte Schritt, der das Ergebnis speichert"
+      ],
+      "richtig": 0,
+      "erklaerung": "Der Auslöser legt fest, wann der Workflow läuft – zum Beispiel, wenn im RSS-Feed etwas Neues steht."
+    },
+    {
+      "frage": "Wofür ist n8n besonders gut?",
+      "antworten": [
+        "Für Abläufe, die jedes Mal gleich und zuverlässig laufen sollen",
+        "Für freie Gespräche in natürlicher Sprache",
+        "Zum Bearbeiten von Fotos"
+      ],
+      "richtig": 0,
+      "erklaerung": "n8n ist planbar: gleicher Auslöser, gleiche Schritte. Sprache verstehen und selbst entscheiden kann Hermes."
+    }
+  ]
+}

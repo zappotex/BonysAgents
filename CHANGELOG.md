@@ -3,6 +3,18 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Neu
+- **Zwei neue Kurspakete** aus der Reihe „Agenten, MCP-Apps und n8n“ (je 90 Minuten, ab 0.24.0, als Kurs oder im
+  Selbstlern-Modus):
+  - **„Was ist ein MCP-Server? Hermes bekommt Werkzeuge“** – PdfCraft aus der Liste „Agenten-Apps“ installieren
+    (offizielle Quelle, Prüfsumme), mit `hermes mcp add` anmelden und Hermes Beispiel-PDFs zusammenfassen, drehen und
+    zusammenfügen lassen. Prüfaufgaben: PdfCraft angemeldet, zusammengefügte PDF mit beiden Rechnungen.
+  - **„n8n-Grundlagen: der erste Workflow“** – n8n öffnen, eigenen Telegram-Bot anlegen, Workflow „RSS Feed Trigger
+    → Telegram“ bauen, veröffentlichen und mit „Export JSON“ sichern. Die Prüfungen lesen aus der Datenbank von n8n
+    nur, ob ein Konto bzw. ein veröffentlichter Workflow mit diesen Knoten existiert – nie Zugangsdaten.
+
 ## 0.24.0 – n8n, Software-Center und Agenten-Apps
 
 ### Neu

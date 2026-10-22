@@ -1,0 +1,34 @@
+{
+  "fragen": [
+    {
+      "frage": "Du hast deinen veröffentlichten Workflow geändert und gespeichert. Was fehlt noch?",
+      "antworten": [
+        "Nichts – Speichern genügt",
+        "Erneut „Publish“, sonst läuft die alte Fassung weiter",
+        "Den Agent-PC neu starten"
+      ],
+      "richtig": 1,
+      "erklaerung": "In n8n läuft die veröffentlichte Fassung. Änderungen gelten erst nach dem nächsten „Publish“."
+    },
+    {
+      "frage": "Wie behandelst du den Token deines Telegram-Bots?",
+      "antworten": [
+        "Wie ein Passwort: nur in n8n eintragen, nie zeigen oder weitergeben",
+        "Ich poste ihn in den Kurs-Chat, damit andere helfen können",
+        "Er ist öffentlich, wie der Name des Bots"
+      ],
+      "richtig": 0,
+      "erklaerung": "Wer den Token hat, kann über deinen Bot schreiben. Ist er doch bekannt geworden: bei BotFather mit /revoke einen neuen erzeugen."
+    },
+    {
+      "frage": "Wie gibst du einen Workflow an jemand anderen weiter?",
+      "antworten": [
+        "Als Vorlage des ganzen Agent-PCs – n8n ist dann dabei",
+        "Mit „Export JSON“ als Datei; der andere trägt seine eigenen Zugangsdaten ein",
+        "Gar nicht"
+      ],
+      "richtig": 1,
+      "erklaerung": "Vorlagen enthalten n8n nicht (Lizenz). Die exportierte Datei enthält den Ablauf, aber keine Tokens."
+    }
+  ]
+}

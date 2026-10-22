@@ -19,6 +19,8 @@ from bonys_agents import kurslauf, kurspaket, signing
 ROOT = Path(__file__).resolve().parent.parent
 QUELLE = ROOT / "kurspakete"
 HERMES = QUELLE / "einfuehrung-hermes-agent"
+MCP = QUELLE / "was-ist-ein-mcp-server"
+N8N = QUELLE / "n8n-grundlagen"
 
 
 def _ordner() -> list[Path]:
@@ -36,8 +38,9 @@ def test_alle_gueltig_und_ohne_geheimnisse():
         for lek in p.lektionen:
             lek.quiz()
             assert lek.anleitung().strip()
-    assert "einfuehrung-hermes-agent" in ids and len(ids) == 6
-    assert sum(not kurspaket.laden(o).entwurf for o in _ordner()) == 1   # Hermes fertig, fünf Entwürfe
+    assert "einfuehrung-hermes-agent" in ids and len(ids) == 8
+    fertig = {kurspaket.laden(o).id for o in _ordner() if not kurspaket.laden(o).entwurf}
+    assert fertig == {"einfuehrung-hermes-agent", "was-ist-ein-mcp-server", "n8n-grundlagen"}   # dazu fünf Entwürfe
     assert {kurspaket.laden(o).stufe for o in _ordner()} == {"anfaenger", "fortgeschritten", "experte"}
 
 
@@ -93,6 +96,72 @@ def test_hermes_pruefskripte_in_einem_test_home(tmp_path):
     assert rc("bash", str(liste / "einkaufsliste.sh")) == 0
 
 
+def test_reihe_agenten_mcp_n8n():
+    """Kurs 1 und 3 der Reihe „Agenten, MCP-Apps und n8n“: brauchen 0.24.0 (n8n, Agenten-Apps), je 90 Minuten."""
+    mcp, n8n = kurspaket.laden(MCP), kurspaket.laden(N8N)
+    for p in (mcp, n8n):
+        assert p.min_version == "0.24.0" and p.dauer_minuten == 90
+        assert sum(lek.dauer_minuten for lek in p.lektionen) == 90
+    assert mcp.rezept.apps == ["brave", "hermes", "agenten-apps"] and n8n.rezept.apps == ["brave", "n8n"]
+    # n8n-Prüfungen lesen die Datenbank im Docker-Volume – das geht nur als root
+    assert {lek.pruefung.als for lek in n8n.lektionen if lek.pruefung and "n8n" in lek.pruefung.skript} == {"root"}
+    text = (N8N / "lektionen" / "05-erster-workflow" / "anleitung.md").read_text()
+    assert "Publish" in text and "RSS Feed Trigger" in text and "Execute step" in text
+    assert "Webseiten abrufen" not in "".join(p.read_text() for p in MCP.rglob("*.md"))   # Eintrag ausgesetzt
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Prüfskripte sind für Linux im Agent-PC")
+def test_reihe_pruefskripte_in_einem_test_home(tmp_path):
+    """Wie oben: Skripte in einem leeren Ordner als HOME. Die n8n-Datenbank gibt es hier nicht → „noch nicht“."""
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"}
+
+    def rc(*befehl) -> int:
+        return subprocess.run(list(befehl), env=env, cwd=tmp_path, capture_output=True, timeout=60).returncode
+
+    lek = MCP / "lektionen"
+    pdfcraft = lek / "04-pdfcraft-einrichten" / "pruefung" / "pdfcraft-eingerichtet.py"
+    assert rc(sys.executable, "-I", str(pdfcraft)) == 1
+    cli = home / ".local" / "bin" / "pdfcraft-cli"
+    cli.parent.mkdir(parents=True)
+    cli.write_text("#!/bin/sh\n")
+    cli.chmod(0o755)
+    (home / ".hermes").mkdir()
+    konfig = home / ".hermes" / "config.yaml"
+    konfig.write_text("model:\n  provider: nous\nmcp_servers:\n  gridcraft:\n    command: gridcraft-cli\n")
+    assert rc(sys.executable, "-I", str(pdfcraft)) == 1
+    konfig.write_text(konfig.read_text() + "  pdfcraft:\n    command: /x/pdfcraft-cli\n    args: [mcp]\nweiter: 1\n")
+    assert rc(sys.executable, "-I", str(pdfcraft)) == 0
+
+    start = lek / "02-kopf-ohne-haende" / "start" / "beispiel-pdfs.py"
+    assert (lek / "05-uebung-pdfs" / "start" / "beispiel-pdfs.py").read_bytes() == start.read_bytes()
+    assert rc(sys.executable, "-I", str(start)) == 0 and rc(sys.executable, "-I", str(start)) == 0
+    pdf = home / "Agent-Dateien" / "pdf"
+    assert sorted(p.name for p in pdf.iterdir()) == ["protokoll.pdf", "rechnung-april.pdf", "rechnung-maerz.pdf"]
+    assert all(p.read_bytes().startswith(b"%PDF-1.4") for p in pdf.iterdir())
+    gesamt = lek / "05-uebung-pdfs" / "pruefung"
+    assert rc(sys.executable, "-I", str(gesamt / "rechnungen-gesamt.py")) == 1
+    if shutil.which("pdfunite") and shutil.which("pdfinfo") and shutil.which("pdftotext"):
+        assert rc("bash", str(gesamt / "loesung.sh")) == 0
+        assert rc(sys.executable, "-I", str(gesamt / "rechnungen-gesamt.py")) == 0
+        (pdf / "rechnung-april.pdf").replace(pdf / "rechnungen-gesamt.pdf")   # nur eine Seite
+        assert rc(sys.executable, "-I", str(gesamt / "rechnungen-gesamt.py")) == 1
+
+    n8n = N8N / "lektionen"
+    assert rc(sys.executable, "-I", str(n8n / "03-n8n-oeffnen" / "pruefung" / "n8n-konto.py")) == 1
+    assert rc(sys.executable, "-I", str(n8n / "05-erster-workflow" / "pruefung" / "workflow-aktiv.py")) == 1
+    export = n8n / "07-sichern" / "pruefung"
+    assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 1
+    (home / "Downloads").mkdir()
+    (home / "Downloads" / "anderes.json").write_text('{"nodes": [{"type": "n8n-nodes-base.telegram"}]}')
+    assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 1
+    (home / "Downloads" / "anderes.json").unlink()
+    if shutil.which("bash"):
+        assert rc("bash", str(export / "loesung.sh")) == 0
+        assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 0
+
+
 @pytest.mark.kursleiter
 def test_statische_pruefung_wie_im_editor():
     from bonys_agents.trainer import kurspaket_editor as editor
@@ -115,7 +184,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
     m = _skript()
     bau = tmp_path / "bau"
     ordner = m.vorbereiten(bau)
-    assert len(ordner) == 6
+    assert len(ordner) == 8
     # ohne Signatur bricht es ab
     with pytest.raises(SystemExit, match="Signatur"):
         m.packen(bau, tmp_path / "out", public)
@@ -125,7 +194,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
                                            encoding="utf-8")
     index = m.packen(bau, tmp_path / "out", public)
     katalog = json.loads(index.read_text())
-    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 6
+    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 8
     hermes = next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent")
     assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.1.bonyspaket" and "entwurf" not in hermes
     datei = tmp_path / "out" / "einfuehrung-hermes-agent-1.0.1.bonyspaket"

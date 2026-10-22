@@ -1,0 +1,34 @@
+{
+  "fragen": [
+    {
+      "frage": "Von wo installierst du ein Programm aus der Liste?",
+      "antworten": [
+        "Von irgendeiner Seite, die die Suchmaschine zuerst zeigt",
+        "Von der offiziellen Quelle des Herstellers",
+        "Aus einem Forum, wenn dort jemand einen Link gepostet hat"
+      ],
+      "richtig": 1,
+      "erklaerung": "Nur die offizielle Quelle – die Liste nennt sie bei jedem Eintrag."
+    },
+    {
+      "frage": "Ein Programm hat den Status „alpha“. Was heißt das?",
+      "antworten": [
+        "Es ist das beste Programm der Liste",
+        "Es ist noch jung: zum Ausprobieren gut, wichtige Dateien vorher kopieren",
+        "Es kostet Geld"
+      ],
+      "richtig": 1,
+      "erklaerung": "Alpha-Programme können noch Fehler haben. Mit Kopien wichtiger Dateien bist du auf der sicheren Seite."
+    },
+    {
+      "frage": "Wozu dient die Prüfsumme?",
+      "antworten": [
+        "Sie zeigt, ob die heruntergeladene Datei unverändert ist",
+        "Sie zählt, wie oft das Programm benutzt wurde",
+        "Sie ist das Passwort für das Programm"
+      ],
+      "richtig": 0,
+      "erklaerung": "Die Prüfsumme ist ein Fingerabdruck der Datei. Stimmt sie, wurde unterwegs nichts verändert."
+    }
+  ]
+}

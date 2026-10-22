@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "Nach dem Herunterladen meldet die Prüfsumme „FEHLER“. Was tust du?",
+      "antworten": [
+        "Trotzdem weitermachen – wird schon passen",
+        "Aufhören, die Datei löschen und neu laden; bleibt der Fehler, Hilfe holen",
+        "Die Prüfsumme von Hand ändern"
+      ],
+      "richtig": 1,
+      "erklaerung": "Eine falsche Prüfsumme heißt: Die Datei ist nicht die, die der Hersteller veröffentlicht hat."
+    },
+    {
+      "frage": "Was bewirkt „--root …/Agent-Dateien/pdf“ beim MCP-Server?",
+      "antworten": [
+        "PdfCraft läuft mit Administratorrechten",
+        "PdfCraft darf nur in diesem Ordner lesen und speichern",
+        "PdfCraft speichert alles im Internet"
+      ],
+      "richtig": 1,
+      "erklaerung": "Der Agent bekommt nur den Ordner, den er für die Aufgabe braucht – nicht deinen ganzen Agent-PC."
+    }
+  ]
+}

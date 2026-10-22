@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "In welcher Reihenfolge bekommt Hermes ein neues Werkzeug?",
+      "antworten": [
+        "Installieren → Liste lesen → Anmelden",
+        "Liste lesen → Installieren (mit Prüfsumme) → Bei Hermes anmelden und neu starten",
+        "Anmelden → Installieren → Liste lesen"
+      ],
+      "richtig": 1,
+      "erklaerung": "Erst informieren, dann sauber installieren, dann bei Hermes anmelden – und Hermes neu starten."
+    },
+    {
+      "frage": "Hermes hat eine PDF bearbeitet und sagt „Fertig!“. Was tust du?",
+      "antworten": [
+        "Nichts – Hermes irrt sich nie",
+        "Die Datei öffnen und selbst prüfen",
+        "Hermes fragen, ob er sich sicher ist, und das glauben"
+      ],
+      "richtig": 1,
+      "erklaerung": "Der Mensch bleibt am Steuer: Ergebnisse immer selbst ansehen."
+    }
+  ]
+}

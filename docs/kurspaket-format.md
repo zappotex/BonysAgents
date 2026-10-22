@@ -320,8 +320,9 @@ den Einstellungen).
 ## Mitgelieferte Kurspakete
 
 Im Quellcode liegen sie im Ordner `kurspakete/` (im Programm unter `bonys_agents/resources/kurspakete`, beide
-Editionen): „Einführung in Hermes Agent“ (fertig, zugleich der Beispielkurs der Handbücher) und fünf Entwürfe
-(`"entwurf": true`). Jede Release-Aktion signiert sie (`packaging/kurspakete.py`) und hängt sie als `.bonyspaket`
+Editionen): „Einführung in Hermes Agent“ (fertig, zugleich der Beispielkurs der Handbücher), aus der Reihe
+„Agenten, MCP-Apps und n8n“ die fertigen Pakete „Was ist ein MCP-Server?“ und „n8n-Grundlagen“ (ab 0.24.0) sowie
+fünf Entwürfe (`"entwurf": true`). Jede Release-Aktion signiert sie (`packaging/kurspakete.py`) und hängt sie als `.bonyspaket`
 samt `kurspakete-index.json` an – die Vorlage für `index.json` im Repository unten.
 
 ## Kurspakete in Kursen
