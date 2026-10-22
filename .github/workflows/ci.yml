@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
         python: ["3.10", "3.13"]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -40,7 +40,7 @@ jobs:
   # Installationsschritt im Agent-PC (Debian 13, auch als Umstellung einer alten Fassung) und Knopf
   # „Bony's VPN installieren“ auf dem eigenen Rechner (Ubuntu).
   bonys-vpn:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
