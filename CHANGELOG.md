@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.24.1 – Kurspakete MCP-Server und n8n, Gast-Agent blockiert nicht mehr
 
 ### Neu
 - **Zwei neue Kurspakete** aus der Reihe „Agenten, MCP-Apps und n8n“ (je 90 Minuten, ab 0.24.0, als Kurs oder im
