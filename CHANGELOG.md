@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.25.0 – Kali Linux und Tor Browser
 
 ### Neu
 - **Kali Linux als Grundsystem:** Beim Erstellen unter „Grundlage“ gibt es jetzt „Neu installieren (Kali Linux)“
