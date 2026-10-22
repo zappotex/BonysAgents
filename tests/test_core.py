@@ -1939,3 +1939,28 @@ def test_third_party_versions_match_build_lock():
         line = next(ln for ln in third.splitlines() if ln.strip().startswith(row))
         assert pins[pkg] in line.split(), (pkg, pins[pkg], line)
     assert "--hash=sha256:" in lock and "PySide6-6.8.0.2-src" in third
+
+
+def _bis_eof(sock) -> bytes:
+    sock.settimeout(2)
+    daten = b""
+    while chunk := sock.recv(4096):
+        daten += chunk
+    return daten
+
+
+def test_steuerkanal_wird_bei_fehler_im_aufbau_geschlossen(monkeypatch):
+    """Antwortet der Gast-Agent nicht (QEMU bedient gerade einen anderen Client), muss die Verbindung sofort zu sein –
+    sonst nimmt QEMU sie später an und blockiert damit alle anderen (auch die App selbst)."""
+    import socket
+
+    for art in ("ga", "qmp"):
+        app, qemu_seite = socket.socketpair()
+        app.settimeout(0.2)
+        monkeypatch.setattr(qemu, "connect_local", lambda target, timeout, s=app: s)
+        with pytest.raises((qemu.GuestAgentError, OSError)):
+            qemu.GuestAgent("unix:/x", timeout=0.2) if art == "ga" else qemu.QMP("unix:/x", timeout=0.2)
+        assert app.fileno() == -1
+        gesendet = _bis_eof(qemu_seite)   # endet mit EOF: wirklich geschlossen, nicht nur vergessen
+        assert (b"guest-sync-delimited" in gesendet) if art == "ga" else gesendet == b""
+        qemu_seite.close()

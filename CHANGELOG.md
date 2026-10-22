@@ -15,6 +15,12 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
     → Telegram“ bauen, veröffentlichen und mit „Export JSON“ sichern. Die Prüfungen lesen aus der Datenbank von n8n
     nur, ob ein Konto bzw. ein veröffentlichter Workflow mit diesen Knoten existiert – nie Zugangsdaten.
 
+### Behoben
+- Ein Agent-PC war manchmal nicht mehr erreichbar („Der Gast-Agent antwortet nicht“), bis Bony's Agents geschlossen
+  wurde: Lief der Verbindungsaufbau zum Gast-Agent (oder zum QEMU-Monitor) in einen Timeout – etwa weil gleichzeitig
+  ein anderer Befehl lief –, blieb die halb aufgebaute Verbindung offen. QEMU nahm sie später an und blockierte damit
+  alle weiteren. Sie wird jetzt sofort geschlossen.
+
 ## 0.24.0 – n8n, Software-Center und Agenten-Apps
 
 ### Neu

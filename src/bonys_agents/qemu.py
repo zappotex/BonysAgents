@@ -701,13 +701,17 @@ class QMP:
 
     def __init__(self, target: int | str | None, timeout: float = 5.0):
         self.sock = connect_local(target, timeout)
-        self.file = self.sock.makefile("rwb")
-        self.text = isinstance(target, str) and target.startswith("tls:")
-        if self.text:
-            self._until_prompt()  # Begrüßung
-            return
-        self._read()  # Begrüßung
-        self.execute("qmp_capabilities")
+        try:
+            self.file = self.sock.makefile("rwb")
+            self.text = isinstance(target, str) and target.startswith("tls:")
+            if self.text:
+                self._until_prompt()  # Begrüßung
+                return
+            self._read()  # Begrüßung
+            self.execute("qmp_capabilities")
+        except BaseException:
+            _schliessen(self)
+            raise
 
     def _until_prompt(self) -> str:
         buf = b""
@@ -792,6 +796,19 @@ class QMP:
         self.close()
 
 
+def _schliessen(client) -> None:
+    """Verbindung eines halb aufgebauten Clients schließen – erst die Datei aus makefile(), sonst bleibt der
+    Socket offen."""
+    file = getattr(client, "file", None)
+    try:
+        if file is not None:
+            file.close()
+    except OSError:
+        pass
+    finally:
+        client.sock.close()
+
+
 # ---------------------------------------------------------------- QEMU Guest Agent
 GUEST_AGENT_CHANNEL = "org.qemu.guest_agent.0"
 
@@ -806,10 +823,18 @@ class GuestAgent:
     def __init__(self, target: int | str | None, timeout: float = 5.0):
         try:
             self.sock = connect_local(target, timeout)
-            self.file = self.sock.makefile("rwb")
-            self._sync()
         except (OSError, ValueError) as e:
             raise GuestAgentError(f"Gast-Agent nicht erreichbar ({e})") from None
+        try:
+            self.file = self.sock.makefile("rwb")
+            self._sync()
+        except BaseException as e:
+            # Sofort schließen: QEMU nimmt immer nur eine Verbindung an. Bleibt diese offen (z. B. nach einem Timeout,
+            # weil gerade ein anderer Client verbunden war), nimmt QEMU sie später an – und blockiert alle anderen.
+            _schliessen(self)
+            if isinstance(e, (OSError, ValueError)):
+                raise GuestAgentError(f"Gast-Agent nicht erreichbar ({e})") from None
+            raise
 
     def _send(self, command: str, **arguments) -> None:
         payload = {"execute": command}
