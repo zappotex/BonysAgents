@@ -186,6 +186,8 @@ class CreateDialog(QDialog):
             # nur mit
             if a.category != apps.PROGRAM or a.hidden or a.id in (vpnlink.APP_ID, mission_control.APP_ID, n8n.APP_ID):
                 continue
+            if not a.available(info.arch):   # z. B. Tor Browser nur x86_64
+                continue
             cb = QCheckBox(a.name)
             cb.setChecked(a.default)
             cb.setToolTip(a.description)

@@ -5,6 +5,13 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 
 ## Unveröffentlicht
 
+### Neu
+- **Tor Browser** als App (standardmäßig aus, auch über „Programme hinzufügen …“): Debian-Paket
+  `torbrowser-launcher` (dafür wird die Komponente „contrib“ eingeschaltet); es lädt beim ersten Start den
+  offiziellen Tor Browser von torproject.org und prüft die Signatur. Nur x86_64 – das Tor Project baut für Linux
+  kein ARM64; Apps können dafür jetzt auf Architekturen beschränkt werden (im Dialog dann nicht angeboten,
+  Kommandozeile mit klarer Meldung).
+
 ### Behoben
 - **Selbsttest** (`bonys-agents selftest`): Ließ sich das Test-QEMU nicht binnen 10 Sekunden beenden (langsame
   Rechner, z. B. Mac ohne Hardware-Virtualisierung), brach der Selbsttest mit einem Python-Fehler ab, statt sein

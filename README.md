@@ -59,6 +59,7 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Schulungen: Vorlagen als eine `.bonys`-Datei weitergeben – mit Frisch-Prüfung auf Geheimnisse, ohne nicht weitergebbare Programme, mit Prüfsumme (siehe „Schulungen: Agent-PCs weitergeben“)
 - **[Bony's VPN](https://github.com/zappotex/bonys-vpn)** (eigenes Projekt): eigene WireGuard-Tunnel im Agent-PC und auf dem eigenen Linux-Rechner, mit Kill-Switch (siehe „VPN“)
 - Optional **Obsidian** für Notizen im Agent-PC (siehe „Obsidian“)
+- Optional **Tor Browser** (nur x86_64): Debian-Starter `torbrowser-launcher` lädt den offiziellen Tor Browser und prüft die Signatur
 - Optional **[Mission Control](https://github.com/zappotex/bonys-agents-mission-control)** (eigenes Projekt):
   Übersicht und Steuerzentrale für deine Agenten im Browser, läuft mit Docker nur im Agent-PC (siehe „Mission Control“)
 - Weitere Programme lassen sich als kleines Modul ergänzen (siehe `src/bonys_agents/apps.py`)

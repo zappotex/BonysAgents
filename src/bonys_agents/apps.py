@@ -46,6 +46,11 @@ class AppSpec:
     uninstall: str = ""
     # Gibt die installierte Version aus (läuft als $AGENT_USER, erste Zeile zählt) – fürs Manifest
     version: str = ""
+    # Nur für diese Architekturen des Agent-PCs ("x86_64", "aarch64"); leer = überall
+    archs: tuple[str, ...] = ()
+
+    def available(self, arch: str) -> bool:
+        return not self.archs or arch in self.archs
 
 
 # Ordner im PATH des Agent-Benutzers ergänzen – in ~/.bashrc (Terminal) und ~/.profile (Anmeldung).
@@ -452,6 +457,36 @@ cp /usr/share/applications/org.gnome.Software.desktop "$DESKTOP_DIR/"
 )
 
 
+# Tor Browser: Debian-Paket torbrowser-launcher (Komponente „contrib“, wird dafür eingeschaltet). Es lädt beim ersten
+# Start den offiziellen Tor Browser von torproject.org und prüft dessen Signatur; Updates macht der Tor Browser selbst.
+# Das Tor Project baut für Linux nur x86_64 (kein ARM64) – daher nicht auf Macs mit Apple-Chip.
+TOR_BROWSER = AppSpec(
+    id="tor-browser",
+    name="Tor Browser",
+    description="Anonymer surfen über das Tor-Netz (offizieller Tor Browser, Signatur geprüft) – nur x86_64",
+    default=False,
+    weight=3.0,
+    archs=("x86_64",),
+    check="command -v torbrowser-launcher",
+    launcher="torbrowser.desktop",
+    version="dpkg-query -W -f='${Version}' torbrowser-launcher",
+    install=r"""
+if [ "$(dpkg --print-architecture)" != amd64 ]; then
+  echo "Den Tor Browser gibt es für Linux nur auf x86_64 (amd64)." >&2; exit 1
+fi
+for f in /etc/apt/sources.list.d/debian.sources; do
+  [ -f "$f" ] && sed -i -E '/^Components:/{/contrib/!s/$/ contrib/}' "$f"
+done
+if [ -f /etc/apt/sources.list ]; then
+  sed -i -E '/^deb .*debian/{/contrib/!s/ main( |$)/ main contrib\1/}' /etc/apt/sources.list
+fi
+apt-get update
+apt-get install -y torbrowser-launcher
+cp /usr/share/applications/torbrowser.desktop "$DESKTOP_DIR/"
+""",
+)
+
+
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
@@ -598,7 +633,7 @@ N8N = _n8n()
 # Nach n8n: Die Seite zeigt unter „Schon dabei“ nur, was wirklich installiert ist
 AGENTEN_APPS = _agenten_apps()
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, SOFTWARE_CENTER, VPN, DOCKER,
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, SOFTWARE_CENTER, TOR_BROWSER, VPN, DOCKER,
                                                MISSION_CONTROL, N8N, HERMES, OPENCLAW, CLAUDE_CODE,
                                                AGENTEN_APPS)}
 
@@ -643,6 +678,13 @@ def with_dependencies(app_ids: list[str] | tuple[str, ...]) -> list[str]:
 def required_by(app_id: str, app_ids: list[str] | tuple[str, ...]) -> list[str]:
     """Welche der ``app_ids`` brauchen ``app_id`` (direkt oder indirekt)?"""
     return [i for i in app_ids if i != app_id and i in APPS and app_id in dependencies([i])]
+
+
+def check_arch(app_ids: list[str] | tuple[str, ...], arch: str) -> None:
+    """Fehler, wenn eine der Apps (samt Abhängigkeiten) auf dieser Architektur nicht geht."""
+    bad = [APPS[i].name for i in with_dependencies(list(app_ids)) if i in APPS and not APPS[i].available(arch)]
+    if bad:
+        raise ValueError(f"Nicht verfügbar auf {arch}: {', '.join(bad)}.")
 
 
 def resolve(app_ids: list[str]) -> list[AppSpec]:

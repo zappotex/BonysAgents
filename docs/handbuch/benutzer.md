@@ -436,6 +436,24 @@ das dauert eine Minute.
 
 ![Das Software-Center im Agent-PC](bilder/software-center.png){width=75%}
 
+## Tor Browser
+
+Der **Tor Browser** (standardmäßig aus, beim Erstellen oder über „Programme hinzufügen …“) leitet deine
+Verbindungen über das **Tor-Netz**. Webseiten sehen dann nicht deine IP-Adresse, sondern die eines Tor-Rechners
+irgendwo auf der Welt. Beim ersten Start lädt er den offiziellen Tor Browser von torproject.org herunter und prüft
+dessen Signatur – das dauert eine Minute. Danach klickst du auf **„Verbinden“**.
+
+Zusammen mit dem Agent-PC heißt das: Was du im Tor Browser machst, bleibt im Agent-PC und berührt deinen eigenen
+Rechner nicht. **Ganz anonym bist du damit trotzdem nicht** – der Agent-PC läuft auf deinem Rechner, und wer sich
+mit Namen anmeldet, ist erkennbar. Der Tor Browser weist selbst darauf hin, dass einige seiner Schutzfunktionen
+auf diesem System schwächer sein können. Für echte Anonymität empfiehlt das Tor Project Tails auf einem
+USB-Stick.
+
+::: hinweis
+Den Tor Browser gibt es für Linux nur auf **x86_64**. Auf einem Mac mit Apple-Chip steht er deshalb nicht zur
+Auswahl.
+:::
+
 Updates holt das Software-Center nicht selbst – das macht **„Agent-PC aktualisieren“** in Bony's Agents.
 
 ## n8n

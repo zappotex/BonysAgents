@@ -701,6 +701,23 @@ def test_set_resources_and_recommendation(datadir, monkeypatch):
     assert vm.get(m.name).config.ram_mb == 5632
 
 
+def test_tor_browser_only_on_x86_64(datadir, monkeypatch):
+    tor = apps.APPS["tor-browser"]
+    assert not tor.default and tor.available("x86_64") and not tor.available("aarch64")
+    assert "contrib" in tor.install and "torbrowser-launcher" in tor.install
+    m = _fake_vm(datadir)  # x86_64
+    assert "tor-browser" in [a.id for a in m.missing_apps()]
+    assert m.install_plan(["tor-browser"]) == ["tor-browser"]
+    m.config.arch = "aarch64"
+    assert "tor-browser" not in [a.id for a in m.missing_apps()]
+    with pytest.raises(ValueError, match="Tor Browser"):
+        m.install_plan(["tor-browser"])
+    arm = host.HostInfo(os="macos", arch="aarch64", cpus=8, ram_mb=16384, accel="hvf")
+    monkeypatch.setattr(vm.host, "detect", lambda: arm)
+    with pytest.raises(ValueError, match="Nicht verfügbar auf aarch64"):
+        vm.create("tor-arm", "pw1234", app_ids=["brave", "tor-browser"])
+
+
 def test_guest_grows_root_partition_on_every_boot():
     script = cloudinit.provision_script(_guest())
     assert "cloud-guest-utils" in script
@@ -726,8 +743,9 @@ def test_ai_tool_specs():
     for app_id, name in (("openclaw", "OpenClaw"), ("claude-code", "Claude Code"), ("hermes", "Hermes Agent")):
         spec = apps.APPS[app_id]
         assert spec.name == name and spec.category == apps.AGENT
-    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "software-center", "vpn",
-                                                  "docker", "mission-control", "n8n", "agenten-apps"]
+    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "software-center",
+                                                  "tor-browser", "vpn", "docker", "mission-control", "n8n",
+                                                  "agenten-apps"]
     # KI-Werkzeuge außer Hermes nur auf Wunsch
     assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "software-center", "n8n", "hermes", "agenten-apps"]
 

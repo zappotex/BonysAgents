@@ -1200,11 +1200,13 @@ class VM:
 
     def missing_apps(self) -> list[apps.AppSpec]:
         """Apps, die man noch hinzufügen kann (ohne reine Bausteine wie Docker – die kommen automatisch mit)."""
-        return [a for a in apps.APPS.values() if a.id not in self.config.apps and not a.hidden]
+        return [a for a in apps.APPS.values()
+                if a.id not in self.config.apps and not a.hidden and a.available(self.config.arch)]
 
     def install_plan(self, app_ids: list[str]) -> list[str]:
         """Was „Programme hinzufügen“ für ``app_ids`` tatsächlich installiert: samt Abhängigkeiten, ohne Vorhandenes."""
         apps.resolve(app_ids)  # unbekannte IDs melden
+        apps.check_arch(app_ids, self.config.arch)
         return [i for i in apps.with_dependencies(app_ids) if i not in self.config.apps]
 
     def install_apps(self, app_ids: list[str], password: str | None = None, ssh_prompt: bool = False,
@@ -1899,6 +1901,7 @@ def create(
     if vpn and vpnlink.APP_ID not in app_ids:
         app_ids.append(vpnlink.APP_ID)  # die Konfiguration braucht Bony's VPN im Agent-PC
     app_specs = apps.resolve(app_ids)
+    apps.check_arch(app_ids, info.arch)
     qemu_img = qemu.find_binary("qemu-img", info.os)
     qemu.find_binary(qemu.ARCH_BINARY[info.arch], info.os)  # früh prüfen
 
