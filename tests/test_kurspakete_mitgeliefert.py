@@ -156,6 +156,8 @@ def test_reihe_pruefskripte_in_einem_test_home(tmp_path):
     (home / "Downloads").mkdir()
     (home / "Downloads" / "anderes.json").write_text('{"nodes": [{"type": "n8n-nodes-base.telegram"}]}')
     assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 1
+    (home / "Downloads" / "anderes.json").write_text('[{"nodes": [{"type": "n8n-nodes-base.rssFeedReadTrigger"}]}]')
+    assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 0   # Liste wie bei export:workflow
     (home / "Downloads" / "anderes.json").unlink()
     if shutil.which("bash"):
         assert rc("bash", str(export / "loesung.sh")) == 0

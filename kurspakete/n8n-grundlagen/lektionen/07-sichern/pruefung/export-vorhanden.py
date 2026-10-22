@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Prüfung: Im Download-Ordner liegt ein aus n8n exportierter Workflow (.json) mit „RSS Feed Trigger“.
+# Prüfung: Im Download-Ordner liegt ein aus n8n exportierter Workflow (.json) mit „RSS Feed Trigger“ – einzeln
+# („Export JSON“) oder als Liste (n8n export:workflow).
 # Gibt nichts aus: Exit 0 = geschafft, 1 = noch nicht.
 import json
 import pathlib
@@ -21,8 +22,9 @@ for o in ordner:
             daten = json.loads(datei.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        knoten = daten.get("nodes") if isinstance(daten, dict) else None
-        if isinstance(knoten, list) and any(isinstance(k, dict) and k.get("type") == "n8n-nodes-base.rssFeedReadTrigger"
-                                            for k in knoten):
-            sys.exit(0)
+        for wf in daten if isinstance(daten, list) else [daten]:
+            knoten = wf.get("nodes") if isinstance(wf, dict) else None
+            typen = {k.get("type") for k in knoten if isinstance(k, dict)} if isinstance(knoten, list) else set()
+            if "n8n-nodes-base.rssFeedReadTrigger" in typen:
+                sys.exit(0)
 sys.exit(1)
