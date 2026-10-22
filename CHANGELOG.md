@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.24.2 – Leistung ändern: mehr Arbeitsspeicher per Klick
 
 ### Neu
 - **Leistung ändern …** (beim Arbeitsspeicher eines Agent-PCs): CPU-Kerne und Arbeitsspeicher lassen sich jetzt auch
