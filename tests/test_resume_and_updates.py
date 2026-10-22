@@ -152,6 +152,29 @@ def test_selftest_command(monkeypatch, capsys):
     assert "OK" in out and "FEHLER" in out and "Ergebnis: FEHLER" in out
 
 
+def test_selftest_survives_slow_qemu_exit():
+    """macOS-Runner ohne HVF (Release 0.24.2): QEMU war nach kill() nicht binnen 10 s weg → TimeoutExpired, Absturz."""
+    import subprocess
+
+    from bonys_agents import selftest
+
+    class Langsam:
+        killed = False
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, timeout=None):
+            raise subprocess.TimeoutExpired("qemu", timeout)
+
+    p = Langsam()
+    selftest._stop(p, timeout=0.1)
+    assert p.killed
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="echtes QEMU nur unter Linux im Test")
 def test_selftest_real_qemu_if_installed():
     from bonys_agents import qemu, selftest

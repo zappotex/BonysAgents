@@ -34,6 +34,17 @@ def _tail(text: str, lines: int = 6) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
+def _stop(proc: subprocess.Popen, timeout: float = 30) -> None:
+    """Test-QEMU beenden. Ist es nach ``timeout`` noch nicht weg (langsame Rechner, z. B. macOS-Runner ohne HVF),
+    nicht abstürzen – das Ergebnis der Prüfung steht schon fest, der Prozess verschwindet von selbst."""
+    if proc.poll() is None:
+        proc.kill()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
+
+
 def check_environment() -> Check:
     """Bekommen externe Programme die Umgebung ohne die Bibliothekspfade des Programmordners?"""
     if not procutil.is_frozen():
@@ -111,9 +122,7 @@ def check_seed_iso(qemu_bin: Path, qemu_img: Path | None, workdir: Path) -> list
                 ok = any(Path(f).name == iso.name for f in files)
                 checks.append(Check(name, ok, "eingebunden" if ok else f"nicht eingebunden: {files}"))
         finally:
-            if proc.poll() is None:
-                proc.kill()
-            proc.wait(timeout=10)
+            _stop(proc)
     return checks
 
 
@@ -163,9 +172,7 @@ def check_boot(info: host.HostInfo, qemu_bin: Path, qemu_img: Path, workdir: Pat
             detail = f"läuft ({status}) – {'Firmware ' + str(firmware) if firmware else 'BIOS von QEMU'}"
             return Check(name, status == "running", detail)
         finally:
-            if proc.poll() is None:
-                proc.kill()
-            proc.wait(timeout=10)
+            _stop(proc)
 
 
 def check_qt() -> Check:
@@ -221,7 +228,8 @@ def run(log: Callable[[Check], None] | None = None, include_qt: bool = True, boo
         add(check_version(binaries[name]))
     qemu_bin = binaries.get(qemu.ARCH_BINARY[info.arch])
     if qemu_bin:
-        with tempfile.TemporaryDirectory(prefix="bonys-selbsttest-") as tmp:
+        # ignore_cleanup_errors: ein noch nicht beendetes QEMU kann unter Windows Dateien festhalten
+        with tempfile.TemporaryDirectory(prefix="bonys-selbsttest-", ignore_cleanup_errors=True) as tmp:
             for c in check_seed_iso(qemu_bin, binaries.get("qemu-img"), Path(tmp)):
                 add(c)
             if boot and binaries.get("qemu-img"):

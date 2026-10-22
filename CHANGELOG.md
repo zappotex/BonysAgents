@@ -3,6 +3,14 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Behoben
+- **Selbsttest** (`bonys-agents selftest`): Ließ sich das Test-QEMU nicht binnen 10 Sekunden beenden (langsame
+  Rechner, z. B. Mac ohne Hardware-Virtualisierung), brach der Selbsttest mit einem Python-Fehler ab, statt sein
+  Ergebnis zu melden. Er wartet jetzt bis zu 30 Sekunden und macht danach trotzdem weiter. Das hat den Release-Lauf
+  von 0.24.2 einmal aufgehalten.
+
 ## 0.24.2 – Leistung ändern: mehr Arbeitsspeicher per Klick
 
 ### Neu
