@@ -604,7 +604,7 @@ def test_create_mit_netz(datadir, angemeldet, monkeypatch, tmp_path):
 
     base = tmp_path / "base.img"
     base.write_bytes(b"img")
-    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None: base)
+    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None, qemu_img=None: base)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(vm.qemu, "create_disk", lambda qi, b, disk, gb: disk.write_bytes(b"disk"))
     messages = []

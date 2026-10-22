@@ -41,7 +41,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from bonys_agents import __version__, apps, desktops, storage, vm
+from bonys_agents import __version__, apps, desktops, distros, storage, vm
 
 SUFFIX = ".bonyspaket"
 FORMAT_ID = "bonys-agents-kurspaket"
@@ -302,6 +302,7 @@ class Rezept:
     name: str = ""                 # Vorschlag für den Namen des Agent-PCs, z. B. „agent-kurs“
     desktop: str = desktops.DEFAULT
     apps: list[str] = field(default_factory=list)
+    distro: str = distros.DEFAULT  # Grundsystem: „debian“ oder „kali“
     ram_mb: int | None = None
     cpus: int | None = None
     disk_gb: int | None = None
@@ -316,6 +317,7 @@ class Rezept:
         return {
             "app_ids": [a for a in self.apps if a in apps.APPS and not apps.APPS[a].hidden],
             "desktop": self.desktop,
+            "distro": self.distro,
             "username": self.username,
             "keyboard": self.keyboard,
             "timezone_name": self.timezone,
@@ -481,7 +483,12 @@ def _rezept(d: object) -> Rezept:
         d = {}
     if not isinstance(d, dict):
         raise PaketFehler(f"{wo}: „rezept“ muss ein Objekt sein.")
-    desktop = _feld(d, "desktop", wo, standard=desktops.DEFAULT)
+    distro = _feld(d, "distro", wo, standard=distros.DEFAULT)
+    if distro not in distros.DISTROS:
+        raise PaketFehler(f"{wo}: unbekanntes Grundsystem „{distro}“ (bekannt: {', '.join(distros.DISTROS)}) – "
+                          "vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
+    # Ohne Angabe: der Standard-Desktop des Grundsystems (Kali: Xfce)
+    desktop = _feld(d, "desktop", wo, standard=(distros.get(distro).desktops or (desktops.DEFAULT,))[0])
     if desktop not in desktops.DESKTOPS:
         raise PaketFehler(f"{wo}: unbekannter Desktop „{desktop}“ (bekannt: {', '.join(desktops.DESKTOPS)}) – "
                           "vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
@@ -508,7 +515,7 @@ def _rezept(d: object) -> Rezept:
     if sha and not _HEX64.match(sha):
         raise PaketFehler(f"{wo}: „vorlage_sha256“ muss eine SHA-256-Prüfsumme (64 Hex-Zeichen) sein.")
     return Rezept(
-        name=name, desktop=desktop, apps=list(dict.fromkeys(app_liste)),
+        name=name, desktop=desktop, apps=list(dict.fromkeys(app_liste)), distro=distro,
         ram_mb=_zahl(d, "ram_mb", wo, minimum=1024, maximum=262144, standard=0) or None,
         cpus=_zahl(d, "cpus", wo, minimum=1, maximum=64, standard=0) or None,
         disk_gb=_zahl(d, "disk_gb", wo, minimum=vm.MIN_DISK_GB, maximum=vm.MAX_DISK_GB, standard=0) or None,
@@ -695,6 +702,8 @@ def paket_json(paket: Kurspaket) -> dict:
     if r.name:
         rezept["name"] = r.name
     rezept["desktop"] = r.desktop
+    if r.distro != standard.distro:
+        rezept["distro"] = r.distro
     if r.apps:
         rezept["apps"] = list(r.apps)
     for key in ("ram_mb", "cpus", "disk_gb"):

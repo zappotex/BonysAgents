@@ -198,7 +198,8 @@ Klicke auf **„+ Neuer Agent-PC“**. Es öffnet sich dieses Fenster:
 ![Neuer Agent-PC: oberer Teil](bilder/neuer-agent-pc.png){width=75%}
 
 1. **Grundlage** ①: Lass „Neu installieren (Debian 13)“ stehen. (Wenn du später Vorlagen hast, kannst du hier
-   eine auswählen – dann ist der Agent-PC in Sekunden fertig.)
+   eine auswählen – dann ist der Agent-PC in Sekunden fertig. Für Sicherheitskurse gibt es außerdem
+   „Neu installieren (Kali Linux)“, siehe Kapitel „Kali Linux“.)
 2. **Name** ②: zum Beispiel `agent-buero`. Erlaubt sind Buchstaben, Ziffern, Bindestrich und Unterstrich,
    höchstens 40 Zeichen, ohne Leerzeichen.
 3. **Benutzer**: Lass `agent` stehen.
@@ -455,6 +456,35 @@ Auswahl.
 :::
 
 Updates holt das Software-Center nicht selbst – das macht **„Agent-PC aktualisieren“** in Bony's Agents.
+
+## Kali Linux
+
+Statt Debian 13 kann ein Agent-PC auch **Kali Linux** als Grundsystem haben – die bekannte Linux-Sammlung für
+Sicherheitstests. Wähle dafür beim Erstellen unter **Grundlage** „Neu installieren (Kali Linux)“. Bony's Agents lädt
+dann das offizielle Kali-Abbild von kali.download, prüft seine Prüfsumme und richtet es genauso ein wie sonst:
+Sprache, Desktop, Brave, Hermes und die anderen Programme.
+
+Dazu kommen die **Kali-Werkzeuge** (schon angehakt): die zehn bekanntesten, darunter **nmap**, **Metasploit**,
+**Burp Suite**, **Wireshark**, **John the Ripper**, **Hydra** und **sqlmap**. Du findest sie im Startmenü oben
+links unter den Kali-Kategorien. Wireshark darf ohne Administrator-Passwort mitschneiden.
+
+Damit lernst du im Agent-PC, wie Angriffe funktionieren – getrennt von deinem eigenen Rechner. Für Kurse ist das
+ideal: Jeder Teilnehmer hat sein eigenes Kali, und nach einer Übung setzt du es mit einem Startzustand zurück.
+
+::: warnung
+Setze die Kali-Werkzeuge **nur gegen eigene Rechner oder solche ein, für die du eine ausdrückliche Erlaubnis
+hast**. Fremde Systeme ohne Erlaubnis anzugreifen, ist strafbar – auch „nur zum Ausprobieren“.
+:::
+
+Gut zu wissen:
+
+- Kali gibt es als Agent-PC nur auf **x86_64** und nur mit dem Desktop **Xfce** (so geprüft). Auf einem Mac mit
+  Apple-Chip steht es nicht zur Auswahl.
+- Gib dem Agent-PC mindestens **6 GB Arbeitsspeicher**, wenn du Metasploit und Burp Suite gleichzeitig nutzt.
+- Die Einrichtung dauert etwas länger als bei Debian: Am Ende stellt Bony's Agents Kali auf den normalen Kernel mit
+  Grafiktreibern um (das Cloud-Abbild bringt einen Kernel ohne Grafik mit).
+- Kali veröffentlicht für seine Cloud-Abbilder nur Prüfsummen und keine Signatur. Bony's Agents lädt deshalb nur
+  über eine verschlüsselte Verbindung direkt von kali.download.
 
 ## n8n
 

@@ -133,7 +133,7 @@ def test_create_validates_input(datadir):
 def test_create_builds_vm(datadir, monkeypatch, tmp_path):
     base = tmp_path / "base.img"
     base.write_bytes(b"img")
-    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None: base)
+    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None, qemu_img=None: base)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(vm.qemu, "create_disk", lambda qi, b, disk, gb: disk.write_bytes(b"disk"))
     steps = []
@@ -363,7 +363,7 @@ def test_aarch64_firmware_from_homebrew_cellar(tmp_path):
 def _fake_create(monkeypatch, tmp_path):
     base = tmp_path / "base.img"
     base.write_bytes(b"img")
-    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None: base)
+    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None, qemu_img=None: base)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(vm.qemu, "create_disk", lambda qi, b, disk, gb: disk.write_bytes(b"disk" * 1000))
     monkeypatch.setattr(vm.qemu, "check_disk", lambda qi, disk: None)  # „/bin/true“ gibt es nicht überall
@@ -744,8 +744,8 @@ def test_ai_tool_specs():
         spec = apps.APPS[app_id]
         assert spec.name == name and spec.category == apps.AGENT
     assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "software-center",
-                                                  "tor-browser", "vpn", "docker", "mission-control", "n8n",
-                                                  "agenten-apps"]
+                                                  "tor-browser", "kali-tools", "vpn", "docker", "mission-control",
+                                                  "n8n", "agenten-apps"]
     # KI-Werkzeuge außer Hermes nur auf Wunsch
     assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "software-center", "n8n", "hermes", "agenten-apps"]
 

@@ -6,6 +6,19 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 ## Unveröffentlicht
 
 ### Neu
+- **Kali Linux als Grundsystem:** Beim Erstellen unter „Grundlage“ gibt es jetzt „Neu installieren (Kali Linux)“
+  (Kommandozeile: `bonys-agents create NAME --distro kali`). Bony's Agents lädt das aktuelle offizielle
+  Cloud-Abbild von kali.download, prüft die SHA256-Prüfsumme (Kali signiert die Cloud-Abbilder nicht), entpackt und
+  wandelt es in qcow2 um und richtet es wie gewohnt ein. Eigene Schritte für Kali: Die automatische root-Anmeldung
+  des Abbilds (Bildschirm und serielle Konsole) wird abgeschaltet, und am Ende kommt der normale Kernel mit
+  Grafiktreibern statt des Cloud-Kernels (alle Kernelteile von Kali, sonst startete GRUB einen Kernel ohne Module).
+  Neue App **Kali-Werkzeuge** (nur unter Kali, dort vorausgewählt): `kali-tools-top10` mit Kali-Menü, Wireshark
+  ohne root. Nur x86_64 und Xfce – so geprüft; „Desktop hinzufügen“ gibt es für Kali-PCs deshalb nicht. Apps
+  können jetzt auch auf Grundsysteme beschränkt werden. Vorlagen, `.bonys`-Dateien und Kurspaket-Rezepte
+  (`"distro": "kali"`) merken sich das Grundsystem. Unter Kali geprüft: alle Apps (Docker nimmt dort den
+  Debian-Zweig „trixie“ der Docker-Paketquelle, wie in der Kali-Anleitung).
+- **Tor Browser:** Das Symbol auf dem Schreibtisch fehlte mit neueren Fassungen von `torbrowser-launcher` (z. B.
+  unter Kali), weil deren Startdatei `org.torproject.torbrowser-launcher.desktop` heißt – beide Namen gehen jetzt.
 - **Tor Browser** als App (standardmäßig aus, auch über „Programme hinzufügen …“): Debian-Paket
   `torbrowser-launcher` (dafür wird die Komponente „contrib“ eingeschaltet); es lädt beim ersten Start den
   offiziellen Tor Browser von torproject.org und prüft die Signatur. Nur x86_64 – das Tor Project baut für Linux

@@ -48,9 +48,11 @@ class AppSpec:
     version: str = ""
     # Nur für diese Architekturen des Agent-PCs ("x86_64", "aarch64"); leer = überall
     archs: tuple[str, ...] = ()
+    # Nur für diese Grundsysteme des Agent-PCs ("debian", "kali"); leer = überall
+    distros: tuple[str, ...] = ()
 
-    def available(self, arch: str) -> bool:
-        return not self.archs or arch in self.archs
+    def available(self, arch: str, distro: str = "debian") -> bool:
+        return (not self.archs or arch in self.archs) and (not self.distros or distro in self.distros)
 
 
 # Ordner im PATH des Agent-Benutzers ergänzen – in ~/.bashrc (Terminal) und ~/.profile (Anmeldung).
@@ -373,6 +375,8 @@ apt-get install -y ca-certificates curl gnupg
 ARCH="$(dpkg --print-architecture)"
 case "$ARCH" in amd64|arm64) ;; *) echo "Docker gibt es hier nur für amd64 und arm64 (gefunden: $ARCH)." >&2; exit 1 ;; esac
 CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+# Kali (rolling) hat bei Docker keinen eigenen Zweig – wie in der Kali-Anleitung den von Debian stable nehmen
+[ "$(. /etc/os-release && echo "$ID")" = kali ] && CODENAME=trixie
 TMP="$(mktemp -d)"
 curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --max-time 120 -o "$TMP/docker.asc" '""" + DOCKER_KEY_URL + r"""'
 FPR="$(gpg --batch --show-keys --with-colons "$TMP/docker.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
@@ -482,7 +486,31 @@ if [ -f /etc/apt/sources.list ]; then
 fi
 apt-get update
 apt-get install -y torbrowser-launcher
-cp /usr/share/applications/torbrowser.desktop "$DESKTOP_DIR/"
+# Debian 13: torbrowser.desktop, neuere Fassungen (z. B. unter Kali): org.torproject.torbrowser-launcher.desktop
+for d in torbrowser.desktop org.torproject.torbrowser-launcher.desktop; do
+  if [ -f "/usr/share/applications/$d" ]; then cp "/usr/share/applications/$d" "$DESKTOP_DIR/"; break; fi
+done
+""",
+)
+
+
+# Kali-Werkzeuge: die zehn bekanntesten (nmap, Metasploit, Burp Suite, Wireshark, John, Hydra, sqlmap, aircrack-ng,
+# NetExec, Responder) aus den Kali-Paketquellen, dazu das Kali-Menü (sonst stehen sie nicht im Startmenü).
+# Wireshark darf der Agent-Benutzer ohne root mitschneiden (wirkt ab der nächsten Anmeldung).
+KALI_TOOLS = AppSpec(
+    id="kali-tools",
+    name="Kali-Werkzeuge",
+    description="Die zehn bekanntesten Kali-Werkzeuge (nmap, Metasploit, Burp Suite, Wireshark …) mit Kali-Menü – "
+                "nur unter Kali Linux",
+    default=False,
+    weight=25.0,
+    distros=("kali",),
+    check="command -v nmap && command -v msfconsole",
+    version="dpkg-query -W -f='${Version}' kali-tools-top10",
+    install=r"""
+echo "wireshark-common wireshark-common/install-setuid boolean true" | debconf-set-selections
+apt-get install -y kali-tools-top10 kali-menu
+usermod -a -G wireshark "$AGENT_USER"
 """,
 )
 
@@ -633,7 +661,7 @@ N8N = _n8n()
 # Nach n8n: Die Seite zeigt unter „Schon dabei“ nur, was wirklich installiert ist
 AGENTEN_APPS = _agenten_apps()
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, SOFTWARE_CENTER, TOR_BROWSER, VPN, DOCKER,
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, SOFTWARE_CENTER, TOR_BROWSER, KALI_TOOLS, VPN, DOCKER,
                                                MISSION_CONTROL, N8N, HERMES, OPENCLAW, CLAUDE_CODE,
                                                AGENTEN_APPS)}
 
@@ -643,8 +671,12 @@ def not_redistributable(app_ids: list[str] | tuple[str, ...]) -> list[str]:
     return [i for i in app_ids if i in APPS and not APPS[i].redistributable]
 
 
-def default_app_ids() -> list[str]:
-    return [a.id for a in APPS.values() if a.default]
+def default_app_ids(distro: str = "debian") -> list[str]:
+    """Vorausgewählte Apps – unter Kali kommen dessen eigene dazu (z. B. die Kali-Werkzeuge)."""
+    from bonys_agents import distros
+
+    extra = distros.get(distro).default_apps
+    return [a.id for a in APPS.values() if (a.default or a.id in extra) and (not a.distros or distro in a.distros)]
 
 
 def ids_in_category(category: str) -> list[str]:
@@ -680,11 +712,17 @@ def required_by(app_id: str, app_ids: list[str] | tuple[str, ...]) -> list[str]:
     return [i for i in app_ids if i != app_id and i in APPS and app_id in dependencies([i])]
 
 
-def check_arch(app_ids: list[str] | tuple[str, ...], arch: str) -> None:
-    """Fehler, wenn eine der Apps (samt Abhängigkeiten) auf dieser Architektur nicht geht."""
-    bad = [APPS[i].name for i in with_dependencies(list(app_ids)) if i in APPS and not APPS[i].available(arch)]
-    if bad:
-        raise ValueError(f"Nicht verfügbar auf {arch}: {', '.join(bad)}.")
+def check_arch(app_ids: list[str] | tuple[str, ...], arch: str, distro: str = "debian") -> None:
+    """Fehler, wenn eine der Apps (samt Abhängigkeiten) auf dieser Architektur bzw. diesem Grundsystem nicht geht."""
+    from bonys_agents import distros
+
+    deps = [APPS[i] for i in with_dependencies(list(app_ids)) if i in APPS]
+    bad_arch = [a.name for a in deps if not a.available(arch, distro) and a.archs and arch not in a.archs]
+    if bad_arch:
+        raise ValueError(f"Nicht verfügbar auf {arch}: {', '.join(bad_arch)}.")
+    bad_distro = [a.name for a in deps if not a.available(arch, distro)]
+    if bad_distro:
+        raise ValueError(f"Nicht verfügbar unter {distros.name(distro)}: {', '.join(bad_distro)}.")
 
 
 def resolve(app_ids: list[str]) -> list[AppSpec]:

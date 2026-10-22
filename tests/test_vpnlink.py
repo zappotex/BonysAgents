@@ -214,7 +214,7 @@ def _all_files(*roots: Path) -> list[Path]:
 def test_create_writes_the_key_only_into_the_seed_iso(datadir, monkeypatch, tmp_path, conf_file):
     base = tmp_path / "base.img"
     base.write_bytes(b"img")
-    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None: base)
+    monkeypatch.setattr(vm.images, "ensure_image", lambda image, d, cb, reuse_from=None, qemu_img=None: base)
     monkeypatch.setattr(vm.qemu, "find_binary", lambda name, os_: Path("/bin/true"))
     monkeypatch.setattr(vm.qemu, "create_disk", lambda qi, b, disk, gb: disk.write_bytes(b"disk"))
     messages = []

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, mission_control, n8n, netz, storage, templates, vm, vpnlink
+from bonys_agents import apps, desktops, distros, host, mission_control, n8n, netz, storage, templates, vm, vpnlink
 from bonys_agents import progress as pct
 
 from . import style
@@ -77,7 +77,10 @@ class CreateDialog(QDialog):
         base_form = QFormLayout()
         base_form.setHorizontalSpacing(16)
         self.base = QComboBox()
-        self.base.addItem("Neu installieren (Debian 13)", "")
+        # Neuinstallation: Daten „:<grundsystem>“ – ein Vorlagenname kann keinen Doppelpunkt enthalten
+        for d in distros.DISTROS.values():
+            if d.available(info.arch):
+                self.base.addItem(f"Neu installieren ({d.name})", f":{d.id}")
         for t in self.templates.values():
             self.base.addItem(f"Vorlage: {t.name}" + ("" if t.arch == info.arch else " (andere Architektur – emuliert, "
                                                        "sehr langsam)"), t.name)
@@ -186,7 +189,7 @@ class CreateDialog(QDialog):
             # nur mit
             if a.category != apps.PROGRAM or a.hidden or a.id in (vpnlink.APP_ID, mission_control.APP_ID, n8n.APP_ID):
                 continue
-            if not a.available(info.arch):   # z. B. Tor Browser nur x86_64
+            if not a.available(info.arch, a.distros[0] if a.distros else distros.DEFAULT):  # Tor Browser nur x86_64
                 continue
             cb = QCheckBox(a.name)
             cb.setChecked(a.default)
@@ -283,12 +286,15 @@ class CreateDialog(QDialog):
         self._update_ok()
 
     def _apply_recipe(self, r: dict) -> None:
-        """Rezept übernehmen: Desktop, Apps, Benutzer, Tastatur und Empfehlungen – bleibt alles änderbar."""
+        """Rezept übernehmen: Grundsystem, Desktop, Apps, Benutzer, Tastatur und Empfehlungen – bleibt änderbar."""
+        idx = self.base.findData(f":{r.get('distro') or distros.DEFAULT}")
+        if idx >= 0:
+            self.base.setCurrentIndex(idx)   # ruft _base_changed (Desktop, Vorauswahl der Apps)
         idx = self.desktop.findData(r.get("desktop"))
         if idx >= 0:
             self.desktop.setCurrentIndex(idx)
         for a, cb in self.app_boxes.items():
-            cb.setChecked(a in r.get("app_ids", []))
+            cb.setChecked(a in r.get("app_ids", []) and cb.isEnabled())   # nicht unter diesem Grundsystem: aus
         if r.get("username"):
             self.user.setText(r["username"])
         idx = self.keyboard.findData(r.get("keyboard"))
@@ -581,20 +587,33 @@ class CreateDialog(QDialog):
     def template(self) -> templates.Template | None:
         return self.templates.get(self.base.currentData() or "")
 
+    def distro(self) -> distros.DistroSpec:
+        """Grundsystem der Neuinstallation (bei einer Vorlage: das der Vorlage)."""
+        t = self.template()
+        data = self.base.currentData() or ""
+        return distros.get(t.distro if t else data[1:] if data.startswith(":") else distros.DEFAULT)
+
     def _base_changed(self, *_) -> None:
         t = self.template()
+        dist = self.distro()
         self.kind_box.setVisible(t is not None)
-        self.base_info.setVisible(t is not None)
+        self.base_info.setVisible(t is not None or dist.id != distros.DEFAULT)
+        if t is None and dist.id != distros.DEFAULT:
+            self.base_info.setText(dist.description)
         self.user.setEnabled(t is None)
         self.keyboard.setEnabled(t is None)
-        self.desktop.setEnabled(t is None)
-        idx = self.desktop.findData(t.desktop if t else desktops.DEFAULT)
+        # Kali: nur der geprüfte Desktop (Xfce)
+        self.desktop.setEnabled(t is None and len(dist.desktops) != 1)
+        idx = self.desktop.findData(t.desktop if t else (dist.desktops or (desktops.DEFAULT,))[0])
         if idx >= 0:
             self.desktop.setCurrentIndex(idx)
+        defaults = apps.default_app_ids(dist.id)
         for a, cb in self.app_boxes.items():
-            cb.setEnabled(t is None)
-            cb.setChecked(a in t.apps if t else apps.APPS[a].default or (a == vpnlink.APP_ID and
-                                                                         self.vpn_setup is not None))
+            usable = apps.APPS[a].available(self.info.arch, dist.id)
+            cb.setVisible(usable or t is not None)
+            cb.setEnabled(t is None and usable)
+            cb.setChecked(a in t.apps if t else usable and (a in defaults or (a == vpnlink.APP_ID and
+                                                                               self.vpn_setup is not None)))
         if t is not None and vpnlink.APP_ID not in t.apps:
             self.vpn_setup = None
         self._update_vpn()
@@ -672,6 +691,7 @@ class CreateDialog(QDialog):
             keyboard=self.keyboard.currentData(),
             location=self.location.path(),
             desktop=self.desktop.currentData(),
+            distro=self.distro().id,
         )
         if self.vpn_setup is not None and self.vpn_box.isChecked():
             params["vpn"] = vpnlink.VpnSetup(
@@ -684,7 +704,7 @@ class CreateDialog(QDialog):
             if params["disk_gb"] < t.disk_gb:
                 self.status.setText(f"Festplatte: mindestens {vm.format_gb(t.disk_gb)} (Größe der Vorlage).")
                 return
-            for key in ("username", "app_ids", "keyboard", "desktop"):
+            for key in ("username", "app_ids", "keyboard", "desktop", "distro"):
                 params.pop(key)
             params.update(template=t.name, linked=self.linked.isChecked(), foreign_arch=t.arch != self.info.arch)
         if self.remember_loc.isChecked() and params["location"]:

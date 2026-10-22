@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import (
-    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, edition, host,
-    kurse, kurspaket, netz, remote,
+    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, distros,
+    edition, host, kurse, kurspaket, netz, remote,
     screen, storage, updates, vm, vpnlink,
 )
 from bonys_agents import progress as pct
@@ -1177,7 +1177,9 @@ class MainWindow(QMainWindow):
         self.d_fields["Festplatte"].setText(disk_text)
         self.d_fields["Benutzer"].setText(c.username)
         others = [desktops.name(d) for d in c.extra_desktops]
-        self.d_fields["Desktop"].setText(desktops.name(c.desktop) + (f"\nauch: {', '.join(others)}" if others else ""))
+        system = f"{distros.name(c.distro)} · " if c.distro != distros.DEFAULT else ""   # Debian: wie bisher
+        self.d_fields["Desktop"].setText(system + desktops.name(c.desktop)
+                                         + (f"\nauch: {', '.join(others)}" if others else ""))
         todo = [a for a in c.reinstall if a in apps.APPS and a not in c.apps]
         self.d_fields["Programme"].setText((", ".join(apps.labels(c.apps, c.app_info)) or "–") + (
             f"\nNoch zu installieren (offizielle Quelle, Lizenz): {', '.join(apps.names(todo))}" if todo else ""))
@@ -1224,6 +1226,8 @@ class MainWindow(QMainWindow):
         self.add_apps_btn.setVisible(bool(missing))
         self.add_apps_btn.setEnabled(status == "läuft" and not busy)
         self.add_desktop_btn.setEnabled(status == "läuft" and not busy)
+        # Grundsysteme mit nur einem geprüften Desktop (Kali: Xfce) – nichts zum Hinzufügen
+        self.add_desktop_btn.setVisible(len(distros.get(c.distro).desktops) != 1)
         self.delete_btn.setEnabled(not busy and not tpl_lock)
         self.upgrade_btn.setEnabled(status == "läuft" and not busy)
         if self.present_btn is not None:

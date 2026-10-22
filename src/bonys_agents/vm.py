@@ -29,8 +29,8 @@ from pathlib import Path
 import psutil
 
 from bonys_agents import (
-    apps, cloudinit, desktops, diagnose, host, images, mission_control, n8n, qemu, remote, screen, storage, vpnlink,
-    x509,
+    apps, cloudinit, desktops, diagnose, distros, host, images, mission_control, n8n, qemu, remote, screen, storage,
+    vpnlink, x509,
 )
 from bonys_agents import progress as pct
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
@@ -195,6 +195,7 @@ COMMON_RULES: dict[str, Callable] = {
     "timezone": TIMEZONE_RE.match,
     "desktop": lambda s: s in desktops.DESKTOPS,
     "extra_desktops": lambda xs: all(x in desktops.DESKTOPS for x in xs),
+    "distro": lambda s: s in distros.DISTROS,
     "apps": lambda xs: all(APP_ID_RE.match(x) for x in xs),
     "reinstall": lambda xs: all(APP_ID_RE.match(x) for x in xs),
     "app_info": _app_info_ok,
@@ -311,6 +312,8 @@ class VMConfig:
     # Name im Bony-Netz („geraetename“), wenn der Agent-PC beitreten soll bzw. beigetreten ist; die geraet_id
     # steht nur auf dem Server (über den Namen in zentrale.geraete() zu finden)
     netz_name: str = ""
+    # Grundsystem („debian“ oder „kali“, siehe distros); fehlt bei älteren Agent-PCs = Debian
+    distro: str = distros.DEFAULT
 
 
 @dataclass
@@ -1201,12 +1204,13 @@ class VM:
     def missing_apps(self) -> list[apps.AppSpec]:
         """Apps, die man noch hinzufügen kann (ohne reine Bausteine wie Docker – die kommen automatisch mit)."""
         return [a for a in apps.APPS.values()
-                if a.id not in self.config.apps and not a.hidden and a.available(self.config.arch)]
+                if a.id not in self.config.apps and not a.hidden
+                and a.available(self.config.arch, self.config.distro)]
 
     def install_plan(self, app_ids: list[str]) -> list[str]:
         """Was „Programme hinzufügen“ für ``app_ids`` tatsächlich installiert: samt Abhängigkeiten, ohne Vorhandenes."""
         apps.resolve(app_ids)  # unbekannte IDs melden
-        apps.check_arch(app_ids, self.config.arch)
+        apps.check_arch(app_ids, self.config.arch, self.config.distro)
         return [i for i in apps.with_dependencies(app_ids) if i not in self.config.apps]
 
     def install_apps(self, app_ids: list[str], password: str | None = None, ssh_prompt: bool = False,
@@ -1271,6 +1275,7 @@ class VM:
         Der bisherige Desktop bleibt installiert und lässt sich am Anmeldebildschirm weiter wählen.
         """
         spec = desktops.get(desktop_id)
+        distros.check(self.config.distro, self.config.arch, desktop_id)
         if desktop_id in self.installed_desktops():
             if not make_default or desktop_id == self.config.desktop:
                 raise ValueError(f"{spec.name} ist in „{self.name}“ bereits installiert.")
@@ -1856,8 +1861,9 @@ def create(
     vpn: vpnlink.VpnSetup | None = None,
     foreign_arch: bool = False,
     bony_netz: bool = False,
+    distro: str = distros.DEFAULT,
 ) -> VM:
-    """Neuen Agent-PC anlegen – neu installiert (Debian-Image + Einrichtung) oder aus einer Vorlage.
+    """Neuen Agent-PC anlegen – neu installiert (Cloud-Image + Einrichtung) oder aus einer Vorlage.
 
     Aus einer Vorlage: ``linked`` True = verknüpft (Festplatte baut auf der Vorlage auf, nur auf
     demselben Laufwerk), False = unabhängige Kopie, None = verknüpft, wenn möglich. Benutzer und
@@ -1867,6 +1873,8 @@ def create(
     (dort per Helfer importiert) – nicht in vm.json und in keine Meldung. Installiert Bony's VPN mit.
 
     ``foreign_arch``: Vorlage einer anderen Architektur trotzdem nutzen (Emulation, sehr langsam).
+
+    ``distro``: Grundsystem bei einer Neuinstallation (``distros``: Debian oder Kali).
 
     ``bony_netz``: beim ersten Start dem Bony-Netz beitreten. Der Geräteschlüssel wird erst direkt vor dem
     Schreiben des Seed-ISOs geholt (gilt 60 Minuten). Geht das nicht (kein Internet, Gerätegrenze …), wird der
@@ -1897,11 +1905,12 @@ def create(
         raise FileExistsError(f"Ordner {path} existiert bereits")
 
     info = host.detect()
-    app_ids = list(app_ids if app_ids is not None else apps.default_app_ids())
+    distros.check(distro, info.arch, desktop)
+    app_ids = list(app_ids if app_ids is not None else apps.default_app_ids(distro))
     if vpn and vpnlink.APP_ID not in app_ids:
         app_ids.append(vpnlink.APP_ID)  # die Konfiguration braucht Bony's VPN im Agent-PC
     app_specs = apps.resolve(app_ids)
-    apps.check_arch(app_ids, info.arch)
+    apps.check_arch(app_ids, info.arch, distro)
     qemu_img = qemu.find_binary("qemu-img", info.os)
     qemu.find_binary(qemu.ARCH_BINARY[info.arch], info.os)  # früh prüfen
 
@@ -1911,7 +1920,7 @@ def create(
         ram_mb=max(host.MIN_VM_RAM_MB, ram_mb or info.default_vm_ram_mb),
         disk_gb=disk_gb, username=username,
         apps=[a.id for a in app_specs], keyboard=keyboard, timezone=timezone_name,
-        desktop=desktop, first_boot_pending=True,
+        desktop=desktop, first_boot_pending=True, distro=distro,
     )
     if mission_control.APP_ID in cfg.apps:
         cfg.app_info[mission_control.APP_ID] = {"version": mission_control.VERSION}
@@ -1920,7 +1929,8 @@ def create(
     if not chk.ok:
         raise RuntimeError(" ".join(chk.errors))
 
-    base = images.debian_image(info.arch)
+    report("download", 0.0, f"Suche das aktuelle Abbild von {distros.name(distro)} …")
+    base = images.base_image(distro, info.arch)
     report("download", 0.0, f"Lade {base.name} …")
 
     def dl(done: int, total: int) -> None:
@@ -1929,7 +1939,7 @@ def create(
 
     # Bild-Cache am Ziel-Speicherort – vorhandene Kopien von anderen Orten werden wiederverwendet.
     other_caches = [lib / IMAGES_DIRNAME for lib in storage.libraries() if lib != library]
-    base_path = images.ensure_image(base, library / IMAGES_DIRNAME, dl, reuse_from=other_caches)
+    base_path = images.ensure_image(base, library / IMAGES_DIRNAME, dl, reuse_from=other_caches, qemu_img=qemu_img)
 
     path.mkdir(parents=True)
     hinweise: list[str] = []
@@ -1941,7 +1951,7 @@ def create(
         guest = cloudinit.GuestConfig(
             hostname=name.lower().replace("_", "-"), username=username, password=password,
             apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop, vpn=vpn,
-            netz=beitritt.skript if beitritt else None,
+            netz=beitritt.skript if beitritt else None, distro=distro,
         )
         cloudinit.write_seed_iso(path / "seed.iso", guest, instance_id=f"bonys-{uuid.uuid4()}")
         write_json(path / "vm.json", asdict(cfg))
@@ -2025,6 +2035,7 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
         keyboard=tpl.keyboard or keyboard, timezone=tpl.timezone or "Europe/Berlin",
         desktop=tpl.desktop, extra_desktops=list(tpl.extra_desktops),
         provisioned=False, first_boot_pending=False, template=tpl.name, reinstall=list(tpl.reinstall),
+        distro=tpl.distro,
     )
     path.mkdir(parents=True)
     hinweise: list[str] = []

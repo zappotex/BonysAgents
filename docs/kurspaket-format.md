@@ -135,7 +135,8 @@ Beispiel (gekürzt):
 | Feld | Bedeutung |
 |---|---|
 | `name` | Vorschlag für den Namen des Agent-PCs (Buchstaben, Ziffern, `-`, `_`; bis 40) |
-| `desktop` | `cinnamon`, `xfce`, `kde`, `gnome`, `mate` oder `lxqt` |
+| `desktop` | `cinnamon`, `xfce`, `kde`, `gnome`, `mate` oder `lxqt` (Standard: `cinnamon`, unter Kali `xfce`) |
+| `distro` | Grundsystem: `debian` (Standard, Debian 13) oder `kali` (Kali Linux, nur x86_64 und `xfce`; ab 0.25) |
 | `apps` | Programme, z. B. `brave`, `telegram`, `hermes`, `obsidian`, `docker`, `mission-control`, `vpn` |
 | `ram_mb`, `cpus`, `disk_gb` | Empfehlung (Festplatte 32–1024 GB) |
 | `username`, `keyboard`, `timezone` | Standard `agent`, `de`, `Europe/Berlin` |
@@ -266,6 +267,7 @@ den Einstellungen).
       "properties": {
         "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$"},
         "desktop": {"enum": ["cinnamon", "xfce", "kde", "gnome", "mate", "lxqt"]},
+        "distro": {"enum": ["debian", "kali"]},
         "apps": {"type": "array", "maxItems": 40, "items": {"type": "string", "pattern": "^[a-z0-9-]{1,40}$"}},
         "ram_mb": {"type": "integer", "minimum": 1024, "maximum": 262144},
         "cpus": {"type": "integer", "minimum": 1, "maximum": 64},

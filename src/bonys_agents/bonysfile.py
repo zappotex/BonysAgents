@@ -33,7 +33,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from bonys_agents import __version__, apps, cloudinit, desktops, host, mission_control, qemu, storage, templates, vm
+from bonys_agents import (
+    __version__, apps, cloudinit, desktops, distros, host, mission_control, qemu, storage, templates, vm,
+)
 
 SUFFIX = ".bonys"
 FORMAT_ID = "bonys-agents-template"
@@ -352,6 +354,7 @@ def build_manifest(t: templates.Template, *, creator: str, version: str, disk_si
         "arch": arch_name(t.arch),
         "desktop": t.desktop,
         "extra_desktops": list(t.extra_desktops),
+        "distro": t.distro,
         "debian": debian or t.debian,
         "username": t.username,
         "keyboard": t.keyboard,
@@ -390,7 +393,7 @@ def validate_manifest(m: object) -> dict:
         raise ValueError(f"Diese Datei braucht Bony's Agents {min_v} oder neuer (installiert: {__version__}). "
                          "Bitte zuerst aktualisieren.")
     for key in ("name", "version", "description", "creator", "exported", "template_created", "debian", "desktop",
-                "username", "keyboard", "timezone"):
+                "username", "keyboard", "timezone", "distro"):
         if not isinstance(m.get(key, ""), str):
             raise ValueError(f"Manifest: „{key}“ ist kein Text.")
     templates.check_name(m.get("name", ""))
@@ -398,6 +401,9 @@ def validate_manifest(m: object) -> dict:
         raise ValueError(f"Manifest: unbekannte Architektur „{m.get('arch')}“.")
     if m.get("desktop", desktops.DEFAULT) not in desktops.DESKTOPS:
         raise ValueError(f"Manifest: unbekannter Desktop „{m.get('desktop')}“ – vielleicht braucht die Datei eine "
+                         "neuere Version von Bony's Agents.")
+    if m.get("distro", distros.DEFAULT) not in distros.DISTROS:
+        raise ValueError(f"Manifest: unbekanntes Grundsystem „{m.get('distro')}“ – vielleicht braucht die Datei eine "
                          "neuere Version von Bony's Agents.")
     if not vm.USERNAME_RE.match(m.get("username", "")):
         raise ValueError("Manifest: ungültiger Benutzername.")
@@ -821,6 +827,7 @@ def import_bundle(file: Path, location: Path | None = None, name: str | None = N
             username=m["username"], keyboard=m.get("keyboard", "de"), timezone=m.get("timezone", "Europe/Berlin"),
             personal_data_removed=True, desktop=m.get("desktop", desktops.DEFAULT),
             extra_desktops=list(m.get("extra_desktops", [])), app_info=app_info,
+            distro=m.get("distro", distros.DEFAULT),
             creator=m.get("creator", ""), version=m.get("version", ""), reinstall=reinstall_ids(m),
             preview=m.get("preview") or "",
         )
@@ -846,12 +853,13 @@ def import_any(file: Path, location: Path | None = None, name: str | None = None
 
 
 def recipe(m: dict) -> dict:
-    """Rezept: Argumente für ``vm.create``, um dieselbe Vorlage hier neu einzurichten (passendes Debian-Image)."""
+    """Rezept: Argumente für ``vm.create``, um dieselbe Vorlage hier neu einzurichten (passendes Cloud-Image)."""
     known = [a for a in app_ids(m) + reinstall_ids(m) if a in apps.APPS and not apps.APPS[a].hidden]
     rec = m.get("recommended", {})
     return {
         "app_ids": known,   # Abhängigkeiten (z. B. Docker) ergänzt vm.create selbst
         "desktop": m.get("desktop", desktops.DEFAULT),
+        "distro": m.get("distro", distros.DEFAULT),
         "username": m["username"],
         "keyboard": m.get("keyboard", "de"),
         "timezone_name": m.get("timezone", "Europe/Berlin"),

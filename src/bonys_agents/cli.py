@@ -11,8 +11,8 @@ import time
 from pathlib import Path
 
 from bonys_agents import (
-    APP_NAME, __version__, apps, deps, desktops, edition, host, mission_control, n8n, procutil, qemu, remote,
-    screen, netz, storage, vm, vpnlink,
+    APP_NAME, __version__, apps, deps, desktops, distros, edition, host, mission_control, n8n, procutil, qemu,
+    remote, screen, netz, storage, vm, vpnlink,
 )
 from bonys_agents import progress as pct
 
@@ -200,12 +200,16 @@ def cmd_create(args) -> int:
     if args.linked or args.full:
         print("--linked und --full gibt es nur zusammen mit --template.", file=sys.stderr)
         return 2
-    app_ids = app_selection(args.apps, args.agents)  # Tippfehler melden, bevor nach dem Passwort gefragt wird
+    distro = distros.get(args.distro)
+    # Ohne --desktop: der Standard des Grundsystems (Kali: Xfce)
+    desk = desktops.get(args.desktop or (distro.desktops or (desktops.DEFAULT,))[0])
+    distros.check(distro.id, host.detect().arch, desk.id)
+    # Tippfehler melden, bevor nach dem Passwort gefragt wird
+    app_ids = app_selection(args.apps, args.agents, distro.id)
     vpn = vpn_setup(args)
     bony_netz = _bony_netz(args)
-    desk = desktops.get(args.desktop)
     _warn_ram(desk.id, args.ram)
-    _warn_mission_control(app_ids, desk.id, args.ram, args.disk or vm.DEFAULT_DISK_GB)
+    _warn_mission_control(app_ids, desk.id, args.ram, args.disk or vm.DEFAULT_DISK_GB, distro.id)
     if not _ensure_ready(args.yes):
         print("Agent-PC kann noch nicht erstellt werden – siehe oben.")
         return 1
@@ -236,11 +240,12 @@ def cmd_create(args) -> int:
         app_ids=app_ids,
         keyboard=args.keyboard, timezone_name=args.timezone, progress=progress,
         location=Path(args.location) if args.location else None, desktop=desk.id, vpn=vpn,
-        bony_netz=bony_netz,
+        bony_netz=bony_netz, distro=distro.id,
     )
     _print_hints(machine)
     c = machine.config
-    print(f"\nAgent-PC '{c.name}': {desktops.name(c.desktop)}, {c.cpus} CPUs, {c.ram_mb} MB RAM, {c.disk_gb} GB, "
+    print(f"\nAgent-PC '{c.name}': {distros.name(c.distro)}, {desktops.name(c.desktop)}, {c.cpus} CPUs, "
+          f"{c.ram_mb} MB RAM, {c.disk_gb} GB, "
           f"Apps: {', '.join(c.apps)}")
     if args.no_start:
         print(f"Starten mit: bonys-agents start {c.name}")
@@ -272,8 +277,9 @@ def _warn_ram(desktop_id: str, ram_mb: int | None) -> None:
         print(f"⚠ {warning}")
 
 
-def _warn_mission_control(app_ids: list[str] | None, desktop_id: str, ram_mb: int | None, disk_gb: int) -> None:
-    ids = app_ids if app_ids is not None else apps.default_app_ids()
+def _warn_mission_control(app_ids: list[str] | None, desktop_id: str, ram_mb: int | None, disk_gb: int,
+                          distro: str = distros.DEFAULT) -> None:
+    ids = app_ids if app_ids is not None else apps.default_app_ids(distro)
     if mission_control.APP_ID not in ids:
         return
     deps = apps.dependencies(ids)
@@ -298,8 +304,11 @@ def _ask_password() -> str:
 def _create_from_template(args) -> int:
     from bonys_agents import templates
 
-    if args.desktop != desktops.DEFAULT:
+    if args.desktop:
         print("Bei --template kommt der Desktop aus der Vorlage – --desktop weglassen.", file=sys.stderr)
+        return 2
+    if args.distro != distros.DEFAULT:
+        print("Bei --template kommt das Grundsystem aus der Vorlage – --distro weglassen.", file=sys.stderr)
         return 2
     if args.apps or args.agents:
         print("Bei --template kommen die Programme aus der Vorlage – --apps/--agents weglassen "
@@ -507,6 +516,8 @@ def cmd_status(args) -> int:
     print(f"Name:    {c.name}\nStatus:  {m.status()}\nCPU/RAM: {c.cpus} / {c.ram_mb} MB\nDisk:    {c.disk_gb} GB")
     print(f"Benutzer: {c.username}\nDesktop: {desktops.name(c.desktop)}"
           + (f" (weitere: {', '.join(desktops.name(d) for d in c.extra_desktops)})" if c.extra_desktops else ""))
+    if c.distro != distros.DEFAULT:
+        print(f"System:  {distros.name(c.distro)}")
     shown = [a + (f" {(c.app_info.get(a) or {}).get('version')}" if (c.app_info.get(a) or {}).get("version") else "")
              for a in c.apps]
     print(f"Apps:    {', '.join(shown)}\nOrdner:  {m.path}")
@@ -694,14 +705,15 @@ def _apps_of(m: vm.VM) -> int:
     return 0
 
 
-def app_selection(apps_arg: str | None, agents_arg: str | None) -> list[str] | None:
+def app_selection(apps_arg: str | None, agents_arg: str | None,
+                  distro: str = distros.DEFAULT) -> list[str] | None:
     """--apps und --agents zu einer App-Liste zusammenführen (None = Standard).
 
     --agents ersetzt nur die KI-Werkzeuge; „none“ bzw. leer = keins.
     """
     if apps_arg is None and agents_arg is None:
         return None
-    ids = [i.strip() for i in (apps_arg.split(",") if apps_arg else apps.default_app_ids()) if i.strip()]
+    ids = [i.strip() for i in (apps_arg.split(",") if apps_arg else apps.default_app_ids(distro)) if i.strip()]
     if agents_arg is not None:
         agents = [i.strip() for i in agents_arg.split(",") if i.strip() and i.strip().lower() not in ("none", "keins")]
         wrong = [i for i in agents if i in apps.APPS and apps.APPS[i].category != apps.AGENT]
@@ -1134,12 +1146,13 @@ def _print_reinstall_hint(vm_name: str, ids: list[str]) -> None:
 
 
 def _create_from_recipe(args, m: dict) -> int:
-    """Rezept: dieselbe Ausstattung mit dem passenden Debian-Image neu einrichten (ohne die Festplatte)."""
+    """Rezept: dieselbe Ausstattung mit dem passenden Cloud-Image neu einrichten (ohne die Festplatte)."""
     from bonys_agents import bonysfile
 
     r = bonysfile.recipe(m)
     print(f"Rezept: {desktops.name(r['desktop'])} mit {', '.join(apps.names(r['app_ids'])) or 'ohne Apps'} wird "
-          "hier neu eingerichtet (Debian-Image für diesen Rechner, Downloads aus den offiziellen Quellen).")
+          f"hier neu eingerichtet ({distros.name(r['distro'])} für diesen Rechner, Downloads aus den offiziellen "
+          "Quellen).")
     if m.get("extra_desktops"):
         print("Zusätzliche Desktops kommen nicht mit – nachrüsten mit „Desktop hinzufügen …“.")
     if not _ensure_ready(args.yes):
@@ -1149,7 +1162,7 @@ def _create_from_recipe(args, m: dict) -> int:
     machine = vm.create(args.recipe, password, cpus=args.cpus or r["cpus"], ram_mb=args.ram or r["ram_mb"],
                         disk_gb=r["disk_gb"] or vm.DEFAULT_DISK_GB, username=r["username"], app_ids=r["app_ids"],
                         keyboard=r["keyboard"], timezone_name=r["timezone_name"], desktop=r["desktop"],
-                        location=Path(args.vm_location) if args.vm_location else None,
+                        distro=r["distro"], location=Path(args.vm_location) if args.vm_location else None,
                         progress=lambda phase, frac, msg: print(f"\r{_bar(frac)} {msg[:50]:50}", end="", flush=True))
     print(f"\nAgent-PC '{machine.name}' angelegt. Starten (richtet sich dann ein): bonys-agents start {machine.name}")
     return 0
@@ -1359,8 +1372,11 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--agents", metavar="LISTE",
                    help=f"Nur die KI-Werkzeuge wählen, z. B. hermes,openclaw,claude-code oder none "
                         f"(verfügbar: {','.join(apps.ids_in_category(apps.AGENT))})")
-    c.add_argument("--desktop", default=desktops.DEFAULT, choices=list(desktops.DESKTOPS),
-                   help=f"Desktop-Umgebung (Standard: {desktops.DEFAULT}; siehe: desktops)")
+    c.add_argument("--desktop", choices=list(desktops.DESKTOPS),
+                   help=f"Desktop-Umgebung (Standard: {desktops.DEFAULT}, unter Kali xfce; siehe: desktops)")
+    c.add_argument("--distro", default=distros.DEFAULT, choices=list(distros.DISTROS),
+                   help="Grundsystem: debian (Standard, Debian 13) oder kali (Kali Linux mit Kali-Werkzeugen, "
+                        "nur x86_64 und Xfce)")
     c.add_argument("--keyboard", default="de")
     c.add_argument("--timezone", default="Europe/Berlin")
     c.add_argument("--no-start", action="store_true", help="Nur anlegen, nicht starten")

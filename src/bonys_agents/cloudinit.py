@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, mission_control, n8n, netz, screen, vpnlink, wallpaper
+from bonys_agents import desktops, distros, mission_control, n8n, netz, screen, vpnlink, wallpaper
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -61,6 +61,44 @@ class GuestConfig:
     vpn: vpnlink.VpnSetup | None = None
     # Beitrittsskript für das Bony-Netz (enthält einen Geräteschlüssel): eigene Datei im Seed-ISO, nie in user-data
     netz: str | None = field(default=None, repr=False)
+    distro: str = distros.DEFAULT
+
+
+# Kali-Cloud-Abbild: Der Kernel *cloud-amd64* hat keine Grafiktreiber (kein /dev/dri, kein Desktop), und root wird
+# ab Werk auf dem Bildschirm und der seriellen Konsole automatisch angemeldet. Zuerst kommt der normale Kernel dazu
+# und die root-Anmeldung weg; die Cloud-Kernel fliegen erst ganz am Ende raus (KALI_KERNEL_SWITCH), weil bis dahin
+# noch einer von ihnen läuft und die Schritte dazwischen dessen Module brauchen können.
+KALI_PREPARE = r"""
+rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf \
+      /etc/systemd/system/serial-getty@.service.d/autologin.conf
+systemctl daemon-reload
+if grep -rqs -- '--autologin root' /etc/systemd/system; then
+  echo "FEHLER: root wird weiterhin automatisch angemeldet." >&2; exit 1
+fi
+apt-get install -y "linux-image-$(dpkg --print-architecture)"
+"""
+
+# Erst wenn der normale Kernel samt initramfs da ist: alle Cloud-Kernelpakete entfernen. Kali teilt den Kernel auf
+# (linux-image/-binary/-modules/-base); bliebe linux-binary-*-cloud liegen, startete GRUB dessen vmlinuz ohne Module
+# → Kernel-Panic („Cannot open root device“). update-grub danach selbst, das Entfernen schreibt grub.cfg nicht neu.
+KALI_KERNEL_SWITCH = r"""
+ARCH="$(dpkg --print-architecture)"
+NEW="$(ls /boot/vmlinuz-*+kali-"$ARCH" 2>/dev/null | sort -V | tail -1)"
+if [ -z "$NEW" ] || [ ! -f "/boot/initrd.img-${NEW#/boot/vmlinuz-}" ]; then
+  echo "FEHLER: Der normale Kali-Kernel fehlt – der Cloud-Kernel bleibt (ohne Grafik)." >&2; exit 1
+fi
+CLOUD="$(dpkg-query -W -f='${Status} ${Package}\n' 'linux-*cloud*' 2>/dev/null | awk '$3 == "installed" {print $4}')"
+if [ -n "$CLOUD" ]; then
+  # shellcheck disable=SC2086
+  apt-get purge -y $CLOUD
+fi
+rm -f /boot/vmlinuz-*cloud* /boot/initrd.img-*cloud* /boot/System.map-*cloud* /boot/config-*cloud*
+update-grub
+if grep -q 'vmlinuz-[^ ]*cloud' /boot/grub/grub.cfg || ! grep -q "${NEW#/boot}" /boot/grub/grub.cfg; then
+  echo "FEHLER: GRUB startet nicht den normalen Kali-Kernel." >&2; exit 1
+fi
+echo "Kali startet ab jetzt mit ${NEW#/boot/vmlinuz-}."
+"""
 
 
 def _q(s: str) -> str:
@@ -133,6 +171,8 @@ systemctl enable bonys-growroot.service
 """),
         (f"{desk.name}-Desktop mit automatischer Anmeldung", desktops.install_script(desk, locale=cfg.locale)),
     ]
+    if cfg.distro == distros.KALI:
+        steps.insert(1, ("Kali: Kernel mit Grafik, keine automatische root-Anmeldung", KALI_PREPARE))
     if cfg.netz:
         # Gleich nach den Grundlagen: Der Geräteschlüssel gilt nur 60 Minuten ab dem Erstellen.
         steps.insert(1, (netz.SCHRITT_TITEL, "\n" + netz.gast_beitritt() + 'exit "$NETZ_RC"\n', netz.SCHRITT_ID))
@@ -141,6 +181,8 @@ systemctl enable bonys-growroot.service
         verify = (f'\nsu - "$AGENT_USER" -c {_q(app.check)} </dev/null >/dev/null 2>&1 '
                   f'|| {{ echo "FEHLER: {app.name} wurde nach der Installation nicht gefunden."; exit 1; }}\n')
         steps.append((f"{app.name} installieren", app.install + favorite_snippet(app) + verify, app.id))
+    if cfg.distro == distros.KALI:
+        steps.append(("Kali: auf den normalen Kernel umstellen", KALI_KERNEL_SWITCH))
     # Ganz am Ende, nach allen Downloads: Ein eingeschalteter Kill-Switch sperrt ohne Tunnel das Internet.
     finish = vpnlink.guest_import_script(cfg.vpn) if cfg.vpn else ""
     return render_provision(steps, cfg.username, cfg.locale, finish=finish)

@@ -81,6 +81,7 @@ class Template:
     personal_data_removed: bool = True
     desktop: str = "cinnamon"
     extra_desktops: list[str] = field(default_factory=list)
+    distro: str = "debian"        # Grundsystem (siehe distros); fehlt bei älteren Vorlagen = Debian
     app_info: dict = field(default_factory=dict)   # wie in vm.json, z. B. Version von Mission Control
     # Aus einer .bonys-Datei importiert: Ersteller, Version, Apps zum Neu-Installieren (offizielle Quelle)
     creator: str = ""
@@ -368,7 +369,7 @@ def create(vm_name: str, name: str, description: str = "", remove_personal: bool
                 source=machine.name, username=machine.config.username, keyboard=machine.config.keyboard,
                 timezone=machine.config.timezone, personal_data_removed=remove_personal,
                 desktop=machine.config.desktop, extra_desktops=list(machine.config.extra_desktops),
-                app_info=json.loads(json.dumps(machine.config.app_info)),
+                app_info=json.loads(json.dumps(machine.config.app_info)), distro=machine.config.distro,
             )
             tpl.save()
             os.replace(part, target)
@@ -550,14 +551,18 @@ def import_file(file: Path, location: Path | None = None, name: str | None = Non
 
 
 def describe(t: Template) -> str:
-    """Eine Zeile für Listen: Datum, Debian, Apps, Größe."""
+    """Eine Zeile für Listen: Datum, Grundsystem, Apps, Größe."""
     from bonys_agents import apps as apps_mod
 
     parts = [t.created_local()]
     from bonys_agents import desktops
 
     parts.append(desktops.name(t.desktop))
-    if t.debian:
+    from bonys_agents import distros
+
+    if t.distro != distros.DEBIAN:
+        parts.append(distros.name(t.distro))
+    elif t.debian:
         parts.append(f"Debian {t.debian}")
     parts.append(f"{t.size / storage.GB:.1f} GB")
     if t.apps:
