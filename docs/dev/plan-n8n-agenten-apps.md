@@ -80,5 +80,5 @@ Lösung: `GIO_USE_NETWORK_MONITOR=netlink` (offizielle GIO-Umgebungsvariable) in
       auskommentiert (bricht mit installiertem Node.js ab)
 - [x] Screenshots fürs Handbuch: `bilder/software-center.png`, `bilder/n8n.png`, `bilder/agenten-apps.png`
 - [x] Version 0.24.0, pytest (beide Editionen) und ruff grün (22.10.)
-- [ ] Release (Tag nur nach Rückfrage); Windows/Mac-Test durch Bony
-- [ ] Nach dem Release: Kurspaket Hermes 1.0.1 ins Repo bonys-agents-kurspakete (docs/RELEASE.md)
+- [x] Release v0.24.0 (22.10.); Paketquelle und Online-Liste veröffentlicht; Kurspaket Hermes 1.0.1 im Katalog
+- [ ] Windows/Mac-Test durch Bony
