@@ -51,7 +51,7 @@ def _make_template(library: Path, name="kurs", **kw) -> templates.Template:
 
 # ---------- Apps: Lizenzen ----------
 def test_not_redistributable_apps_have_uninstall():
-    assert apps.not_redistributable(list(apps.APPS)) == ["obsidian", "claude-code"]
+    assert apps.not_redistributable(list(apps.APPS)) == ["obsidian", "n8n", "claude-code"]
     for app_id in apps.not_redistributable(list(apps.APPS)):
         assert apps.APPS[app_id].uninstall.strip()
     for a in apps.APPS.values():

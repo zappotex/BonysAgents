@@ -11,8 +11,8 @@ import time
 from pathlib import Path
 
 from bonys_agents import (
-    APP_NAME, __version__, apps, deps, desktops, edition, host, mission_control, procutil, qemu, remote, screen,
-    netz, storage, vm, vpnlink,
+    APP_NAME, __version__, apps, deps, desktops, edition, host, mission_control, n8n, procutil, qemu, remote,
+    screen, netz, storage, vm, vpnlink,
 )
 from bonys_agents import progress as pct
 
@@ -914,6 +914,8 @@ def cmd_template_create(args) -> int:
     if remove:
         print(f"  • {vpnlink.FRESH_CLEANUP}")
         print(f"  • {mission_control.FRESH_CLEANUP}")
+        if n8n.APP_ID in m.config.apps:
+            print(f"  • {n8n.FRESH_CLEANUP}")
         for item in cloudinit.PERSONAL_DATA:
             print(f"  • {item.title}")
             for path in item.paths:

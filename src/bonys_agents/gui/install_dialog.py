@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
-from bonys_agents import apps, desktops, mission_control, vm
+from bonys_agents import apps, desktops, mission_control, n8n, vm
 from bonys_agents import progress as pct
 
 from . import style
@@ -78,6 +78,8 @@ class InstallAppsDialog(QDialog):
             text = a.description
             if a.id == mission_control.APP_ID:
                 text += f" – Open Source, {mission_control.requirement_note(self.mc_req)}"
+            elif a.id == n8n.APP_ID:
+                text += f". {n8n.LICENSE_NOTE} – {n8n.requirement_note()}"
             desc = QLabel(text)
             desc.setObjectName("Muted")
             desc.setWordWrap(True)
@@ -156,8 +158,11 @@ class InstallAppsDialog(QDialog):
         self.plan_label.setText(f"Wird mitinstalliert: {', '.join(apps.names(deps))}" if deps else "")
         self.plan_label.setVisible(bool(deps))
         c = self.machine.config
-        warnings = mission_control.resource_warnings(plan, c.ram_mb, c.disk_gb,
-                                                     desktops.get(c.desktop).min_ram_mb, self.mc_req)
+        desktop_ram = desktops.get(c.desktop).min_ram_mb
+        warnings = mission_control.resource_warnings(plan, c.ram_mb, c.disk_gb, desktop_ram, self.mc_req)
+        # n8n zusammen mit einem schon installierten oder gleichzeitig gewählten Mission Control
+        mc_ram = self.mc_req.min_ram_mb if mission_control.APP_ID in [*plan, *c.apps] else 0
+        warnings += n8n.resource_warnings(plan, c.ram_mb, desktop_ram, mc_ram)
         if warnings:
             warnings.append("Installieren geht trotzdem – RAM und Festplatte lassen sich im ausgeschalteten "
                             "Agent-PC anpassen.")

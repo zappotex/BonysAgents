@@ -13,12 +13,12 @@ from PySide6.QtWidgets import (
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, host, mission_control, netz, storage, templates, vm, vpnlink
+from bonys_agents import apps, desktops, host, mission_control, n8n, netz, storage, templates, vm, vpnlink
 from bonys_agents import progress as pct
 
 from . import style
 from .location_picker import LocationPicker
-from .widgets import DiskSlider, PercentBar, fit_to_screen
+from .widgets import DiskSlider, FlowLayout, PercentBar, fit_to_screen
 from .workers import CreateWorker
 
 TCG_WARNING = ("⚠ Keine Hardware-Beschleunigung (nur Software-Emulation): Die Einrichtung kann mehrere "
@@ -180,19 +180,20 @@ class CreateDialog(QDialog):
         sec.setObjectName("Section")
         root.addWidget(sec)
         self.app_boxes: dict[str, QCheckBox] = {}
-        app_row = QHBoxLayout()
+        app_row = FlowLayout(spacing=12)   # bricht um, wenn das Fenster schmal ist
         for a in apps.APPS.values():
-            # VPN hat einen eigenen Abschnitt, Mission Control steht mit Erklärung darunter, Docker kommt nur mit
-            if a.category != apps.PROGRAM or a.hidden or a.id in (vpnlink.APP_ID, mission_control.APP_ID):
+            # VPN hat einen eigenen Abschnitt, Mission Control und n8n stehen mit Erklärung darunter, Docker kommt
+            # nur mit
+            if a.category != apps.PROGRAM or a.hidden or a.id in (vpnlink.APP_ID, mission_control.APP_ID, n8n.APP_ID):
                 continue
             cb = QCheckBox(a.name)
             cb.setChecked(a.default)
             cb.setToolTip(a.description)
             self.app_boxes[a.id] = cb
             app_row.addWidget(cb)
-        app_row.addStretch(1)
         root.addLayout(app_row)
         root.addWidget(self._mc_section())
+        root.addWidget(self._n8n_section())
 
         root.addWidget(self._vpn_section())
         root.addWidget(self._netz_section())
@@ -375,10 +376,12 @@ class CreateDialog(QDialog):
         self.mc_warn.setText("\n".join(f"⚠ {w}" for w in warnings))
         self.mc_warn.setVisible(bool(warnings))
         self.mc_fix.setVisible(bool(warnings))
+        self._update_n8n()
 
     def _fix_mc(self) -> None:
         d = desktops.get(self.desktop.currentData() or desktops.DEFAULT)
-        need_ram = d.min_ram_mb + self.mc_req.min_ram_mb
+        need_ram = d.min_ram_mb + (self.mc_req.min_ram_mb if self.mc_box.isChecked() else 0) + \
+            (n8n.MIN_RAM_MB if self.n8n_box.isChecked() else 0)
         steps = -(-need_ram // 512)
         if self.ram.value() < steps:
             self.ram.setValue(min(steps, self.ram.maximum()))
@@ -386,9 +389,66 @@ class CreateDialog(QDialog):
         if self.disk.value() < need_disk:
             self.disk.setValue(next((g for g in vm.DISK_STEPS_GB if g >= need_disk), vm.MAX_DISK_GB))
         self._update_mc()
-        if self._mc_warnings():
-            self.status.setText("Mehr Arbeitsspeicher gibt dieser Rechner nicht her – Mission Control läuft "
-                                "trotzdem, kann aber knapp werden.")
+        if self._mc_warnings() or self._n8n_warnings():
+            self.status.setText("Mehr Arbeitsspeicher gibt dieser Rechner nicht her – Mission Control und n8n laufen "
+                                "trotzdem, es kann aber knapp werden.")
+
+    def _n8n_section(self) -> QWidget:
+        """n8n: Häkchen mit ehrlichem Lizenzhinweis und Warnung, wenn der RAM (auch mit Mission Control) knapp ist."""
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        spec = apps.APPS[n8n.APP_ID]
+        self.n8n_box = QCheckBox(spec.name)
+        self.n8n_box.setChecked(spec.default)
+        self.n8n_box.setToolTip(spec.description)
+        self.app_boxes[spec.id] = self.n8n_box
+        lay.addWidget(self.n8n_box)
+        self.n8n_desc = QLabel()
+        self.n8n_desc.setObjectName("Muted")
+        self.n8n_desc.setWordWrap(True)
+        self.n8n_desc.setContentsMargins(26, 0, 0, 2)
+        lay.addWidget(self.n8n_desc)
+        self.n8n_warn = QLabel()
+        self.n8n_warn.setWordWrap(True)
+        self.n8n_warn.setStyleSheet(f"color: {style.WARN};")
+        self.n8n_warn.setContentsMargins(26, 0, 0, 0)
+        self.n8n_fix = QPushButton("Werte anpassen")
+        self.n8n_fix.setObjectName("Small")
+        self.n8n_fix.setToolTip("Arbeitsspeicher auf den empfohlenen Wert für n8n setzen")
+        fix_row = QHBoxLayout()
+        fix_row.setContentsMargins(26, 0, 0, 0)
+        fix_row.addWidget(self.n8n_fix)
+        fix_row.addStretch(1)
+        lay.addWidget(self.n8n_warn)
+        lay.addLayout(fix_row)
+        self.n8n_box.toggled.connect(self._update_mc)
+        self.n8n_fix.clicked.connect(self._fix_mc)
+        return box
+
+    def _n8n_warnings(self) -> list[str]:
+        if not self.n8n_box.isChecked() or self.template() is not None:
+            return []
+        d = desktops.get(self.desktop.currentData() or desktops.DEFAULT)
+        other = self.mc_req.min_ram_mb if self.mc_box.isChecked() else 0
+        return n8n.resource_warnings([n8n.APP_ID], self.ram.value() * 512, d.min_ram_mb, other)
+
+    def _update_n8n(self) -> None:
+        if not hasattr(self, "n8n_warn"):
+            return
+        spec = apps.APPS[n8n.APP_ID]
+        text = f"{spec.description}. {n8n.LICENSE_NOTE} – {n8n.requirement_note()}."
+        if self.n8n_box.isChecked():
+            deps = [d for d in apps.dependencies([spec.id])
+                    if d not in self.app_boxes or not self.app_boxes[d].isChecked()]
+            if deps:
+                text += f"\n✓ Wird mitinstalliert: {', '.join(apps.names(deps))} (offizielle Paketquelle)"
+        self.n8n_desc.setText(text)
+        warnings = self._n8n_warnings()
+        self.n8n_warn.setText("\n".join(f"⚠ {w}" for w in warnings))
+        self.n8n_warn.setVisible(bool(warnings))
+        self.n8n_fix.setVisible(bool(warnings))
 
     def _vpn_section(self) -> QWidget:
         """VPN: Bony's VPN installieren, optional mit eigener .conf, automatisch verbinden, Kill-Switch.

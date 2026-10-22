@@ -1,0 +1,301 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Agenten-Apps – Liste für Bony's Agents
+# ------------------------------------------------------------
+# Diese Datei ist die einzige Quelle. Daraus erzeugt
+# build_agent_apps.py die Seite index.html, die auf jedem
+# Agent-PC als Desktop-Verknüpfung liegt, und die Online-Version
+# (GitHub Pages, .github/workflows/agenten-apps.yml).
+#
+# Regeln für Einträge:
+# - Nur offizielle Quellen (Hersteller-Website, offizielles Repo).
+# - "geprueft_am" setzen, wenn Befehle und MCP-Eintrag in einem
+#   frischen Agent-PC (Debian 13) wirklich getestet wurden.
+#   Einträge, die nicht funktionieren, auskommentieren statt raten.
+# - status: stabil | beta | alpha
+# - Downloads von GitHub ohne feste Versionsnummer: Die Befehle holen
+#   SHA256SUMS.txt aus dem neuesten Release, lesen daraus den Dateinamen
+#   und prüfen die Prüfsumme. "uname -m" wählt x86_64 oder aarch64.
+# ------------------------------------------------------------
+
+meta:
+  titel: "Agenten-Apps"
+  untertitel: "Programme, die dein Hermes-Agent selbst bedienen kann"
+  # Online-Version der Liste (wird ohne neues Release aktualisiert)
+  online_url: "https://zappotex.github.io/BonysAgents/agenten-apps/"
+  arbeitsordner: "~/Agent-Dateien"
+  hermes_tipp: >
+    Du musst nichts selbst eintippen: Sag deinem Agenten in Telegram
+    zum Beispiel „Installiere PdfCraft aus der Agenten-Liste und
+    richte den MCP-Server ein“. Er zeigt dir vorher, was er tut.
+
+vorinstalliert:
+  - id: n8n
+    name: "n8n"
+    beschreibung: "Workflows per Klick bauen: Mails, RSS, Telegram, Dateien, APIs. Hermes kann Workflows anstoßen und n8n kann Hermes Aufgaben geben."
+    lizenz: "Sustainable Use License (Quellcode offen, aber keine OSI-Open-Source-Lizenz)"
+    oeffnen: "http://localhost:5678"
+    homepage: "https://n8n.io"
+    hinweis: "Läuft im Agent-PC in Docker und ist nur im Agent-PC selbst erreichbar."
+
+apps:
+  - id: pdfcraft
+    name: "PdfCraft"
+    kategorie: "Dokumente"
+    beschreibung: "PDFs lesen, durchsuchen, zusammenfügen, aufteilen, kommentieren und Formulare ausfüllen."
+    agent_kann: "Text aus PDFs lesen, Seiten drehen/löschen/verschieben, PDFs kombinieren und aufteilen, Kommentare setzen, Formulare ausfüllen."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/pdfcraft"
+    quelle: "https://github.com/storytold/pdfcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      # Nur das Kommandozeilen-Werkzeug mit MCP-Server (ohne Oberfläche)
+      mkdir -p ~/Downloads/pdfcraft && cd ~/Downloads/pdfcraft
+      wget -N https://github.com/storytold/pdfcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "pdfcraft-cli-[0-9.]*-linux-$(uname -m)\.tar\.gz" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/pdfcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      mkdir -p ~/.local/bin && tar -xzf "$DATEI" -C ~/.local/bin --strip-components=1
+      mkdir -p ~/Agent-Dateien/pdf
+    mcp:
+      command: "~/.local/bin/pdfcraft-cli"
+      args: ["mcp", "--compact", "--root", "~/Agent-Dateien/pdf"]
+    hinweis: "Der MCP-Server startet nur, wenn der Agent ihn aufruft, und öffnet keinen Netzwerk-Port. --root beschränkt den Agenten auf den Ordner ~/Agent-Dateien/pdf."
+    geprueft_am: 2026-10-22
+
+  - id: photocraft
+    name: "PhotoCraft"
+    kategorie: "Bilder"
+    beschreibung: "Bildbearbeitung mit Ebenen, Masken, Filtern und echten PSD-Dateien – ähnlich wie Photoshop."
+    agent_kann: "Bilder öffnen, Filter und Korrekturen anwenden, ganze Ordner im Stapel bearbeiten, exportieren."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/photocraft"
+    quelle: "https://github.com/storytold/photocraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/photocraft && cd ~/Downloads/photocraft
+      wget -N https://github.com/storytold/photocraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "photocraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/photocraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien/bilder
+    mcp:
+      command: "photocraft-cli"
+      args: ["mcp", "--automation-read-root", "~/Agent-Dateien/bilder", "--automation-write-root", "~/Agent-Dateien/bilder"]
+    hinweis: "Noch frühe Alpha: für Experimente gut, für wichtige Arbeit vorher Kopien anlegen. Der Agent liest und speichert nur im Ordner ~/Agent-Dateien/bilder (Pfade dort relativ angeben)."
+    geprueft_am: 2026-10-22
+
+  - id: wordcraft
+    name: "WordCraft"
+    kategorie: "Dokumente"
+    beschreibung: "Textverarbeitung, die Word-Dateien (.docx) öffnet und speichert."
+    agent_kann: "Dokumente anlegen, Text schreiben und formatieren, Tabellen einfügen, als .docx oder PDF speichern."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/wordcraft"
+    quelle: "https://github.com/storytold/wordcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/wordcraft && cd ~/Downloads/wordcraft
+      wget -N https://github.com/storytold/wordcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "wordcraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/wordcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "wordcraft-cli"
+      args: ["mcp", "--automation-read-root", "~/Agent-Dateien", "--automation-write-root", "~/Agent-Dateien"]
+    hinweis: "Oberfläche noch teilweise auf Englisch. Der Agent liest und speichert nur im Ordner ~/Agent-Dateien."
+    geprueft_am: 2026-10-22
+
+  - id: gridcraft
+    name: "GridCraft"
+    kategorie: "Dokumente"
+    beschreibung: "Tabellenkalkulation mit über 500 Funktionen, die Excel-Dateien (.xlsx) öffnet und speichert."
+    agent_kann: "Tabellen anlegen, Werte und Formeln eintragen, formatieren, Diagramme erstellen, als .xlsx speichern."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/gridcraft"
+    quelle: "https://github.com/storytold/gridcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/gridcraft && cd ~/Downloads/gridcraft
+      wget -N https://github.com/storytold/gridcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "gridcraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/gridcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "gridcraft-cli"
+      args: ["mcp"]
+    hinweis: "Oberfläche noch teilweise auf Englisch."
+    geprueft_am: 2026-10-22
+
+  - id: deckcraft
+    name: "DeckCraft"
+    kategorie: "Dokumente"
+    beschreibung: "Präsentationen, die PowerPoint-Dateien (.pptx) öffnen und speichern."
+    agent_kann: "Folien anlegen, Text, Bilder und Formen einfügen, Präsentationen als .pptx oder PDF speichern."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/deckcraft"
+    quelle: "https://github.com/storytold/deckcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/deckcraft && cd ~/Downloads/deckcraft
+      wget -N https://github.com/storytold/deckcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "deckcraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/deckcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "deckcraft-cli"
+      args: ["mcp", "--automation-read-root", "~/Agent-Dateien", "--automation-write-root", "~/Agent-Dateien"]
+    hinweis: "Oberfläche noch teilweise auf Englisch. Der Agent liest und speichert nur im Ordner ~/Agent-Dateien."
+    geprueft_am: 2026-10-22
+
+  - id: cadcraft
+    name: "CADCraft"
+    kategorie: "Konstruktion"
+    beschreibung: "CAD für technische Zeichnungen in 2D und 3D im Stil von AutoCAD – liest und schreibt DXF und DWG."
+    agent_kann: "Zeichnungen anlegen, Linien, Kreise und Bemaßungen setzen, als DXF speichern, als PDF oder PNG ausgeben."
+    lizenz: "MIT oder Apache-2.0"
+    status: alpha
+    homepage: "https://getartcraft.com/apps/cadcraft"
+    quelle: "https://github.com/storytold/cadcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/cadcraft && cd ~/Downloads/cadcraft
+      wget -N https://github.com/storytold/cadcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "cadcraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/storytold/cadcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "cadcraft-cli"
+      args: ["mcp"]
+    hinweis: "Oberfläche noch teilweise auf Englisch."
+    geprueft_am: 2026-10-22
+
+  - id: solidcraft
+    name: "SolidCraft"
+    kategorie: "Konstruktion"
+    beschreibung: "3D-Konstruktion (parametrisches CAD) mit fertigen Beispielen zum Ausprobieren."
+    agent_kann: "3D-Teile aus Skizzen und Körpern aufbauen, Maße ändern, als STEP, STL oder 3MF ausgeben."
+    lizenz: "Apache-2.0"
+    status: alpha
+    homepage: "https://github.com/bherbruck/solidcraft"
+    quelle: "https://github.com/bherbruck/solidcraft/releases/latest"
+    pruefsumme: "SHA256SUMS.txt im Release"
+    voraussetzungen: []
+    installation: |
+      mkdir -p ~/Downloads/solidcraft && cd ~/Downloads/solidcraft
+      wget -N https://github.com/bherbruck/solidcraft/releases/latest/download/SHA256SUMS.txt
+      DATEI=$(grep -o "solidcraft-[0-9.]*-linux-$(uname -m)\.deb" SHA256SUMS.txt | head -n1)
+      wget -N "https://github.com/bherbruck/solidcraft/releases/latest/download/$DATEI"
+      sha256sum --check --ignore-missing SHA256SUMS.txt
+      sudo apt install -y "./$DATEI"
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "solidcraft-cli"
+      args: ["mcp", "--allow-path", "~/Agent-Dateien"]
+    hinweis: "Oberfläche auf Englisch. Speichern darf der Agent nur in ~/Agent-Dateien (und im Ordner der geöffneten Konstruktion)."
+    geprueft_am: 2026-10-22
+
+  - id: mcp-filesystem
+    name: "Dateisystem (MCP)"
+    kategorie: "Grundausstattung"
+    beschreibung: "Offizieller MCP-Referenz-Server: Der Agent kann Dateien in einem freigegebenen Ordner lesen, schreiben und durchsuchen."
+    agent_kann: "Dateien anlegen, lesen, bearbeiten, verschieben und durchsuchen – nur im freigegebenen Ordner."
+    lizenz: "MIT"
+    status: stabil
+    homepage: "https://github.com/modelcontextprotocol/servers"
+    quelle: "https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem"
+    pruefsumme: "npm prüft Pakete selbst"
+    voraussetzungen: ["nodejs", "npm"]
+    installation: |
+      sudo apt install -y nodejs npm
+      mkdir -p ~/Agent-Dateien
+    mcp:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "~/Agent-Dateien"]
+    hinweis: "Gib nie dein ganzes Home-Verzeichnis frei, nur den Arbeitsordner."
+    geprueft_am: 2026-10-22
+
+  - id: mcp-git
+    name: "Git (MCP)"
+    kategorie: "Grundausstattung"
+    beschreibung: "Offizieller MCP-Referenz-Server für Git-Repositories."
+    agent_kann: "Status, Änderungen und Verlauf ansehen, Dateien vormerken und Commits erstellen."
+    lizenz: "MIT"
+    status: stabil
+    homepage: "https://github.com/modelcontextprotocol/servers"
+    quelle: "https://pypi.org/project/mcp-server-git/"
+    pruefsumme: "PyPI prüft Pakete selbst"
+    voraussetzungen: ["git", "uv"]
+    installation: |
+      sudo apt install -y git pipx
+      pipx install uv
+      pipx ensurepath
+    mcp:
+      command: "~/.local/bin/uvx"
+      args: ["mcp-server-git"]
+    hinweis: "Passt gut zur Regel: Agenten arbeiten an Projekten nur über Git."
+    geprueft_am: 2026-10-22
+
+  # Ausgesetzt (Test 22.10.2026, mcp-server-fetch über uvx): Ist Node.js installiert (z. B. für den
+  # Dateisystem- oder Playwright-Server), ruft das Paket readabilipy ein Node-Skript ohne dessen Module auf
+  # und jeder Abruf endet mit „Error executing tool fetch“. Hermes liest Webseiten auch selbst.
+  # - id: mcp-fetch
+  #   name: "Webseiten abrufen (MCP)"
+  #   kategorie: "Grundausstattung"
+  #   beschreibung: "Offizieller MCP-Referenz-Server: lädt Webseiten und wandelt sie in gut lesbaren Text um."
+  #   agent_kann: "Webseiten lesen und zusammenfassen, ohne den Browser zu steuern."
+  #   lizenz: "MIT"
+  #   status: stabil
+  #   homepage: "https://github.com/modelcontextprotocol/servers"
+  #   quelle: "https://pypi.org/project/mcp-server-fetch/"
+  #   pruefsumme: "PyPI prüft Pakete selbst"
+  #   voraussetzungen: ["uv"]
+  #   installation: |
+  #     sudo apt install -y pipx
+  #     pipx install uv
+  #     pipx ensurepath
+  #   mcp:
+  #     command: "~/.local/bin/uvx"
+  #     args: ["mcp-server-fetch"]
+  #   hinweis: null
+  #   geprueft_am: null
+
+  - id: mcp-playwright
+    name: "Playwright Browser (MCP)"
+    kategorie: "Browser"
+    beschreibung: "MCP-Server von Microsoft: Der Agent steuert einen echten Browser, klickt, füllt Formulare aus und macht Screenshots."
+    agent_kann: "Webseiten bedienen, Formulare ausfüllen, Screenshots machen, Abläufe im Web automatisieren."
+    lizenz: "Apache-2.0"
+    status: stabil
+    homepage: "https://github.com/microsoft/playwright-mcp"
+    quelle: "https://www.npmjs.com/package/@playwright/mcp"
+    pruefsumme: "npm prüft Pakete selbst"
+    voraussetzungen: ["nodejs", "npm"]
+    installation: |
+      sudo apt install -y nodejs npm
+      # Browser in genau der Version, die der MCP-Server erwartet (samt Systempaketen)
+      npx -y @playwright/mcp@latest install-browser --with-deps chromium
+    mcp:
+      command: "npx"
+      args: ["-y", "@playwright/mcp@latest", "--browser", "chromium"]
+    hinweis: "Der Agent kann damit überall im Web klicken. Nicht mit eingeloggten Konten verwenden, die du nicht aus der Hand geben willst. Meldet der Server nach einem Update „Browser … is not installed“, die zweite Installationszeile noch einmal ausführen."
+    geprueft_am: 2026-10-22

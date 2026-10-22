@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pycdlib
 
-from bonys_agents import desktops, mission_control, netz, screen, vpnlink, wallpaper
+from bonys_agents import desktops, mission_control, n8n, netz, screen, vpnlink, wallpaper
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -628,6 +628,7 @@ fi""",
     if remove_personal:
         lines.append(VPN_CLEANUP)
         lines.append(mission_control.fresh_template_script())
+        lines.append(n8n.fresh_template_script())
         lines.append('echo "== Persönliche Daten =="')
         for item in PERSONAL_DATA:
             lines.append(f"# {item.title}")

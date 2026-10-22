@@ -407,6 +407,51 @@ def _mission_control():
     return mission_control.app_spec()
 
 
+def _n8n():
+    from bonys_agents import n8n
+
+    return n8n.app_spec()
+
+
+def _agenten_apps():
+    from bonys_agents import agenten_apps
+
+    return agenten_apps.app_spec()
+
+
+# GNOME Software mit Flathub: Programme wie GIMP per Klick (Flatpak, ohne Passwort für die Gruppe sudo).
+# Offline-Fix: NetworkManager (kommt mit dem Desktop) verwaltet die Netzwerkkarte nicht – das macht
+# systemd-networkd aus cloud-init/netplan. GIO fragt aber NetworkManager, hält den Agent-PC deshalb für offline,
+# und GNOME Software zeigt keine Programme. Die offizielle GIO-Variable GIO_USE_NETWORK_MONITOR=netlink fragt
+# stattdessen den Kernel (wirkt ab der nächsten Anmeldung). Automatische Updates von GNOME Software aus: Die macht
+# Bony's Agents („Agent-PC aktualisieren“), zwei gleichzeitige apt-Läufe würden sich sperren.
+SOFTWARE_CENTER = AppSpec(
+    id="software-center",
+    name="Software-Center",
+    description="Programme wie GIMP oder Inkscape per Klick installieren (GNOME Software mit Flathub)",
+    weight=4.0,
+    check="command -v gnome-software && flatpak remotes --columns=name | grep -qx flathub",
+    launcher="org.gnome.Software.desktop",
+    version="dpkg-query -W -f='${Version}' gnome-software",
+    install=r"""
+apt-get install -y gnome-software gnome-software-plugin-flatpak flatpak
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+touch /etc/environment
+grep -q '^GIO_USE_NETWORK_MONITOR=' /etc/environment \
+  || printf '# Bony'"'"'s Agents: Netzwerk-Status vom Kernel statt von NetworkManager (Software-Center)\nGIO_USE_NETWORK_MONITOR=netlink\n' \
+     >> /etc/environment
+cat > /usr/share/glib-2.0/schemas/90_bonys-agents-software.gschema.override <<'EOF'
+# Von Bony's Agents: Updates macht „Agent-PC aktualisieren“ – GNOME Software lädt nichts selbst
+[org.gnome.software]
+download-updates=false
+download-updates-notify=false
+EOF
+glib-compile-schemas /usr/share/glib-2.0/schemas
+cp /usr/share/applications/org.gnome.Software.desktop "$DESKTOP_DIR/"
+""",
+)
+
+
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
@@ -549,9 +594,13 @@ cp /usr/share/applications/claude-code.desktop "$DESKTOP_DIR/"
 )
 
 MISSION_CONTROL = _mission_control()
+N8N = _n8n()
+# Nach n8n: Die Seite zeigt unter „Schon dabei“ nur, was wirklich installiert ist
+AGENTEN_APPS = _agenten_apps()
 
-APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, VPN, DOCKER, MISSION_CONTROL,
-                                               HERMES, OPENCLAW, CLAUDE_CODE)}
+APPS: dict[str, AppSpec] = {a.id: a for a in (BRAVE, TELEGRAM, XRDP, OBSIDIAN, SOFTWARE_CENTER, VPN, DOCKER,
+                                               MISSION_CONTROL, N8N, HERMES, OPENCLAW, CLAUDE_CODE,
+                                               AGENTEN_APPS)}
 
 
 def not_redistributable(app_ids: list[str] | tuple[str, ...]) -> list[str]:

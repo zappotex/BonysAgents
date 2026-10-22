@@ -214,8 +214,8 @@ Scrolle im Fenster nach unten:
 
 7. **Speicherort**: Wo der Agent-PC liegen soll. Normalerweise auf deinem Rechner. Du kannst auch eine externe
    SSD wählen.
-8. **Programme**: Brave, Telegram und Fernzugriff (RDP) sind schon angehakt. **Obsidian** (Notizen) und
-   **Mission Control** kannst du zusätzlich wählen.
+8. **Programme**: Brave, Telegram, Fernzugriff (RDP), das **Software-Center**, die Liste **Agenten-Apps** und
+   **n8n** sind schon angehakt. **Obsidian** (Notizen) und **Mission Control** kannst du zusätzlich wählen.
 9. **VPN**: Nur wenn du einen eigenen WireGuard-Zugang hast (siehe Kapitel „VPN“).
 10. **Bony-Netz**: Das Häkchen „Mit dem Bony-Netz verbinden“ erscheint nur, wenn du das Bony-Netz eingeschaltet
     hast. Für Kurse über das Internet muss es gesetzt sein (siehe Kapitel „Bony-Netz“).
@@ -421,6 +421,93 @@ Agent-PC (mit Docker) und braucht etwa 2 GB mehr Platz und 512 MB mehr Arbeitssp
 Im Bereich **„Mission Control“** ① siehst du, ob es läuft. **„Öffnen“** zeigt die Oberfläche im Agent-PC,
 **„Aktualisieren“** holt die neueste Version. Die Weiterleitung an deinen eigenen Rechner ist aus und nur bei
 Bedarf einzuschalten.
+
+## Software-Center
+
+Mit dem **Software-Center** installierst du weitere Programme per Klick – zum Beispiel das Bildprogramm GIMP oder
+Inkscape. Öffne **„Software“** über das Startmenü oder den Schreibtisch, suche das Programm und klicke auf
+**„Installieren“**. Die Programme kommen von **Flathub**, der offiziellen Sammelstelle für Linux-Programme; ein
+Passwort brauchst du dafür nicht. Beim ersten Start lädt das Software-Center einmal die Liste aller Programme,
+das dauert eine Minute.
+
+![Das Software-Center im Agent-PC](bilder/software-center.png){width=75%}
+
+Updates holt das Software-Center nicht selbst – das macht **„Agent-PC aktualisieren“** in Bony's Agents.
+
+## n8n
+
+**n8n** baut Abläufe („Workflows“) per Klick zusammen: Mails abrufen, RSS-Feeds lesen, Telegram-Nachrichten
+schicken, Dateien bearbeiten, Webseiten und Dienste abfragen. Es ist beim Erstellen angehakt und lässt sich über
+„Programme hinzufügen …“ nachrüsten.
+
+- n8n läuft im Agent-PC in **Docker** und ist **nur im Agent-PC selbst** erreichbar (`http://localhost:5678`) –
+  weder in deinem Heimnetz noch im Bony-Netz.
+- Doppelklick auf **„n8n“** auf dem Schreibtisch öffnet es in Brave. Beim ersten Öffnen legst du ein Konto an
+  („Set up owner account“, die Oberfläche ist englisch). Das Konto gilt nur für dieses n8n und bleibt im
+  Agent-PC; nach einem Neustart braucht n8n etwa eine Minute, bis die Seite erscheint.
+- Deine Workflows liegen in einem eigenen Speicher (Docker-Volume `n8n_data`) und überstehen jedes Update.
+- n8n braucht etwa **1 GB mehr Arbeitsspeicher**. Ist der Agent-PC zu knapp eingestellt, warnt das Fenster
+  „Neuer Agent-PC“ und schlägt einen besseren Wert vor.
+
+![n8n im Agent-PC](bilder/n8n.png){width=75%}
+
+::: hinweis
+**Lizenz:** n8n steht unter der **Sustainable Use License**. Der Quellcode ist offen und du darfst n8n für dich
+kostenlos nutzen – es ist aber keine Open-Source-Lizenz im Sinne der OSI. Deshalb steckt n8n nicht in
+weitergegebenen Vorlagen: Wer deine Vorlage öffnet, lädt n8n selbst aus der offiziellen Quelle.
+:::
+
+### n8n und Hermes zusammen
+
+So arbeiten die beiden laut der Dokumentation von n8n und Hermes zusammen:
+
+1. **Hermes stößt einen Workflow an (Webhook).** Beginne den Workflow in n8n mit dem Knoten **„Webhook“** und
+   veröffentliche ihn. Die Adresse zeigt der Knoten an („Production URL“). Sag Hermes zum Beispiel:
+   „Rufe diese Adresse mit curl per POST auf und schicke dabei den Text …“. Antworten kann der Workflow mit dem
+   Knoten „Respond to Webhook“.
+2. **Hermes bedient n8n über MCP.** In n8n unter **Einstellungen → Instance-level MCP** den Zugang einschalten,
+   die gewünschten Workflows freigeben und unter „Connect a client“ einen Zugangsschlüssel (Token) erzeugen. Dann
+   in `~/.hermes/config.yaml` eintragen:
+
+   ```yaml
+   mcp_servers:
+     n8n:
+       url: "http://localhost:5678/mcp-server/http"
+       headers:
+         Authorization: "Bearer DEIN-TOKEN"
+   ```
+
+   Danach kann Hermes Workflows suchen und ausführen. Der Token ist ein Passwort – er bleibt im Agent-PC.
+3. **n8n gibt Hermes Aufgaben.** Hermes hat einen eigenen API-Server (nur `127.0.0.1:8642`, mit Schlüssel
+   `API_SERVER_KEY` in `~/.hermes/.env`, gestartet mit `hermes gateway`). Ein Knoten **„HTTP Request“** in n8n
+   schickt dann eine Aufgabe an den Endpunkt `/v1/chat/completions`. Aber: n8n läuft in Docker, und dort meint
+   `127.0.0.1` den Container selbst. Der API-Server muss dafür auf einer Adresse lauschen, die der Container
+   erreicht (`API_SERVER_HOST`) – das ist etwas für Fortgeschrittene.
+
+## Agenten-Apps
+
+Auf dem Schreibtisch jedes neuen Agent-PCs liegt **„Agenten-Apps“**: eine Liste bekannter Programme, die einen
+**MCP-Server** haben – Hermes kann sie dann selbst bedienen. Dabei sind zum Beispiel PdfCraft (PDFs), PhotoCraft
+(Bilder), WordCraft, GridCraft und DeckCraft (Texte, Tabellen, Präsentationen im Format von Word, Excel und
+PowerPoint), CADCraft und SolidCraft (Konstruktion) sowie die offiziellen MCP-Server für Dateien und Git und
+Playwright, mit dem Hermes einen Browser steuert.
+
+![Die Liste „Agenten-Apps“](bilder/agenten-apps.png){width=75%}
+
+Bony's Agents installiert diese Programme **nicht** von selbst – du entscheidest. Jeder Eintrag zeigt unter
+**„Installieren & mit Hermes verbinden“** die Befehle zum Kopieren:
+
+1. Die offizielle Quelle (Download-Seite des Herstellers).
+2. Die Befehle für das Terminal – sie laden die neueste Version von der offiziellen Seite und prüfen die
+   Prüfsumme.
+3. Den Befehl, der den MCP-Server bei Hermes anmeldet (`hermes mcp add …`).
+
+Du musst nichts selbst eintippen: Sag Hermes zum Beispiel „Installiere PdfCraft aus der Agenten-Liste und richte
+den MCP-Server ein“. Er zeigt dir vorher, was er tun will. Dateien für die Agenten gehören in den Ordner
+`~/Agent-Dateien`. Die Liste funktioniert ohne Internet; die neueste Fassung steht immer online unter
+<https://zappotex.github.io/BonysAgents/agenten-apps/>.
+
+Viele dieser Programme sind noch jung (Alpha). Für wichtige Dateien vorher eine Kopie anlegen.
 
 ## VPN
 

@@ -702,9 +702,10 @@ def test_ai_tool_specs():
     for app_id, name in (("openclaw", "OpenClaw"), ("claude-code", "Claude Code"), ("hermes", "Hermes Agent")):
         spec = apps.APPS[app_id]
         assert spec.name == name and spec.category == apps.AGENT
-    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "vpn", "docker",
-                                                  "mission-control"]
-    assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "hermes"]  # KI-Werkzeuge außer Hermes nur auf Wunsch
+    assert apps.ids_in_category(apps.PROGRAM) == ["brave", "telegram", "xrdp", "obsidian", "software-center", "vpn",
+                                                  "docker", "mission-control", "n8n", "agenten-apps"]
+    # KI-Werkzeuge außer Hermes nur auf Wunsch
+    assert apps.default_app_ids() == ["brave", "telegram", "xrdp", "software-center", "n8n", "hermes", "agenten-apps"]
 
 
 def test_closed_source_apps_say_so():
@@ -846,7 +847,8 @@ def test_no_credentials_in_cloud_init():
 
 def test_agents_option():
     assert cli.app_selection(None, None) is None
-    assert cli.app_selection(None, "openclaw,claude-code") == ["brave", "telegram", "xrdp", "openclaw", "claude-code"]
+    assert cli.app_selection(None, "openclaw,claude-code") == ["brave", "telegram", "xrdp", "software-center", "n8n",
+                                                               "agenten-apps", "openclaw", "claude-code"]
     assert cli.app_selection("brave", "none") == ["brave"]
     assert cli.app_selection("brave,hermes", None) == ["brave", "hermes"]
     with pytest.raises(ValueError, match="nur für KI-Werkzeuge"):

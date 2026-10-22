@@ -36,3 +36,4 @@ docs/handbuch/_bau/
 # Interne Aufträge (nicht ins Repo)
 /auftrag-kurspakete.md
 /docs/dev/auftrag-kurspakete.md
+/docs/dev/auftrag-n8n-agenten-apps.md

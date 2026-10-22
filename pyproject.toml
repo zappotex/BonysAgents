@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "pyinstaller>=6.6"]
+dev = ["pytest>=8", "ruff>=0.5", "pyinstaller>=6.6", "pyyaml>=6"]  # pyyaml: Tests von agent-apps/build_agent_apps.py
 
 [project.scripts]
 bonys-agents = "bonys_agents.cli:main"
@@ -66,6 +66,8 @@ artifacts = ["src/bonys_agents/trainer/resources/novnc/", "src/bonys_agents/reso
 "docs/handbuch/vorlage" = "bonys_agents/trainer/resources/handbuch-vorlage"
 # Mitgelieferte Kurspakete (beide Editionen – Selbstlern-Modus)
 "kurspakete" = "bonys_agents/resources/kurspakete"
+# Liste „Agenten-Apps“ für den Schreibtisch jedes Agent-PCs
+"agent-apps" = "bonys_agents/resources/agent-apps"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -82,5 +84,8 @@ ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/bonys_agents/apps.py" = ["E501"]
+# Shell-Skripte bzw. CSS/HTML in Zeichenketten
+"src/bonys_agents/n8n.py" = ["E501"]
+"agent-apps/build_agent_apps.py" = ["E501"]
 # Gemeinsamer Baustein mit Bony's VPN – wird nur als Ganzes ersetzt, nicht hier angepasst
 "src/bony_netz/*" = ["E501", "UP037"]

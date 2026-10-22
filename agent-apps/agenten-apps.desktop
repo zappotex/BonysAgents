@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Agenten-Apps
+Name[de]=Agenten-Apps
+Comment=Programme, die dein Hermes-Agent selbst bedienen kann
+Exec=xdg-open /usr/share/bonys-agents/agenten-apps/index.html
+Icon=applications-science
+Terminal=false
+Categories=Utility;

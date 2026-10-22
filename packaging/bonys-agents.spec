@@ -47,6 +47,8 @@ if TRAINER:   # Vorlage der Handbücher – der Kurspaket-Editor baut damit Abla
 # Mitgelieferte Kurspakete – beide Editionen (Selbstlern-Modus); Ablaufplan und Kursleitungs-Notizen zeigt nur die
 # Kursleiter-Version an
 datas.append((str(ROOT / "kurspakete"), "bonys_agents/resources/kurspakete"))
+# Liste „Agenten-Apps“ – kommt in jeden Agent-PC (agenten_apps.py)
+datas.append((str(ROOT / "agent-apps"), "bonys_agents/resources/agent-apps"))
 
 # Nicht benötigte Qt-Teile weglassen. Qt WebEngine (Kursraum) bleibt drin – es bringt QtNetwork, QtWebChannel und
 # die Qt-Bibliotheken von Qml/Quick selbst mit (als Abhängigkeit von libQt6WebEngineCore, nicht als Python-Modul).

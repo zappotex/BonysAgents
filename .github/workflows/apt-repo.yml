@@ -3,10 +3,13 @@ name: APT-Paketquelle
 # Gemeinsame APT-Paketquelle von Bony's Agents und Bony's VPN auf GitHub Pages
 # (https://zappotex.github.io/BonysAgents/apt/). Die .deb kommen aus den neuesten Releases BEIDER
 # Projekte – so überschreibt keines die Pakete des anderen.
+# Auf derselben Seite (Pages veröffentlicht immer alles auf einmal): die Online-Liste „Agenten-Apps“
+# (https://zappotex.github.io/BonysAgents/agenten-apps/) aus agent-apps/agent-apps.yaml auf main.
 #
 # Läuft
 #   - nach jedem Release von Bony's Agents (release.yml ruft diesen Workflow auf),
 #   - stündlich: baut nur neu, wenn sich ein Release geändert hat (versions.txt auf der Seite),
+#   - bei jeder Änderung in agent-apps/ auf main – neue Einträge der Liste ohne neues Release,
 #   - von Hand („Run workflow“) oder angestoßen vom Release-Workflow von bonys-vpn (gh workflow run).
 #
 # Secrets: APT_GPG_PRIVATE_KEY, APT_GPG_PASSPHRASE (siehe docs/RELEASE.md).
@@ -17,6 +20,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "23 * * * *"
+  push:
+    branches: [main]
+    paths: ["agent-apps/**"]
 
 permissions:
   contents: read
@@ -99,6 +105,11 @@ jobs:
           # Gegenprobe: passt der Schlüssel zu dem, der in den Paketen steckt?
           gpg --batch --dearmor < packaging/linux/bonys-agents-archive-keyring.asc > "$RUNNER_TEMP/keyring.gpg"
           for suite in stable bonys-vpn; do gpgv --keyring "$RUNNER_TEMP/keyring.gpg" "site/apt/dists/$suite/InRelease"; done
+      - name: Online-Liste „Agenten-Apps“ bauen
+        run: |
+          # Ohne --home: ~ bleibt stehen (die Shell löst es auf); bricht ab, wenn in der Liste Pflichtfelder fehlen
+          sudo apt-get install -y --no-install-recommends python3-yaml
+          python3 agent-apps/build_agent_apps.py agent-apps/agent-apps.yaml site/agenten-apps/index.html
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

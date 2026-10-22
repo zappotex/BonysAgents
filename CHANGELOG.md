@@ -3,7 +3,25 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.24.0 – n8n, Software-Center und Agenten-Apps
+
+### Neu
+- **n8n im Agent-PC** (Standard: an, auch über „Programme hinzufügen …“): Workflows per Klick, aus dem offiziellen
+  Docker-Image `docker.n8n.io/n8nio/n8n` auf dem Docker-Unterbau von Mission Control. Nur unter
+  `http://localhost:5678` im Agent-PC erreichbar (nicht im Heimnetz, nicht im Bony-Netz), Daten im Volume
+  `n8n_data` (überstehen Updates), Zeitzone des Agent-PCs, startet mit dem Agent-PC; Verknüpfung „n8n“ öffnet es in
+  Brave. **Lizenz:** n8n steht unter der *Sustainable Use License* – Quellcode offen, aber keine
+  OSI-Open-Source-Lizenz; deshalb steckt n8n nicht in weitergegebenen Vorlagen, frische Vorlagen löschen seine
+  Daten. Der Dialog zeigt den Lizenzhinweis und warnt, wenn der Arbeitsspeicher (ca. 1 GB zusätzlich) knapp ist.
+- **Software-Center** (Standard: an): GNOME Software mit Flathub – Programme wie GIMP per Klick, ohne Passwort.
+  Behebt dabei, dass GNOME Software im Agent-PC „offline“ meldete (NetworkManager verwaltet die Netzwerkkarte
+  nicht; jetzt fragt GIO den Kernel). Updates macht weiter „Agent-PC aktualisieren“.
+- **„Agenten-Apps“** auf dem Schreibtisch jedes Agent-PCs: offline lesbare Liste von Programmen mit MCP-Server
+  (PdfCraft, PhotoCraft, WordCraft, GridCraft, DeckCraft, CADCraft, SolidCraft, offizielle MCP-Server für Dateien
+  und Git, Playwright für den Browser) mit Installationsbefehlen von den offiziellen Seiten (neueste Version,
+  Prüfsumme) und dem Befehl `hermes mcp add …` mit den echten Pfaden. Nichts wird automatisch installiert. Quelle:
+  `agent-apps/agent-apps.yaml`; die Online-Fassung (<https://zappotex.github.io/BonysAgents/agenten-apps/>) baut der
+  Pages-Workflow bei jeder Änderung neu – ohne neues Release. Bestehende Agent-PCs: „Programme hinzufügen …“.
 
 ### Behoben
 - Kurspaket „Einführung in Hermes Agent“ 1.0.1: Die Prüfung „Hermes eingerichtet“ (Lektion 3) meldete bei einem
