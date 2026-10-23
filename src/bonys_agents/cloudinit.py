@@ -76,6 +76,8 @@ if grep -rqs -- '--autologin root' /etc/systemd/system; then
   echo "FEHLER: root wird weiterhin automatisch angemeldet." >&2; exit 1
 fi
 apt-get install -y "linux-image-$(dpkg --print-architecture)"
+# Das Cloud-Abbild hat keine Schrift für „㉿“ in der Kali-Eingabezeile (.bashrc/.zshrc) – sonst ein Kästchen
+apt-get install -y fonts-noto-cjk
 """
 
 # Erst wenn der normale Kernel samt initramfs da ist: alle Cloud-Kernelpakete entfernen. Kali teilt den Kernel auf

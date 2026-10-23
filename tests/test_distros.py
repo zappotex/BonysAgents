@@ -142,6 +142,7 @@ def test_provision_script_kali_steps():
     # Alle Teile des Cloud-Kernels raus (sonst Kernel-Panic) und GRUB danach geprüft
     assert "'linux-*cloud*'" in cloudinit.KALI_KERNEL_SWITCH and "update-grub" in cloudinit.KALI_KERNEL_SWITCH
     assert "autologin.conf" in cloudinit.KALI_PREPARE
+    assert "fonts-noto-cjk" in cloudinit.KALI_PREPARE and "fonts-noto-cjk" not in debian
 
 
 @pytest.fixture

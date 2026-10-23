@@ -3,6 +3,13 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Behoben
+- **Kali Linux:** Das Zeichen „㉿“ in der Eingabezeile des Terminals (`agent㉿name`) erschien als Kästchen – dem
+  Kali-Cloud-Abbild fehlt die Schrift dafür. Neue Kali-PCs bekommen jetzt `fonts-noto-cjk`; bestehende:
+  `sudo apt install fonts-noto-cjk`.
+
 ## 0.25.0 – Kali Linux und Tor Browser
 
 ### Neu
