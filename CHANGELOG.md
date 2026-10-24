@@ -12,6 +12,12 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
   automatisch verbinden, Prüfseiten für DNS und Tracker, privates Fenster mit Tor, Wegwerf-PC – ehrlich:
   privater, nicht anonym. Prüfaufgaben lesen nie einen Schlüssel (nur Dateinamen und `bonys-vpn status`).
 
+### Geändert
+- **Mission Control 0.2.5** für neue Agent-PCs (bisher 0.1.0, das nur anzeigen konnte): Missionen anlegen, Agenten
+  zuweisen und von „geplant“ bis „fertig“ verfolgen, aus einer Mission einen echten Hermes-Auftrag starten,
+  beobachten und stoppen, Einzel- und Teamchat mit den Hermes-Agenten, Erreichbarkeit der Agenten live, Bereich
+  „Updates“. Bestehende Agent-PCs: Reiter „Mission Control“ → „Aktualisieren“.
+
 ### Behoben
 - **Kali Linux:** Das Zeichen „㉿“ in der Eingabezeile des Terminals (`agent㉿name`) erschien als Kästchen – dem
   Kali-Cloud-Abbild fehlt die Schrift dafür. Neue Kali-PCs bekommen jetzt `fonts-noto-cjk`; bestehende:

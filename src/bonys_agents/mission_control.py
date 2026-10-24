@@ -35,8 +35,8 @@ NAME = "Mission Control"
 REPO = "zappotex/bonys-agents-mission-control"
 REPO_URL = f"https://github.com/{REPO}"
 # Release, das neue Agent-PCs bekommen – mit einem Update von Bony's Agents anhebbar (dann auch die Prüfsumme).
-VERSION = "0.1.0"
-INSTALL_SHA256 = "222bff0b91620b7695c7010dea0b6b3af6981e3d3816bec4ce4b24d13c68b237"
+VERSION = "0.2.5"
+INSTALL_SHA256 = "d464ff36e04ec21c645ae77ebef00d63424f2cb74d2e11d7aaa3ac0e1163bba5"
 
 PORT = 8787
 URL = f"http://127.0.0.1:{PORT}/"
