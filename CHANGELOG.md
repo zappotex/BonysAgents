@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.26.1 – Mission Control 0.2.7
 
 ### Geändert
 - **Mission Control 0.2.7** für neue Agent-PCs (bisher 0.2.5):
