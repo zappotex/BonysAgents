@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.26.0 – Mission Control 0.2.5 und Kurspaket „Bony's VPN“
 
 ### Neu
 - **Kurspaket „Bony's VPN: sicher und privater ins Internet“** (90 Minuten, Anfänger, auch im
