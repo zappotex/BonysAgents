@@ -1601,12 +1601,16 @@ def test_permanent_remote_opens_ports_at_start(datadir, monkeypatch):
 
 # ---------- Herunterfahren ----------
 _QEMU_FAKE_C = r"""
+#include <errno.h>
 #include <stdlib.h>
 #include <time.h>
 int main(int argc, char **argv) {
     double s = argc > 1 ? strtod(argv[argc - 1], NULL) : 0;
     struct timespec t = {(time_t)s, (long)((s - (time_t)s) * 1e9)};
-    while (nanosleep(&t, &t) != 0) {}
+    while (nanosleep(&t, &t) != 0) {
+        if (errno != EINTR)
+            return 1;
+    }
     return 0;
 }
 """
