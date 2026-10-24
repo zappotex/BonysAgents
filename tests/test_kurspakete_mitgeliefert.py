@@ -21,6 +21,7 @@ QUELLE = ROOT / "kurspakete"
 HERMES = QUELLE / "einfuehrung-hermes-agent"
 MCP = QUELLE / "was-ist-ein-mcp-server"
 N8N = QUELLE / "n8n-grundlagen"
+VPN = QUELLE / "bonys-vpn-privater-surfen"
 
 
 def _ordner() -> list[Path]:
@@ -38,9 +39,10 @@ def test_alle_gueltig_und_ohne_geheimnisse():
         for lek in p.lektionen:
             lek.quiz()
             assert lek.anleitung().strip()
-    assert "einfuehrung-hermes-agent" in ids and len(ids) == 8
+    assert "einfuehrung-hermes-agent" in ids and len(ids) == 9
     fertig = {kurspaket.laden(o).id for o in _ordner() if not kurspaket.laden(o).entwurf}
-    assert fertig == {"einfuehrung-hermes-agent", "was-ist-ein-mcp-server", "n8n-grundlagen"}   # dazu fünf Entwürfe
+    assert fertig == {"einfuehrung-hermes-agent", "was-ist-ein-mcp-server", "n8n-grundlagen",
+                      "bonys-vpn-privater-surfen"}   # dazu fünf Entwürfe
     assert {kurspaket.laden(o).stufe for o in _ordner()} == {"anfaenger", "fortgeschritten", "experte"}
 
 
@@ -164,6 +166,76 @@ def test_reihe_pruefskripte_in_einem_test_home(tmp_path):
         assert rc(sys.executable, "-I", str(export / "export-vorhanden.py")) == 0
 
 
+def test_vpn_paket():
+    """Kurspaket „Bony's VPN“: 90 Minuten, Agent-PC mit Bony's VPN, ehrlich „privater, nicht anonym“."""
+    p = kurspaket.laden(VPN)
+    assert p.dauer_minuten == 90 and sum(lek.dauer_minuten for lek in p.lektionen) == 90
+    assert p.rezept.apps == ["brave", "vpn"] and not p.entwurf
+    # bonys-vpn status braucht im Agent-PC root (bzw. pkexec) – die Prüfungen mit Tunnel laufen deshalb als root
+    assert [lek.pruefung.als for lek in p.lektionen if lek.pruefung] == ["benutzer", "root", "root", "root"]
+    text = "".join(f.read_text() for f in VPN.rglob("*.md"))
+    assert "nicht anonym" in text and "Kill-Switch" in text and "dnsleaktest" in text
+    assert "<!--" not in text
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Prüfskripte sind für Linux im Agent-PC")
+def test_vpn_pruefskripte(tmp_path):
+    """Wie oben in einem leeren HOME; „bonys-vpn“ ist ein Ersatz, der ein festes Status-JSON ausgibt."""
+    home = tmp_path / "home"
+    (home / "Downloads").mkdir(parents=True)
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    status = tmp_path / "status.json"
+    vpn = bin_ / "bonys-vpn"
+    vpn.write_text(f"#!/bin/sh\ncat '{status}'\n")
+    vpn.chmod(0o755)
+    env = {"HOME": str(home), "PATH": f"{bin_}:" + os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"}
+
+    def rc(skript: Path) -> int:
+        return subprocess.run([sys.executable, "-I", str(skript)], env=env, cwd=tmp_path, capture_output=True,
+                              timeout=30).returncode
+
+    def setze(**daten) -> None:
+        status.write_text(json.dumps({"schema": 1, "version": "1.0.1", **daten}))
+
+    lek = VPN / "lektionen"
+    geladen = lek / "03-konfiguration-holen" / "pruefung" / "conf-geladen.py"
+    assert rc(geladen) == 1
+    if shutil.which("bash"):
+        assert subprocess.run(["bash", str(geladen.with_name("loesung.sh"))], env=env, timeout=30).returncode == 0
+        demo = home / "Downloads" / "demo-nl.conf"
+        assert demo.stat().st_mode & 0o077 == 0 and "vpn.example.net" in demo.read_text()
+        assert rc(geladen) == 0
+        demo.unlink()
+    (home / "Downloads" / "proton.zip").write_bytes(b"PK")
+    assert rc(geladen) == 0
+
+    verbunden = lek / "04-importieren-und-verbinden" / "pruefung" / "tunnel-verbunden.py"
+    ks = lek / "05-kill-switch" / "pruefung" / "kill-switch-an.py"
+    aus = {"enabled": False, "active": False, "exceptions": ["10.0.2.0/24"]}
+    tunnel = {"name": "proton-nl", "active": False, "autostart": False, "managed": True}
+    setze(active=None, tunnels=[tunnel], killswitch=aus)
+    assert rc(verbunden) == 1 and rc(ks) == 1
+    setze(active="proton-nl", tunnels=[{**tunnel, "active": True, "handshake": None}], killswitch=aus)
+    assert rc(verbunden) == 1   # noch kein Handshake mit dem Server
+    setze(active="proton-nl", tunnels=[{**tunnel, "active": True, "handshake": 1700000000}], killswitch=aus)
+    assert rc(verbunden) == 0 and rc(ks) == 1
+    an = {**aus, "enabled": True, "active": True}
+    setze(active="proton-nl", tunnels=[{**tunnel, "active": True, "handshake": 1, "autostart": True}], killswitch=an)
+    assert rc(ks) == 0
+    setze(active=None, tunnels=[{**tunnel, "autostart": True}], killswitch=an)
+    assert rc(ks) == 1           # Kill-Switch-Test gemacht, aber nicht wieder verbunden
+    status.write_text("kein JSON")
+    assert rc(verbunden) == 1 and rc(ks) == 1
+
+    # Aufgeräumt: ohne importierten Tunnel nie geschafft (die Downloads-Ordner unter /home prüft es nur im Agent-PC)
+    setze(active=None, tunnels=[], killswitch=aus)
+    assert rc(lek / "07-aufraeumen-und-abschluss" / "pruefung" / "conf-aufgeraeumt.py") == 1
+    for skript in VPN.rglob("pruefung/*.py"):
+        code = skript.read_text()
+        assert "read_text" not in code and "open(" not in code, skript   # nie eine Konfiguration öffnen
+
+
 @pytest.mark.kursleiter
 def test_statische_pruefung_wie_im_editor():
     from bonys_agents.trainer import kurspaket_editor as editor
@@ -186,7 +258,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
     m = _skript()
     bau = tmp_path / "bau"
     ordner = m.vorbereiten(bau)
-    assert len(ordner) == 8
+    assert len(ordner) == 9
     # ohne Signatur bricht es ab
     with pytest.raises(SystemExit, match="Signatur"):
         m.packen(bau, tmp_path / "out", public)
@@ -196,7 +268,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
                                            encoding="utf-8")
     index = m.packen(bau, tmp_path / "out", public)
     katalog = json.loads(index.read_text())
-    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 8
+    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 9
     hermes = next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent")
     assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.1.bonyspaket" and "entwurf" not in hermes
     datei = tmp_path / "out" / "einfuehrung-hermes-agent-1.0.1.bonyspaket"

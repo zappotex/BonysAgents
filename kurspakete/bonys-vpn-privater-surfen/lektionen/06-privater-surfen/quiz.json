@@ -1,0 +1,44 @@
+{
+  "fragen": [
+    {
+      "frage": "Der DNS-Test zeigt die Server deines Internetanbieters. Was heißt das?",
+      "antworten": [
+        "Alles bestens",
+        "Die Namensanfragen gehen am Tunnel vorbei – der Anbieter sieht weiter, wohin du gehst",
+        "Der Kill-Switch ist kaputt"
+      ],
+      "richtig": 1,
+      "erklaerung": "Gut ist: nur Server des VPN-Anbieters. Sonst fehlt meist die DNS-Zeile in der Konfiguration."
+    },
+    {
+      "frage": "Wogegen hilft ein VPN NICHT?",
+      "antworten": [
+        "Gegen den Fingerabdruck deines Browsers",
+        "Gegen Mitlesen im Café-WLAN",
+        "Dagegen, dass Webseiten deine Adresse sehen"
+      ],
+      "richtig": 0,
+      "erklaerung": "Der Fingerabdruck entsteht aus Browser, Bildschirm, Schriften und mehr – egal, über welche Adresse du kommst."
+    },
+    {
+      "frage": "Du meldest dich über das VPN bei deinem Mail-Konto an. Bist du dort privat?",
+      "antworten": [
+        "Ja, das VPN versteckt mich",
+        "Nein – der Mail-Anbieter weiß durch die Anmeldung, wer du bist",
+        "Nur im privaten Fenster"
+      ],
+      "richtig": 1,
+      "erklaerung": "Anmelden verrät dich immer. Trenne deshalb Privates (eigener Agent-PC) von Ausprobieren (Wegwerf-PC)."
+    },
+    {
+      "frage": "Wofür ist ein Wegwerf-PC gut?",
+      "antworten": [
+        "Unbekannte Seiten und Downloads ansehen – danach löschen, nichts bleibt zurück",
+        "Er ersetzt das VPN",
+        "Er macht das Internet schneller"
+      ],
+      "richtig": 0,
+      "erklaerung": "Aus einer Vorlage erstellt, benutzt, gelöscht – Cookies, Verlauf und mögliche Schadsoftware sind weg."
+    }
+  ]
+}

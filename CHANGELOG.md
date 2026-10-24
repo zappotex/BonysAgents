@@ -5,6 +5,13 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 
 ## Unveröffentlicht
 
+### Neu
+- **Kurspaket „Bony's VPN: sicher und privater ins Internet“** (90 Minuten, Anfänger, auch im
+  Selbstlern-Modus): Was ein VPN ist und was nicht, WireGuard-Konfiguration bei Proton VPN (kostenlos) oder von
+  der FRITZ!Box holen, in Bony's VPN importieren, verbinden, öffentliche Adresse prüfen, Kill-Switch und
+  automatisch verbinden, Prüfseiten für DNS und Tracker, privates Fenster mit Tor, Wegwerf-PC – ehrlich:
+  privater, nicht anonym. Prüfaufgaben lesen nie einen Schlüssel (nur Dateinamen und `bonys-vpn status`).
+
 ### Behoben
 - **Kali Linux:** Das Zeichen „㉿“ in der Eingabezeile des Terminals (`agent㉿name`) erschien als Kästchen – dem
   Kali-Cloud-Abbild fehlt die Schrift dafür. Neue Kali-PCs bekommen jetzt `fonts-noto-cjk`; bestehende:

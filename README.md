@@ -52,8 +52,8 @@ im Browser surfen und Dateien anlegen, ohne an dein eigentliches System zu komme
 - Vorlagen: einen fertig eingerichteten Agent-PC als Vorlage speichern – neue Agent-PCs entstehen daraus in Sekunden, ohne Downloads und Einrichtung (siehe „Vorlagen“)
 - **Kurspakete** (`.bonyspaket`): fertige Lerninhalte mit Lektionen, Anleitung neben dem Agent-PC, Prüfaufgaben,
   Quiz, Startzuständen zum Zurücksetzen und Handout – allein durcharbeiten (Selbstlern-Modus) oder im Kurs;
-  mitgeliefert „Einführung in Hermes Agent“, „Was ist ein MCP-Server?“, „n8n-Grundlagen“ und fünf Entwürfe, weitere
-  aus der offenen Bibliothek
+  mitgeliefert „Einführung in Hermes Agent“, „Was ist ein MCP-Server?“, „n8n-Grundlagen“, „Bony's VPN: sicher
+  und privater ins Internet“ und fünf Entwürfe, weitere aus der offenen Bibliothek
   [bonys-agents-kurspakete](https://github.com/zappotex/bonys-agents-kurspakete); Editor in der Kursleiter-Version
   (siehe „Kurspakete“ und [docs/kurspaket-format.md](docs/kurspaket-format.md))
 - Schulungen: Vorlagen als eine `.bonys`-Datei weitergeben – mit Frisch-Prüfung auf Geheimnisse, ohne nicht weitergebbare Programme, mit Prüfsumme (siehe „Schulungen: Agent-PCs weitergeben“)

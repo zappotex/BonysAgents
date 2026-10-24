@@ -1,0 +1,34 @@
+{
+  "fragen": [
+    {
+      "frage": "Warum löschst du die .conf nach dem Import aus Downloads?",
+      "antworten": [
+        "Sie enthält deinen privaten Schlüssel – in Downloads kann jedes Programm sie lesen",
+        "Sonst verbindet sich das VPN doppelt",
+        "Sie nimmt zu viel Platz weg"
+      ],
+      "richtig": 0,
+      "erklaerung": "Bony's VPN hat sie geschützt abgelegt (/etc/wireguard, nur root). Die Kopie in Downloads ist überflüssig – und ein Risiko."
+    },
+    {
+      "frage": "Der Tunnel bricht ab, der Kill-Switch ist an. Was passiert?",
+      "antworten": [
+        "Der Agent-PC surft ohne Tunnel weiter",
+        "Nichts kommt mehr ins Internet, bis der Tunnel wieder steht",
+        "Der Agent-PC schaltet sich aus"
+      ],
+      "richtig": 1,
+      "erklaerung": "Genau dafür ist der Kill-Switch: ohne Tunnel kein Internet – so wird deine echte Adresse nie sichtbar."
+    },
+    {
+      "frage": "Wo liegt dein Schlüssel nach dem Import?",
+      "antworten": [
+        "Auf dem Schreibtisch, damit du ihn findest",
+        "Geschützt in /etc/wireguard, nur für root lesbar – Bony's VPN zeigt ihn nie an",
+        "Beim Kursleiter"
+      ],
+      "richtig": 1,
+      "erklaerung": "Der Helfer von Bony's VPN legt die Konfiguration mit Rechten 600 ab. In Anzeigen und Ausgaben erscheint der Schlüssel nie."
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "fragen": [
+    {
+      "frage": "Du surfst mit VPN. Wessen Adresse sieht die Webseite?",
+      "antworten": ["Deine eigene", "Die des VPN-Servers", "Gar keine"],
+      "richtig": 1,
+      "erklaerung": "Der Tunnel endet beim VPN-Server – von dort geht es weiter zur Webseite. Sie sieht dessen Adresse."
+    },
+    {
+      "frage": "Was sieht dein Internetanbieter, wenn das VPN verbunden ist?",
+      "antworten": [
+        "Alle Seiten, die du besuchst",
+        "Nur verschlüsselte Daten zu einem VPN-Server",
+        "Deine Passwörter"
+      ],
+      "richtig": 1,
+      "erklaerung": "Alles läuft verschlüsselt durch den Tunnel. Der Anbieter sieht nur, dass du mit einem VPN-Server sprichst."
+    },
+    {
+      "frage": "Macht dich ein VPN anonym?",
+      "antworten": [
+        "Ja, niemand kann dich mehr erkennen",
+        "Nein – der VPN-Anbieter sieht dein Ziel, Anmeldungen, Cookies und der Browser verraten dich weiter",
+        "Nur nachts"
+      ],
+      "richtig": 1,
+      "erklaerung": "Ein VPN macht dich privater, nicht anonym. Wer sich anmeldet, ist erkannt – egal über welche Adresse."
+    },
+    {
+      "frage": "Wofür ist ein VPN besonders nützlich?",
+      "antworten": [
+        "Im öffentlichen WLAN, z. B. im Café oder Hotel",
+        "Gegen Viren in E-Mail-Anhängen",
+        "Damit der Rechner schneller startet"
+      ],
+      "richtig": 0,
+      "erklaerung": "Im fremden WLAN liest ohne VPN der Betreiber mit, wohin du gehst. Gegen Viren hilft ein VPN nicht."
+    }
+  ]
+}
