@@ -389,7 +389,7 @@ def test_console_log_rotation(tmp_path):
     assert vm.rotate_log(log) is None  # leere Konsole nicht aufbewahren
 
 
-@pytest.mark.skipif(os.name != "posix", reason="nutzt eine Kopie von sleep als QEMU-Attrappe")
+@pytest.mark.skipif(os.name != "posix", reason="nutzt eine QEMU-Attrappe (POSIX-Prozess)")
 def test_launch_rotates_console_and_records_pid(datadir, monkeypatch, tmp_path):
     from test_core import _LINUX_HOST, _copy_as_qemu
     m = _fake_vm()
