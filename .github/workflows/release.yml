@@ -98,7 +98,8 @@ jobs:
           [ "$rc" -eq 2 ] || { echo "::error::present in der Anwender-Version: $rc"; exit 1; }
           # Bony's VPN ist ein eigenes Paket: hier nur „Suggests“, keine Dateien davon
           dpkg-deb -f "$A" Suggests | grep -qw bonys-vpn
-          if dpkg -L bonys-agents | grep -qE 'bonys-vpn|polkit|systemd'; then echo "Dateien von Bony's VPN im Paket" >&2; exit 1; fi
+          # Kurspakete ausgenommen: das mitgelieferte Kurspaket „bonys-vpn-privater-surfen“ trägt den Namen nur im Ordner
+          if dpkg -L bonys-agents | grep -v '/kurspakete/' | grep -qE 'bonys-vpn|polkit|systemd'; then echo "Dateien von Bony's VPN im Paket" >&2; exit 1; fi
           # Daten, die beim Wechsel bleiben müssen
           mkdir -p ~/.local/share/bonys-agents && echo bleibt > ~/.local/share/bonys-agents/wechsel-test
           sudo apt-get install -y "./$K"        # ersetzt bonys-agents
