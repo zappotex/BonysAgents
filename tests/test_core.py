@@ -1600,18 +1600,37 @@ def test_permanent_remote_opens_ports_at_start(datadir, monkeypatch):
 
 
 # ---------- Herunterfahren ----------
+_QEMU_FAKE_C = r"""
+#include <stdlib.h>
+#include <time.h>
+int main(int argc, char **argv) {
+    double s = argc > 1 ? strtod(argv[argc - 1], NULL) : 0;
+    struct timespec t = {(time_t)s, (long)((s - (time_t)s) * 1e9)};
+    while (nanosleep(&t, &t) != 0) {}
+    return 0;
+}
+"""
+
+
 def _copy_as_qemu(tmp_path) -> str:
-    """Kopie von sleep, deren Prozessname „qemu“ enthält (pid() prüft das). Nicht sh: unter macOS startet
-    /bin/sh eine andere Shell, der Prozessname wäre dann „bash“."""
+    """QEMU-Attrappe: kleines C-Programm, dessen Prozessname „qemu“ enthält (pid() prüft das). Es wartet die Sekunden
+    aus dem letzten Argument und endet mit 0; argv[0] beachtet es nicht. Keine Kopie von sleep: unter Ubuntu 26.04 ist
+    sleep ein Multicall-Programm, das unter fremdem Namen nicht startet. Nicht sh oder ein Python-Skript: der
+    Prozessname wäre dann „bash“, „sh“ oder „python3“."""
     import shutil
-    exe = tmp_path / "qemu-fake"
-    shutil.copy(shutil.which("sleep"), exe)
+    import subprocess
+    cc = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+    if not cc:
+        pytest.skip("kein C-Compiler für die QEMU-Attrappe")
+    src, exe = tmp_path / "qemu-fake.c", tmp_path / "qemu-fake"
+    src.write_text(_QEMU_FAKE_C)
+    subprocess.run([cc, "-o", str(exe), str(src)], check=True, capture_output=True)
     return str(exe)
 
 
 def _qemu_args(exe: str, m, seconds: float) -> list[str]:
     """argv für ``executable=exe``: wartet ``seconds``; die Festplatte steht wie bei QEMU in der Befehlszeile
-    (hier in argv[0] – sleep nimmt keine weiteren Argumente, psutil liefert argv[0] mit)."""
+    (hier in argv[0] – die Attrappe beachtet argv[0] nicht, psutil liefert es mit)."""
     return [f"qemu-fake if=none,id=disk0,file={qemu._esc(m.disk)},format=qcow2", str(seconds)]
 
 
@@ -1643,7 +1662,7 @@ def test_exited_qemu_child_is_not_running(datadir, tmp_path):
     assert not psutil.pid_exists(pid)  # eingesammelt
 
 
-@pytest.mark.skipif(os.name != "posix", reason="nachgeahmtes QEMU über sleep")
+@pytest.mark.skipif(os.name != "posix", reason="nachgeahmtes QEMU (POSIX-Prozess)")
 def test_stale_pidfile_of_other_agent_pc_is_not_running(datadir, tmp_path):
     """Nach Absturz/Stromausfall gehört die alte PID evtl. dem QEMU eines anderen Agent-PCs – A darf dann nicht
     als „läuft“ gelten (sonst träfe „Ausschalten“ von A den Agent-PC B)."""
