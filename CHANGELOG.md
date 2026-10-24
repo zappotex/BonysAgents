@@ -3,6 +3,18 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Geändert
+- **Mission Control 0.2.7** für neue Agent-PCs (bisher 0.2.5):
+  - **Hermes-Agenten mit einem Befehl anbinden:** `sudo /opt/bonys-mission-control/scripts/hermes-team.sh add NAME`
+    legt das Hermes-Profil an, schaltet dessen Schnittstelle mit eigenem Schlüssel ein und startet den Agenten
+    als Dienst (auch nach einem Neustart). `list` zeigt den Stand, `remove` nimmt einen Agenten wieder heraus.
+  - Neue Installationen starten mit dem neutralen Beispielteam Atlas, Nova und Scribe.
+  - Behoben: Im Agent-PC wurden Missionen, Chat und Profile aus dem Browser abgelehnt („forbidden“), und
+    Aufträge an Hermes scheiterten mit Anbietern wie OpenRouter am fest eingestellten Modell.
+  - Bestehende Agent-PCs: Reiter „Mission Control“ → „Aktualisieren“.
+
 ## 0.26.0 – Mission Control 0.2.5 und Kurspaket „Bony's VPN“
 
 ### Neu

@@ -889,7 +889,7 @@ eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browse
 - **Brave** kommt ebenfalls mit, falls es nicht gewählt ist – die Verknüpfung „Mission Control“ öffnet die
   Oberfläche darin.
 - Installiert wird `install.sh` aus einem **festen Release** von Mission Control (diese Version von
-  Bony's Agents: 0.2.5), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
+  Bony's Agents: 0.2.7), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
   Bedarf laut `agentpc.json`: ca. 2 GB Festplatte und 512 MB RAM zusätzlich – beim Erstellen warnt der Dialog,
   wenn RAM oder Festplatte knapp sind, und schlägt passende Werte vor.
 - Die Oberfläche lauscht **nur im Agent-PC** (`http://127.0.0.1:8787/`); die Verknüpfung „Mission Control“
