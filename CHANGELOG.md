@@ -3,7 +3,7 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht
+## 0.27.0 – Spracheingabe und Sprachausgabe
 
 ### Neu
 - **Sprechen statt tippen – und Antworten zum Anhören.** Die App „Hermes Agent“ bringt jetzt Spracheingabe und
