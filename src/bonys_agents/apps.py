@@ -537,6 +537,59 @@ hermes
 exec bash
 EOF
 chmod 755 /usr/local/bin/bonys-hermes
+# Sprache: Sprachpakete, Erkennung auf Deutsch – Hermes stellt sonst Englisch ein und übersetzt. Modell „base“ ist
+# schnell genug. Stimme lokal mit Piper (Thorsten), als Alternative Edge (Katja, über das Internet). Beides wird vorab
+# geladen. Die Verknüpfung „Hermes Agent (Sprache)“ schaltet Sprachmodus und Vorlesen gleich ein (sonst im Chat
+# „/voice on“); gesprochen wird mit Strg+B.
+cat > /usr/local/bin/bonys-hermes-sprachmodell <<'EOF'
+#!/bin/bash
+# Sprachmodell und Stimme von Hermes vorab laden (sonst dauert das erste Sprechen bzw. Vorlesen rund 30 s)
+H="$HOME/.hermes/hermes-agent/.hermes/bin/hermes"
+[ -x "$H" ] || exit 0
+python3 - "$H" <<'PY'
+import json, subprocess, sys
+cmd = json.loads(subprocess.run([sys.argv[1], "--print-runtime-command"], capture_output=True, text=True,
+                                check=True).stdout)
+start = "runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if len(cmd) < 4 or start not in cmd[3]:
+    sys.exit("Startbefehl von Hermes unbekannt – Sprachmodell und Stimme laden beim ersten Gebrauch.")
+laden = ("from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8'); "
+         "sys.argv = ['piper', 'de_DE-thorsten-medium', '--download-dir', "
+         "os.path.expanduser('~/.hermes/cache/piper-voices')]; runpy.run_module('piper.download_voices', "
+         "run_name='__main__')")
+subprocess.run(cmd[:3] + [cmd[3].replace(start, laden)], check=True)
+PY
+EOF
+chmod 755 /usr/local/bin/bonys-hermes-sprachmodell
+cat > /usr/local/bin/bonys-hermes-sprache <<'EOF'
+#!/bin/bash
+# Hermes Agent mit Sprache starten: Sprachmodus und Vorlesen sind gleich an – Strg+B drücken, sprechen, Strg+B.
+# Optional ein Profil: bonys-hermes-sprache atlas
+export PATH="$HOME/.local/bin:$PATH"
+command -v hermes >/dev/null || exec /usr/local/bin/bonys-hermes
+S="hermes-sprache-$$"
+P=(); [ -n "${1:-}" ] && P=(-p "$1")
+hermes "${P[@]}" config set voice.auto_tts true >/dev/null 2>&1
+# tmux nur als Hülle, um „/voice on“ einzugeben: kein Präfix (Strg+B gehört Hermes), keine Statuszeile
+tmux -f /dev/null new-session -d -s "$S" -x "$(tput cols 2>/dev/null || echo 120)" -y "$(tput lines 2>/dev/null || echo 36)" \
+  "hermes ${P[*]}; exec bash" \; set -g prefix None \; set -g status off \; set -g mouse off \; unbind C-b
+for _ in $(seq 90); do
+  tmux capture-pane -p -t "$S" 2>/dev/null | grep -q "Welcome to Hermes Agent" && break
+  sleep 1
+done
+sleep 1
+tmux send-keys -t "$S" "/voice on" Enter
+exec tmux attach -t "$S"
+EOF
+chmod 755 /usr/local/bin/bonys-hermes-sprache
+apt-get install -y libportaudio2 ffmpeg tmux
+su - "$AGENT_USER" -c 'export PATH="$HOME/.local/bin:$PATH"; hermes pm install --extra voice --extra piper --extra edge-tts && hermes config set stt.language de && hermes config set stt.local.language de && hermes config set stt.local.model base && hermes config set tts.provider piper && hermes config set tts.piper.voice de_DE-thorsten-medium && hermes config set tts.edge.voice de-DE-KatjaNeural && hermes config set voice.auto_tts true && /usr/local/bin/bonys-hermes-sprachmodell' </dev/null \
+  || echo "WARNUNG: Spracheingabe für Hermes nicht vollständig eingerichtet – im Terminal „hermes pm install --extra voice“."
+# Mission Control schon da (wird vor Hermes installiert): Sprachdienst für „Sprechen“ und Vorlesen einschalten
+if [ -x /opt/bonys-mission-control/scripts/hermes-team.sh ]; then
+  /opt/bonys-mission-control/scripts/hermes-team.sh voice on --user "$AGENT_USER" \
+    || echo "WARNUNG: Sprachdienst für Mission Control nicht eingeschaltet – später mit „hermes-team.sh voice on“."
+fi
 cat > /usr/share/applications/hermes-agent.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
@@ -547,7 +600,17 @@ Icon=utilities-terminal
 Terminal=false
 Categories=Utility;
 EOF
-cp /usr/share/applications/hermes-agent.desktop "$DESKTOP_DIR/"
+cat > /usr/share/applications/hermes-agent-sprache.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Hermes Agent (Sprache)
+Comment=Hermes Agent mit Spracheingabe und gesprochenen Antworten (Strg+B zum Sprechen)
+Exec=/usr/local/bin/bonys-terminal "Hermes Agent (Sprache)" /usr/local/bin/bonys-hermes-sprache
+Icon=audio-input-microphone
+Terminal=false
+Categories=Utility;
+EOF
+cp /usr/share/applications/hermes-agent.desktop /usr/share/applications/hermes-agent-sprache.desktop "$DESKTOP_DIR/"
 """,
 )
 

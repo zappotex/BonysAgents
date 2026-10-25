@@ -35,8 +35,8 @@ NAME = "Mission Control"
 REPO = "zappotex/bonys-agents-mission-control"
 REPO_URL = f"https://github.com/{REPO}"
 # Release, das neue Agent-PCs bekommen – mit einem Update von Bony's Agents anhebbar (dann auch die Prüfsumme).
-VERSION = "0.2.7"
-INSTALL_SHA256 = "65957ab0e84e619f273631c3ebd49b0ad704e41c795cd6c80f2d7a8f1a6f06d9"
+VERSION = "0.3.0"
+INSTALL_SHA256 = "077601c8a620427d01ff1191f3e6e276c4550d7ddca24085e494ae9df776c876"
 
 PORT = 8787
 URL = f"http://127.0.0.1:{PORT}/"
@@ -208,6 +208,12 @@ fi
 # Docker kommt aus der offiziellen Paketquelle (App „docker“) – deshalb ohne --install-deps.
 # Verknüpfungen legt Bony's Agents selbst an (öffnen in Brave), deshalb --no-desktop.
 bash "$MC_TMP/install.sh" --version "$MC_VERSION" --user "$AGENT_USER" --no-desktop
+# Hermes schon da (Mission Control nachträglich installiert): Sprachdienst gleich einschalten
+MC_HOME="$(getent passwd "$AGENT_USER" | cut -d: -f6)"
+if [ -x "$MC_HOME/.local/bin/hermes" ] && [ -x /opt/bonys-mission-control/scripts/hermes-team.sh ]; then
+  /opt/bonys-mission-control/scripts/hermes-team.sh voice on --user "$AGENT_USER" \
+    || echo "WARNUNG: Sprachdienst für Mission Control nicht eingeschaltet – später mit „hermes-team.sh voice on“."
+fi
 """ + launcher_script()
 
 

@@ -293,6 +293,10 @@ hermes setup     # Modell bzw. API-Schlüssel wählen, optional Telegram-Bot ver
 hermes doctor    # Installation prüfen
 ```
 
+Sprechen statt tippen: Symbol **Hermes Agent (Sprache)** öffnen, **Strg+B** drücken, sprechen, wieder **Strg+B** –
+Hermes antwortet auch mit Stimme (Erkennung lokal mit Whisper, Stimme lokal mit Piper, beides auf Deutsch).
+Im normalen Hermes-Fenster mit `/voice on`. In Mission Control gibt es dafür die Knöpfe „Sprechen“ und Vorlesen.
+
 ### OpenClaw einrichten
 
 Symbol **OpenClaw** öffnen. Beim ersten Mal startet die Ersteinrichtung (`openclaw onboard`):
@@ -889,7 +893,7 @@ eigenes Projekt: eine Übersicht und Steuerzentrale für deine Agenten im Browse
 - **Brave** kommt ebenfalls mit, falls es nicht gewählt ist – die Verknüpfung „Mission Control“ öffnet die
   Oberfläche darin.
 - Installiert wird `install.sh` aus einem **festen Release** von Mission Control (diese Version von
-  Bony's Agents: 0.2.7), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
+  Bony's Agents: 0.3.0), geprüft über eine eingebaute Prüfsumme und die `SHA256SUMS` des Release.
   Bedarf laut `agentpc.json`: ca. 2 GB Festplatte und 512 MB RAM zusätzlich – beim Erstellen warnt der Dialog,
   wenn RAM oder Festplatte knapp sind, und schlägt passende Werte vor.
 - Die Oberfläche lauscht **nur im Agent-PC** (`http://127.0.0.1:8787/`); die Verknüpfung „Mission Control“

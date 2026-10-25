@@ -3,6 +3,23 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht
+
+### Neu
+- **Sprechen statt tippen – und Antworten zum Anhören.** Die App „Hermes Agent“ bringt jetzt Spracheingabe und
+  Sprachausgabe mit, auf Deutsch eingestellt: Erkennung lokal mit Whisper (Modell „base“, schnell), Stimme lokal mit
+  Piper (Thorsten), als Alternative Edge (Katja, über das Internet). Sprachmodell und Stimme werden schon beim
+  Einrichten geladen. Neue Verknüpfung **„Hermes Agent (Sprache)“**: Sprachmodus und Vorlesen sind gleich an –
+  Strg+B drücken, sprechen, Strg+B. Voraussetzung: ein Mikrofon am Rechner, der Agent-PC im eigenen Fenster.
+- **Mission Control 0.3.0** für neue Agent-PCs (bisher 0.2.7): Knopf „Sprechen“ im Agenten-Chat und am
+  Beschreibungsfeld, Vorlese-Knopf an jeder Antwort, Schalter „Antworten vorlesen“. Sind Hermes und Mission Control
+  im Agent-PC, ist der Sprachdienst dafür gleich eingeschaltet.
+
+### Geändert
+- Mission Control: Das Feld „Beschreibung“ im Mission Board steht in einer eigenen Zeile und wächst mit dem Text.
+- Bestehende Agent-PCs: Reiter „Mission Control“ → „Aktualisieren“; Sprache für Hermes im Terminal mit
+  `hermes pm install --extra voice --extra piper --extra edge-tts` (danach `/voice on`).
+
 ## 0.26.1 – Mission Control 0.2.7
 
 ### Geändert

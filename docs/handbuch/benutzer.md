@@ -344,6 +344,21 @@ startet den ganzen Assistenten noch einmal.
 Hermes aktualisiert sich mit `hermes update`. Einfacher ist **„Agent-PC aktualisieren“** in Bony's Agents: Das
 aktualisiert alles auf einmal.
 
+## Mit Hermes sprechen
+
+Du kannst Hermes auch **sagen**, was er tun soll – und er antwortet mit Stimme. Dafür brauchst du ein Mikrofon
+am Rechner, und der Agent-PC muss in seinem **eigenen Fenster** laufen (nicht im Hintergrund).
+
+1. Doppelklicke im Agent-PC auf **Hermes Agent (Sprache)**. Hermes startet, Spracheingabe und Vorlesen sind
+   gleich an.
+2. Drücke **Strg+B**, sprich deinen Satz und drücke wieder **Strg+B**.
+3. Hermes zeigt, was er verstanden hat, und antwortet als Text und mit Stimme.
+
+Erkannt wird auf Deutsch, direkt im Agent-PC – deine Stimme geht dafür nicht ins Internet. Im normalen Hermes-Fenster
+schaltest du die Sprache mit `/voice on` ein. Mit Mission Control geht es genauso: Dort gibt es im Chat und beim
+Anlegen einer Mission den Knopf **„Sprechen“** und an jeder Antwort einen Knopf zum Vorlesen. Beim ersten Mal
+fragt der Browser, ob die Seite das Mikrofon benutzen darf – erlaube es.
+
 ::: datenschutz
 Was du Hermes schreibst, geht an den gewählten Anbieter. Gib keine Passwörter, Kontodaten oder Gesundheitsdaten
 ein. Dein API-Schlüssel liegt nur im Agent-PC (`~/.hermes/.env`), nicht auf deinem Rechner.
