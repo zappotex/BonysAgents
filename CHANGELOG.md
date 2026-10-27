@@ -3,6 +3,13 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.27.1 – Sprachmodus beim Starter „Hermes Agent (Sprache)“ repariert
+
+### Behoben
+- **„Hermes Agent (Sprache)“ startete ohne Sprachmodus.** Der Starter schickte „/voice on“ und Enter in einem Rutsch;
+  Hermes hielt das für eingefügten Text, und das Enter wurde nur eine neue Zeile. Jetzt kommen Befehl und Enter
+  getrennt an – Sprachmodus und Vorlesen sind wieder gleich an. Bis zum Update: im Hermes-Fenster einmal Enter drücken.
+
 ## 0.27.0 – Spracheingabe und Sprachausgabe
 
 ### Neu
