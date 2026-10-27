@@ -578,7 +578,10 @@ for _ in $(seq 90); do
   sleep 1
 done
 sleep 1
-tmux send-keys -t "$S" "/voice on" Enter
+# Text und Enter getrennt schicken – kommen sie zusammen, hält Hermes sie für eingefügten Text (Enter = neue Zeile)
+tmux send-keys -t "$S" -l "/voice on"
+sleep 1
+tmux send-keys -t "$S" Enter
 exec tmux attach -t "$S"
 EOF
 chmod 755 /usr/local/bin/bonys-hermes-sprache
