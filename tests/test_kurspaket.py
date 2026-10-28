@@ -377,6 +377,54 @@ def test_katalog_und_download(datadir, tmp_path):
     assert not [x for x in kp.bibliothek_dir().iterdir() if x.name.startswith(".")]
 
 
+def _index(datei: bytes, pid="test-paket") -> bytes:
+    return json.dumps({"format": kp.KATALOG_FORMAT, "pakete": [
+        {"id": pid, "name": "Gemeinschaft", "version": "1.0.0", "stufe": "anfaenger",
+         "datei": f"pakete/{pid}-1.0.0.bonyspaket", "sha256": hashlib.sha256(datei).hexdigest(),
+         "groesse": len(datei), "community": True}]}).encode()
+
+
+def test_community_katalog(datadir, tmp_path, monkeypatch):
+    from bonys_agents import kurslauf
+
+    datei = zippen(paket_ordner(tmp_path / "src"), tmp_path / "p.bonyspaket").read_bytes()
+    off, com = "https://example.org/off/index.json", "https://example.org/com/index.json"
+    monkeypatch.setenv(kp.KATALOG_ENV, off)
+    monkeypatch.setenv(kp.COMMUNITY_ENV, com)
+    opener = _opener({com: _index(datei), "https://example.org/com/pakete/test-paket-1.0.0.bonyspaket": datei,
+                      off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})
+    assert kp.community_an()                                  # Standard: an
+    (e,), hinweis = kp.katalog_alle(opener=opener)
+    assert e.community and not hinweis
+    p = kp.herunterladen(e, opener=opener)
+    assert p.herkunft == kp.COMMUNITY and kp.holen(e.id).herkunft == kp.COMMUNITY
+    assert not p.mitgeliefert and not kurslauf.geprueft(p)
+    assert "Community" in kp.HERKUNFT_TEXT[p.herkunft]
+    # Die Datei selbst kann sich nicht als „nicht community“ ausgeben: Herkunft bestimmt die App
+    off_eintrag = kp.katalog_laden(com, opener=opener)[0]
+    assert not off_eintrag.community
+    # ausgeschaltet: Community-Quelle wird nicht einmal gefragt
+    kp.community_setzen(False)
+    assert kp.katalog_alle(opener=_opener({off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})) \
+        == ([], "")
+    kp.community_setzen(True)
+
+
+def test_community_fehler_blockiert_offizielle_liste_nicht(datadir, tmp_path, monkeypatch):
+    datei = b"x"
+    off, com = "https://example.org/off/index.json", "https://example.org/com/index.json"
+    monkeypatch.setenv(kp.KATALOG_ENV, off)
+    monkeypatch.setenv(kp.COMMUNITY_ENV, com)
+    gleich = _index(datei, "gleich-id")
+    offiziell = json.dumps({"format": kp.KATALOG_FORMAT, "pakete": json.loads(gleich)["pakete"]
+                            }).replace('"community": true', '"community": false').encode()
+    (e,), hinweis = kp.katalog_alle(opener=_opener({off: offiziell}))      # Community: 404
+    assert not e.community and "nicht erreichbar" in hinweis
+    # gleiche ID in beiden Listen: der offizielle Eintrag gewinnt
+    eintraege, hinweis = kp.katalog_alle(opener=_opener({off: offiziell, com: gleich}))
+    assert [x.community for x in eintraege] == [False] and not hinweis
+
+
 def test_katalog_nur_https():
     with pytest.raises(kp.PaketFehler, match="https"):
         kp.katalog_laden("http://example.org/index.json", opener=_opener({}))
@@ -686,3 +734,22 @@ def test_skripte_erlauben(qapp, datadir, tmp_path, monkeypatch):
     assert kb.skripte_erlauben(None, paket) and not kurslauf.zustimmung_noetig(paket)
     assert kb.skripte_erlauben(None, paket) and len(gezeigt) == 2              # kein drittes Mal gefragt
     assert "Nicht geprüft" in kb._vertrauen_text(paket)
+
+
+def test_katalog_dialog_community(qapp, datadir, tmp_path, monkeypatch):
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    datei = zippen(paket_ordner(tmp_path / "src"), tmp_path / "p.bonyspaket").read_bytes()
+    off, com = "https://example.org/off/index.json", "https://example.org/com/index.json"
+    monkeypatch.setenv(kp.KATALOG_ENV, off)
+    monkeypatch.setenv(kp.COMMUNITY_ENV, com)
+    opener = _opener({com: _index(datei), off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})
+    monkeypatch.setattr(kp.urllib.request, "urlopen", opener)
+    d = kb.KatalogDialog()
+    _warten(qapp, lambda: d.tabelle.rowCount() == 1)
+    assert "Community" in d.tabelle.item(0, 0).text()
+    d.tabelle.selectRow(0)
+    assert "nicht von Bony's Agents" in d.text.text()
+    d.community_box.setChecked(False)
+    _warten(qapp, lambda: d.tabelle.rowCount() == 0 and not kp.community_an())
+    d.close()

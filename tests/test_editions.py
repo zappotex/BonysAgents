@@ -127,6 +127,7 @@ texts = [b.text() for b in w.findChildren(QPushButton)]
 assert "Vorführen …" not in texts and w.present_btn is None, texts
 menu = [a.text() for a in w.about_btn.menu().actions()]
 assert not [t for t in menu if "Kursleitung" in t], menu
+assert not [t for t in menu if "Moderation" in t], menu
 assert [t for t in menu if "Schulungen geben" in t], menu
 assert "Hilfe anfordern …" in texts and "Kurse" in texts
 from bonys_agents.gui import kurse_dialog
@@ -162,6 +163,7 @@ def test_trainer_controls_match_edition(datadir, monkeypatch):
         assert (w.present_btn is not None) == edition.IS_TRAINER
         assert (d.share_btn is not None) == edition.IS_TRAINER
         assert any("Kursleitung" in t for t in menu) == edition.IS_TRAINER
+        assert any("Moderation" in t for t in menu) == edition.IS_TRAINER
         assert any("Schulungen geben" in t for t in menu) == (not edition.IS_TRAINER)
         assert w.windowTitle() == edition.NAME
     finally:

@@ -1,0 +1,65 @@
+schulung.bony23.de {
+    root * /srv
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; media-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'"
+    }
+
+    @health path /healthz
+    respond @health 200
+
+    handle_path /api/* {
+        reverse_proxy counter:8080
+    }
+
+    file_server
+}
+
+kurse.bony23.de {
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+    }
+
+    @health path /healthz
+    handle @health {
+        respond 200
+    }
+
+    @einreichen {
+        method POST
+        path /einreichen
+    }
+    handle @einreichen {
+        request_body {
+            max_size 51MB
+        }
+        reverse_proxy portal:8080 {
+            transport http {
+                read_timeout 120s
+            }
+        }
+    }
+
+    handle_path /katalog/* {
+        root * /katalog
+        @paket path *.bonyspaket
+        header @paket Content-Type application/octet-stream
+        header @paket Content-Disposition attachment
+        header Cache-Control "no-cache"
+        file_server
+    }
+
+    handle {
+        respond "Kursportal: Einreichungen nur per Einladung." 404
+    }
+}

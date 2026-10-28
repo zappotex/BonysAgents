@@ -16,8 +16,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from bonys_agents import apps, desktops, edition, host, kurslauf, kurspaket, vm
@@ -58,6 +58,9 @@ def _vertrauen_text(p: kurspaket.Kurspaket) -> str:
     if kurslauf.geprueft(p):
         return "\n\n✓ **Geprüftes Kurspaket** (von Bony's Agents)"
     n = len(p.skripte())
+    if p.herkunft == kurspaket.COMMUNITY:
+        return ("\n\nCommunity-Kurspaket – von der Moderation geprüft, nicht von Bony's Agents."
+                + (f" Enthält {n} Skript{'e' if n > 1 else ''}; vor dem ersten Start wirst du gefragt." if n else ""))
     if not n:
         return "\n\nNicht geprüft – enthält aber keine Skripte."
     return (f"\n\n⚠ Nicht geprüft – enthält {n} Skript{'e' if n > 1 else ''}, die nur im Agent-PC laufen. "
@@ -179,7 +182,8 @@ class KatalogDialog(QDialog):
         root = QVBoxLayout(self)
         intro = QLabel(f"Kurspakete aus dem öffentlichen Repository {kurspaket.KATALOG_REPO} auf GitHub. Jede Datei "
                        "wird nach dem Laden mit ihrer Prüfsumme verglichen und vollständig geprüft. Kurspakete "
-                       "enthalten nie Zugangsdaten.")
+                       "enthalten nie Zugangsdaten. „Community“-Kurspakete stammen von anderen Menschen und wurden "
+                       "von der Moderation geprüft – nicht von Bony's Agents.")
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         root.addWidget(intro)
@@ -196,6 +200,9 @@ class KatalogDialog(QDialog):
         self.text.setWordWrap(True)
         self.text.setTextFormat(Qt.PlainText)
         root.addWidget(self.text)
+        self.community_box = QCheckBox("Community-Kurspakete anzeigen")
+        self.community_box.setChecked(kurspaket.community_an())
+        root.addWidget(self.community_box)
         knoepfe = QHBoxLayout()
         self.laden_knopf = QPushButton("Laden")
         self.laden_knopf.setObjectName("Primary")
@@ -210,8 +217,19 @@ class KatalogDialog(QDialog):
         self.laden_knopf.clicked.connect(self._laden)
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
         self.eintraege: list[kurspaket.KatalogEintrag] = []
+        self.community_box.toggled.connect(self._community_umschalten)
+        self._neu_laden()
+
+    def _community_umschalten(self, an: bool) -> None:
+        kurspaket.community_setzen(an)
+        self._neu_laden()
+
+    def _neu_laden(self) -> None:
+        self.tabelle.setRowCount(0)
+        self.eintraege = []
+        self.laden_knopf.setEnabled(False)
         self.text.setText("Lade die Liste …")
-        self._lauf(kurspaket.katalog_laden, self._liste)
+        self._lauf(kurspaket.katalog_alle, self._liste)
 
     def _lauf(self, fn, fertig) -> None:
         w = TaskWorker(fn)
@@ -224,17 +242,18 @@ class KatalogDialog(QDialog):
             self.text.setText(str(w.error))
             return
         lokal = {p.id: p.version for p in kurspaket.liste()}
-        self.eintraege = w.result or []
+        self.eintraege, hinweis = w.result or ([], "")
         for e in self.eintraege:
             r = self.tabelle.rowCount()
             self.tabelle.insertRow(r)
             status = ""
             if e.id in lokal:
                 status = " (vorhanden)" if kurspaket.version_vergleich(e.version, lokal[e.id]) <= 0 else " (neuer)"
-            for i, wert in enumerate([e.name + (" – Entwurf" if e.entwurf else ""), e.stufe_text,
-                                      kurspaket.dauer_text(e.dauer_minuten), e.version + status]):
+            name = e.name + (" – Entwurf" if e.entwurf else "") + (" – Community" if e.community else "")
+            for i, wert in enumerate([name, e.stufe_text, kurspaket.dauer_text(e.dauer_minuten),
+                                      e.version + status]):
                 self.tabelle.setItem(r, i, QTableWidgetItem(wert))
-        self.text.setText("Keine Kurspakete gefunden." if not self.eintraege else "")
+        self.text.setText(hinweis or ("Keine Kurspakete gefunden." if not self.eintraege else ""))
 
     def _eintrag(self) -> kurspaket.KatalogEintrag | None:
         rows = self.tabelle.selectionModel().selectedRows()
@@ -243,7 +262,13 @@ class KatalogDialog(QDialog):
     def _auswahl(self) -> None:
         e = self._eintrag()
         self.laden_knopf.setEnabled(e is not None)
-        self.text.setText(e.beschreibung if e else "")
+        if e is None:
+            self.text.setText("")
+        elif e.community:
+            self.text.setText(f"Community, von der Moderation geprüft – nicht von Bony's Agents. Skripte darin "
+                              f"laufen nur im Agent-PC und erst nach deiner Rückfrage.\n\n{e.beschreibung}")
+        else:
+            self.text.setText(e.beschreibung)
 
     def _laden(self, ersetzen: bool = False) -> None:
         e = self._eintrag()

@@ -278,6 +278,8 @@ def signatur_pruefen(paket: kurspaket.Kurspaket, public_key: str = UPDATE_PUBLIC
 
 def geprueft(paket: kurspaket.Kurspaket) -> bool:
     """Mitgeliefert oder gültig signiert – dann fragt die Oberfläche nicht nach den Skripten."""
+    if paket.herkunft == kurspaket.COMMUNITY:
+        return False      # Community-Pakete werden nie als „von Bony's Agents geprüft“ ausgegeben
     return paket.mitgeliefert or signatur_pruefen(paket)
 
 

@@ -81,14 +81,19 @@ EINGEBAUTE_PRUEFUNGEN = {
 }
 
 MITGELIEFERT, DATEI, INTERNET, EIGEN, KURS = "mitgeliefert", "datei", "internet", "eigen", "kurs"
+COMMUNITY = "community"          # aus dem Community-Katalog – nie „geprüft“ oder mitgeliefert
 HERKUNFT_TEXT = {MITGELIEFERT: "mitgeliefert", DATEI: "aus Datei", INTERNET: "aus dem Internet",
-                 EIGEN: "selbst erstellt", KURS: "aus einem Kurs"}
+                 EIGEN: "selbst erstellt", KURS: "aus einem Kurs",
+                 COMMUNITY: "Community, von der Moderation geprüft"}
 
 # Kurspakete aus dem Internet: Liste aus dem öffentlichen GitHub-Repo (index.json, Dateien unter pakete/).
 KATALOG_REPO = "zappotex/bonys-agents-kurspakete"
 KATALOG_URL = f"https://raw.githubusercontent.com/{KATALOG_REPO}/main/index.json"
 KATALOG_ENV = "BONYS_AGENTS_PAKET_KATALOG"   # andere Adresse (Tests, eigener Katalog)
 KATALOG_FORMAT = "bonys-agents-kurspaket-katalog"
+COMMUNITY_URL = "https://kurse.bony23.de/katalog/index.json"
+COMMUNITY_ENV = "BONYS_AGENTS_COMMUNITY_KATALOG"
+COMMUNITY_EINSTELLUNG = "community_katalog"   # Einstellung; Standard: an
 TIMEOUT = 20
 USER_AGENT = f"bonys-agents/{__version__}"
 
@@ -1048,7 +1053,7 @@ def bestand() -> Bestand:
                 continue
             herkunft = _herkunft_lesen(ordner).get("quelle")
             try:
-                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET, EIGEN, KURS) else DATEI)
+                paket = laden(ordner, herkunft if herkunft in (DATEI, INTERNET, EIGEN, KURS, COMMUNITY) else DATEI)
             except PaketFehler as e:
                 fehler.append((ordner.name, str(e)))
                 continue
@@ -1161,6 +1166,7 @@ class KatalogEintrag:
     sha256: str
     groesse: int
     entwurf: bool = False
+    community: bool = False
 
     @property
     def stufe_text(self) -> str:
@@ -1171,16 +1177,32 @@ def katalog_url() -> str:
     return os.environ.get(KATALOG_ENV) or KATALOG_URL
 
 
+def community_url() -> str:
+    return os.environ.get(COMMUNITY_ENV) or COMMUNITY_URL
+
+
+def community_an() -> bool:
+    """Community-Katalog anzeigen? Standard: ja."""
+    return storage.load_settings().get(COMMUNITY_EINSTELLUNG) is not False
+
+
+def community_setzen(an: bool) -> None:
+    s = storage.load_settings()
+    s[COMMUNITY_EINSTELLUNG] = bool(an)
+    storage.save_settings(s)
+
+
 def _url_ok(url: str) -> bool:
     teile = urllib.parse.urlparse(url)
     return teile.scheme == "https" or (teile.scheme == "http" and teile.hostname in ("127.0.0.1", "localhost"))
 
 
-def katalog_laden(url: str | None = None, opener: Opener | None = None, timeout: float = TIMEOUT
-                  ) -> list[KatalogEintrag]:
+def katalog_laden(url: str | None = None, opener: Opener | None = None, timeout: float = TIMEOUT,
+                  community: bool = False) -> list[KatalogEintrag]:
     """Liste der Kurspakete aus dem öffentlichen Repo (``index.json``). Nur HTTPS; jeder Eintrag wird geprüft,
-    kaputte werden übersprungen."""
-    url = url or katalog_url()
+    kaputte werden übersprungen. ``community=True`` kennzeichnet alle Einträge als Community-Pakete (die Herkunft
+    bestimmt die App, nie die Datei)."""
+    url = url or (community_url() if community else katalog_url())
     if not _url_ok(url):
         raise PaketFehler("Die Liste der Kurspakete muss über https:// geladen werden.")
     opener = opener or urllib.request.urlopen
@@ -1212,10 +1234,26 @@ def katalog_laden(url: str | None = None, opener: Opener | None = None, timeout:
                 id=kid, name=_feld(d, "name", w, pflicht=True, max_len=120), version=version, stufe=stufe,
                 beschreibung=_feld(d, "beschreibung", w, max_len=2000, mehrzeilig=True),
                 dauer_minuten=_zahl(d, "dauer_minuten", w, minimum=0, maximum=6000, standard=0),
-                url=ziel, sha256=sha, groesse=groesse, entwurf=d.get("entwurf") is True))
+                url=ziel, sha256=sha, groesse=groesse, entwurf=d.get("entwurf") is True,
+                community=community))
         except PaketFehler:
             continue
     return eintraege
+
+
+def katalog_alle(opener: Opener | None = None, timeout: float = TIMEOUT) -> tuple[list[KatalogEintrag], str]:
+    """Offizielle Liste plus (falls eingeschaltet) Community-Liste. Ein Fehler der Community-Quelle blockiert die
+    offizielle Liste nicht – er kommt als Hinweistext zurück. Gleiche ID wie offiziell: offizieller Eintrag gewinnt."""
+    eintraege = katalog_laden(opener=opener, timeout=timeout)
+    hinweis = ""
+    if community_an():
+        try:
+            offiziell = {e.id for e in eintraege}
+            eintraege += [e for e in katalog_laden(opener=opener, timeout=timeout, community=True)
+                          if e.id not in offiziell]
+        except PaketFehler as e:
+            hinweis = f"Community-Kurspakete nicht erreichbar: {e}"
+    return eintraege, hinweis
 
 
 def herunterladen(eintrag: KatalogEintrag, ersetzen: bool = False, opener: Opener | None = None,
@@ -1250,7 +1288,8 @@ def herunterladen(eintrag: KatalogEintrag, ersetzen: bool = False, opener: Opene
             entpacken(tmp, Path(pruef) / "p")
             if laden(Path(pruef) / "p").id != eintrag.id:
                 raise PaketFehler("Das heruntergeladene Kurspaket passt nicht zum Eintrag in der Liste – verworfen.")
-        return importieren(tmp, ersetzen=ersetzen, herkunft=INTERNET, sha256=eintrag.sha256)
+        return importieren(tmp, ersetzen=ersetzen, herkunft=COMMUNITY if eintrag.community else INTERNET,
+                           sha256=eintrag.sha256)
     finally:
         tmp.unlink(missing_ok=True)
 

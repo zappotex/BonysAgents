@@ -1,0 +1,79 @@
+services:
+  counter:
+    build: ./counter
+    container_name: bonys-schulung-counter
+    restart: unless-stopped
+    environment:
+      INITIAL_VIEWS: "298"
+    volumes:
+      - counter_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  portal:
+    build: ./portal
+    container_name: bonys-kursportal
+    restart: unless-stopped
+    volumes:
+      - portal_data:/data
+      - katalog_public:/katalog
+    networks:
+      - portal_intern        # intern: kein Zugang ins Internet, nur Caddy erreicht den Dienst
+    read_only: true
+    tmpfs:
+      - /tmp:size=600m
+    environment:
+      HOME: /tmp
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  web:
+    image: caddy:2-alpine
+    container_name: bonys-schulung-web
+    restart: unless-stopped
+    depends_on:
+      - counter
+      - portal
+    networks:
+      - default
+      - portal_intern
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - katalog_public:/katalog:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+networks:
+  portal_intern:
+    internal: true
+
+volumes:
+  portal_data:
+  katalog_public:
+  caddy_data:
+  caddy_config:
+  counter_data:
+

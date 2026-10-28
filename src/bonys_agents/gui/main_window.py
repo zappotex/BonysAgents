@@ -342,6 +342,7 @@ class MainWindow(QMainWindow):
         menu.addAction("Alle Agent-PCs aktualisieren …", self.upgrade_all)
         if edition.IS_TRAINER:
             menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
+            menu.addAction("Kursportal: Moderation …", self.show_moderation)
         menu.addSeparator()
         menu.addAction("Bony-Netz …", lambda: NetzDialog(self).exec())
         extras = menu.addMenu("Extras")
@@ -1438,6 +1439,10 @@ class MainWindow(QMainWindow):
         w.finished.connect(done)
         self._netz_check = w
         w.start()
+
+    def show_moderation(self) -> None:
+        from .moderation_dialog import ModerationDialog, lokale_ablage
+        ModerationDialog(lokale_ablage(), self).exec()
 
     def _check_kurse(self) -> None:
         """Eigene Teilnahmen im Hintergrund: Meldung, wenn ein Kurs beginnt. Höchstens jede Minute, nur bei sichtbarem
