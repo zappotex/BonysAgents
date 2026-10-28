@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from bonys_agents import apps, desktops, edition, host, kurslauf, kurspaket, vm
@@ -106,27 +106,67 @@ def importieren(parent: QWidget, quelle: Path, fertig: Callable[[kurspaket.Kursp
     lauf(False)
 
 
+def _skript_als(lek: kurspaket.Lektion, art: str) -> str:
+    if art == "Startzustand" and lek.start:
+        return lek.start.als
+    return lek.pruefung.als if lek.pruefung else "root"
+
+
+def skripte_ansehen(parent: QWidget | None, paket: kurspaket.Kurspaket) -> None:
+    """Alle Skripte des Kurspakets als reiner Text (nichts wird ausgeführt)."""
+    teile = []
+    for lek, art, pfad in paket.skripte():
+        try:
+            text = (paket.pfad / pfad).read_text(encoding="utf-8", errors="replace")[:200_000]
+        except OSError:
+            text = "(nicht lesbar)"
+        teile.append(f"===== {pfad} – {art}, läuft als {_skript_als(lek, art)} =====\n{text}")
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(f"Skripte von „{paket.name}“")
+    lay = QVBoxLayout(dlg)
+    feld = QPlainTextEdit("\n\n".join(teile))
+    feld.setReadOnly(True)
+    lay.addWidget(feld)
+    zu = QPushButton("Schließen")
+    zu.clicked.connect(dlg.accept)
+    lay.addWidget(zu)
+    dlg.resize(820, 560)
+    dlg.exec()
+
+
 def skripte_erlauben(parent: QWidget | None, paket: kurspaket.Kurspaket) -> bool:
     """Vor dem ersten Start eines fremden (nicht geprüften) Kurspakets: Hinweis mit der Liste seiner Skripte.
 
-    True, wenn es losgehen darf (keine Skripte, geprüft, schon zugestimmt oder jetzt zugestimmt)."""
+    True, wenn es losgehen darf (keine Skripte, geprüft, schon zugestimmt oder jetzt zugestimmt). Die Zustimmung
+    gilt genau für diese Skripte (Inhalt und Benutzer); ändern sie sich, fragt ``kurslauf`` vor dem Ausführen neu.
+    """
     if not kurslauf.zustimmung_noetig(paket):
         return True
-    liste = "\n".join(f"• Lektion „{lek.titel}“ – {art}: {pfad}" for lek, art, pfad in paket.skripte())
-    box = QMessageBox(QMessageBox.Warning, paket.name, "Dieses Kurspaket führt Skripte im Agent-PC aus.",
-                      QMessageBox.NoButton, parent)
-    box.setInformativeText(
-        "Das Kurspaket ist nicht von Bony's Agents geprüft. Seine Skripte laufen ausschließlich im abgeschotteten "
-        "Agent-PC – nie auf deinem Rechner – und können dort Dateien anlegen oder ändern. Öffne das Paket nur, wenn "
-        f"du der Quelle vertraust.\n\n{liste}")
-    ja = box.addButton("Erlauben und starten", QMessageBox.AcceptRole)
-    nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
-    box.setDefaultButton(nein)
-    box.exec()
-    if box.clickedButton() is not ja:
-        return False
-    kurslauf.zustimmen(paket)
-    return True
+    liste = "\n".join(f"• Lektion „{lek.titel}“ – {art}: {pfad} (läuft als {_skript_als(lek, art)})"
+                      for lek, art, pfad in paket.skripte())
+    while True:
+        box = QMessageBox(QMessageBox.Warning, paket.name, "Dieses Kurspaket führt Skripte im Agent-PC aus.",
+                          QMessageBox.NoButton, parent)
+        box.setTextFormat(Qt.PlainText)
+        box.setInformativeText(
+            "Das Kurspaket ist nicht von Bony's Agents geprüft. Seine Skripte laufen ausschließlich im abgeschotteten "
+            "Agent-PC – nie auf deinem Rechner. Dort können sie aber alles: Skripte „als root“ haben volle Rechte, "
+            "alle Skripte dürfen ins Internet und können lesen, was im Agent-PC gespeichert ist – auch Anmeldungen "
+            "(z. B. bei Telegram, im Browser oder die Schlüssel von Hermes). Nimm für fremde Kurspakete am besten "
+            "einen eigenen, neuen Agent-PC ohne deine persönlichen Konten, und öffne das Paket nur, wenn du der Quelle "
+            f"vertraust.\n\n{liste}")
+        ja = box.addButton("Erlauben und starten", QMessageBox.AcceptRole)
+        ansehen = box.addButton("Skripte ansehen …", QMessageBox.ActionRole)
+        nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
+        box.setDefaultButton(nein)
+        box.exec()
+        if box.clickedButton() is ansehen:
+            skripte_ansehen(parent, paket)
+            continue
+        if box.clickedButton() is not ja:
+            return False
+        kurslauf.zustimmen(paket)
+        return True
 
 
 def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | None:

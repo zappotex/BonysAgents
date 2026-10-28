@@ -17,6 +17,28 @@ import urllib.request
 from .fehler import NetzFehler, ZentraleFehler
 from .konto import server_normalisieren
 
+LOKAL = ("localhost", "127.0.0.1", "::1")   # nur hier ist http:// erlaubt (Tests, eigener Server zum Ausprobieren)
+
+
+class _KeineWeiterleitung(urllib.request.HTTPRedirectHandler):
+    """Weiterleitungen nie folgen: urllib nähme sonst das Instanz-Token mit – auch zu fremden Servern und auf
+    http://. Eine Weiterleitung ist bei der Zentrale immer ein Einrichtungsfehler."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, "Weiterleitung", headers, fp)
+
+
+def _oeffner(kontext: ssl.SSLContext | None) -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_KeineWeiterleitung(), urllib.request.HTTPSHandler(context=kontext))
+
+
+def adresse_ok(url: str) -> bool:
+    """Nur https:// – http:// nur für diesen Rechner."""
+    teile = urllib.parse.urlsplit(url)
+    if teile.scheme == "https":
+        return bool(teile.hostname)
+    return teile.scheme == "http" and (teile.hostname or "") in LOKAL
+
 
 def kurscode_formatieren(code: str) -> str:
     """'k7qxm3pa' oder 'K7QX M3PA' -> 'K7QX-M3PA'."""
@@ -57,10 +79,13 @@ class Zentrale:
                 raise ZentraleFehler(401, "Diese Instanz ist noch nicht angemeldet.")
             koepfe["Authorization"] = f"Bearer {self.token}"
 
+        if not adresse_ok(url):
+            raise NetzFehler(f"Die Adresse {self.server} ist nicht verschlüsselt (https://) – dorthin schickt "
+                             "Bony's Agents keine Anmeldung.")
         anfrage = urllib.request.Request(url, data=rumpf, headers=koepfe, method=methode)
         kontext = self._ssl if url.startswith("https://") else None
         try:
-            with urllib.request.urlopen(anfrage, timeout=zeitlimit or self.zeitlimit, context=kontext) as antwort:
+            with _oeffner(kontext).open(anfrage, timeout=zeitlimit or self.zeitlimit) as antwort:
                 if roh_lesen:
                     inhalt = antwort.read(roh_lesen + 1)
                     if len(inhalt) > roh_lesen:
@@ -69,6 +94,9 @@ class Zentrale:
                 inhalt = antwort.read()
                 return json.loads(inhalt) if inhalt else None
         except urllib.error.HTTPError as e:
+            if 300 <= e.code < 400:
+                raise NetzFehler(f"Der Server {self.server} leitet auf eine andere Adresse weiter – das nimmt "
+                                 "Bony's Agents nicht an. Bitte die Adresse der Zentrale prüfen.") from None
             raise ZentraleFehler(e.code, self._fehlertext(e)) from None
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             grund = getattr(e, "reason", e)

@@ -128,7 +128,18 @@ def oeffnen(kurs_id: str, kursname: str, parent: QWidget | None = None, fertig=N
             f.show()
         melden(None)
 
-    _laufen(lambda: kursraum.eintreten(kurs_id), da)
+    _laufen(lambda: _eintreten(kurs_id), da)
+
+
+def _eintreten(kurs_id: str) -> kursraum.Karte:
+    """Eintrittskarte holen (Hintergrund); beim Kursleiter auch die eigene Adresse im Bony-Netz – nur von ihr aus
+    nimmt der Agent-PC eines Teilnehmers dann die Hilfe-Verbindung an."""
+    karte = kursraum.eintreten(kurs_id)
+    if karte.kursleiter:
+        from bonys_agents import hilfe
+
+        karte.von = hilfe.eigene_ip()
+    return karte
 
 
 def alle_schliessen() -> None:
@@ -416,7 +427,7 @@ class KursraumFenster(QWidget):
                                                self.karte.kursleiter and self.teilen)
             self.bruecke.karte.emit(json.dumps(self.fuer_seite()))
 
-        _laufen(lambda: kursraum.eintreten(kurs_id), fertig)
+        _laufen(lambda: _eintreten(kurs_id), fertig)
 
     def raum_verlassen(self) -> None:
         self.fertig = True

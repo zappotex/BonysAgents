@@ -98,6 +98,8 @@ def test_eintreten_kursleiter_und_teilnehmer(zentrale, laufender_kurs):
     assert not k.kursleiter and k.rolle == "teilnehmer"
     seite = k.fuer_seite(kursname="Hermes")
     assert seite["token"] == k.token and seite["rolle"] == "teilnehmer" and seite["kursname"] == "Hermes"
+    # Den Kursleiter erkennt die Seite an seiner Identität laut Zentrale
+    assert k.leiter == leiter.instanz_id and seite["leiter"] == leiter.instanz_id
 
 
 def test_eintreten_nur_wenn_der_kurs_laeuft(zentrale, laufender_kurs):
@@ -170,11 +172,31 @@ def test_stummschalten_und_entfernen(livekit):
 def test_steuerung_nur_kursleiter_und_mit_gueltiger_karte(livekit):
     with pytest.raises(kursraum.KursraumFehler, match="nur der Kursleiter"):
         kursraum.entfernen(_karte(livekit, kursleiter=False), "anna")
-    with pytest.raises(kursraum.KursraumFehler, match="abgelaufen"):
-        kursraum.entfernen(_karte(livekit, gueltig=-10), "anna")
     with pytest.raises(kursraum.KursraumFehler):
         kursraum.stummschalten(_karte(livekit), "anna", "")
     assert livekit.aufrufe == []
+
+
+def test_abgelaufene_karte_wird_erneuert(livekit, monkeypatch):
+    """Karten gelten nur kurz – vor einem Server-Aufruf holt die App still eine neue."""
+    alt, neu = _karte(livekit, gueltig=-10), _karte(livekit)
+    monkeypatch.setattr(kursraum, "eintreten", lambda kurs_id: neu)
+    kursraum.entfernen(alt, "anna")
+    assert alt.token == neu.token and livekit.aufrufe[-1][1] == f"Bearer {neu.token}"
+    # Ist man inzwischen kein Kursleiter mehr, geht nichts
+    monkeypatch.setattr(kursraum, "eintreten", lambda kurs_id: _karte(livekit, kursleiter=False))
+    with pytest.raises(kursraum.KursraumFehler, match="nur der Kursleiter"):
+        kursraum.entfernen(_karte(livekit, gueltig=-10), "anna")
+
+
+def test_kursleiter_nur_an_der_identitaet_erkannt():
+    """Die Seite liest die Rolle anderer nie aus Metadaten (die konnte früher jeder selbst setzen)."""
+    js = (kursraum.seiten_ordner() / "kursraum.js").read_text(encoding="utf-8")
+    rolle = js.split("function rolleVon(p)")[1].split("\n  }")[0]
+    assert "metadata" not in rolle and "p.identity === karte.leiter" in rolle
+    # Wer geht, beendet eine laufende Hilfe
+    weg = js.split("E.ParticipantDisconnected")[1].split("});")[0]
+    assert "hilfeEnde" in weg
 
 
 @pytest.mark.parametrize("code,daten,text", [

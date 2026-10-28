@@ -206,7 +206,7 @@ def test_starten_und_beenden():
     assert f.passwort not in repr(f)
     assert hilfe.aktiv(pc) is True
     hilfe.beenden(pc)
-    assert "systemctl stop bonys-hilfe.service" in pc.skripte[-1][0]
+    assert "systemctl stop bonys-hilfe-wache.service bonys-hilfe.service" in pc.skripte[-1][0]
     assert f.nachricht("h1", "Agent 1") == {"id": "h1", "ip": "100.64.0.7", "port": hilfe.PORT,
                                              "modus": hilfe.BEDIENEN, "passwort": f.passwort, "pc": "Agent 1"}
 
@@ -293,6 +293,7 @@ def test_rechner_im_netz():
 def test_verbinden_hinweis():
     assert "Bony's VPN" in hilfe.verbinden_hinweis("linux")
     assert "Tailscale-App" in hilfe.verbinden_hinweis("win32") and "Tailscale-App" in hilfe.verbinden_hinweis("darwin")
+    assert "Allow incoming connections" in hilfe.verbinden_hinweis("win32")   # Rechner nimmt nichts an
 
 
 # ---------------------------------------------------------------- Brücke noVNC ↔ x11vnc
@@ -532,7 +533,7 @@ def _fenster(kursleiter=False):
     class FalschesFenster(QWidget):
         def __init__(self):
             super().__init__()
-            self.karte = type("K", (), {"kurs_id": "k1", "kursleiter": kursleiter})()
+            self.karte = type("K", (), {"kurs_id": "k1", "kursleiter": kursleiter, "leiter": "i-leiter"})()
             self.kursname = "Hermes"
             self.an = []
 
@@ -550,7 +551,7 @@ def teilnehmer(qapp, datadir, monkeypatch):  # noqa: F811
     pc = FalscherPC()
     aufrufe = []
     monkeypatch.setattr(hilfe, "agent_pc", lambda kurs_id: pc)
-    monkeypatch.setattr(hilfe, "starten", lambda m, modus: aufrufe.append(("start", modus)) or
+    monkeypatch.setattr(hilfe, "starten", lambda m, modus, von="": aufrufe.append(("start", modus, von)) or
                         hilfe.Freigabe("100.64.0.7", 5959, modus, "Ab3dEf7h"))
     monkeypatch.setattr(hilfe, "beenden", lambda m: aufrufe.append(("stop",)))
     monkeypatch.setattr(hilfe, "aktiv", lambda m: True)
@@ -598,7 +599,7 @@ def test_teilnehmer_stimmt_zu_und_beendet(qapp, teilnehmer):  # noqa: F811
     _warten(qapp, lambda: th.zustand == "aktiv")
     zusage = f.gesendet(hilfe.ZUSAGE)[0]
     assert zusage["an"] == ["i-leiter"] and zusage["daten"]["ip"] == "100.64.0.7"
-    assert zusage["daten"]["modus"] == hilfe.ANSEHEN and aufrufe == [("start", hilfe.ANSEHEN)]
+    assert zusage["daten"]["modus"] == hilfe.ANSEHEN and aufrufe == [("start", hilfe.ANSEHEN, "")]
     assert th.hinweis is not None and th.hinweis.isVisible()
     assert th.hinweis.text.text() == "Bony sieht gerade deinen Agenten-PC „Agent 1“."
     hinweis = th.hinweis
@@ -754,3 +755,67 @@ def test_kursansicht_helfen_und_netz_pruefen(qapp, datadir, zentrale, laufender_
     assert angeboten == ["Tailscale ist aus."]
     a.done(0)
     a.deleteLater()
+
+
+def test_anfrage_nur_vom_kursleiter_laut_zentrale(qapp, teilnehmer):  # noqa: F811
+    """Wer sich nur „Kursleiter“ nennt (oder ohne Angabe der Zentrale), löst keine Rückfrage aus."""
+    f, _pc, aufrufe = teilnehmer
+    th = _teilnehmerhilfe(f)
+    th.anfrage({"id": "h1", "identity": "i-anna", "name": "Bony (Kursleiter)"})
+    assert th.zustand is None and th.dialog is None and not f.an
+    f.karte.leiter = ""        # ältere Zentrale ohne kursleiter_identitaet: niemand darf fragen
+    th.anfrage({"id": "h2", "identity": "i-leiter", "name": "Bony"})
+    assert th.zustand is None and not f.an and aufrufe == []
+
+
+def test_anfrage_mit_adresse_des_kursleiter_rechners(qapp, teilnehmer):  # noqa: F811
+    f, _pc, aufrufe = teilnehmer
+    th = _teilnehmerhilfe(f)
+    th.anfrage({"id": "h1", "identity": "i-leiter", "name": "Bony", "von": "100.64.0.3"})
+    _warten(qapp, lambda: th.dialog is not None)
+    th.dialog.bedienen.click()
+    _warten(qapp, lambda: th.zustand == "aktiv")
+    assert aufrufe[0] == ("start", hilfe.BEDIENEN, "100.64.0.3")
+    th.beenden("Test")
+    # Eine Adresse außerhalb des Bony-Netzes wird nicht übernommen
+    th.anfrage({"id": "h2", "identity": "i-leiter", "name": "Bony", "von": "192.168.1.5"})
+    assert th.von == ""
+
+
+def test_start_skript_nur_vom_kursleiter_rechner_und_mit_wache():
+    s = hilfe.start_skript(hilfe.BEDIENEN, "Ab3dEf7h", von="100.64.0.3")
+    assert "-allow 100.64.0.3" in s and f"--unit={hilfe.WACHE}" in s and "/run/bonys-hilfe/lebt" in s
+    assert "-allow" not in hilfe.start_skript(hilfe.BEDIENEN, "Ab3dEf7h")
+    with pytest.raises(ValueError, match="Bony-Netz"):
+        hilfe.start_skript(hilfe.BEDIENEN, "Ab3dEf7h", von="10.0.0.1; rm -rf /")
+    assert "touch /run/bonys-hilfe/lebt" in hilfe.status_skript()   # jede Statusprüfung klopft
+    assert hilfe.WACHE in hilfe.stop_skript()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash-Skript des Agent-PCs")
+def test_totmannschalter_stoppt_ohne_klopfen(tmp_path, monkeypatch):
+    import subprocess
+    import time
+
+    monkeypatch.setattr(hilfe, "HERZSCHLAG_SEKUNDEN", 2)
+    monkeypatch.setattr(hilfe, "WACHE_TAKT", 1)
+    ordner, bin_ = tmp_path / "run", tmp_path / "bin"
+    ordner.mkdir()
+    bin_.mkdir()
+    (ordner / "lebt").touch()
+    aktiv = tmp_path / "aktiv"
+    aktiv.touch()
+    (bin_ / "systemctl").write_text(f'#!/bin/bash\ncase "$1" in is-active) [ -f {aktiv} ] ;; '
+                                    f'stop) rm -f {aktiv} ;; esac\n')
+    (bin_ / "systemctl").chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}"}
+    proc = subprocess.Popen(["bash", "-c", hilfe.wache_skript(str(ordner))], env=env)
+    try:
+        for _ in range(3):                 # die App klopft: x11vnc läuft weiter
+            time.sleep(1)
+            (ordner / "lebt").touch()
+        assert aktiv.exists() and proc.poll() is None
+        proc.wait(timeout=10)              # kein Klopfen mehr (App abgestürzt): Wache stoppt x11vnc
+    finally:
+        proc.kill()
+    assert not aktiv.exists() and not ordner.exists()

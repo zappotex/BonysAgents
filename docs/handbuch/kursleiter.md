@@ -291,12 +291,14 @@ er das erlaubt.
 ![Der Kursraum beim Kursleiter – sobald Teilnehmer da sind, steht bei jedem der Knopf „Helfen“](bilder/eigene/kl-hilfe-fenster.png)
 
 Die Hilfe endet, wenn du oder der Teilnehmer „Beenden“ drückt, der Kurs pausiert oder beendet wird, einer von euch
-den Kursraum verlässt, oder spätestens nach 30 Minuten.
+den Kursraum verlässt, die App des Teilnehmers sich nicht mehr meldet (zum Beispiel abgestürzt), oder spätestens nach
+30 Minuten. Verbinden kann sich nur dein Rechner – nicht deine eigenen Agent-PCs.
 
 ::: datenschutz
 Frag **jedes Mal neu** – und sag vorher laut, was du tun möchtest („Ich schau mir kurz dein Terminal an“). Wähle
 „Ansehen und bedienen“ nur, wenn es wirklich nötig ist. Du siehst nur den Agent-PC, mit dem der Teilnehmer am Kurs
-teilnimmt – nichts von seinem eigenen Rechner. Aufgezeichnet wird nichts.
+teilnimmt – nichts von seinem eigenen Rechner. Aufgezeichnet wird nichts: Bild, Ton und Chat laufen über den
+Kursraum-Server, der sie nur weiterleitet. Bitte die Teilnehmenden, den Kursraum nicht mitzuschneiden.
 :::
 
 ## Schulung im eigenen Netz

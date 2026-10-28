@@ -83,6 +83,9 @@ Systems speichern; Verzeichnis der Verarbeitungstätigkeiten.
 3. Was muss in Impressum und Datenschutzerklärung stehen, und wer ist Verantwortlicher (Bony privat, Verein, Firma)?
 4. Welche Einreichungsbedingungen und welcher Meldeweg sind nötig, um für eingereichte Inhalte nicht selbst zu haften?
 5. Genügt CC BY-SA 4.0 als Lizenz für Einreichungen, auch wenn Autoren ihren Namen nicht nennen wollen?
+6. **Bony-Netz (Zentrale, Relay, Kursraum):** Besteht eine Meldepflicht bei der Bundesnetzagentur (§ 5 TKG), und welche
+   Pflichten folgen aus dem Fernmeldegeheimnis (§ 3 TDDDG)? Weitere Fragen und der Entwurf der Datenschutzerklärung:
+   `docs/recht/bony-netz/`.
 
 ## 6. Entscheidungen Bony
 

@@ -891,8 +891,8 @@ Ins Internet geht nur das:
 | Update-Suche (nur, wenn du zugestimmt hast) | GitHub | die Frage nach der neuesten Version – dabei deine IP-Adresse und deine Version |
 | Update installieren (nur nach deiner Zustimmung) | GitHub bzw. die Paketquelle | Download |
 | Neuen Agent-PC einrichten | Debian und die offiziellen Quellen der Programme | Downloads – der Agent-PC lädt sie selbst |
-| Bony-Netz (nur, wenn eingeschaltet) | der gewählte Bony-Netz-Server | Instanz, Namen und Adressen deiner Agent-PCs im Netz; bei Kursen Kursname und Anzeigenamen |
-| Kursraum | der Kursraum-Server des Kurses | Bild, Ton und Chat – nur, was du einschaltest |
+| Bony-Netz (nur, wenn eingeschaltet) | der gewählte Bony-Netz-Server (Zentrale und Netz) | bei jeder Anfrage deine IP-Adresse (kein Zugriffsprotokoll); gespeichert: Instanz ohne Namen oder E-Mail, Namen und Netzadressen deiner Agent-PCs, wann sie zuletzt online waren und über welche öffentliche Adresse sie sich verbinden; bei Kursen Kursname und dein Anzeigename (gelöscht, wenn der Kurs endet) |
+| Kursraum | der Kursraum-Server des Kurses | deine IP-Adresse; Bild, Ton und Chat – nur, was du einschaltest. Sie laufen verschlüsselt **über den Server** (nicht direkt von Teilnehmer zu Teilnehmer) und werden dort nicht aufgezeichnet |
 | Schulung im eigenen Netz | nur der Rechner der Kursleitung | dein Rechnername bzw. der Name, den du eingibst; mit Kurspaket deine Lektion und „geschafft / noch nicht“ |
 | Kurspakete aus dem Internet (nur auf Klick) | GitHub (Repository bonys-agents-kurspakete) | die Liste der Kurspakete bzw. den Download |
 | Kurs mit Kurspaket | der Bony-Netz-Server | deine Lektion und ob die Prüfaufgabe geschafft ist |
@@ -900,8 +900,13 @@ Ins Internet geht nur das:
 **Was im Agent-PC passiert**, entscheidest du: Die KI und der Browser im Agent-PC schicken Daten an die Dienste,
 die du dort benutzt (zum Beispiel an den Anbieter deines KI-Modells).
 
-**Deine Rechte in Kursen:** Ohne deine Zustimmung sieht niemand deinen Agent-PC. Deinen eigenen Rechner erreicht
-die Kursleitung nie. Andere Teilnehmer erreichen deinen Agent-PC nie.
+**Deine Rechte in Kursen:** Ohne deine Zustimmung sieht niemand deinen Agent-PC. Die Kursleitung erreicht während
+des Kurses nur die Bildschirmfreigabe der Hilfe-Funktion deines Agent-PCs – und die läuft nur, solange du zustimmst.
+Deinen eigenen Rechner erreicht die Kursleitung nie. Andere Teilnehmer erreichen deinen Agent-PC nie. Bitte
+schneide den Kursraum nicht mit; Aufnahmen anderer Teilnehmender verhindert die Technik nicht.
+
+**Datenschutzerklärung:** Für den Server von Bony's Agents (`zentrale.bony23.de`, Kursraum und Kursportal) steht sie
+unter <https://kurse.bony23.de/datenschutz>. Für einen eigenen Bony-Netz-Server ist dessen Betreiber verantwortlich.
 
 # Häufige Fragen und Probleme
 

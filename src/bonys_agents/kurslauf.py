@@ -151,6 +151,11 @@ def lektion_vorbereiten(machine: vm.VM, paket: kurspaket.Kurspaket, index: int,
     vorhanden = startzustaende(machine, paket)
     if lek.ordner in vorhanden:
         return False
+    if any(x.start for x in paket.lektionen[:index + 1]):
+        frisch = frisch_mit_zustimmung(paket)
+        if index >= len(frisch.lektionen) or frisch.lektionen[index].ordner != lek.ordner:
+            raise ZustimmungFehlt(GEAENDERT)
+        paket, lek = frisch, frisch.lektionen[index]
     skripte = []
     if uebersprungen:
         for frueher in paket.lektionen[:index]:
@@ -245,6 +250,10 @@ def pruefen(machine: vm.VM | None, paket: kurspaket.Kurspaket, lek: kurspaket.Le
             raise NichtBereit("Für dieses Kurspaket ist noch kein Agent-PC eingerichtet.")
         if not bereit(machine):
             raise NichtBereit("Der Agent-PC muss laufen und fertig eingerichtet sein, damit geprüft werden kann.")
+        lek = next((x for x in frisch_mit_zustimmung(paket).lektionen if x.ordner == lek.ordner), None)
+        if lek is None or lek.pruefung is None or lek.pruefung.typ != kurspaket.SKRIPT:
+            raise ZustimmungFehlt(GEAENDERT)
+        p = lek.pruefung
         rc = im_agent_pc_ausfuehren(machine, lek.pfad / p.skript, p.als, p.zeitlimit)
         if rc == ZEITLIMIT_RC:
             return Ergebnis(False, f"{p.noch_nicht} (Die Prüfung hat zu lange gedauert.)")
@@ -284,16 +293,16 @@ def geprueft(paket: kurspaket.Kurspaket) -> bool:
 
 
 def skripte_kennung(paket: kurspaket.Kurspaket) -> str:
-    """Prüfsumme über alle Skripte (Pfad und Inhalt) – die Zustimmung gilt genau für diese Fassung."""
-    h = hashlib.sha256()
+    """Prüfsumme über alle Skripte (Pfad, Benutzer – z. B. root – und Inhalt): die Zustimmung gilt genau dafür."""
+    h = hashlib.sha256(b"v2\0")
     for lek in paket.lektionen:
-        rel = [lek.start.skript] if lek.start else []
+        rel = [(lek.start.skript, lek.start.als)] if lek.start else []
         if lek.pruefung and lek.pruefung.typ == kurspaket.SKRIPT:
-            rel.append(lek.pruefung.skript)
+            rel.append((lek.pruefung.skript, lek.pruefung.als))
             if lek.pruefung.loesung:
-                rel.append(lek.pruefung.loesung)
-        for r in rel:
-            h.update(f"{lek.ordner}/{r}".encode() + b"\0" + (lek.pfad / r).read_bytes() + b"\0")
+                rel.append((lek.pruefung.loesung, lek.pruefung.als))
+        for r, als in rel:
+            h.update(f"{lek.ordner}/{r}\0{als}".encode() + b"\0" + (lek.pfad / r).read_bytes() + b"\0")
     return h.hexdigest()
 
 
@@ -301,6 +310,33 @@ def zustimmung_noetig(paket: kurspaket.Kurspaket) -> bool:
     if not paket.skripte() or geprueft(paket):
         return False
     return kurspaket.Fortschritt.laden(paket.id).skripte_erlaubt != skripte_kennung(paket)
+
+
+GEAENDERT = ("Die Skripte dieses Kurspakets haben sich geändert, seit du zugestimmt hast (zum Beispiel hat ein Kurs "
+             "inzwischen eine neue Fassung geladen). Zur Sicherheit läuft nichts. Schließe die Anleitung und öffne das "
+             "Kurspaket neu – dann fragt Bony's Agents erneut.")
+
+
+class ZustimmungFehlt(RuntimeError):
+    """Die Skripte auf der Platte sind nicht die, denen zugestimmt wurde – für den Nutzer geschrieben."""
+
+
+def frisch_mit_zustimmung(paket: kurspaket.Kurspaket) -> kurspaket.Kurspaket:
+    """Unmittelbar vor jedem Skript: das Kurspaket neu von der Platte lesen und prüfen, dass die Zustimmung (oder die
+    Prüfung durch Bony's Agents) genau für die Skripte gilt, die jetzt dort liegen – ein offenes Fenster hält sonst
+    ein altes Bild, während ein Kurs das Paket im Hintergrund ersetzt."""
+    herkunft = paket.herkunft
+    if not paket.mitgeliefert:
+        quelle = kurspaket._herkunft_lesen(paket.pfad).get("quelle")
+        if quelle != herkunft and not (quelle is None and herkunft == kurspaket.DATEI):
+            raise ZustimmungFehlt(GEAENDERT)
+    try:
+        frisch = kurspaket.laden(paket.pfad, herkunft)
+    except (kurspaket.PaketFehler, OSError):
+        raise ZustimmungFehlt(GEAENDERT) from None
+    if frisch.id != paket.id or zustimmung_noetig(frisch):
+        raise ZustimmungFehlt(GEAENDERT)
+    return frisch
 
 
 def zustimmen(paket: kurspaket.Kurspaket) -> None:

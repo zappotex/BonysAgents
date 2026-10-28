@@ -7,6 +7,7 @@ die Knöpfe gesperrt. Ist der Schalter aus, fragt das Fenster die Zentrale nicht
 
 from __future__ import annotations
 
+import html
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt
@@ -16,9 +17,9 @@ from PySide6.QtWidgets import (
 
 from bony_netz import STANDARD_SERVER, Konto
 from bony_netz.konto import server_normalisieren
-from bonys_agents import APP_NAME, netz
+from bonys_agents import APP_NAME, kurspaket, netz
 
-from .widgets import confirm_delete, make_scrollable
+from .widgets import confirm_delete, make_scrollable, open_url
 from .workers import TaskWorker
 
 INTRO = ("Über das Bony-Netz verbinden sich deine Agent-PCs übers Internet – mit dir und später mit Kursen. "
@@ -27,6 +28,12 @@ INTRO = ("Über das Bony-Netz verbinden sich deine Agent-PCs übers Internet –
 DELETE_DETAIL = ("Auf dem Server werden dabei alle deine Agent-PCs aus dem Bony-Netz entfernt und alle deine Kurse "
                  "und Kursteilnahmen gelöscht – auch für Bony's VPN. Die Agent-PCs selbst bleiben auf diesem "
                  "Rechner. Das lässt sich nicht rückgängig machen.")
+DATENSCHUTZ_TEXT = ("Datenschutz: Der Server sieht bei jeder Anfrage deine IP-Adresse. Gespeichert werden nur die "
+                    "Instanz (ohne Namen oder E-Mail), deine Agent-PCs im Netz (Name, Netzadresse, zuletzt online) "
+                    "und – in Kursen – dein Anzeigename. Bild, Ton und Chat im Kursraum laufen über den Server, "
+                    "werden aber nicht aufgezeichnet.")
+DATENSCHUTZ_FREMD = ("Für einen eigenen Server ist dessen Betreiber verantwortlich – frag ihn nach seiner "
+                     "Datenschutzerklärung.")
 SWITCH_TEXT = ("Beim bisherigen Server ist eine Instanz angemeldet. Mit dem Wechsel wird diese Anmeldung hier und in "
                "Bony's VPN verworfen – die Instanz bleibt auf dem alten Server bestehen, ist von hier aus aber nicht "
                "mehr erreichbar.\n\nServer trotzdem wechseln?")
@@ -109,6 +116,10 @@ class NetzDialog(QDialog):
         row.addWidget(self.delete_btn)
         row.addStretch(1)
         lay.addLayout(row)
+        self.datenschutz = _muted()
+        self.datenschutz.setTextFormat(Qt.RichText)   # nur feste Texte und die feste Adresse – nichts vom Server
+        self.datenschutz.linkActivated.connect(open_url)
+        lay.addWidget(self.datenschutz)
         root.addWidget(card)
 
         self.status = QLabel()
@@ -140,7 +151,14 @@ class NetzDialog(QDialog):
     def _server_changed(self) -> bool:
         return server_normalisieren(self.server.text()) != self.konto.server
 
+    def _datenschutz_text(self) -> str:
+        if server_normalisieren(self.server.text().strip() or self.konto.server) == STANDARD_SERVER:
+            return (f"{html.escape(DATENSCHUTZ_TEXT)} "
+                    f'<a href="{kurspaket.DATENSCHUTZ_URL}">Datenschutzerklärung</a>')
+        return f"{html.escape(DATENSCHUTZ_TEXT)} {html.escape(DATENSCHUTZ_FREMD)}"
+
     def _update(self) -> None:
+        self.datenschutz.setText(self._datenschutz_text())
         on = self.active.isChecked()
         idle = on and not self.busy
         signed_in = self.konto.angemeldet

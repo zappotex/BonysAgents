@@ -168,7 +168,8 @@ class FakeZentrale:
                 return 409, {"detail": "Der Kurs läuft nicht."}
             self.karten.append(karte_fuer(k["_leiter"] == token))
             return 200, {"kursraum_url": self.kursraum_url, "raum": k["raum"], "eintrittskarte": self.karten[-1],
-                         "rolle": "kursleiter" if k["_leiter"] == token else "teilnehmer"}
+                         "rolle": "kursleiter" if k["_leiter"] == token else "teilnehmer",
+                         "kursleiter_identitaet": self.instanzen[k["_leiter"]]["instanz_id"]}
         if len(teil) == 6 and teil[5] in ("kurspaket", "fortschritt") and methode in ("GET", "POST"):
             k = self.kurse.get(teil[4])
             if k is None or (k["_leiter"] != token and token not in k["_teiln"]):
@@ -702,3 +703,20 @@ def test_hauptfenster_zeigt_netz_zustand(qapp, datadir, angemeldet, monkeypatch)
     finally:
         win.timer.stop()
         win.close()
+
+
+def test_fenster_nennt_datenschutz(qapp, zentrale):
+    from bony_netz import STANDARD_SERVER
+
+    from bonys_agents import kurspaket
+    from bonys_agents.gui.netz_dialog import NetzDialog
+
+    netz.aendern(lambda k: k.server_wechseln(zentrale.url))
+    d = NetzDialog()
+    qapp.processEvents()
+    assert "IP-Adresse" in d.datenschutz.text() and "Betreiber verantwortlich" in d.datenschutz.text()
+    d.server.setText(STANDARD_SERVER)
+    d._update()
+    assert kurspaket.DATENSCHUTZ_URL in d.datenschutz.text() and "nicht aufgezeichnet" in d.datenschutz.text()
+    assert zentrale.anfragen == []   # der Hinweis fragt nichts beim Server an
+    d.deleteLater()

@@ -186,3 +186,51 @@ def test_kurspaket_und_fortschritt_anfragen():
     assert gesehen[3] == ("POST", "/api/v1/kurse/k1/fortschritt", "application/json",
                           b'{"lektion": 3, "geschafft": true}')
     assert gesehen[4][:2] == ("DELETE", "/api/v1/kurse/k1/kurspaket")
+
+
+def test_token_folgt_keiner_weiterleitung():
+    """Eine Weiterleitung (falsch eingerichteter Server, Umzug) nimmt das Instanz-Token nie mit."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    angekommen = []
+
+    class Ziel(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            angekommen.append(self.headers.get("Authorization"))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *a):
+            pass
+
+    ziel = ThreadingHTTPServer(("127.0.0.1", 0), Ziel)
+
+    class Umleitung(Ziel):
+        def do_GET(self):  # noqa: N802
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{ziel.server_port}/api/v1/instanz")
+            self.end_headers()
+
+    quelle = ThreadingHTTPServer(("127.0.0.1", 0), Umleitung)
+    for s in (ziel, quelle):
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    try:
+        z = Zentrale(f"http://127.0.0.1:{quelle.server_port}", token="bz_geheim")
+        with pytest.raises(NetzFehler, match="leitet .* weiter"):
+            z._anfrage("GET", "/api/v1/instanz")
+        assert angekommen == []
+    finally:
+        for s in (ziel, quelle):
+            s.shutdown()
+            s.server_close()
+
+
+def test_token_nie_unverschluesselt():
+    from bony_netz.zentrale import adresse_ok
+
+    assert adresse_ok("https://zentrale.example.de/api") and adresse_ok("http://127.0.0.1:8000/x")
+    assert not adresse_ok("http://zentrale.example.de/api") and not adresse_ok("ftp://x/y")
+    with pytest.raises(NetzFehler, match="nicht verschlüsselt"):
+        Zentrale("http://zentrale.example.de", token="bz_geheim")._anfrage("GET", "/api/v1/instanz")

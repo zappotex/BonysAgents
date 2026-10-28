@@ -235,6 +235,7 @@ class TeilnehmerHilfe(QObject):
         self.anfrage_id = ""
         self.leiter_id = ""
         self.leiter_name = ""
+        self.von = ""                            # Adresse des Kursleiter-Rechners – nur sie darf sich verbinden
         self.modus = ""
         self.dialog: Zustimmung | None = None
         self.hinweis: Hinweis | None = None
@@ -268,8 +269,12 @@ class TeilnehmerHilfe(QObject):
     # ---------------------------------------------------------------- von der Seite
     def anfrage(self, d: dict) -> None:
         anfrage_id, leiter_id = str(d.get("id") or "")[:64], d["identity"]
-        if not anfrage_id:
+        # Nur der Kursleiter laut Zentrale (Identität in seiner Karte) darf fragen – nie jemand, der sich nur so nennt
+        leiter = getattr(self.fenster.karte, "leiter", "")
+        if not anfrage_id or not leiter or leiter_id != leiter:
             return
+        von = d.get("von")
+        self.von = von if isinstance(von, str) and hilfe.im_netz(von) else ""
         if self.zustand is not None:
             self._absage(anfrage_id, leiter_id, "Gerade läuft schon eine Hilfe-Anfrage.")
             return
@@ -339,7 +344,8 @@ class TeilnehmerHilfe(QObject):
                 return
             self._aktiv(w.result)
 
-        _laufen(lambda: hilfe.starten(machine, modus), fertig)
+        von = self.von
+        _laufen(lambda: hilfe.starten(machine, modus, von=von), fertig)
 
     def _aktiv(self, freigabe: hilfe.Freigabe) -> None:
         self.zustand = AKTIV

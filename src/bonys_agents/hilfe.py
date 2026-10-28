@@ -14,13 +14,18 @@ Ablauf:
 3. Zustimmung: ``starten`` startet im Agent-PC (Gast-Agent, wie ``netz.nachtraeglich_verbinden``) **x11vnc** als
    eigene systemd-Einheit – nur auf der Adresse im Bony-Netz (``tailscale ip -4``, kein IPv6), Einmal-Passwort
    (Datei, die x11vnc nach dem Lesen löscht), eine Verbindung (``-once``), Ende nach 2 min ohne Verbindung
-   (``-timeout``) und spätestens nach 30 min (``RuntimeMaxSec``), bei „Nur ansehen“ ``-viewonly``.
+   (``-timeout``) und spätestens nach 30 min (``RuntimeMaxSec``), bei „Nur ansehen“ ``-viewonly``. Nennt die Anfrage
+   die Adresse des Kursleiter-Rechners (``von``), nimmt x11vnc nur von dort Verbindungen an (``-allow``) – auch
+   nicht von den eigenen Agent-PCs des Kursleiters. Ein **Totmannschalter** (Einheit ``bonys-hilfe-wache``) stoppt
+   x11vnc, sobald sich die App des Teilnehmers länger als ``HERZSCHLAG_SEKUNDEN`` nicht meldet (Absturz, Netz weg) –
+   die App „klopft“ bei jeder Statusprüfung (``status_skript``).
 4. ``hilfe-zusage`` (Adresse, Port, Passwort, Modus) bzw. ``hilfe-absage`` geht nur an den Kursleiter.
 5. ``beenden`` stoppt x11vnc sofort – Knopf „Beenden“, Kurs pausiert/beendet, Kursraum verlassen.
 
-Dass der Kursleiter die Adresse nur erreicht, solange der Kurs läuft, und nur den gewählten Agent-PC, regelt die
-Zentrale. Zusätzlich verbindet sich die App des Kursleiters nur mit der Adresse, die die Zentrale für diesen
-Teilnehmer nennt (``zusage_pruefen``).
+Dass der Kursleiter die Adresse nur erreicht, solange der Kurs läuft, nur den gewählten Agent-PC und dort nur den
+Port der Hilfe, regelt die Zentrale. Anfragen nimmt die App nur von der Identität an, die die Zentrale als Kursleiter
+nennt (``kursraum.Karte.leiter``). Zusätzlich verbindet sich die App des Kursleiters nur mit der Adresse, die die
+Zentrale für diesen Teilnehmer nennt (``zusage_pruefen``).
 """
 
 from __future__ import annotations
@@ -56,6 +61,9 @@ WARTEN_SEKUNDEN = 120          # x11vnc endet, wenn so lange keine Verbindung ko
 HOECHSTENS_MINUTEN = 30        # und spätestens nach dieser Zeit
 PORT = 5959                    # im Agent-PC, nur auf der Adresse im Bony-Netz
 EINHEIT = "bonys-hilfe"        # systemd-Einheit im Agent-PC
+WACHE = "bonys-hilfe-wache"    # Totmannschalter: stoppt EINHEIT, wenn die App sich nicht mehr meldet
+HERZSCHLAG_SEKUNDEN = 30       # so lange darf das letzte Klopfen der App (status_skript) her sein
+WACHE_TAKT = 5                 # so oft schaut der Totmannschalter nach
 ORDNER = "/run/bonys-hilfe"    # Passwortdatei (tmpfs, 0700) – x11vnc löscht sie nach dem Lesen
 PASSWORT_LAENGE = 8            # VNC-Passwörter haben höchstens 8 Zeichen
 _ZEICHEN = string.ascii_letters + string.digits
@@ -99,7 +107,16 @@ def passwort() -> str:
 
 
 # ---------------------------------------------------------------- Skripte im Agent-PC (als root)
-def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDNER) -> str:
+def wache_skript(ordner: str = ORDNER) -> str:
+    """Bash für den Totmannschalter: läuft neben x11vnc und stoppt es, wenn ``<ordner>/lebt`` zu alt ist."""
+    lebt = shlex.quote(f"{ordner}/lebt")
+    return (f"while systemctl is-active --quiet {EINHEIT}.service; do "
+            f"a=$(( $(date +%s) - $(stat -c %Y {lebt} 2>/dev/null || echo 0) )); "
+            f"if [ \"$a\" -gt {HERZSCHLAG_SEKUNDEN} ]; then systemctl stop {EINHEIT}.service; rm -rf "
+            f"{shlex.quote(ordner)}; break; fi; sleep {WACHE_TAKT}; done")
+
+
+def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDNER, von: str = "") -> str:
     """Bash: x11vnc (bei Bedarf aus den Debian-Paketen installieren) nur auf der Adresse im Bony-Netz starten.
 
     Kommt über die Standardeingabe in den Agent-PC (``guest_run(via_stdin=True)``) – das Passwort steht so auf keiner
@@ -110,6 +127,8 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         raise ValueError(f"Unbekannter Modus: {modus}")
     if not re.fullmatch(r"[A-Za-z0-9]{1,8}", passwort):
         raise ValueError("Das Passwort darf nur 1 bis 8 Buchstaben und Ziffern haben.")
+    if von and not im_netz(von):
+        raise ValueError("Die Adresse des Kursleiter-Rechners liegt nicht im Bony-Netz.")
     q_ordner = shlex.quote(ordner)
     datei = f"{ordner}/passwort"
     argumente = [
@@ -118,6 +137,7 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         "-once", "-timeout", str(WARTEN_SEKUNDEN), "-passwdfile", f"rm:{datei}",
         "-nevershared", "-nosel", "-noremote", "-nocmds", "-norc", "-nolookup", "-quiet",
         *(["-viewonly"] if modus == ANSEHEN else []),
+        *(["-allow", von] if von else []),
     ]
     aufruf = " ".join('"$IP"' if a == "$IP" else shlex.quote(a) for a in argumente)
     return "\n".join([
@@ -134,12 +154,16 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         "{ apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends x11vnc >/dev/null 2>&1; } "
         f"|| {{ echo 'x11vnc ließ sich nicht installieren.'; exit {RC_INSTALLATION}; }}",
         "fi",
-        f"systemctl stop {EINHEIT}.service >/dev/null 2>&1 || true",
-        f"systemctl reset-failed {EINHEIT}.service >/dev/null 2>&1 || true",
+        f"systemctl stop {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true",
+        f"systemctl reset-failed {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true",
         f"rm -rf {q_ordner}",
-        f"(umask 077; mkdir -p {q_ordner}; printf '%s\\n' {shlex.quote(passwort)} > {shlex.quote(datei)})",
+        f"(umask 077; mkdir -p {q_ordner}; printf '%s\\n' {shlex.quote(passwort)} > {shlex.quote(datei)}; "
+        f"touch {shlex.quote(ordner + '/lebt')})",
         f"systemd-run --quiet --unit={EINHEIT} --collect --property=RuntimeMaxSec={HOECHSTENS_MINUTEN * 60} "
         f"--property=KillMode=control-group {aufruf} || {{ rm -rf {q_ordner}; exit {RC_START}; }}",
+        f"systemd-run --quiet --unit={WACHE} --collect --property=RuntimeMaxSec={HOECHSTENS_MINUTEN * 60 + 60} "
+        f"/bin/bash -c {shlex.quote(wache_skript(ordner))} "
+        f"|| {{ systemctl stop {EINHEIT}.service >/dev/null 2>&1; rm -rf {q_ordner}; exit {RC_START}; }}",
         "for i in $(seq 1 40); do",
         f'  if ss -Htln "sport = :{int(port)}" 2>/dev/null | grep -qF "$IP:{int(port)}"; then',
         '    echo "BONYS_HILFE $IP"; exit 0',
@@ -148,7 +172,7 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         "  sleep 0.25",
         "done",
         f"journalctl -u {EINHEIT}.service -n 8 --no-pager -o cat 2>/dev/null | tail -n 8",
-        f"systemctl stop {EINHEIT}.service >/dev/null 2>&1 || true",
+        f"systemctl stop {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true",
         f"rm -rf {q_ordner}",
         f"exit {RC_START}",
     ]) + "\n"
@@ -156,13 +180,15 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
 
 def stop_skript() -> str:
     """Bash: x11vnc sofort beenden (auch wenn es schon weg ist)."""
-    return (f"systemctl stop {EINHEIT}.service >/dev/null 2>&1 || true\n"
-            f"systemctl reset-failed {EINHEIT}.service >/dev/null 2>&1 || true\n"
+    return (f"systemctl stop {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true\n"
+            f"systemctl reset-failed {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true\n"
             f"rm -rf {ORDNER}\n")
 
 
 def status_skript() -> str:
-    return f"systemctl is-active --quiet {EINHEIT}.service && echo aktiv || echo aus\n"
+    """Läuft x11vnc noch? Zugleich das Klopfen für den Totmannschalter (nur solange die App fragt, läuft die Hilfe)."""
+    return (f"[ -d {ORDNER} ] && touch {ORDNER}/lebt\n"
+            f"systemctl is-active --quiet {EINHEIT}.service && echo aktiv || echo aus\n")
 
 
 # ---------------------------------------------------------------- Teilnehmer: Agent-PC des Kurses
@@ -192,14 +218,18 @@ def _bereit(machine: VM) -> None:
         raise HilfeFehler(LAEUFT_NICHT.format(name=machine.name))
 
 
-def starten(machine: VM, modus: str, port: int = PORT) -> Freigabe:
-    """x11vnc im Agent-PC starten. Nur über den Gast-Agent – eine Passwort-Rückfrage für SSH gibt es hier nicht."""
+def starten(machine: VM, modus: str, port: int = PORT, von: str = "") -> Freigabe:
+    """x11vnc im Agent-PC starten. Nur über den Gast-Agent – eine Passwort-Rückfrage für SSH gibt es hier nicht.
+
+    ``von``: Adresse des Kursleiter-Rechners im Bony-Netz – dann nimmt x11vnc nur von dort Verbindungen an.
+    """
     from bonys_agents import vm
 
     _bereit(machine)
     pw = passwort()
     try:
-        ausgabe = machine.guest_run(start_skript(modus, pw, port), timeout=600, via_stdin=True)
+        ausgabe = machine.guest_run(start_skript(modus, pw, port, von=von if im_netz(von) else ""), timeout=600,
+                                    via_stdin=True)
     except vm.NeedsPassword:
         raise HilfeFehler(KEIN_GAST_AGENT.format(name=machine.name)) from None
     except RuntimeError as e:
@@ -299,6 +329,17 @@ class Rechner:
     installiert: bool = True
 
 
+_SELBST_FRAGEN = object()
+
+
+def eigene_ip(status=_SELBST_FRAGEN) -> str:
+    """Adresse dieses Rechners im Bony-Netz (IPv4 aus ``tailscale status``) – "" wenn unbekannt. Blockiert."""
+    st = tailscale_status() if status is _SELBST_FRAGEN else status
+    selbst = st.get("Self") if isinstance(st, dict) and isinstance(st.get("Self"), dict) else {}
+    ips = selbst.get("TailscaleIPs") or (st.get("TailscaleIPs") if isinstance(st, dict) else None) or []
+    return next((str(i) for i in ips if isinstance(i, str) and im_netz(i)), "")
+
+
 def _tailscale() -> str | None:
     exe = shutil.which("tailscale")
     if exe:
@@ -348,9 +389,12 @@ VERBINDEN_HINWEIS = {
     "linux": ("Damit du die Agent-PCs der Teilnehmer sehen kannst, muss dieser Rechner im Bony-Netz sein: In Bony's "
               "VPN unter „Bony-Netz“ „Diesen Rechner verbinden“ einschalten."),
     "win32": ("Damit du die Agent-PCs der Teilnehmer sehen kannst, muss dieser Rechner im Bony-Netz sein. Unter "
-              "Windows geht das mit der offiziellen Tailscale-App: Anmeldeserver „{login}“."),
+              "Windows geht das mit der offiziellen Tailscale-App: Anmeldeserver „{login}“. Schalte dort in den "
+              "Einstellungen „Allow incoming connections“ aus – dann erreicht kein Gerät aus dem Netz diesen Rechner."),
     "darwin": ("Damit du die Agent-PCs der Teilnehmer sehen kannst, muss dieser Rechner im Bony-Netz sein. Unter "
-               "macOS geht das mit der offiziellen Tailscale-App: Anmeldeserver „{login}“."),
+               "macOS geht das mit der offiziellen Tailscale-App: Anmeldeserver „{login}“. Schalte dort in den "
+               "Einstellungen „Allow incoming connections“ aus – dann erreicht kein Gerät aus dem Netz diesen "
+               "Rechner."),
 }
 
 

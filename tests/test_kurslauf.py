@@ -114,6 +114,10 @@ def test_pruefung_nur_im_agent_pc(datadir, tmp_path, ga, keine_prozesse):
     paket = kurspaket.laden(paket_ordner(tmp_path))
     lek = paket.lektionen[1]
     m = FakeVM()
+    with pytest.raises(kurslauf.ZustimmungFehlt):   # fremdes Paket: ohne Zustimmung läuft kein Skript
+        kurslauf.pruefen(m, paket, lek)
+    assert ga.aufrufe == []
+    kurslauf.zustimmen(paket)
     e = kurslauf.pruefen(m, paket, lek)
     assert e == kurslauf.Ergebnis(True, "Gut!")
     path, args, stdin, timeout = ga.aufrufe[-1]
@@ -232,6 +236,7 @@ def test_startzustand_im_laufenden_betrieb(datadir, tmp_path, ga, monkeypatch):
     daten["lektionen"][1]["start"] = {"skript": "start/ordner.sh", "als": "benutzer"}
     (d / "paket.json").write_text(json.dumps(daten), encoding="utf-8")
     paket = kurspaket.laden(d)
+    kurslauf.zustimmen(paket)
     m = FakeVM()
     assert kurslauf.lektion_vorbereiten(m, paket, 1)
     # erst sync, dann Startskript im Gast, dann Schnappschuss über den Monitor
@@ -293,3 +298,31 @@ def test_zustimmung_zu_skripten(datadir, tmp_path):
     assert not kurslauf.zustimmung_noetig(paket)
     ohne = kurspaket.laden(paket_ordner(tmp_path / "ohne", mit(lektionen=[])))
     assert not kurslauf.zustimmung_noetig(ohne)
+
+
+def test_zustimmung_gilt_nur_fuer_die_skripte_auf_der_platte(datadir, tmp_path, ga, keine_prozesse):
+    """Ein offenes Fenster hält das alte Paket – ersetzt ein Kurs es im Hintergrund, läuft nichts ohne Rückfrage."""
+    import json
+
+    d = paket_ordner(tmp_path)
+    paket = kurspaket.laden(d)
+    lek = paket.lektionen[1]
+    kurslauf.zustimmen(paket)
+    m = FakeVM()
+    assert kurslauf.pruefen(m, paket, lek).geschafft
+    anzahl = len(ga.aufrufe)
+    # Inhalt ausgetauscht
+    skript = lek.pfad / lek.pruefung.skript
+    skript.write_text("#!/bin/bash\necho BOESE\n", encoding="utf-8")
+    with pytest.raises(kurslauf.ZustimmungFehlt, match="geändert"):
+        kurslauf.pruefen(m, paket, lek)
+    assert len(ga.aufrufe) == anzahl
+    # Nur der Benutzer geändert (jetzt als root) – auch das braucht eine neue Zustimmung
+    skript.write_text("#!/bin/bash\ntest -s ~/x\n", encoding="utf-8")
+    assert kurslauf.pruefen(m, paket, lek).geschafft
+    daten = json.loads((d / "paket.json").read_text())
+    daten["lektionen"][1]["pruefung"]["als"] = "root"
+    (d / "paket.json").write_text(json.dumps(daten), encoding="utf-8")
+    with pytest.raises(kurslauf.ZustimmungFehlt):
+        kurslauf.pruefen(m, paket, lek)
+    assert len(ga.aufrufe) == anzahl + 1

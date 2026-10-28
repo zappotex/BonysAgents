@@ -175,7 +175,9 @@ Entscheidungen (18.10.2026): Betrachter **„Beides“** – noVNC eingebettet a
 Rechner kommt **über Bony's VPN** ins Netz (Agents prüft nur und bietet Bony's VPN an).
 
 - Nachrichten im Kursraum (zuverlässig, JSON, immer mit `destinationIdentities`): `hilfe-anfrage {id}` nur vom
-  Kursleiter (Rolle aus den Metadaten der Eintrittskarte), `hilfe-zusage {id, ip, port, modus, passwort, pc}` und
+  Kursleiter (ab Zentrale 0.2.1 an seiner Identität `kursleiter_identitaet` von der Zentrale erkannt – Metadaten kann ein
+  Teilnehmer nicht mehr ändern; die Anfrage nennt mit `von` die Adresse des Kursleiter-Rechners, nur von dort nimmt
+  x11vnc an), `hilfe-zusage {id, ip, port, modus, passwort, pc}` und
   `hilfe-absage {id, grund?}` nur an ihn und nur als Antwort auf seine offene Anfrage, `hilfe-ende` von der Seite,
   die beendet, `hilfe-bitte {an}` = „Hilfe anfordern“ (nur ein 🆘 in der Liste des Kursleiters). Entschieden wird
   in Python, nie auf der Seite: Beim Teilnehmer `gui/hilfe_ui.TeilnehmerHilfe`, beim Kursleiter
@@ -188,6 +190,10 @@ Rechner kommt **über Bony's VPN** ins Netz (Agents prüft nur und bietet Bony's
   -timeout 120 -passwdfile rm:/run/bonys-hilfe/passwort -nevershared -nosel -noremote -nocmds -norc`, bei
   „Nur ansehen“ `-viewonly`. Das Einmal-Passwort (8 Zeichen, VNC kann nicht mehr) schreibt bashs eingebautes
   `printf` in die Datei, x11vnc löscht sie nach dem Lesen. Das Skript wartet, bis `ss` die 100.x-Adresse zeigt.
+  Mit `von` aus der Anfrage zusätzlich `-allow <Kursleiter-Rechner>`. **Totmannschalter:** Einheit
+  `bonys-hilfe-wache` stoppt x11vnc, wenn `/run/bonys-hilfe/lebt` älter als 30 s ist; die App des Teilnehmers
+  erneuert die Datei bei jeder Statusprüfung (alle 3 s). Die Zentrale (ab 0.2.1) gibt dem Kursleiter nur Port 5959
+  frei, nicht den ganzen Agent-PC.
   Neue Agent-PCs bringen x11vnc mit (`desktops.COMMON_PACKAGES`), alte installieren es beim ersten Mal aus Debian.
   Kein SSH-Rückfall: Antwortet der Gast-Agent nicht, sagt die App das.
 - Ende beim Teilnehmer: „Beenden“ im Hinweis (über allen Fenstern, auch Schließen des Hinweises), `hilfe-ende` vom

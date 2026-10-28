@@ -4,7 +4,12 @@
 Das Fenster (``gui/kursraum_fenster.py``) zeigt eine mitgelieferte Seite (``resources/kursraum/``) in einem
 eingebetteten Browser (Qt WebEngine). Hier steht alles ohne Qt:
 
-- ``eintreten(kurs_id)`` holt die Eintrittskarte bei der Zentrale (nur solange der Kurs läuft, sonst 409).
+- ``eintreten(kurs_id)`` holt die Eintrittskarte bei der Zentrale (nur solange der Kurs läuft, sonst 409). Sie gilt
+  nur kurz (Zentrale ab 0.2.1: 15 min); LiveKit erneuert sie verbundenen Teilnehmern selbst, für Wiederverbinden und
+  Server-Aufrufe holt die App eine neue.
+- Den Kursleiter erkennt die Seite an seiner **Identität** (``kursleiter_identitaet`` von der Zentrale, steht fest in
+  seiner Karte) – nie an Metadaten oder Namen, die ein Teilnehmer selbst setzen könnte. Ohne diese Angabe (ältere
+  Zentrale) gilt niemand als Kursleiter: keine Hilfe-Anfragen, keine Sprechfreigabe von außen.
 - ``stummschalten`` und ``entfernen`` (nur Kursleiter) rufen die Server-Schnittstelle von LiveKit auf
   (Twirp ``RoomService``) – mit der Kursleiter-Karte als Bearer-Token, sie enthält ``roomAdmin``.
 - ``seiten_datei`` und ``erlaubt`` sind die Regeln für die Seite: nur Dateien aus ``resources/kursraum``, und
@@ -43,7 +48,7 @@ KURSLEITER, TEILNEHMER = "kursleiter", "teilnehmer"
 
 KURS_LAEUFT_NICHT = ("Der Kurs läuft gerade nicht. Den Kursraum gibt es nur, solange der Kursleiter den Kurs "
                      "gestartet hat.")
-KARTE_ABGELAUFEN = "Deine Eintrittskarte ist abgelaufen (sie gilt 6 Stunden). Tritt bitte erneut ein."
+KARTE_ABGELAUFEN = "Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein."
 KEIN_WEBENGINE = ("Für den Kursraum fehlt dieser Installation der eingebettete Browser (Qt WebEngine). "
                   "Mit den fertigen Paketen von Bony's Agents ist er dabei; aus dem Quelltext: "
                   "pip install PySide6-WebEngine (bzw. PySide6-Addons bis Version 6.11).")
@@ -80,6 +85,8 @@ class Karte:
     rolle: str
     token: str = field(repr=False)
     ablauf: float | None = None      # „exp“ aus dem Token (Sekunden seit 1970)
+    leiter: str = ""                 # Identität des Kursleiters im Raum (instanz_id) – "" = unbekannt
+    von: str = ""                    # nur Kursleiter: Adresse dieses Rechners im Bony-Netz (für die Hilfe)
 
     @property
     def kursleiter(self) -> bool:
@@ -91,7 +98,7 @@ class Karte:
     def fuer_seite(self, **extra) -> dict:
         """Was die Seite zum Verbinden braucht – nur über QWebChannel, nie über die Adresse."""
         return {"url": self.kursraum_url, "token": self.token, "rolle": self.rolle, "raum": self.raum,
-                "ablauf": self.ablauf, **extra}
+                "ablauf": self.ablauf, "leiter": self.leiter, "von": self.von, **extra}
 
 
 # ---------------------------------------------------------------- Eintrittskarte
@@ -121,7 +128,9 @@ def eintreten(kurs_id: str) -> Karte:
         raise KursraumFehler("Die Zentrale hat keine gültige Eintrittskarte geschickt.")
     server_adresse(url)   # prüft das Schema
     rolle = KURSLEITER if d.get("rolle") == KURSLEITER else TEILNEHMER
-    return Karte(kurs_id, url, str(d.get("raum") or ""), rolle, token, token_ablauf(token))
+    leiter = d.get("kursleiter_identitaet")
+    leiter = leiter if isinstance(leiter, str) and 0 < len(leiter) <= 64 else ""
+    return Karte(kurs_id, url, str(d.get("raum") or ""), rolle, token, token_ablauf(token), leiter)
 
 
 # ---------------------------------------------------------------- LiveKit-Server (nur Kursleiter)
@@ -138,8 +147,11 @@ def server_adresse(kursraum_url: str) -> str:
 def _twirp(karte: Karte, methode: str, daten: dict) -> dict:
     if not karte.kursleiter:
         raise KursraumFehler("Das darf nur der Kursleiter.")
-    if karte.abgelaufen():
-        raise KursraumFehler(KARTE_ABGELAUFEN)
+    if karte.abgelaufen(time.time() + 30):   # kurz gültig – rechtzeitig eine neue holen
+        neu = eintreten(karte.kurs_id)
+        if not neu.kursleiter:
+            raise KursraumFehler("Das darf nur der Kursleiter.")
+        karte.token, karte.ablauf, karte.leiter = neu.token, neu.ablauf, neu.leiter
     url = f"{server_adresse(karte.kursraum_url)}/twirp/livekit.RoomService/{methode}"
     anfrage = urllib.request.Request(url, data=json.dumps(daten).encode(), method="POST", headers={
         "Authorization": f"Bearer {karte.token}", "Content-Type": "application/json",

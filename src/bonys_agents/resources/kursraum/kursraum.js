@@ -53,15 +53,12 @@
   const ichLeite = () => karte && karte.rolle === KURSLEITER;
 
   // ------------------------------------------------------------ Hilfen
+  // Den Kursleiter erkennt die Seite nur an seiner Identität (von der Zentrale, fest in seiner Karte) – nie an
+  // Metadaten oder Namen, die ein Teilnehmer selbst setzen könnte. Ohne Angabe gilt niemand sonst als Kursleiter.
   function rolleVon(p) {
     if (!p) return '';
     if (p === (room && room.localParticipant)) return karte ? karte.rolle : '';
-    try {
-      const m = JSON.parse(p.metadata || '{}');
-      return m && m.rolle === KURSLEITER ? KURSLEITER : '';
-    } catch (e) {
-      return '';
-    }
+    return karte && typeof karte.leiter === 'string' && karte.leiter && p.identity === karte.leiter ? KURSLEITER : '';
   }
   const istLeiter = (p) => rolleVon(p) === KURSLEITER;
   const nameVon = (p) => (p && (p.name || p.identity)) || '?';
@@ -182,12 +179,23 @@
 
   function verbindenFehlgeschlagen(e) {
     if (abgelaufen()) {
-      erneutAnbieten('Deine Eintrittskarte ist abgelaufen (sie gilt 6 Stunden). Tritt bitte erneut ein.');
+      erneutStill();
     } else if (e && e.reason === LK.ConnectionErrorReason.NotAllowed) {
       erneutAnbieten('Der Kursraum hat die Eintrittskarte nicht angenommen. Tritt bitte erneut ein.');
     } else {
       erneutAnbieten('Der Kursraum ist nicht erreichbar.\n\n' + fehlerText(e));
     }
+  }
+
+  // Karten gelten nur kurz – still eine neue holen, aber höchstens einmal pro Minute (falsch gehende Uhr)
+  let stillErneuert = 0;
+  function erneutStill() {
+    if (Date.now() - stillErneuert < 60000) {
+      erneutAnbieten('Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein.');
+      return;
+    }
+    stillErneuert = Date.now();
+    erneut();
   }
 
   function erneutAnbieten(text) {
@@ -232,6 +240,13 @@
       hilfe.bitten.delete(p.identity);
       const offen = hilfe.offen.get(p.identity);
       if (offen) { clearTimeout(offen.uhr); hilfe.offen.delete(p.identity); }
+      // Wer geht, beendet eine laufende Hilfe: beim Kursleiter schließt der Betrachter, beim Teilnehmer endet die
+      // Freigabe, wenn der Kursleiter geht (stürzt die App des Teilnehmers ab, greift der Totmannschalter im Agent-PC).
+      if (ichLeite() && hilfe.aktiv.delete(p.identity)) {
+        bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
+      } else if (!ichLeite() && istLeiter(p)) {
+        bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
+      }
       systemNachricht(nameVon(p) + ' ist gegangen.');
       neu();
     });
@@ -287,7 +302,7 @@
     } else if (grund === G.DUPLICATE_IDENTITY) {
       erneutAnbieten('Du hast den Kursraum an einer anderen Stelle betreten (anderes Fenster oder anderer Rechner).');
     } else if (abgelaufen()) {
-      erneutAnbieten('Deine Eintrittskarte ist abgelaufen (sie gilt 6 Stunden). Tritt bitte erneut ein.');
+      erneutStill();
     } else {
       erneutAnbieten('Die Verbindung zum Kursraum ist abgebrochen.');
     }
@@ -313,7 +328,8 @@
     } else if (thema === 'freigabe' && istLeiter(p) && !ichLeite()) {
       freigabeEmpfangen(d);
     } else if (thema === 'hilfe-anfrage' && istLeiter(p) && !ichLeite() && typeof d.id === 'string') {
-      bruecke.hilfeAnfrage(JSON.stringify({ id: d.id.slice(0, 64), identity: p.identity, name: nameVon(p) }));
+      const von = typeof d.von === 'string' ? d.von.slice(0, 40) : '';
+      bruecke.hilfeAnfrage(JSON.stringify({ id: d.id.slice(0, 64), identity: p.identity, name: nameVon(p), von }));
     } else if (thema === 'hilfe-ende' && istLeiter(p) && !ichLeite()) {
       bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
     } else if (typeof thema === 'string' && thema.startsWith('hilfe-') && ichLeite() && !istLeiter(p)) {
@@ -352,7 +368,7 @@
       zeichnenBald();
     }, ANTWORT_MS);
     hilfe.offen.set(identity, { id, uhr });
-    senden('hilfe-anfrage', { id }, [identity]);
+    senden('hilfe-anfrage', { id, von: karte.von || '' }, [identity]);
     hinweis('Frage ' + nameVon(p) + ', ob du den Agent-PC sehen darfst …', 8);
     zeichnenBald();
   }

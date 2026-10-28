@@ -16,11 +16,11 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 
 ## Aktueller Block
 
-- **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
+- **Auftrag:** „Muss vor 1.0“ aus `docs/review-1.0-teil2.md` umsetzen (Bony, 28.10.2026: „erledige muss vor 1.0“).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phasen 1–5 committet und gepusht. Bundle v5 von Bony deployt und von Claude am echten Server über Caddy geprüft (Zugangstrennung, Einreichen, Original, Veröffentlichen, Rücknahme; Test-Zugänge und Test-Einreichung wieder entfernt). Offen: Online-Dialog der App gegen den echten Server (nur Bony mit eigenem Token), Durchsicht der Prüfliste.
-- **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
+- **Status:** umgesetzt in drei Repos, **nichts committet, nichts deployt** (siehe Protokoll unten).
+- **Grenzen:** Commit/Push je Repo nur nach Bonys Ja; Zentrale-Update auf dem Server macht Bony (`git pull` + `install.sh`); Bony's-VPN- und Agents-Release nur nach Freigabe.
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
 
@@ -213,3 +213,11 @@ Bonys Ja „bau bundle v8“: `stack/docker-compose.yml` begrenzt jetzt auch die
 ### 2026-10-28 – Claude Code (Bundle v8 am Server geprüft)
 
 Bundle v8 von Bony deployt (erster Versuch ohne Entpacken, zweiter vollständig). Lesend am Server bestätigt: alle drei Container laufen, read-only, Logs `json-file` 5 MB × 3 bei `web`, `counter` und `portal`; `schulung.bony23.de` 200, `/datenschutz` 200, `/katalog/index.json` 200, `/moderation/liste` ohne Token 401. Nicht committet.
+
+### 2026-10-28 – Claude Code (Auftrag A: Durchsicht Teil 2 fertig)
+
+Bericht `docs/review-1.0-teil2.md` (nur geprüft, nichts am Code/Server geändert; fünf getrennte Prüfungen, wichtigste Funde selbst am Code nachgeprüft). Tests: vollständige Suite 827 bestanden, 1 übersprungen; `ruff` sauber; `gitleaks` nur Fehlalarme (Test-Geheimnisse). Tests der Zentrale nicht gelaufen (`fastapi` fehlt). Ergebnis: **noch nicht reif für 1.0** – Isolation im Kurs (Kursleiter-Regel alle Ports, Rollenfälschung im Kursraum, eigener Rechner im Netz ohne shields-up), IP-Adressen im Zugriffsprotokoll der Zentrale, fehlende Rechtstexte der Zentrale; neun „Muss“-Punkte, Aufteilung in fünf Sitzungen. **Nicht committet** – Commit nur nach Bonys OK. Danach geplant: Tor-AppArmor Variante B (Bonys Entscheidung).
+
+### 2026-10-28 – Claude Code (Muss vor 1.0 umgesetzt, nicht committet)
+
+Repos `bonys-agents`, `bonys-netz` (Zentrale + Baustein 0.2.1), `bonys-vpn`. Umgesetzt: Kursleiter-Netzregel nur Port 5959 + `x11vnc -allow` Kursleiter-Rechner; Kursleiter an Identität (`kursleiter_identitaet`), kein `canUpdateOwnMetadata`; `--shields-up` in Bony's VPN + Hinweis Tailscale-App; Zentrale ohne Zugriffsprotokoll, Logrotation aller Dienste; Karten 15 min, `auto_create: false`, Raum bei Pause gelöscht, RemoveParticipant; Regel-Abgleich alle 30 s; Totmannschalter `bonys-hilfe-wache`, Hilfe endet beim Verlassen; Skript-Zustimmung vor jeder Ausführung (inkl. Benutzer), Dialog mit root/Netz/Zugangsdaten und „Skripte ansehen“; Baustein ohne Weiterleitung/http; IP-Hash 24 h, Teilnahmen beim Kursende gelöscht, Kurse enden 7 Tage nach Code-Ablauf, beendete nach 30 Tagen gelöscht; Datenschutzhinweis im Bony-Netz-Dialog, Entwurf `docs/recht/bony-netz/`, TKG-Frage. Tests: Agents 838 bestanden, 1 übersprungen, ruff sauber; Zentrale 9; Baustein 9 (2 übersprungen: shellcheck fehlt, kein Testserver); VPN 191 bestanden, 5 Fehler wie vor der Änderung (lokale Umgebung, CI grün). Offen: Commits/Pushes (Bony), Zentrale-Update auf dem Server (Bony), Releases.

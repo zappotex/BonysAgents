@@ -3,6 +3,33 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## Unveröffentlicht – Sicherheit vor 1.0 (Durchsicht Teil 2)
+
+Braucht die Zentrale **Bony-Netz 0.2.1** (Server). Mit einer älteren Zentrale gilt im Kursraum niemand als
+Kursleiter: Hilfe-Anfragen und Sprechfreigaben kommen dann nicht an.
+
+### Sicherheit
+- **Kursraum: Teilnehmer können sich nicht mehr als Kursleiter ausgeben.** Die Seite erkennt den Kursleiter nur noch
+  an seiner Identität, die die Zentrale nennt (`kursleiter_identitaet`), nicht mehr an Metadaten, die jeder selbst
+  setzen konnte. Auch die App des Teilnehmers nimmt Hilfe-Anfragen nur von dieser Identität an.
+- **Hilfe-Funktion:** x11vnc nimmt nur noch Verbindungen vom Rechner des Kursleiters an (`-allow`), nicht von seinen
+  Agent-PCs. Ein **Totmannschalter** im Agent-PC beendet die Bildschirmfreigabe, sobald sich die App des Teilnehmers
+  30 Sekunden nicht meldet (Absturz, Netz weg) – vorher lief sie bis zu 30 Minuten weiter. Verlässt einer von beiden
+  den Kursraum, endet die Hilfe auch auf der anderen Seite.
+- **Kurspakete:** Die Zustimmung zu Skripten wird unmittelbar vor jeder Ausführung gegen die Skripte auf der Platte
+  geprüft. Ersetzt ein Kurs ein Paket, während die Anleitung offen ist, läuft nichts ohne neue Rückfrage. Die
+  Zustimmung gilt jetzt auch für den Benutzer, unter dem ein Skript läuft – schon erlaubte Pakete fragen deshalb
+  einmal neu. Der Hinweis nennt je Skript „läuft als root“ bzw. „als benutzer“, sagt klar, dass Skripte ins Internet
+  dürfen und gespeicherte Anmeldungen lesen können, und zeigt die Skripte auf Wunsch als Text („Skripte ansehen …“).
+- **Bony-Netz:** Das Instanz-Token folgt keiner Weiterleitung mehr und geht nie über unverschlüsseltes `http://`
+  (Baustein `bony_netz` 0.2.1). Eintrittskarten für den Kursraum gelten nur noch kurz; die App holt still eine neue.
+
+### Datenschutz
+- Bony-Netz-Dialog: kurzer Hinweis, welche Daten der Server sieht und speichert, mit Link zur Datenschutzerklärung
+  (beim Server von Bony's Agents) bzw. dem Hinweis auf den Betreiber eines eigenen Servers.
+- Handbücher: Datenschutz-Tabelle genauer (IP-Adresse, Kursraum läuft über den Server, Hilfe nur Port 5959, keine
+  Mitschnitte); Entwurf der Datenschutzerklärung für Zentrale und Kursraum in `docs/recht/bony-netz/`.
+
 ## 0.28.0 – Community-Katalog und Kursportal
 
 ### Neu

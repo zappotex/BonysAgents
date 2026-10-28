@@ -746,6 +746,32 @@ def test_skripte_erlauben(qapp, datadir, tmp_path, monkeypatch):
     assert "Nicht geprüft" in kb._vertrauen_text(paket)
 
 
+
+def test_skripte_erlauben_nennt_root_und_zeigt_skripte(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QDialog, QMessageBox
+
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    paket = kp.importieren(paket_ordner(tmp_path))
+    gezeigt, angesehen, klicks = [], [], iter(["Skripte ansehen …", "Abbrechen"])
+
+    def exec_(self):
+        gezeigt.append((self.textFormat(), self.informativeText()))
+        self._klick = next(klicks)
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", exec_)
+    monkeypatch.setattr(QMessageBox, "clickedButton",
+                        lambda self: next(b for b in self.buttons() if b.text() == self._klick))
+    monkeypatch.setattr(QDialog, "exec", lambda self: angesehen.append(
+        self.findChild(kb.QPlainTextEdit).toPlainText()) or 0)
+    assert not kb.skripte_erlauben(None, paket)
+    form, text = gezeigt[0]
+    assert form == kb.Qt.PlainText and "als root" in text and "Internet" in text and "Anmeldungen" in text
+    assert "(läuft als " in text
+    assert len(gezeigt) == 2 and "datei.sh" in angesehen[0] and "läuft als" in angesehen[0]
+
+
 def test_katalog_dialog_community(qapp, datadir, tmp_path, monkeypatch):
     from bonys_agents.gui import kurspaket_bibliothek as kb
 
