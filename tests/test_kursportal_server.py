@@ -221,3 +221,71 @@ def test_text_sicht_bereinigt_fremde_zeichen(portal):
     assert portal._text("a\x1b[31mb\nc" + "x" * 500, 20).startswith("a [31mb c")
     assert len(portal._text("x" * 500, 20)) == 20 and portal._text(None) == ""
     assert portal._texte("kein-list") == [] and len(portal._texte(["a"] * 500)) == 200
+
+
+# ---------------------------------------------------------------- Moderation (Phase 2: schreibend)
+def _entscheiden(portal, sid, nach, begruendung="Geprüft.", token=None, extra=None, roh=None):
+    body = roh if roh is not None else json.dumps({"nach": nach, "begruendung": begruendung, **(extra or {})}).encode()
+    return _post(portal, body, token, pfad=f"/moderation/entscheiden/{sid}")
+
+
+def test_entscheiden_akteur_kommt_vom_token_und_aendert_den_katalog(portal, tmp_path, monkeypatch):
+    monkeypatch.setattr(portal, "KATALOG", tmp_path / "katalog")
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    sid = _post(portal, _paket(tmp_path, mit_skript=True), einreicher)[1]["submission_id"]
+
+    assert _entscheiden(portal, sid, "approved")[0] == 401
+    assert _entscheiden(portal, sid, "approved", token=einreicher)[0] == 403
+
+    status, antwort = _entscheiden(portal, sid, "approved", "Skript gelesen.", moderator, extra={"akteur": "fremd"})
+    assert (status, antwort["status"], antwort["akteur"]) == (200, "approved", "bony")
+    status, antwort = _entscheiden(portal, sid, "published", "Freigabe.", moderator)
+    assert status == 200 and antwort["katalog_ok"] is True
+    index = json.loads((tmp_path / "katalog" / "index.json").read_text())
+    assert [e["id"] for e in index["pakete"]] == ["test-paket"]
+
+    detail = _get(portal, f"/moderation/einreichung/{sid}", moderator)[1]
+    assert [(e["nach"], e["akteur"]) for e in detail["verlauf"][-2:]] == [("approved", "bony"), ("published", "bony")]
+    assert detail["kette_ok"] is True and "fremd" not in json.dumps(detail)
+
+    assert _entscheiden(portal, sid, "withdrawn", "Zurück.", moderator)[0] == 200
+    assert json.loads((tmp_path / "katalog" / "index.json").read_text())["pakete"] == []
+
+
+def test_entscheiden_lehnt_verbotenes_und_ungueltiges_ab(portal, tmp_path, monkeypatch):
+    monkeypatch.setattr(portal, "KATALOG", tmp_path / "katalog")
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    sid = _post(portal, _paket(tmp_path, mit_skript=True), einreicher)[1]["submission_id"]       # needs_review
+
+    status, antwort = _entscheiden(portal, sid, "published", token=moderator)
+    assert status == 409 and "nicht erlaubt" in antwort["meldung"]                # needs_review -> published
+    assert _entscheiden(portal, sid, "approved", "", moderator)[0] == 422         # Begründung fehlt
+    assert _entscheiden(portal, sid, "approved", "x" * 2001, moderator)[0] == 422
+    assert _entscheiden(portal, sid, "uploaded", token=moderator)[0] == 422       # kein Zielstatus für Menschen
+    assert _entscheiden(portal, sid, "approved", token=moderator, roh=b"kein json")[0] == 400
+    assert _entscheiden(portal, sid, "approved", token=moderator, roh=b'{"nach": 1, "begruendung": 2}')[0] == 400
+    assert _entscheiden(portal, "0" * 32, "approved", token=moderator)[0] == 404
+    assert _entscheiden(portal, "../x", "approved", token=moderator)[0] == 404
+    assert _post(portal, b"x" * 20000, moderator, pfad=f"/moderation/entscheiden/{sid}")[0] == 413
+    assert _post(portal, b"", moderator, pfad=f"/moderation/entscheiden/{sid}")[0] == 413
+    mod, ablage = portal._moderation()
+    assert ablage.status(sid) == "needs_review"                                    # nichts davon hat etwas geändert
+
+
+def test_entscheiden_sperrt_reservierte_ids_auch_serverseitig(portal, tmp_path, monkeypatch):
+    monkeypatch.setattr(portal, "KATALOG", tmp_path / "katalog")
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    sid = _post(portal, _paket(tmp_path), einreicher)[1]["submission_id"]          # approved
+    res = tmp_path / "res.json"
+    res.write_text('["test-paket"]')                                               # ID wird nachträglich reserviert
+    monkeypatch.setattr(portal, "RESERVIERT", res)
+    status, antwort = _entscheiden(portal, sid, "published", token=moderator)
+    assert status == 409 and "mitgelieferten" in antwort["meldung"]
+    assert not (tmp_path / "katalog" / "index.json").exists()
+
+
+def test_entscheiden_zaehlt_fehlversuche_getrennt(portal, tmp_path, monkeypatch):
+    monkeypatch.setattr(portal, "LIMIT_MOD_FEHLVERSUCHE", 2)
+    portal._MOD_FEHLVERSUCHE.clear()
+    sid = "0" * 32
+    assert [_entscheiden(portal, sid, "approved", token="x")[0] for _ in range(3)] == [401, 401, 429]

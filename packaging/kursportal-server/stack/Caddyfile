@@ -58,6 +58,17 @@ kurse.bony23.de {
         reverse_proxy portal:8080
     }
 
+    @entscheiden {
+        method POST
+        path /moderation/entscheiden/*
+    }
+    handle @entscheiden {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy portal:8080
+    }
+
     handle_path /katalog/* {
         root * /katalog
         @paket path *.bonyspaket

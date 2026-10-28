@@ -33,6 +33,8 @@ RESERVIERT = Path(os.environ.get("PORTAL_RESERVIERT", "/app/reservierte_ids.json
 LIMIT_MOD_MINUTE = int(os.environ.get("PORTAL_LIMIT_MOD_MINUTE", "60"))
 LIMIT_MOD_FEHLVERSUCHE = int(os.environ.get("PORTAL_LIMIT_MOD_FEHLVERSUCHE", "10"))
 MAX_LISTE = 500
+MAX_ENTSCHEIDUNG = 16 * 1024          # Body von POST /moderation/entscheiden
+ENTSCHEIDUNGEN = ("approved", "rejected", "published", "withdrawn")
 _SPERRE = threading.Lock()          # Annahme/Prüfung nacheinander: begrenzt Speicher und CPU
 _ZEITEN: dict[str, list[float]] = {}
 _FEHLVERSUCHE: list[float] = []
@@ -288,6 +290,44 @@ class Handler(BaseHTTPRequestHandler):
                 pass
         self._json(404, {"fehler": "nicht_gefunden"})
 
+    def _moderation_entscheiden(self) -> None:
+        """``POST /moderation/entscheiden/<id>``: Akteur ist der Moderator des Tokens, nie ein Feld aus dem Body."""
+        self.close_connection = True              # Body wird bei Abweisung nicht gelesen
+        name = self._moderator()
+        if name is None:
+            return
+        teile = self.path.split("/")
+        mod, ablage = _moderation()
+        if len(teile) != 4 or not teile[3]:
+            return self._json(404, {"fehler": "nicht_gefunden"})
+        try:
+            laenge = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            return self._json(411, {"fehler": "laenge_fehlt"})
+        if laenge <= 0 or laenge > MAX_ENTSCHEIDUNG:
+            return self._json(413, {"fehler": "anfrage_zu_gross", "hoechstens_bytes": MAX_ENTSCHEIDUNG})
+        try:
+            daten = json.loads(self.rfile.read(laenge).decode("utf-8"))
+            nach, begruendung = daten["nach"], daten["begruendung"]
+            if not (isinstance(nach, str) and isinstance(begruendung, str)):
+                raise TypeError
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"fehler": "ungueltige_anfrage"})
+        begruendung = begruendung.strip()
+        if nach not in ENTSCHEIDUNGEN or not begruendung or len(begruendung) > mod.MAX_TEXT:
+            return self._json(422, {"fehler": "ungueltige_entscheidung", "erlaubt": list(ENTSCHEIDUNGEN)})
+        try:
+            ablage.status(teile[3])
+        except mod.ModerationsFehler:
+            return self._json(404, {"fehler": "nicht_gefunden"})
+        try:
+            ereignis = ablage.entscheiden(teile[3], nach, name, begruendung)
+        except mod.ModerationsFehler as exc:
+            return self._json(409, {"fehler": "nicht_erlaubt", "meldung": _text(exc, 200)})
+        katalog_ok = _katalog_abgleichen(ablage) == 0     # Entscheidung steht; bei Fehler später `katalog` wiederholen
+        self._json(200, {"id": teile[3], "status": ereignis.nach, "nr": ereignis.nr, "akteur": name,
+                         "katalog_ok": katalog_ok})
+
     def do_GET(self):
         if self.path == "/healthz":
             self._json(200, {"ok": True})
@@ -297,6 +337,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"fehler": "nicht_gefunden"})
 
     def do_POST(self):
+        if self.path.startswith("/moderation/entscheiden/"):
+            return self._moderation_entscheiden()
         if self.path != "/einreichen":
             return self._json(404, {"fehler": "nicht_gefunden"})
         if fehlversuch_gesperrt():

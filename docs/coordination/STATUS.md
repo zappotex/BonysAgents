@@ -19,7 +19,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phase 1 lokal fertig und getestet (2026-10-28), uncommitted, kein Bundle, kein Deploy. Nächste Phase: 2 (schreibend).
+- **Status:** Phase 1 gepusht, Phase 2 (schreibend) lokal fertig und committet (2026-10-28); kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
 - **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
@@ -138,3 +138,7 @@ Lokal umgesetzt, nicht committet, nicht deployt, **kein Bundle gebaut**:
 - `stack/Caddyfile`: Route `GET /moderation/*` zum Portal (`caddy validate` → gültig).
 - Tests: `tests/test_kursportal_server.py` (13), `tests/test_kurspaket_moderation.py`; vollständige Suite 807 bestanden, 1 übersprungen, `ruff` sauber.
 Offen: Phase 2 (`POST /moderation/entscheiden/<id>`, Akteur vom Token), dann Client/Dialog, Original ansehen, Bundle v5. Die Sicherheitsprüfliste (`docs/dev/pruefliste-kursportal-server.md`) ist vor dem Deploy um die Moderationsschnittstelle zu erweitern. Noch nicht am echten Server oder in einem lokalen Container-Stack durchgespielt.
+
+### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 2)
+
+`POST /moderation/entscheiden/<id>` (Body `{"nach","begruendung"}`, ≤ 16 KiB): Akteur ist der Moderator des Tokens (ein `akteur` im Body wird ignoriert); Fehler 400/401/403/404/409 (Übergang nicht erlaubt, reservierte ID)/411/413/422/429; nach Erfolg Katalogabgleich (`katalog_ok` in der Antwort). Caddy: `POST /moderation/entscheiden/*` mit 16-KB-Grenze (`caddy validate` gültig). Tests: `tests/test_kursportal_server.py` 17 grün (4 neue); weder Server noch Container-Stack noch echter Server durchgespielt.
