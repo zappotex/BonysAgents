@@ -60,8 +60,8 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 
 ## Entscheidung erforderlich (Bony)
 
-- Prüfliste (`docs/dev/pruefliste-kursportal-server.md`, Abschnitt 5) durchsehen: Restrisiken, erstes Einreicher-Token, wer moderiert.
-- Wann der SSH-Zugang von Claude entfernt wird (bleibt bis Bony „fertig“ sagt).
+- Prüfliste durchgesehen und entschieden (28.10.2026, siehe Abschnitt 5 der Prüfliste): Punkte 1–15 und alle neun Restrisiken vertretbar, kein Einreicher-Token vorerst, Moderator nur Bony, SSH-Zugang von Claude bleibt bis nach Bonys App-Test.
+- Offen: Online-Test der App durch Bony.
 
 ## Übergabe Phaseone → Claude
 
@@ -159,3 +159,7 @@ Für den Deploy durch Bony (wie v3/v4): `scp` des Bundles, `tar -xzf … -C bony
 ### 2026-10-28 – Claude Code (Bundle v5 am echten Server geprüft)
 
 Bundle v5 von Bony deployt; Claude hat mit Bonys Ja (Test-Token, kurzes Veröffentlichen/Zurücknehmen) am echten Server über Caddy geprüft: 401 ohne Token auf `/moderation/liste`, `/moderation/entscheiden/…` und `/einreichen`; Einreicher-Token auf `/moderation/liste` → 403; Moderator-Token auf `/einreichen` → 401, auf `/moderation/liste` → 200. Testpaket eingereicht (`approved`, ohne Befunde), Original byteidentisch, Direktsprung `approved → withdrawn` → 409, `published` → Katalog zeigt den Eintrag (`community: true`), `withdrawn` → Katalog wieder leer, alte Paketdatei → 404. Ein `akteur` im Body wurde ignoriert (Akteur = Token-Name), Verlauf 5 Einträge, `kette_ok` true. Container: Nutzer `nobody`, `/app` schreibgeschützt, kein Internet (Namensauflösung scheitert). `tokens.json` und `moderatoren.json` haben nach dem Schreiben Rechte 600 (die leere Ausgangsdatei hatte 644, der Code setzt beim Schreiben 600 – kein v6 nötig). Danach aufgeräumt: Test-Einreicher- und Test-Moderator-Token entfernt, Test-Einreichung gelöscht, Katalog leer. Übrig: Moderator `bony`, kein Einreicher-Token. Der Katalog war etwa eine Minute öffentlich belegt. Eigener Fehler: Ein Aufruf von `server` über den Wrapper startete im Container einen zweiten Server, der an „Address already in use“ scheiterte; der laufende Dienst war nicht betroffen. Nicht geprüft: Online-Dialog der App gegen den echten Server (braucht Bonys Token). Kein Commit dieser Änderung.
+
+### 2026-10-28 – Claude Code (Prüfliste mit Bony durchgegangen)
+
+Bony hat Abschnitt 5 der Prüfliste entschieden (Punkte 1–15 in Ordnung, alle Restrisiken vertretbar, noch kein Einreicher-Token, Moderator nur Bony, SSH-Zugang bis nach dem App-Test). Zusätzlich lesend am Server per `docker inspect` bestätigt: 768 MiB, 1 CPU, 128 Prozesse, read-only, `cap_drop ALL`, `no-new-privileges`, Port nicht veröffentlicht, Netz `internal`. Nichts geändert. Nicht committet.

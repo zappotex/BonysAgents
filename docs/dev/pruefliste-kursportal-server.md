@@ -66,10 +66,15 @@ einen Menschen per `entscheiden … published`.
 
 ## 5. Entscheidungen für Bony
 
-- [ ] Sind die Punkte 1–15 in Ordnung, oder soll etwas verschärft werden (z. B. Seccomp-Profil, schlankere Image)?
-- [ ] Welche Restrisiken in Abschnitt 4 sind für den ersten Einsatz mit wenigen bekannten Einreichern vertretbar?
-- [ ] Wer bekommt das erste Token, und wer moderiert?
-- [ ] Wann wird Claudes SSH-Zugang entfernt?
+Entscheidungen von Bony (28.10.2026, im Chat):
+
+- [x] Punkte 1–15 sind in Ordnung; keine Verschärfung vor dem ersten Einsatz (Seccomp-Profil und schlankere Image später).
+- [x] Alle neun Restrisiken aus Abschnitt 4 sind für den ersten Einsatz vertretbar; Rechtliches (Punkt 9) bleibt ein eigener Fahrplanpunkt und ist vor einem öffentlichen Aufruf zu klären.
+- [x] Erstes Einreicher-Token: noch keins. Moderator ist nur Bony. Ein Token gibt es erst, wenn Bony einen Autor nennt und der Online-Test der App bestanden ist.
+- [x] Claudes SSH-Zugang bleibt bis nach Bonys App-Test; danach sagt Bony „fertig“ und entfernt den Schlüssel.
+
+Live am Server bestätigt (28.10.2026, Bundle v5): Punkt 1 (Netz `internal`, kein Internet), 2/3 (read-only, `nobody`, `cap_drop ALL`,
+`no-new-privileges`), 4 (768 MiB, 1 CPU, 128 Prozesse), 5 (kein veröffentlichter Port), 6, 7 (Rechte 600), 11, 13, 14 sowie M1, M4, M6, M8, M9.
 
 ## 6. Zusätzlich ab Bundle v5: Moderations-Schnittstelle (`/moderation/*`)
 
