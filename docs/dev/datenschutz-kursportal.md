@@ -59,7 +59,7 @@ außer dem User-Agent (Programmname und Version).
 - [x] Entscheidung Bony (28.10.2026): Community-Katalog **Standard aus** mit einmaliger Information und Zustimmung beim
   ersten Einschalten (umgesetzt: `community_zustimmung`, Test `test_katalog_dialog_community_fragt_vor_dem_ersten_einschalten`).
 - [x] Hinweistext im Zustimmungsdialog und im Handbuch: wohin die Anfrage geht und was der Server sieht (umgesetzt).
-- Datenschutzerklärung (Text vom Fachmann) als Seite unter `kurse.bony23.de/datenschutz` und im Katalogfenster verlinken.
+- [x] Technik für `kurse.bony23.de/datenschutz` (Caddy, Ordner `rechtstexte/`) und Link im Zustimmungs- und Katalogfenster vorbereitet (Bundle v7); der Text selbst kommt von Bony/Fachperson.
 
 **B. Vor dem ersten Einreicher-Token:**
 - Einreichungsbedingungen (Urheberschaft, Lizenz CC BY-SA 4.0, keine Personendaten Dritter, Zustimmung zur

@@ -93,6 +93,7 @@ KATALOG_ENV = "BONYS_AGENTS_PAKET_KATALOG"   # andere Adresse (Tests, eigener Ka
 KATALOG_FORMAT = "bonys-agents-kurspaket-katalog"
 COMMUNITY_URL = "https://kurse.bony23.de/katalog/index.json"
 COMMUNITY_ENV = "BONYS_AGENTS_COMMUNITY_KATALOG"
+DATENSCHUTZ_URL = "https://kurse.bony23.de/datenschutz"   # Datenschutzerklärung des Community-Servers
 COMMUNITY_EINSTELLUNG = "community_katalog"   # Einstellung; Standard: aus (Datenschutz)
 COMMUNITY_ZUSTIMMUNG = "community_zustimmung"  # einmal bestätigt: Anfragen an den Community-Server sind in Ordnung
 TIMEOUT = 20

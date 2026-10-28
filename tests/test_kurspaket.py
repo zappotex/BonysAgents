@@ -801,6 +801,8 @@ def test_katalog_dialog_community_fragt_vor_dem_ersten_einschalten(qapp, datadir
     assert all("com/" not in u for u in abgefragt)                      # Community-Server nie angefragt
     d.community_box.setChecked(True)                                    # Nein → bleibt aus, nichts gespeichert
     assert len(gezeigt) == 1 and "IP-Adresse" in gezeigt[0] and "speichert diese" in gezeigt[0]
+    assert kp.DATENSCHUTZ_URL in gezeigt[0]                  # Link auf die Datenschutzerklärung im Zustimmungsdialog
+    assert kp.DATENSCHUTZ_URL in " ".join(x.text() for x in d.findChildren(kb.QLabel))   # und im Katalogfenster
     assert not d.community_box.isChecked() and not kp.community_an() and not kp.community_zugestimmt()
     assert all("com/" not in u for u in abgefragt)
     antwort["ja"] = True

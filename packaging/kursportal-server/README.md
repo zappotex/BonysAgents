@@ -1,4 +1,4 @@
-# Kursportal-Annahme (Bundle v5 deployt, v6 vorbereitet)
+# Kursportal-Annahme (Bundle v6 deployt, v7 vorbereitet)
 
 Zusätzlicher Dienst im bestehenden Docker-Stack der Schulungsseite. Er nimmt `.bonyspaket`-Dateien an, prüft sie mit
 `kurspaket_portal` (Daten, nie Skripte ausführen) und legt Original und hashverkettetem Verlauf in einem Volume ab.
@@ -79,3 +79,12 @@ Der Akteur im Verlauf ist der Name des Moderator-Tokens. In der App (Kursleiter-
 
 Öffentlich: `https://kurse.bony23.de/katalog/index.json` und `…/katalog/pakete/<id>-<version>.bonyspaket`. Es erscheint
 nur die neueste veröffentlichte Version je Paket-ID. IDs der mitgelieferten Pakete werden bei der Einreichung abgelehnt.
+
+## Rechtstexte (ab Bundle v7)
+
+Caddy liefert `https://kurse.bony23.de/datenschutz`, `/impressum`, `/einreichungsbedingungen` und `/meldeweg` aus dem
+Ordner `rechtstexte/` im Projektverzeichnis auf dem Server (`rechtstexte/<seite>.html`, nur lesend eingebunden). Die
+**fertigen Texte legt der Betreiber selbst dort ab** (Name, Anschrift und Hoster gehören nicht ins Repository). Fehlt eine
+Seite, legt `deploy.sh` nur eine Platzhalterseite („wird gerade vorbereitet“) an; vorhandene Dateien überschreibt es nie,
+und das Bundle enthält den Ordner nicht. Entwürfe: `docs/recht/kursportal/`. Die App verlinkt die Datenschutzerklärung
+im Zustimmungsdialog und im Katalogfenster (`kurspaket.DATENSCHUTZ_URL`). Neue Seiten brauchen keinen Neustart.

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import apps, desktops, edition, host, kurslauf, kurspaket, vm
 
+from .widgets import open_url
 from .workers import TaskWorker
 
 INTRO = ("Kurspakete sind fertige Inhalte zum Durcharbeiten – allein zu Hause (Selbstlern-Modus) oder in einem Kurs. "
@@ -183,6 +184,11 @@ COMMUNITY_HINWEIS = (
     "Du kannst die Quelle hier jederzeit wieder ausschalten.")
 
 
+def datenschutz_link() -> str:
+    """Link auf die Datenschutzerklärung des Community-Servers (HTML für Beschriftungen)."""
+    return f'<a href="{kurspaket.DATENSCHUTZ_URL}">Datenschutzerklärung</a>'
+
+
 def community_zustimmung(parent=None) -> bool:
     """Fragt einmal um Erlaubnis, den Community-Server anzufragen; merkt sich ein Ja."""
     if kurspaket.community_zugestimmt():
@@ -190,7 +196,7 @@ def community_zustimmung(parent=None) -> bool:
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Question)
     box.setWindowTitle("Community-Katalog einschalten?")
-    box.setText(COMMUNITY_HINWEIS)
+    box.setText(f"{COMMUNITY_HINWEIS}\n\nDatenschutzerklärung: {kurspaket.DATENSCHUTZ_URL}")
     ja = box.addButton("Einschalten", QMessageBox.AcceptRole)
     box.addButton("Nicht einschalten", QMessageBox.RejectRole)
     box.exec()
@@ -231,6 +237,10 @@ class KatalogDialog(QDialog):
         self.community_box = QCheckBox("Community-Kurspakete anzeigen (fragt kurse.bony23.de an)")
         self.community_box.setChecked(kurspaket.community_an())
         root.addWidget(self.community_box)
+        datenschutz = QLabel(datenschutz_link())
+        datenschutz.setTextFormat(Qt.RichText)
+        datenschutz.linkActivated.connect(open_url)   # eigener Weg: saubere Umgebung für den Browser
+        root.addWidget(datenschutz)
         knoepfe = QHBoxLayout()
         self.laden_knopf = QPushButton("Laden")
         self.laden_knopf.setObjectName("Primary")

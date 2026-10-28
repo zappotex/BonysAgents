@@ -61,6 +61,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
       - katalog_public:/katalog:ro
+      - ./rechtstexte:/rechtstexte:ro   # Rechtstexte (Datenschutz, Impressum …) legt der Betreiber selbst ab
     read_only: true
     tmpfs:
       - /tmp

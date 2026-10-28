@@ -78,6 +78,14 @@ kurse.bony23.de {
         file_server
     }
 
+    @recht path /datenschutz /impressum /einreichungsbedingungen /meldeweg
+    handle @recht {
+        root * /rechtstexte
+        rewrite * {path}.html
+        header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"
+        file_server
+    }
+
     handle {
         respond "Kursportal: Einreichungen nur per Einladung." 404
     }

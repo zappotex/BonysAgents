@@ -678,7 +678,7 @@ mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
   den Schalter **„Community-Kurspakete anzeigen“** im Katalogfenster einschaltest. Beim ersten Mal erklärt dir
   Bony's Agents, dass dabei Anfragen an `kurse.bony23.de` gehen (der Server und sein Hoster sehen deine IP-Adresse und
   den Namen und die Version des Programms; Bony's Agents speichert das nicht) – erst nach deinem „Einschalten“ passiert
-  das. Mit dem Schalter kannst du die Quelle jederzeit wieder ausschalten.
+  das. Die Datenschutzerklärung ist im Zustimmungsdialog und im Katalogfenster verlinkt. Mit dem Schalter kannst du die Quelle jederzeit wieder ausschalten.
 - **„Exportieren …“** speichert ein Kurspaket als Datei zum Weitergeben.
 
 ## Durcharbeiten
