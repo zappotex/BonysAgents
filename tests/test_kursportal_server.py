@@ -4,6 +4,7 @@
 import http.client
 import importlib.util
 import json
+import os
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -155,7 +156,8 @@ def test_moderation_braucht_moderator_token_und_trennt_die_zugaenge(portal, tmp_
     for datei in ("tokens.json", "moderatoren.json"):
         text = (portal.DATEN / datei).read_text()
         assert einreicher not in text and moderator not in text
-        assert (portal.DATEN / datei).stat().st_mode & 0o777 == 0o600
+        if os.name == "posix":             # Windows kennt keine Unix-Rechte
+            assert (portal.DATEN / datei).stat().st_mode & 0o777 == 0o600
 
 
 def test_moderation_liste_und_detail_zeigen_nur_feste_felder(portal, tmp_path):

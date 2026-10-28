@@ -36,7 +36,8 @@ def test_zugang_wird_mit_rechten_600_gespeichert_und_geprueft(datadir):
     client.zugang_speichern("abc123", "https://kurse.example.org/")
     z = client.zugang_laden()
     assert (z.url, z.token) == ("https://kurse.example.org", "abc123")
-    assert client._zugang_datei().stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":                 # Windows kennt keine Unix-Rechte
+        assert client._zugang_datei().stat().st_mode & 0o777 == 0o600
     for token in ("", "mit leerzeichen", "x" * 201):
         with pytest.raises(client.OnlineFehler):
             client.zugang_speichern(token, "https://kurse.example.org")
