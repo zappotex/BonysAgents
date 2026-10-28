@@ -117,3 +117,7 @@ Testpaket `community-testpaket` 1.0.0 (2 Lektionen, keine Skripte/Links; liegt n
 
 Menüpunkt „Kursportal: Moderation …“ in der Kursleiter-Edition (Anwender-Edition: nicht vorhanden, per Test belegt). Der Dialog arbeitet auf einer **lokalen** Ablage dieses Rechners (IDs der mitgelieferten Pakete gesperrt) und ändert den Online-Katalog nicht; neu: Knopf „Paketdatei prüfen …“ nimmt eine `.bonyspaket`-Datei als Daten in die lokale Ablage auf (nichts wird ausgeführt). Die Moderation der Online-Einreichungen läuft weiter per Server-Befehl (`entscheiden`); eine Anbindung des Dialogs an den Server gibt es nicht und wäre ein eigener Block.
 Gefundener Fehler behoben: Lambda-Verbindung mit `self` hielt den Dialog bis zum Programmende fest → Absturz (Segfault) beim Beenden bei zwei Dialog-Instanzen; jetzt Slot mit `sender()`. Vollständige Suite: 800 bestanden, 1 übersprungen, `ruff` sauber, Exit-Code 0.
+
+### 2026-10-28 – Claude Code (Commit)
+
+Auf Bonys Ja lokal committet (`1757e8b`, 26 Dateien), **nicht gepusht**, kein Tag/Release. Nicht enthalten: `AUFGABE-*.md` und die Kursleiter-Notiz im Projektstamm (nicht Teil dieses Blocks). Privater Pfad in der Server-README durch Platzhalter ersetzt.
