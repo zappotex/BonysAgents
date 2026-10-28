@@ -10,6 +10,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    logging:                       # Container-Logs begrenzen (Datensparsamkeit)
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -65,6 +70,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    logging:                       # Container-Logs begrenzen (Datensparsamkeit)
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     cap_drop:

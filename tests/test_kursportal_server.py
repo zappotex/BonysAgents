@@ -5,6 +5,7 @@ import http.client
 import importlib.util
 import json
 import os
+import re
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -339,3 +340,13 @@ def test_original_nur_fuer_moderatoren_mit_pruefsumme_und_limit(portal, tmp_path
     (portal.DATEN / "ablage" / sid / "original.bonyspaket").write_bytes(inhalt + b"x")        # verändert
     status, _, daten = _roh(portal, pfad, moderator)
     assert status == 409 and b"original_veraendert" in daten
+
+
+def test_alle_dienste_begrenzen_ihre_container_logs():
+    compose = Path(__file__).parents[1] / "packaging/kursportal-server/stack/docker-compose.yml"
+    dienste = compose.read_text(encoding="utf-8").split("\nnetworks:")[0]
+    bloecke = re.split(r"^  (\w+):$", dienste, flags=re.M)[1:]           # Name, Inhalt, Name, Inhalt …
+    namen = bloecke[0::2]
+    assert namen == ["counter", "portal", "web"]
+    for name, block in zip(namen, bloecke[1::2], strict=True):
+        assert 'max-size: "5m"' in block and 'max-file: "3"' in block, name
