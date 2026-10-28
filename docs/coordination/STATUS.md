@@ -19,7 +19,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phase 1 gepusht, Phase 2 bis 4 committet, nicht gepusht; Bundle v5 gebaut; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
+- **Status:** Phasen 1–5 committet und gepusht. Bundle v5 von Bony deployt und von Claude am echten Server über Caddy geprüft (Zugangstrennung, Einreichen, Original, Veröffentlichen, Rücknahme; Test-Zugänge und Test-Einreichung wieder entfernt). Offen: Online-Dialog der App gegen den echten Server (nur Bony mit eigenem Token), Durchsicht der Prüfliste.
 - **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
@@ -60,8 +60,8 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 
 ## Entscheidung erforderlich (Bony)
 
-- Veröffentlichen/Rücknahme am echten Server testen (macht ein Testpaket kurz öffentlich)?
-- Wann Test-Einreichungen, Test-Token und SSH-Zugang aufgeräumt werden.
+- Prüfliste (`docs/dev/pruefliste-kursportal-server.md`, Abschnitt 5) durchsehen: Restrisiken, erstes Einreicher-Token, wer moderiert.
+- Wann der SSH-Zugang von Claude entfernt wird (bleibt bis Bony „fertig“ sagt).
 
 ## Übergabe Phaseone → Claude
 
@@ -155,3 +155,7 @@ Server: `GET /moderation/original/<id>` nur für Moderatoren, liefert die Paketd
 
 Bundle gebaut: `~/Downloads/bonys-schulung-web-kursportal-v5.tar.gz` (SHA-256 `e35269b2910a85dc451cfc061a68ee16a62b674061648253d2044774c6d18612`), **nicht deployt – Deploy und echter Test durch Bony**. Lokal im Container mit der Härtung aus `docker-compose.yml` (read-only, `cap_drop ALL`, `no-new-privileges`, Nutzer `nobody`) geprüft: 401 ohne Token, 403 mit Einreicher-Token, 200 mit Moderator-Token, Moderator-Token auf `/einreichen` → 401, Einreichung → Liste → Original (byteidentisch) → `published` (Akteur `bony`, trotz `akteur` im Body; Katalog geschrieben) → `withdrawn`; Schreiben außerhalb der Volumes scheitert. **Nicht** geprüft: der Weg über Caddy (nur `caddy validate`) und der echte Server. README um die neuen Befehle und die Schnittstelle ergänzt; Sicherheitsprüfliste um Abschnitt 6 (M1–M12) erweitert.
 Für den Deploy durch Bony (wie v3/v4): `scp` des Bundles, `tar -xzf … -C bonys-schulung-web --strip-components=1`, `./deploy.sh`. Danach `docker compose exec portal python /app/server.py moderator-neu bony` (Token einmalig anzeigen, in der App unter „Kursportal: Moderation … → Online“ eingeben). Offene Entscheidung: Wer das Token bekommt, steht (nur Bony) fest; der Server hat weiterhin kein Einreicher-Token.
+
+### 2026-10-28 – Claude Code (Bundle v5 am echten Server geprüft)
+
+Bundle v5 von Bony deployt; Claude hat mit Bonys Ja (Test-Token, kurzes Veröffentlichen/Zurücknehmen) am echten Server über Caddy geprüft: 401 ohne Token auf `/moderation/liste`, `/moderation/entscheiden/…` und `/einreichen`; Einreicher-Token auf `/moderation/liste` → 403; Moderator-Token auf `/einreichen` → 401, auf `/moderation/liste` → 200. Testpaket eingereicht (`approved`, ohne Befunde), Original byteidentisch, Direktsprung `approved → withdrawn` → 409, `published` → Katalog zeigt den Eintrag (`community: true`), `withdrawn` → Katalog wieder leer, alte Paketdatei → 404. Ein `akteur` im Body wurde ignoriert (Akteur = Token-Name), Verlauf 5 Einträge, `kette_ok` true. Container: Nutzer `nobody`, `/app` schreibgeschützt, kein Internet (Namensauflösung scheitert). `tokens.json` und `moderatoren.json` haben nach dem Schreiben Rechte 600 (die leere Ausgangsdatei hatte 644, der Code setzt beim Schreiben 600 – kein v6 nötig). Danach aufgeräumt: Test-Einreicher- und Test-Moderator-Token entfernt, Test-Einreichung gelöscht, Katalog leer. Übrig: Moderator `bony`, kein Einreicher-Token. Der Katalog war etwa eine Minute öffentlich belegt. Eigener Fehler: Ein Aufruf von `server` über den Wrapper startete im Container einen zweiten Server, der an „Address already in use“ scheiterte; der laufende Dienst war nicht betroffen. Nicht geprüft: Online-Dialog der App gegen den echten Server (braucht Bonys Token). Kein Commit dieser Änderung.
