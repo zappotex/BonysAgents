@@ -61,7 +61,7 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 ## Entscheidung erforderlich (Bony)
 
 - Prüfliste durchgesehen und entschieden (28.10.2026, siehe Abschnitt 5 der Prüfliste): Punkte 1–15 und alle neun Restrisiken vertretbar, kein Einreicher-Token vorerst, Moderator nur Bony, SSH-Zugang von Claude bleibt bis nach Bonys App-Test.
-- Offen: Online-Test der App durch Bony.
+- Online-Dialog der App von Bony am echten Server getestet (28.10.2026, siehe Protokoll); offen: Katalogeintrag in der App nicht bestätigt, SSH-Zugang von Claude bis Bonys „fertig“.
 
 ## Übergabe Phaseone → Claude
 
@@ -163,3 +163,7 @@ Bundle v5 von Bony deployt; Claude hat mit Bonys Ja (Test-Token, kurzes Veröffe
 ### 2026-10-28 – Claude Code (Prüfliste mit Bony durchgegangen)
 
 Bony hat Abschnitt 5 der Prüfliste entschieden (Punkte 1–15 in Ordnung, alle Restrisiken vertretbar, noch kein Einreicher-Token, Moderator nur Bony, SSH-Zugang bis nach dem App-Test). Zusätzlich lesend am Server per `docker inspect` bestätigt: 768 MiB, 1 CPU, 128 Prozesse, read-only, `cap_drop ALL`, `no-new-privileges`, Port nicht veröffentlicht, Netz `internal`. Nichts geändert. Nicht committet.
+
+### 2026-10-28 – Claude Code (Online-Test der App durch Bony)
+
+Mit Bonys Ja Test-Einreicher-Token angelegt und `community-testpaket` eingereicht (`approved`). Bony hat in der Kursleiter-Edition aus dem Quellcode (`BONYS_AGENTS_EDITION=kursleiter`; die installierte Fassung hat den Menüpunkt noch nicht) den Moderationsdialog auf „Online“ gestellt: Verbindung mit seinem Moderator-Token, Liste mit der Einreichung und „Inhalt ansehen“ funktionierten. Er hat `published` (Akteur `bony`) und danach `withdrawn` ausgelöst; Server bestätigt: Verlauf 5 Einträge, Katalog zeitweise belegt (10:42–10:49 Uhr), danach leer. **Nicht bestätigt:** ob „Community-Testpaket – Community“ im Online-Katalog der App (Kurse → Kurspakete → Aus dem Internet …) erschien. Danach aufgeräumt: Test-Einreicher-Token entfernt, Test-Einreichung gelöscht; übrig Moderator `bony`, kein Einreicher-Token. Hinweis: Der Weg zum Moderationsdialog (ⓘ-Menü) und zum Katalog (Kurse) war für Bony nicht offensichtlich – ein Hinweis im Handbuch/Tooltip wäre sinnvoll. Nicht committet.
