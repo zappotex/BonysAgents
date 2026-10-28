@@ -792,7 +792,7 @@ def test_start_skript_nur_vom_kursleiter_rechner_und_mit_wache():
     assert hilfe.WACHE in hilfe.stop_skript()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="bash-Skript des Agent-PCs")
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="bash-Skript des Agent-PCs (GNU stat)")
 def test_totmannschalter_stoppt_ohne_klopfen(tmp_path, monkeypatch):
     import subprocess
     import time
