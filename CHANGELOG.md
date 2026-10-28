@@ -3,6 +3,28 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.28.0 – Community-Katalog und Kursportal
+
+### Neu
+- **Community-Katalog für Kurspakete.** Unter **Kurse → Kurspakete → „Aus dem Internet …“** zeigt Bony's Agents
+  jetzt zusätzlich Kurspakete, die andere Autoren eingereicht haben und die von der Moderation freigegeben wurden.
+  Sie sind mit „– Community“ gekennzeichnet. Das ist keine Signatur von Bony's Agents: Vor dem ersten Start zeigt die
+  App wie bei jedem fremden Kurspaket die Liste der Skripte. Der Schalter „Community-Kurspakete anzeigen“ im
+  Katalogfenster schaltet die Quelle ab. Im Standard ist sie an; die App fragt dann die Katalogliste von
+  `kurse.bony23.de` ab (nur Katalogdaten, keine Angaben über dich).
+- **Kursportal-Moderation (Kursleiter-Version).** Neuer Eintrag **ⓘ → „Kursportal: Moderation …“**: eingereichte
+  Kurspakete ansehen (Prüfbericht, Verlauf, Inhalt als Klartext), freigeben, ablehnen, veröffentlichen und
+  zurückziehen – lokal oder online am Kursportal mit einem Moderator-Token. Jede Entscheidung braucht eine
+  Begründung und steht unveränderbar (hashverkettet) im Verlauf. Es wird nie etwas aus einem Paket ausgeführt.
+- **Annahme-Server für Kurspakete** (Quelltext unter `packaging/kursportal-server/`, läuft nicht in der App): nimmt
+  `.bonyspaket`-Dateien nur mit Token an, prüft sie als Daten in einem abgeschotteten Container und veröffentlicht
+  erst nach einer menschlichen Entscheidung. Eine Sicherheits-Prüfliste liegt unter
+  `docs/dev/pruefliste-kursportal-server.md`.
+
+### Geändert
+- Pakete mit der ID eines mitgelieferten Kurspakets werden bei der Einreichung abgelehnt und nie veröffentlicht.
+- Handbücher: Abschnitte zum Community-Katalog (Benutzer) und zum Prüfen und Freigeben (Kursleiter).
+
 ## 0.27.1 – Sprachmodus beim Starter „Hermes Agent (Sprache)“ repariert
 
 ### Behoben
