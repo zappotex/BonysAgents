@@ -147,3 +147,80 @@ def test_dialog_zeigt_verlaufsmanipulation_und_unerreichbaren_server(server, mon
     finally:
         d.close()
         APP.processEvents()
+
+
+# ---------------------------------------------------------------- Inhalt ansehen (Phase 4)
+def test_inhalt_lesen_zeigt_texte_und_fuehrt_nichts_aus(server, tmp_path):
+    ablage = client.OnlineAblage(client.Zugang(client.portal_url(), server.moderator))
+    ablage.aktualisieren()
+    with ablage.original_bereit(server.sid) as datei:
+        dateien = client.inhalt_lesen(datei)
+        pfad = datei
+    assert not pfad.exists()                                                # temporäre Kopie ist weg
+    arten = {d.pfad: d.art for d in dateien}
+    assert arten["paket.json"] == "text" and arten["lektionen/02-uebung/pruefung/datei.sh"] == "skript"
+    skript = next(d for d in dateien if d.art == "skript")
+    assert "test -s" in skript.text                                         # nur gelesen, nicht ausgeführt
+    assert all(d.text == "" for d in dateien if d.art in ("bild", "sonstig"))
+
+
+def test_inhalt_lesen_lehnt_kaputtes_und_unsicheres_ab(tmp_path):
+    kaputt = tmp_path / "x.bonyspaket"
+    kaputt.write_bytes(b"kein zip")
+    with pytest.raises(client.OnlineFehler, match="nicht sicher öffnen"):
+        client.inhalt_lesen(kaputt)
+    import zipfile
+    boese = tmp_path / "b.bonyspaket"
+    with zipfile.ZipFile(boese, "w") as zf:
+        zf.writestr("../ausbruch.md", "x")
+    with pytest.raises(client.OnlineFehler, match="nicht sicher öffnen"):
+        client.inhalt_lesen(boese)
+    assert not (tmp_path.parent / "ausbruch.md").exists()
+
+
+def test_original_mit_falscher_pruefsumme_wird_verworfen(server):
+    ablage = client.OnlineAblage(client.Zugang(client.portal_url(), server.moderator))
+    ablage.aktualisieren()
+    ablage.detail_laden(server.sid)
+    ablage._detail[server.sid]["bericht"]["sha256"] = "0" * 64
+    with pytest.raises(client.OnlineFehler, match="Prüfsumme"):
+        with ablage.original_bereit(server.sid):
+            pass
+
+
+def test_dialog_inhalt_ansehen_online_und_lokal(server, tmp_path, monkeypatch):
+    from bonys_agents.gui import moderation_dialog as md
+
+    gezeigt = []
+    monkeypatch.setattr(md.InhaltDialog, "exec", lambda self: gezeigt.append(self) or 0)
+    warnungen = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a: warnungen.append(a[2]))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: (server.moderator, True))
+    lokal = mod.Moderation(server.DATEN / "lokal")
+    sid_lokal = lokal.einreichen(_dateiname_fuer(tmp_path), "lokal")
+    d = ModerationDialog(lokal)
+    try:
+        assert not d.inhalt_knopf.isEnabled()
+        d.tabelle.selectRow(0)
+        d.inhalt_knopf.click()                                              # lokal
+        d.quelle.setCurrentIndex(1)
+        d.tabelle.selectRow(0)
+        d.inhalt_knopf.click()                                              # online
+        assert len(gezeigt) == 2 and not warnungen
+        assert gezeigt[1].liste.count() > 0 and gezeigt[1].text.isReadOnly()
+        assert any("datei.sh" in gezeigt[1].liste.item(i).text() and "nie ausgeführt" in gezeigt[1].liste.item(i).text()
+                   for i in range(gezeigt[1].liste.count()))
+        assert sid_lokal in lokal.ids()
+    finally:
+        d.close()
+        APP.processEvents()
+
+
+def _dateiname_fuer(tmp_path):
+    from test_kurspaket import PAKET, paket_ordner
+    from bonys_agents import kurspaket
+
+    paket = paket_ordner(tmp_path / "lokal-q", {**PAKET, "lektionen": []})
+    datei = tmp_path / "lokal.bonyspaket"
+    kurspaket.packen(paket, datei)
+    return datei

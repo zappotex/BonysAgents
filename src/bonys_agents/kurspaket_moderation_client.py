@@ -9,9 +9,14 @@ Paket wird ausgeführt oder geöffnet. Das Token liegt in einer eigenen Datei mi
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+import hashlib
 import json
 import os
+from pathlib import Path
+import re
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -23,6 +28,12 @@ ZUGANG_DATEI = "kursportal-moderator.json"
 TIMEOUT = 10
 MAX_ANTWORT = 2 * 1024 * 1024
 MAX_LISTE = 500
+MAX_ORIGINAL = 50 * 1024 * 1024         # wie die Annahmegrenze des Servers
+MAX_ANSICHT_DATEI = 200 * 1024          # je Datei zum Anzeigen
+MAX_ANSICHT_GESAMT = 4 * 1024 * 1024
+TEXT_ENDUNGEN = {".md", ".txt", ".json"}
+BILD_ENDUNGEN = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+_STEUER = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\x80-\x9f]")
 
 
 class OnlineFehler(mod.ModerationsFehler):
@@ -218,3 +229,71 @@ class OnlineAblage:
         self._anfrage("POST", f"/moderation/entscheiden/{sid}", {"nach": nach, "begruendung": begruendung})
         self._detail.pop(sid, None)
         self.aktualisieren()
+
+    @contextmanager
+    def original_bereit(self, sid: str):
+        """Lädt die Paketdatei in ein temporäres Verzeichnis (Größe und SHA-256 gegen den Bericht geprüft) und
+        löscht sie danach wieder."""
+        if not mod._ID.fullmatch(sid):
+            raise OnlineFehler("Ungültige Einreichungs-ID.")
+        self.detail_laden(sid)
+        soll = self._detail[sid]["bericht"]["sha256"]
+        req = urllib.request.Request(self.zugang.url + f"/moderation/original/{sid}", method="GET",
+                                     headers={"Authorization": f"Bearer {self.zugang.token}",
+                                              "User-Agent": kurspaket.USER_AGENT})
+        with tempfile.TemporaryDirectory(prefix=".ansicht-") as t:
+            ziel = Path(t) / "original.bonyspaket"
+            h, menge = hashlib.sha256(), 0
+            try:
+                with self._opener(req, timeout=self.timeout) as r, ziel.open("wb") as f:
+                    while block := r.read(256 * 1024):
+                        menge += len(block)
+                        if menge > MAX_ORIGINAL:
+                            raise OnlineFehler("Die Paketdatei ist größer als erlaubt.")
+                        h.update(block)
+                        f.write(block)
+            except urllib.error.HTTPError as e:
+                raise OnlineFehler(self._fehlertext(e), e.code) from None
+            except OSError:
+                raise OnlineFehler("Das Portal ist nicht erreichbar oder die Übertragung brach ab.") from None
+            if h.hexdigest() != soll:
+                raise OnlineFehler("Die Paketdatei passt nicht zur Prüfsumme im Bericht – verworfen.")
+            yield ziel
+
+
+@dataclass
+class InhaltsDatei:
+    pfad: str
+    art: str            # "text", "skript", "bild" oder "sonstig"
+    groesse: int
+    text: str           # nur bei "text" und "skript"; Bilder und Sonstiges werden nie dargestellt
+
+
+def _sauber(daten: bytes) -> str:
+    return _STEUER.sub(" ", daten.decode("utf-8", errors="replace"))
+
+
+def inhalt_lesen(datei: Path) -> list[InhaltsDatei]:
+    """Paketdatei prüfend entpacken (``kurspaket.entpacken``, alle Schutzgrenzen) und die Texte als Klartext einlesen.
+    Skripte werden nur als Text gelesen, nie ausgeführt; Bilder werden nicht geöffnet. Das Verzeichnis wird gelöscht."""
+    ergebnis, gesamt = [], 0
+    with tempfile.TemporaryDirectory(prefix=".ansicht-") as t:
+        ziel = Path(t) / "p"
+        try:
+            kurspaket.entpacken(Path(datei), ziel)
+        except kurspaket.PaketFehler as exc:
+            raise OnlineFehler(f"Das Paket lässt sich nicht sicher öffnen: {_text(exc, 200)}") from None
+        for p in sorted(ziel.rglob("*")):
+            if not p.is_file() or p.is_symlink():
+                continue
+            ende, groesse = p.suffix.lower(), p.stat().st_size
+            art = ("skript" if ende in kurspaket.SKRIPT_ENDUNGEN else "text" if ende in TEXT_ENDUNGEN
+                   else "bild" if ende in BILD_ENDUNGEN else "sonstig")
+            text = ""
+            if art in ("text", "skript") and gesamt < MAX_ANSICHT_GESAMT:
+                with p.open("rb") as f:
+                    daten = f.read(MAX_ANSICHT_DATEI + 1)
+                text = _sauber(daten[:MAX_ANSICHT_DATEI]) + ("\n[… gekürzt]" if len(daten) > MAX_ANSICHT_DATEI else "")
+                gesamt += len(text)
+            ergebnis.append(InhaltsDatei(p.relative_to(ziel).as_posix(), art, groesse, text))
+    return ergebnis

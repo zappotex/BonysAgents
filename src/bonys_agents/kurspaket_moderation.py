@@ -140,6 +140,14 @@ class Moderation:
 
     # --- Lesen -----------------------------------------------------------
 
+    @contextmanager
+    def original_bereit(self, submission_id: str):
+        """Pfad der eingereichten Paketdatei zum Ansehen (nur lesen, nie ausführen)."""
+        datei = self._ordner(submission_id) / "original.bonyspaket"
+        if not datei.is_file():
+            raise ModerationsFehler("Die Paketdatei dieser Einreichung fehlt.")
+        yield datei
+
     def ids(self) -> list[str]:
         if not self.wurzel.is_dir():
             return []

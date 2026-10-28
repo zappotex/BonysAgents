@@ -33,6 +33,7 @@ RESERVIERT = Path(os.environ.get("PORTAL_RESERVIERT", "/app/reservierte_ids.json
 LIMIT_MOD_MINUTE = int(os.environ.get("PORTAL_LIMIT_MOD_MINUTE", "60"))
 LIMIT_MOD_FEHLVERSUCHE = int(os.environ.get("PORTAL_LIMIT_MOD_FEHLVERSUCHE", "10"))
 MAX_LISTE = 500
+LIMIT_ORIGINAL_MINUTE = int(os.environ.get("PORTAL_LIMIT_ORIGINAL_MINUTE", "10"))
 MAX_ENTSCHEIDUNG = 16 * 1024          # Body von POST /moderation/entscheiden
 ENTSCHEIDUNGEN = ("approved", "rejected", "published", "withdrawn")
 _SPERRE = threading.Lock()          # Annahme/Prüfung nacheinander: begrenzt Speicher und CPU
@@ -276,13 +277,43 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return name
 
+    def _moderation_original(self, ablage, mod, name: str, sid: str) -> None:
+        """Die Paketdatei zum Ansehen: nur wenn sie noch zur Prüfsumme im Bericht passt. Wird nie ausgeführt."""
+        from bonys_agents import kurspaket_portal as portal
+
+        jetzt = time.time()
+        if not _frei("d:" + name, 60, LIMIT_ORIGINAL_MINUTE, jetzt):
+            return self._json(429, {"fehler": "zu_viele_downloads"}, {"Retry-After": "60"})
+        _ZEITEN.setdefault("d:" + name, []).append(jetzt)
+        try:
+            ablage.status(sid)
+        except mod.ModerationsFehler:
+            return self._json(404, {"fehler": "nicht_gefunden"})
+        datei = DATEN / "ablage" / sid / "original.bonyspaket"
+        if not datei.is_file():
+            return self._json(404, {"fehler": "nicht_gefunden"})
+        if portal._sha256(datei) != (ablage.bericht(sid) or {}).get("sha256"):
+            return self._json(409, {"fehler": "original_veraendert"})
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Disposition", f'attachment; filename="{sid}.bonyspaket"')
+        self.send_header("Content-Length", str(datei.stat().st_size))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        with datei.open("rb") as f:
+            while block := f.read(1024 * 1024):
+                self.wfile.write(block)
+
     def _moderation_get(self) -> None:
-        if self._moderator() is None:
+        name = self._moderator()
+        if name is None:
             return
         mod, ablage = _moderation()
         if self.path == "/moderation/liste":
             return self._json(200, {"einreichungen": sicht_liste(ablage, mod)})
         teile = self.path.split("/")
+        if len(teile) == 4 and teile[2] == "original" and mod._ID.fullmatch(teile[3]):
+            return self._moderation_original(ablage, mod, name, teile[3])
         if len(teile) == 4 and teile[2] == "einreichung":
             try:
                 return self._json(200, sicht_einreichung(ablage, mod, teile[3]))

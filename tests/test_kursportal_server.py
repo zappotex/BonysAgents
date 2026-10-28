@@ -289,3 +289,37 @@ def test_entscheiden_zaehlt_fehlversuche_getrennt(portal, tmp_path, monkeypatch)
     portal._MOD_FEHLVERSUCHE.clear()
     sid = "0" * 32
     assert [_entscheiden(portal, sid, "approved", token="x")[0] for _ in range(3)] == [401, 401, 429]
+
+
+# ---------------------------------------------------------------- Moderation (Phase 4: Original ansehen)
+def _roh(portal, pfad, token):
+    c = http.client.HTTPConnection("127.0.0.1", portal.port, timeout=10)
+    c.request("GET", pfad, headers={"Authorization": f"Bearer {token}"})
+    r = c.getresponse()
+    daten, kopf = r.read(), dict(r.getheaders())
+    c.close()
+    return r.status, kopf, daten
+
+
+def test_original_nur_fuer_moderatoren_mit_pruefsumme_und_limit(portal, tmp_path, monkeypatch):
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    inhalt = _paket(tmp_path, mit_skript=True)
+    sid = _post(portal, inhalt, einreicher)[1]["submission_id"]
+    pfad = f"/moderation/original/{sid}"
+
+    assert _roh(portal, pfad, "falsch")[0] == 401
+    assert _roh(portal, pfad, einreicher)[0] == 403
+    status, kopf, daten = _roh(portal, pfad, moderator)
+    assert status == 200 and daten == inhalt
+    assert kopf["Content-Type"] == "application/octet-stream" and "attachment" in kopf["Content-Disposition"]
+    assert _roh(portal, "/moderation/original/" + "0" * 32, moderator)[0] == 404
+    assert _roh(portal, "/moderation/original/../x", moderator)[0] == 404
+
+    monkeypatch.setattr(portal, "LIMIT_ORIGINAL_MINUTE", 2)
+    portal._ZEITEN.clear()
+    assert [_roh(portal, pfad, moderator)[0] for _ in range(3)] == [200, 200, 429]
+
+    portal._ZEITEN.clear()
+    (portal.DATEN / "ablage" / sid / "original.bonyspaket").write_bytes(inhalt + b"x")        # verändert
+    status, _, daten = _roh(portal, pfad, moderator)
+    assert status == 409 and b"original_veraendert" in daten

@@ -19,7 +19,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phase 1 gepusht, Phase 2 und 3 lokal fertig und committet (2026-10-28), nicht gepusht; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
+- **Status:** Phase 1 gepusht, Phase 2 bis 4 lokal fertig (2 bis 4 committet), nicht gepusht; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
 - **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
@@ -146,3 +146,7 @@ Offen: Phase 2 (`POST /moderation/entscheiden/<id>`, Akteur vom Token), dann Cli
 ### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 3)
 
 Client `kurspaket_moderation_client.py` (nur HTTPS bzw. 127.0.0.1, 10 s Zeitlimit, 2 MiB Antwortgrenze, keine Weiterleitungen, Schema- und Zeichenbereinigung; Token in `kursportal-moderator.json` mit Rechten 600, getrennt von den Einstellungen; Token wird erst nach erfolgreicher Verbindung gespeichert, ein abgelehntes verworfen). Dialog: Umschalter „Lokal / Online“, Aktualisieren, Abmelden; Akteur-Feld im Online-Modus aus; Anzeige jetzt **immer Klartext** (auch lokal), Warnung bei verändertem Verlauf. Die Anfragen laufen synchron (10 s Zeitlimit) – bei einem lahmen Server friert der Dialog kurz ein; bei einem einzigen Moderator bewusst einfach gehalten. Tests: `tests/test_kurspaket_moderation_client.py` (6, gegen den echten Server-Handler auf einem lokalen Port); vollständige Suite 817 bestanden, 1 übersprungen, `ruff` sauber, 6 von 6 Läufen ohne Absturz.
+
+### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 4: Inhalt ansehen)
+
+Server: `GET /moderation/original/<id>` nur für Moderatoren, liefert die Paketdatei als `application/octet-stream`/`attachment`, nur wenn ihre SHA-256 noch zum Bericht passt (sonst 409), eigenes Limit 10 Downloads/Minute. Client: `OnlineAblage.original_bereit()` (Größen- und Prüfsummenkontrolle, temporäre Kopie wird gelöscht), `inhalt_lesen()` entpackt mit `kurspaket.entpacken` (alle Schutzgrenzen) und liest Texte und Skripte nur als bereinigten Klartext (je Datei 200 KiB, gesamt 4 MiB); Bilder und Sonstiges werden nicht geöffnet. Dialog: Knopf „Inhalt ansehen …“ (lokal und online) mit schreibgeschütztem Klartext-Fenster. Tests: 4 neue im Client-Modul, 1 neuer im Server-Modul.

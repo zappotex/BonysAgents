@@ -11,7 +11,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
+    QListWidget, QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser,
+    QVBoxLayout, QWidget,
 )
 
 from pathlib import Path
@@ -49,6 +50,40 @@ def bericht_text(m, sid: str) -> str:
     for e in m.verlauf(sid):
         zeilen.append(f"  {e.nr}. {e.zeit} · {STATUS_TEXT.get(e.nach, e.nach)} · {e.akteur}: {e.begruendung}")
     return "\n".join(zeilen)
+
+
+ART_TEXT = {"text": "Text", "skript": "Skript – wird nie ausgeführt", "bild": "Bild – wird nicht angezeigt",
+            "sonstig": "keine Vorschau"}
+
+
+class InhaltDialog(QDialog):
+    """Zeigt die Dateien eines eingereichten Pakets als Klartext. Nichts wird ausgeführt, kein Bild geöffnet,
+    kein Markdown/HTML gerendert; das Paket wurde mit allen Schutzgrenzen von ``kurspaket.entpacken`` gelesen."""
+
+    def __init__(self, dateien: list[online.InhaltsDatei], parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Kursportal – Paketinhalt (nur Ansicht)")
+        self.dateien = dateien
+        lay = QVBoxLayout(self)
+        hinweis = QLabel("Nur Ansicht: Skripte laufen hier nie, Bilder und Links werden nicht geöffnet.")
+        hinweis.setWordWrap(True)
+        lay.addWidget(hinweis)
+        zeile = QHBoxLayout()
+        self.liste = QListWidget()
+        self.liste.addItems([f"{d.pfad}  ({ART_TEXT.get(d.art, '')}, {d.groesse} Bytes)" for d in dateien])
+        self.text = QPlainTextEdit()
+        self.text.setReadOnly(True)
+        zeile.addWidget(self.liste, 1)
+        zeile.addWidget(self.text, 2)
+        lay.addLayout(zeile, 1)
+        self.liste.currentRowChanged.connect(self._zeigen)
+        self.resize(900, 560)
+        if dateien:
+            self.liste.setCurrentRow(0)
+
+    def _zeigen(self, zeile: int) -> None:
+        d = self.dateien[zeile] if 0 <= zeile < len(self.dateien) else None
+        self.text.setPlainText("" if d is None else d.text or f"({ART_TEXT.get(d.art, '')})")
 
 
 def lokale_ablage() -> mod.Moderation:
@@ -102,6 +137,10 @@ class ModerationDialog(QDialog):
             knoepfe.addWidget(b)
             self.knoepfe[ziel] = b
         knoepfe.addStretch(1)
+        self.inhalt_knopf = QPushButton("Inhalt ansehen …")
+        self.inhalt_knopf.setToolTip("Dateien des Pakets als Klartext lesen – nichts wird ausgeführt")
+        self.inhalt_knopf.clicked.connect(self._inhalt_ansehen)
+        knoepfe.addWidget(self.inhalt_knopf)
         self.datei_knopf = QPushButton("Paketdatei prüfen …")
         self.datei_knopf.setToolTip("Eine .bonyspaket-Datei als Daten prüfen und in die lokale Ablage aufnehmen – "
                                     "nichts daraus wird ausgeführt")
@@ -176,6 +215,18 @@ class ModerationDialog(QDialog):
         self.online = None
         self.quelle.setCurrentIndex(0)          # löst _quelle_gewechselt aus
 
+    def _inhalt_ansehen(self) -> None:
+        sid = self.aktuelle_id()
+        if not sid:
+            return
+        try:
+            with self.ablage.original_bereit(sid) as datei:
+                dateien = online.inhalt_lesen(datei)
+        except mod.ModerationsFehler as exc:             # auch OnlineFehler
+            QMessageBox.warning(self, "Inhalt nicht ansehbar", str(exc))
+            return
+        InhaltDialog(dateien, self).exec()
+
     def _knopf(self) -> None:
         self.entscheiden(self.sender().property("ziel"))
 
@@ -226,6 +277,7 @@ class ModerationDialog(QDialog):
                     knopf.setEnabled(False)
                 return
         status = self.ablage.status(sid) if sid else ""
+        self.inhalt_knopf.setEnabled(bool(sid))
         self.details.setPlainText(bericht_text(self.ablage, sid) if sid else "Keine Einreichung ausgewählt.")
         for ziel, knopf in self.knoepfe.items():
             knopf.setEnabled(ziel in mod.ERLAUBT_MENSCH.get(status, set()))
