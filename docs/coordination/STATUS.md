@@ -61,7 +61,7 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 ## Entscheidung erforderlich (Bony)
 
 - Prüfliste durchgesehen und entschieden (28.10.2026, siehe Abschnitt 5 der Prüfliste): Punkte 1–15 und alle neun Restrisiken vertretbar, kein Einreicher-Token vorerst, Moderator nur Bony, SSH-Zugang von Claude bleibt bis nach Bonys App-Test.
-- Online-Dialog der App von Bony am echten Server getestet (28.10.2026, siehe Protokoll); offen: Katalogeintrag in der App nicht bestätigt, SSH-Zugang von Claude bis Bonys „fertig“.
+- Online-Dialog der App von Bony am echten Server getestet (28.10.2026, siehe Protokoll); Katalogeintrag in der App von Bony bestätigt; offen: SSH-Zugang von Claude bis Bonys „fertig“.
 
 ## Übergabe Phaseone → Claude
 
@@ -167,3 +167,7 @@ Bony hat Abschnitt 5 der Prüfliste entschieden (Punkte 1–15 in Ordnung, alle 
 ### 2026-10-28 – Claude Code (Online-Test der App durch Bony)
 
 Mit Bonys Ja Test-Einreicher-Token angelegt und `community-testpaket` eingereicht (`approved`). Bony hat in der Kursleiter-Edition aus dem Quellcode (`BONYS_AGENTS_EDITION=kursleiter`; die installierte Fassung hat den Menüpunkt noch nicht) den Moderationsdialog auf „Online“ gestellt: Verbindung mit seinem Moderator-Token, Liste mit der Einreichung und „Inhalt ansehen“ funktionierten. Er hat `published` (Akteur `bony`) und danach `withdrawn` ausgelöst; Server bestätigt: Verlauf 5 Einträge, Katalog zeitweise belegt (10:42–10:49 Uhr), danach leer. **Nicht bestätigt:** ob „Community-Testpaket – Community“ im Online-Katalog der App (Kurse → Kurspakete → Aus dem Internet …) erschien. Danach aufgeräumt: Test-Einreicher-Token entfernt, Test-Einreichung gelöscht; übrig Moderator `bony`, kein Einreicher-Token. Hinweis: Der Weg zum Moderationsdialog (ⓘ-Menü) und zum Katalog (Kurse) war für Bony nicht offensichtlich – ein Hinweis im Handbuch/Tooltip wäre sinnvoll. Nicht committet.
+
+### 2026-10-28 – Claude Code (Katalogeintrag in der App bestätigt)
+
+Bony hat in einem zweiten Durchlauf (Test-Einreichung `approved` → `published` durch Bony 11:20 Uhr → `withdrawn` 11:20, Katalog ca. 26 Sekunden belegt) bestätigt, dass der Eintrag „Community-Testpaket – Community“ im Online-Katalog der App (Kurse → Kurspakete → Aus dem Internet …) erschien. Damit ist die ganze Kette am echten Server abgenommen: Einreichen → Moderationsdialog Online → Freigabe → Veröffentlichen → Katalog in der App → Rücknahme. Test-Einreicher-Token und Test-Einreichung sind wieder entfernt; übrig Moderator `bony`, kein Einreicher-Token, Katalog leer. SSH-Zugang von Claude bleibt auf Bonys Wunsch bestehen. Nächster Vorschlag: Release 0.28.0 mit dem Kursportal (nur auf Bonys Freigabe). Nicht committet.
