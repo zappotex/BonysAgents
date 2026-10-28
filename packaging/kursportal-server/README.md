@@ -1,4 +1,4 @@
-# Kursportal-Annahme (Entwurf, nicht deployt)
+# Kursportal-Annahme (Bundle v4 deployt)
 
 Zusätzlicher Dienst im bestehenden Docker-Stack der Schulungsseite. Er nimmt `.bonyspaket`-Dateien an, prüft sie mit
 `kurspaket_portal` (Daten, nie Skripte ausführen) und legt Original und hashverkettetem Verlauf in einem Volume ab.
