@@ -80,3 +80,32 @@ def test_duplikat_wird_erkannt_und_ids_sind_geschuetzt(tmp_path):
             m.status(schlecht)
     with pytest.raises(mod.ModerationsFehler):
         m.einreichen(datei, "  ")
+
+
+def test_gleichzeitige_entscheidungen_halten_die_kette_gueltig(tmp_path):
+    import threading
+
+    from test_kurspaket_katalog import _paket
+
+    ablage = mod.Moderation(tmp_path / "ablage")
+    sid = ablage.einreichen(_paket(tmp_path, "a"), "autor")
+    if ablage.status(sid) == mod.NEEDS_REVIEW:
+        ablage.entscheiden(sid, mod.APPROVED, "mod", "ok")
+    ergebnisse = []
+
+    def lauf(nach, name):
+        try:
+            ablage.entscheiden(sid, nach, name, "gleichzeitig")
+            ergebnisse.append(nach)
+        except mod.ModerationsFehler:
+            ergebnisse.append("fehler")
+
+    threads = [threading.Thread(target=lauf, args=(nach, f"m{i}"))
+               for i, nach in enumerate([mod.PUBLISHED, mod.REJECTED] * 4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    ablage.verlauf_pruefen(sid)                       # Kette unversehrt
+    assert len([e for e in ergebnisse if e != "fehler"]) == 1      # genau eine Entscheidung gewinnt
+    assert ablage.status(sid) in (mod.PUBLISHED, mod.REJECTED)

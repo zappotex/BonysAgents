@@ -10,6 +10,7 @@ mit Akteur und Begründung. Es gibt weder Webserver noch Katalog – nur lokale 
 from __future__ import annotations
 
 from collections.abc import Collection
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -18,8 +19,16 @@ import os
 from pathlib import Path
 import re
 import shutil
+import threading
 
 from bonys_agents import kurspaket_portal as portal
+
+try:
+    import fcntl
+except ImportError:            # Windows: nur der Sperre im eigenen Prozess vertrauen (dort gibt es keinen Server)
+    fcntl = None
+
+_SCHREIBEN = threading.Lock()      # Schreiben im selben Prozess nacheinander
 
 
 UPLOADED = "uploaded"
@@ -92,8 +101,29 @@ class Moderation:
             raise ModerationsFehler("Unbekannte Einreichung.")
         return [_ereignis(z) for z in verlauf.read_text(encoding="utf-8").splitlines() if z.strip()]
 
+    @contextmanager
+    def _sperre(self, submission_id: str):
+        """Schreibsperre je Einreichung (Threads und Prozesse): Prüfen und Anhängen bilden eine Einheit, damit
+        zwei gleichzeitige Entscheidungen die Hashkette nicht brechen."""
+        ordner = self._ordner(submission_id)
+        with _SCHREIBEN:
+            if fcntl is None or not ordner.is_dir():
+                yield
+                return
+            with (ordner / ".sperre").open("a") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+
     def _anhaengen(self, submission_id: str, nach: str, akteur: str, begruendung: str,
                    bericht: dict | None = None) -> Ereignis:
+        with self._sperre(submission_id):
+            return self._anhaengen_roh(submission_id, nach, akteur, begruendung, bericht)
+
+    def _anhaengen_roh(self, submission_id: str, nach: str, akteur: str, begruendung: str,
+                       bericht: dict | None = None) -> Ereignis:
         verlauf = self._ordner(submission_id) / "verlauf.jsonl"
         bisher = self._lesen(submission_id) if verlauf.is_file() else []
         kern = dict(nr=len(bisher) + 1,
@@ -183,11 +213,12 @@ class Moderation:
             raise ModerationsFehler("Eine Entscheidung braucht eine Begründung.")
         if len(begruendung) > MAX_TEXT:
             raise ModerationsFehler(f"Die Begründung ist länger als {MAX_TEXT} Zeichen.")
-        self.verlauf_pruefen(submission_id)
-        aktuell = self.status(submission_id)
-        if nach not in ERLAUBT_MENSCH.get(aktuell, set()):
-            raise ModerationsFehler(f"Übergang {aktuell} -> {nach} ist nicht erlaubt.")
-        if nach == PUBLISHED and (self.bericht(submission_id) or {}).get("paket_id") in self.reserviert:
-            raise ModerationsFehler("Die Paket-ID gehört zu einem mitgelieferten Kurspaket und wird nicht "
-                                    "veröffentlicht.")
-        return self._anhaengen(submission_id, nach, akteur, begruendung)
+        with self._sperre(submission_id):
+            self.verlauf_pruefen(submission_id)
+            aktuell = self.status(submission_id)
+            if nach not in ERLAUBT_MENSCH.get(aktuell, set()):
+                raise ModerationsFehler(f"Übergang {aktuell} -> {nach} ist nicht erlaubt.")
+            if nach == PUBLISHED and (self.bericht(submission_id) or {}).get("paket_id") in self.reserviert:
+                raise ModerationsFehler("Die Paket-ID gehört zu einem mitgelieferten Kurspaket und wird nicht "
+                                        "veröffentlicht.")
+            return self._anhaengen_roh(submission_id, nach, akteur, begruendung)

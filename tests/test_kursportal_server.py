@@ -132,3 +132,92 @@ def test_reservierte_id_und_katalog_befehl(portal, tmp_path, monkeypatch, capsys
     assert [e["id"] for e in index["pakete"]] == ["test-paket"]
     assert portal._cli(["entscheiden", sid, "withdrawn", "bony", "zurück"]) == 0
     assert json.loads((tmp_path / "katalog" / "index.json").read_text())["pakete"] == []
+
+
+# ---------------------------------------------------------------- Moderation (Phase 1: lesend)
+def _get(portal, pfad, token=None):
+    c = http.client.HTTPConnection("127.0.0.1", portal.port, timeout=10)
+    kopf = {"Authorization": f"Bearer {token}"} if token else {}
+    c.request("GET", pfad, headers=kopf)
+    r = c.getresponse()
+    daten = json.loads(r.read())
+    c.close()
+    return r.status, daten
+
+
+def test_moderation_braucht_moderator_token_und_trennt_die_zugaenge(portal, tmp_path):
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    assert _get(portal, "/moderation/liste")[0] == 401
+    assert _get(portal, "/moderation/liste", "falsch")[0] == 401
+    assert _get(portal, "/moderation/liste", einreicher)[0] == 403          # Einreicher-Token öffnet nie die Moderation
+    assert _post(portal, _paket(tmp_path), moderator)[0] == 401              # Moderator-Token nimmt nichts an
+    assert _get(portal, "/moderation/liste", moderator) == (200, {"einreichungen": []})
+    for datei in ("tokens.json", "moderatoren.json"):
+        text = (portal.DATEN / datei).read_text()
+        assert einreicher not in text and moderator not in text
+        assert (portal.DATEN / datei).stat().st_mode & 0o777 == 0o600
+
+
+def test_moderation_liste_und_detail_zeigen_nur_feste_felder(portal, tmp_path):
+    einreicher, moderator = portal.token_neu("autor-geheim"), portal.moderator_neu("bony")
+    _post(portal, _paket(tmp_path), einreicher)
+    sid = _post(portal, _paket(tmp_path, mit_skript=True), einreicher)[1]["submission_id"]
+
+    status, liste = _get(portal, "/moderation/liste", moderator)
+    assert status == 200 and len(liste["einreichungen"]) == 2
+    assert set(liste["einreichungen"][0]) == {"id", "status", "zeit", "paket_id", "name", "version"}
+    assert "autor-geheim" not in json.dumps(liste)
+
+    status, d = _get(portal, f"/moderation/einreichung/{sid}", moderator)
+    assert status == 200 and d["status"] == "needs_review" and d["kette_ok"] is True
+    assert d["bericht"]["skripte"] and "dateiname" not in d["bericht"]
+    assert set(d["verlauf"][0]) == {"nr", "zeit", "von", "nach", "akteur", "begruendung"}
+    assert d["verlauf"][0]["akteur"] == "autor-geheim"            # Moderation sieht die Referenz, der Katalog nie
+    assert "pruefsumme" not in json.dumps(d) and "eingang" not in json.dumps(d)
+
+
+def test_moderation_unbekannt_ungueltig_und_veraenderter_verlauf(portal, tmp_path):
+    einreicher, moderator = portal.token_neu("autor-1"), portal.moderator_neu("bony")
+    sid = _post(portal, _paket(tmp_path), einreicher)[1]["submission_id"]
+    for pfad in ("/moderation/einreichung/" + "0" * 32, "/moderation/einreichung/../../tokens",
+                 "/moderation/einreichung/%2e%2e", f"/moderation/einreichung/{sid}?x=1", "/moderation/anderes",
+                 "/moderation/liste?x"):
+        assert _get(portal, pfad, moderator)[0] == 404, pfad
+    verlauf = portal.DATEN / "ablage" / sid / "verlauf.jsonl"
+    verlauf.write_text(verlauf.read_text().replace("Eingereicht.", "Manipuliert."))
+    status, d = _get(portal, f"/moderation/einreichung/{sid}", moderator)
+    assert status == 200 and d["kette_ok"] is False
+
+
+def test_moderation_hat_eigene_zaehler_und_limits(portal, monkeypatch):
+    moderator = portal.moderator_neu("bony")
+    monkeypatch.setattr(portal, "LIMIT_FEHLVERSUCHE_MINUTE", 2)
+    monkeypatch.setattr(portal, "LIMIT_MOD_FEHLVERSUCHE", 3)
+    portal._FEHLVERSUCHE.clear(), portal._MOD_FEHLVERSUCHE.clear()
+    assert [_post(portal, b"a", "x")[0] for _ in range(3)] == [401, 401, 429]      # Annahme gesperrt …
+    assert _get(portal, "/moderation/liste", moderator)[0] == 200                  # … Moderation nicht
+    assert [_get(portal, "/moderation/liste", "x")[0] for _ in range(4)] == [401, 401, 401, 429]
+    assert _get(portal, "/moderation/liste", moderator)[0] == 429                  # Sperre gilt kurz auch für gültige
+    portal._MOD_FEHLVERSUCHE.clear()
+    monkeypatch.setattr(portal, "LIMIT_MOD_MINUTE", 2)
+    portal._ZEITEN.clear()
+    assert [_get(portal, "/moderation/liste", moderator)[0] for _ in range(3)] == [200, 200, 429]
+
+
+def test_zugangsbefehle_listen_und_entfernen(portal, capsys):
+    t1 = portal.token_neu("autor-1")
+    portal.moderator_neu("bony")
+    assert portal._cli(["token-liste"]) == 0 and capsys.readouterr().out.split() == ["autor-1"]
+    assert portal._cli(["moderator-liste"]) == 0 and capsys.readouterr().out.split() == ["bony"]
+    assert portal._cli(["moderator-entfernen", "gibt-es-nicht"]) == 1
+    assert portal._cli(["moderator-entfernen", "bony"]) == 0 and portal.moderator_fuer("x") is None
+    assert portal._cli(["token-entfernen", "autor-1"]) == 0 and portal.autor_fuer(t1) is None
+    assert portal._cli(["moderator-neu", "bony"]) == 0 and len(capsys.readouterr().out.split()[-1]) >= 40
+    with pytest.raises(ValueError):
+        portal.moderator_neu(" ")
+
+
+def test_text_sicht_bereinigt_fremde_zeichen(portal):
+    assert portal._text("a\x1b[31mb\nc" + "x" * 500, 20).startswith("a [31mb c")
+    assert len(portal._text("x" * 500, 20)) == 20 and portal._text(None) == ""
+    assert portal._texte("kein-list") == [] and len(portal._texte(["a"] * 500)) == 200

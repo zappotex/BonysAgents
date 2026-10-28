@@ -50,6 +50,14 @@ kurse.bony23.de {
         }
     }
 
+    @moderation {
+        method GET
+        path /moderation/*
+    }
+    handle @moderation {
+        reverse_proxy portal:8080
+    }
+
     handle_path /katalog/* {
         root * /katalog
         @paket path *.bonyspaket

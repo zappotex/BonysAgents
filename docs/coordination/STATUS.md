@@ -16,11 +16,11 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 
 ## Aktueller Block
 
-- **Auftrag:** Kursportal – App-Seite des Community-Katalogs (zweite Katalogquelle „Community“, standardmäßig an, klar gekennzeichnet).
+- **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Umgesetzt und getestet (2026-10-28), uncommitted. Offen: echter Test mit einem veröffentlichten Testpaket (braucht Bonys Ja).
-- **Grenzen:** kein Commit, Push, Tag oder Release; Deployments und Serveränderungen nur durch Bony bzw. im von Bony ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
+- **Status:** Phase 1 lokal fertig und getestet (2026-10-28), uncommitted, kein Bundle, kein Deploy. Nächste Phase: 2 (schreibend).
+- **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
 
@@ -129,3 +129,12 @@ Auf Bonys Ja gepusht: `f4fa626..c5b1d66` auf `main` (`zappotex/BonysAgents`). Ke
 ### 2026-10-28 – Claude Code (Aufräumen)
 
 Auf Bonys Auftrag am Server gelöscht: alle 10 Test-Einreichungen (sämtlich vom Test-Token, vorher geprüft) samt Verläufen und das Test-Token `bony-test` (`tokens.json` leer). Danach: Liste leer, Einreichen mit dem alten Token → 401, Katalog weiter leer. Das Token-Duplikat im Scratchpad wurde ebenfalls entfernt. **Der Server hat jetzt kein gültiges Einreicher-Token mehr**; für weitere Tests oder echte Einreicher: `token-neu <name>`. Der SSH-Zugang für Claude bleibt auf Bonys Wunsch bestehen; Entfernen des Schlüssels ist noch offen.
+
+### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 1)
+
+Lokal umgesetzt, nicht committet, nicht deployt, **kein Bundle gebaut**:
+- `kurspaket_moderation.py`: Schreibsperre je Einreichung (`fcntl.flock` + Thread-Sperre); Prüfen und Anhängen in `entscheiden` bilden eine Einheit. Test mit 8 gleichzeitigen Entscheidungen (genau eine gewinnt, Kette gültig); ohne Sperre scheitert er in 16 von 20 Läufen.
+- `packaging/kursportal-server/portal_server.py`: Moderator-Token (`moderatoren.json`, nur Hash, Rechte 600), `GET /moderation/liste` und `/moderation/einreichung/<id>` (feste Felder, bereinigte Texte, kein Dateiname/Hash/Fundwert, `kette_ok`), eigene Fehlversuchs- und Rate-Limits (10/Min, 60/Min), Einreicher-Token → 403, Moderator-Token auf `/einreichen` → 401. Neue Befehle: `moderator-neu|-liste|-entfernen`, `token-liste|-entfernen`.
+- `stack/Caddyfile`: Route `GET /moderation/*` zum Portal (`caddy validate` → gültig).
+- Tests: `tests/test_kursportal_server.py` (13), `tests/test_kurspaket_moderation.py`; vollständige Suite 807 bestanden, 1 übersprungen, `ruff` sauber.
+Offen: Phase 2 (`POST /moderation/entscheiden/<id>`, Akteur vom Token), dann Client/Dialog, Original ansehen, Bundle v5. Die Sicherheitsprüfliste (`docs/dev/pruefliste-kursportal-server.md`) ist vor dem Deploy um die Moderationsschnittstelle zu erweitern. Noch nicht am echten Server oder in einem lokalen Container-Stack durchgespielt.
