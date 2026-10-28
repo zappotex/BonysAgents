@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
+    QAbstractItemView, QComboBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
 )
 
 from pathlib import Path
 
-from bonys_agents import kurspaket, kurspaket_moderation as mod, storage
+from bonys_agents import kurspaket, kurspaket_moderation as mod, kurspaket_moderation_client as online, storage
 
 STATUS_TEXT = {
     mod.UPLOADED: "Eingereicht", mod.SCANNING: "Wird geprüft", mod.NEEDS_REVIEW: "Braucht Prüfung",
@@ -32,19 +32,22 @@ AKTIONEN = {
 }
 
 
-def bericht_text(m: mod.Moderation, sid: str) -> str:
-    """Prüfbericht und Verlauf als Markdown – ohne Fundwerte."""
+def bericht_text(m, sid: str) -> str:
+    """Prüfbericht und Verlauf als Klartext – ohne Fundwerte. Paketdaten sind fremder Text und werden nie als
+    Markdown oder HTML dargestellt."""
     b = m.bericht(sid) or {}
-    zeilen = [f"**{b.get('name') or '(ohne Namen)'}** · Version {b.get('version') or '–'}",
+    zeilen = [f"{b.get('name') or '(ohne Namen)'} · Version {b.get('version') or '–'}",
               f"Paket-ID: {b.get('paket_id') or '–'} · {b.get('groesse', 0)} Bytes",
-              f"SHA-256: `{b.get('sha256') or '–'}`", ""]
+              f"SHA-256: {b.get('sha256') or '–'}", ""]
+    if not getattr(m, "kette_ok", lambda _sid: True)(sid):
+        zeilen += ["ACHTUNG: Der Verlauf dieser Einreichung ist verändert worden. Nicht entscheiden.", ""]
     for titel, schluessel in (("Befunde", "findings"), ("Skripte", "skripte"),
                               ("Externe Links", "externe_links"), ("Fundstellen (ohne Werte)", "fundstellen")):
         if b.get(schluessel):
-            zeilen += [f"{titel}:", ""] + [f"- {x}" for x in b[schluessel]] + [""]
-    zeilen += ["Verlauf:", ""]
+            zeilen += [f"{titel}:"] + [f"  - {x}" for x in b[schluessel]] + [""]
+    zeilen += ["Verlauf:"]
     for e in m.verlauf(sid):
-        zeilen.append(f"- {e.nr}. {e.zeit} · {STATUS_TEXT.get(e.nach, e.nach)} · {e.akteur}: {e.begruendung}")
+        zeilen.append(f"  {e.nr}. {e.zeit} · {STATUS_TEXT.get(e.nach, e.nach)} · {e.akteur}: {e.begruendung}")
     return "\n".join(zeilen)
 
 
@@ -58,13 +61,23 @@ class ModerationDialog(QDialog):
     def __init__(self, ablage: mod.Moderation, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Kursportal – Moderation")
-        self.ablage = ablage
+        self.lokal = self.ablage = ablage
+        self.online: online.OnlineAblage | None = None
         lay = QVBoxLayout(self)
         intro = QLabel("Lokale Moderation auf diesem Rechner: Nichts wird hier veröffentlicht oder hochgeladen und der "
                        "Online-Katalog bleibt unverändert. Jede Entscheidung wird mit Akteur und Begründung "
                        "unveränderlich im Verlauf festgehalten.")
         intro.setWordWrap(True)
         lay.addWidget(intro)
+        quelle = QHBoxLayout()
+        self.quelle = QComboBox()
+        self.quelle.addItems(["Lokal (dieser Rechner)", "Online (Kursportal)"])
+        self.aktualisieren_knopf = QPushButton("Aktualisieren")
+        self.abmelden_knopf = QPushButton("Abmelden")
+        quelle.addWidget(self.quelle, 1)
+        quelle.addWidget(self.aktualisieren_knopf)
+        quelle.addWidget(self.abmelden_knopf)
+        lay.addLayout(quelle)
         self.akteur = QLineEdit()
         self.akteur.setPlaceholderText("Dein Name als Moderator")
         lay.addWidget(self.akteur)
@@ -95,7 +108,73 @@ class ModerationDialog(QDialog):
         self.datei_knopf.clicked.connect(self._datei_waehlen)
         knoepfe.addWidget(self.datei_knopf)
         lay.addLayout(knoepfe)
+        self.quelle.currentIndexChanged.connect(self._quelle_gewechselt)
+        self.aktualisieren_knopf.clicked.connect(self._aktualisieren)
+        self.abmelden_knopf.clicked.connect(self._abmelden)
+        self._modus_anzeigen()
         self.neu_laden()
+
+    # --- Quelle: lokal oder online -----------------------------------------
+
+    def _ist_online(self) -> bool:
+        return self.quelle.currentIndex() == 1
+
+    def _modus_anzeigen(self) -> None:
+        on = self._ist_online()
+        self.akteur.setEnabled(not on)
+        self.akteur.setPlaceholderText("Der Akteur ist dein Moderator-Zugang" if on else "Dein Name als Moderator")
+        self.datei_knopf.setEnabled(not on)
+        self.aktualisieren_knopf.setEnabled(on)
+        self.abmelden_knopf.setEnabled(on and online.zugang_laden() is not None)
+
+    def _quelle_gewechselt(self) -> None:
+        if not self._ist_online():
+            self.ablage = self.lokal
+        elif not self._online_verbinden():
+            self.quelle.blockSignals(True)
+            self.quelle.setCurrentIndex(0)
+            self.quelle.blockSignals(False)
+            self.ablage = self.lokal
+        self._modus_anzeigen()
+        self.neu_laden()
+
+    def _online_verbinden(self) -> bool:
+        """Zugang holen (ohne gespeichertes Token einmal danach fragen), Liste laden, erst dann merken.
+        Bei einem Fehler zurück zu „Lokal“; ein abgelehntes Token wird verworfen."""
+        zugang = online.zugang_laden()
+        neu_eingegeben = zugang is None
+        if zugang is None:
+            token, ok = QInputDialog.getText(self, "Moderator-Zugang", "Moderator-Token des Kursportals:",
+                                             QLineEdit.EchoMode.Password)
+            if not ok or not token.strip():
+                return False
+            zugang = online.Zugang(online.portal_url(), token.strip())
+        try:
+            neu = online.OnlineAblage(zugang)
+            neu.aktualisieren()
+            if neu_eingegeben:
+                online.zugang_speichern(zugang.token, zugang.url)
+        except online.OnlineFehler as exc:
+            if exc.code in (401, 403):
+                online.zugang_loeschen()
+            QMessageBox.warning(self, "Kursportal", str(exc))
+            return False
+        self.online = self.ablage = neu
+        return True
+
+    def _aktualisieren(self) -> None:
+        if self.online is None:
+            return
+        try:
+            self.online.aktualisieren()
+        except online.OnlineFehler as exc:
+            QMessageBox.warning(self, "Kursportal", str(exc))
+        self.neu_laden()
+
+    def _abmelden(self) -> None:
+        online.zugang_loeschen()
+        self.online = None
+        self.quelle.setCurrentIndex(0)          # löst _quelle_gewechselt aus
 
     def _knopf(self) -> None:
         self.entscheiden(self.sender().property("ziel"))
@@ -138,8 +217,16 @@ class ModerationDialog(QDialog):
 
     def _auswahl(self) -> None:
         sid = self.aktuelle_id()
+        if sid and self._ist_online() and self.online is not None:
+            try:
+                self.online.detail_laden(sid)
+            except online.OnlineFehler as exc:
+                self.details.setPlainText(str(exc))
+                for knopf in self.knoepfe.values():
+                    knopf.setEnabled(False)
+                return
         status = self.ablage.status(sid) if sid else ""
-        self.details.setMarkdown(bericht_text(self.ablage, sid) if sid else "Keine Einreichung ausgewählt.")
+        self.details.setPlainText(bericht_text(self.ablage, sid) if sid else "Keine Einreichung ausgewählt.")
         for ziel, knopf in self.knoepfe.items():
             knopf.setEnabled(ziel in mod.ERLAUBT_MENSCH.get(status, set()))
 
@@ -153,7 +240,7 @@ class ModerationDialog(QDialog):
                 return False
         try:
             self.ablage.entscheiden(sid, ziel, self.akteur.text(), begruendung)
-        except mod.ModerationsFehler as exc:
+        except mod.ModerationsFehler as exc:         # auch OnlineFehler
             QMessageBox.warning(self, "Entscheidung nicht möglich", str(exc))
             return False
         self.neu_laden()

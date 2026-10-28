@@ -19,7 +19,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phase 1 gepusht, Phase 2 (schreibend) lokal fertig und committet (2026-10-28); kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
+- **Status:** Phase 1 gepusht, Phase 2 und 3 lokal fertig und committet (2026-10-28), nicht gepusht; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
 - **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
@@ -39,7 +39,7 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 |---|---|---|
 | Intake | `src/bonys_agents/kurspaket_portal.py`, `tests/test_kurspaket_portal.py` | fertig, 16 Tests; Meldungen bereinigt, reservierte IDs, Katalogfelder im Bericht |
 | Moderation | `kurspaket_moderation.py`, `tests/test_kurspaket_moderation.py` | fertig; hashverketteter Verlauf, menschliche Entscheidung mit Akteur und Begründung |
-| Dialog | `gui/moderation_dialog.py`, `gui/main_window.py`, `tests/test_kurspaket_moderation_gui.py`, `tests/test_editions.py` | fertig; **eingebunden** (Menü ⋯ → „Kursportal: Moderation …“, nur Kursleiter-Edition), lokale Ablage `<Datenordner>/kursportal-ablage` |
+| Dialog | `gui/moderation_dialog.py` (lokal + online), `kurspaket_moderation_client.py`, `gui/main_window.py`, `tests/test_kurspaket_moderation_gui.py`, `tests/test_editions.py` | fertig; **eingebunden** (Menü ⋯ → „Kursportal: Moderation …“, nur Kursleiter-Edition), lokale Ablage `<Datenordner>/kursportal-ablage` |
 | Annahme-Dienst | `packaging/kursportal-server/` (Server, Compose, Caddyfile, Bundle-Skript, README), `tests/test_kursportal_server.py` | Bundle v3 **auf Bonys Server deployt** (durch Bony); Token, Rate-Limits, Abweisung getestet |
 | Katalog | `kurspaket_katalog.py`, `tests/test_kurspaket_katalog.py`, `docs/dev/plan-kursportal-katalog.md` | Server-Teil fertig und deployt; Katalog aktuell leer |
 | App-Seite Katalog | `kurspaket.py` (`COMMUNITY`, `KatalogEintrag.community`, `katalog_alle`, `community_an/setzen`), `kurslauf.geprueft`, `gui/kurspaket_bibliothek.py` (`KatalogDialog` mit Schalter), `tests/test_kurspaket.py` | fertig; Community Standard an, Herkunft „Community, von der Moderation geprüft“, nie geprüft/mitgeliefert |
@@ -142,3 +142,7 @@ Offen: Phase 2 (`POST /moderation/entscheiden/<id>`, Akteur vom Token), dann Cli
 ### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 2)
 
 `POST /moderation/entscheiden/<id>` (Body `{"nach","begruendung"}`, ≤ 16 KiB): Akteur ist der Moderator des Tokens (ein `akteur` im Body wird ignoriert); Fehler 400/401/403/404/409 (Übergang nicht erlaubt, reservierte ID)/411/413/422/429; nach Erfolg Katalogabgleich (`katalog_ok` in der Antwort). Caddy: `POST /moderation/entscheiden/*` mit 16-KB-Grenze (`caddy validate` gültig). Tests: `tests/test_kursportal_server.py` 17 grün (4 neue); weder Server noch Container-Stack noch echter Server durchgespielt.
+
+### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 3)
+
+Client `kurspaket_moderation_client.py` (nur HTTPS bzw. 127.0.0.1, 10 s Zeitlimit, 2 MiB Antwortgrenze, keine Weiterleitungen, Schema- und Zeichenbereinigung; Token in `kursportal-moderator.json` mit Rechten 600, getrennt von den Einstellungen; Token wird erst nach erfolgreicher Verbindung gespeichert, ein abgelehntes verworfen). Dialog: Umschalter „Lokal / Online“, Aktualisieren, Abmelden; Akteur-Feld im Online-Modus aus; Anzeige jetzt **immer Klartext** (auch lokal), Warnung bei verändertem Verlauf. Die Anfragen laufen synchron (10 s Zeitlimit) – bei einem lahmen Server friert der Dialog kurz ein; bei einem einzigen Moderator bewusst einfach gehalten. Tests: `tests/test_kurspaket_moderation_client.py` (6, gegen den echten Server-Handler auf einem lokalen Port); vollständige Suite 817 bestanden, 1 übersprungen, `ruff` sauber, 6 von 6 Läufen ohne Absturz.
