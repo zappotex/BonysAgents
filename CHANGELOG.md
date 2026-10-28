@@ -24,6 +24,11 @@ Kursleiter: Hilfe-Anfragen und Sprechfreigaben kommen dann nicht an.
 - **Bony-Netz:** Das Instanz-Token folgt keiner Weiterleitung mehr und geht nie über unverschlüsseltes `http://`
   (Baustein `bony_netz` 0.2.1). Eintrittskarten für den Kursraum gelten nur noch kurz; die App holt still eine neue.
 
+### Behoben
+- **Hilfe über das Bony-Netz startete nie** („Die Bildschirmfreigabe ist nicht gestartet“, seit 0.22.0): x11vnc lief
+  mit `-auth guess` und `-nocmds`, die sich ausschließen. Das Startskript liest den Zugangsschlüssel jetzt aus dem
+  Aufruf des X-Servers (`-nocmds` bleibt). Scheitert der Start trotzdem, zeigt die App die Meldung aus dem Agent-PC.
+
 ### Datenschutz
 - Bony-Netz-Dialog: kurzer Hinweis, welche Daten der Server sieht und speichert, mit Link zur Datenschutzerklärung
   (beim Server von Bony's Agents) bzw. dem Hinweis auf den Betreiber eines eigenen Servers.

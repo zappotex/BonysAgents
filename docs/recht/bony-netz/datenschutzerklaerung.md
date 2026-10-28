@@ -11,8 +11,8 @@
 Das Bony-Netz verbindet die Agent-PCs einer Installation von Bony's Agents über das Internet und stellt Kursräume für
 Schulungen bereit. Es besteht aus
 - der **Zentrale** (`zentrale.bony23.de`): Anmeldung, Geräteschlüssel, Kurse;
-- dem **Netz** (`<NETZ-ADRESSE>`, Headscale mit eigenem Relay): verbindet die Geräte per WireGuard;
-- dem **Kursraum-Server** (`<KURSRAUM-ADRESSE>`, LiveKit): Bild, Ton, Bildschirm und Chat in Kursen.
+- dem **Netz** (`vpn.bony23.de`, Headscale mit eigenem Relay): verbindet die Geräte per WireGuard;
+- dem **Kursraum-Server** (`kurs.bony23.de`, LiveKit): Bild, Ton, Bildschirm und Chat in Kursen.
 
 Die App nutzt das Bony-Netz nur, wenn du es unter „Bony-Netz …“ einschaltest. Ausgeschaltet nimmt sie keinen Kontakt auf.
 Wer einen **eigenen** Bony-Netz-Server betreibt, ist für ihn selbst verantwortlich.

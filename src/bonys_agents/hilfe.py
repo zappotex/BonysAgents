@@ -131,15 +131,17 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         raise ValueError("Die Adresse des Kursleiter-Rechners liegt nicht im Bony-Netz.")
     q_ordner = shlex.quote(ordner)
     datei = f"{ordner}/passwort"
+    # Kein „-auth guess“: Das ruft Hilfsprogramme auf und verträgt sich nicht mit -nocmds (x11vnc bricht dann ab).
+    # Den Zugangsschlüssel nennt der X-Server selbst in seinem Aufruf (lightdm: /var/run/lightdm/root/:0).
     argumente = [
-        "/usr/bin/x11vnc", "-display", ":0", "-auth", "guess",
+        "/usr/bin/x11vnc", "-display", ":0", "-auth", "$AUTH",
         "-listen", "$IP", "-noipv6", "-rfbport", str(int(port)),
         "-once", "-timeout", str(WARTEN_SEKUNDEN), "-passwdfile", f"rm:{datei}",
-        "-nevershared", "-nosel", "-noremote", "-nocmds", "-norc", "-nolookup", "-quiet",
+        "-nevershared", "-nosel", "-noremote", "-nocmds", "-norc", "-nolookup",
         *(["-viewonly"] if modus == ANSEHEN else []),
         *(["-allow", von] if von else []),
     ]
-    aufruf = " ".join('"$IP"' if a == "$IP" else shlex.quote(a) for a in argumente)
+    aufruf = " ".join(f'"{a}"' if a in ("$IP", "$AUTH") else shlex.quote(a) for a in argumente)
     return "\n".join([
         "set -u",
         "# Bony's Agents: Hilfe-Funktion – Bildschirmfreigabe für den Kursleiter (nur im Bony-Netz)",
@@ -154,6 +156,15 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
         "{ apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends x11vnc >/dev/null 2>&1; } "
         f"|| {{ echo 'x11vnc ließ sich nicht installieren.'; exit {RC_INSTALLATION}; }}",
         "fi",
+        "AUTH=\"$(ps -eo args= | awk '$1 ~ /(^|\\/)X(org)?$/ && $2 == \":0\" "
+        "{ for (i = 3; i < NF; i++) if ($i == \"-auth\") { print $(i + 1); exit } }')\"",
+        'if [ -z "$AUTH" ] || [ ! -f "$AUTH" ]; then',
+        "  AUTH=''",
+        "  for f in /var/run/lightdm/root/:0 /run/lightdm/root/:0 /home/*/.Xauthority /run/user/*/gdm/Xauthority; do",
+        '    if [ -f "$f" ]; then AUTH="$f"; break; fi',
+        "  done",
+        "fi",
+        f'[ -n "$AUTH" ] || {{ echo "Kein Zugang zum Bildschirm :0 gefunden (Xauthority)."; exit {RC_START}; }}',
         f"systemctl stop {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true",
         f"systemctl reset-failed {WACHE}.service {EINHEIT}.service >/dev/null 2>&1 || true",
         f"rm -rf {q_ordner}",
@@ -235,12 +246,25 @@ def starten(machine: VM, modus: str, port: int = PORT, von: str = "") -> Freigab
     except RuntimeError as e:
         m = re.search(r"\(Code (\d+)\)", str(e))
         rc = int(m.group(1)) if m else 0
-        raise HilfeFehler(FEHLER_TEXT.get(rc, FEHLER_TEXT[RC_START]).format(name=machine.name)) from None
+        text = FEHLER_TEXT.get(rc, FEHLER_TEXT[RC_START]).format(name=machine.name)
+        grund = _grund(str(e)) if rc == RC_START else ""
+        raise HilfeFehler(text + (f"\n\nMeldung aus dem Agent-PC: {grund}" if grund else "")) from None
     m = re.search(r"^BONYS_HILFE (\S+)\s*$", ausgabe, re.M)
     if not m or not im_netz(m.group(1)):
         beenden(machine)
         raise HilfeFehler(FEHLER_TEXT[RC_START].format(name=machine.name))
     return Freigabe(m.group(1), port, modus, pw)
+
+
+def _grund(fehler: str) -> str:
+    """Letzte aussagekräftige Zeile aus der Ausgabe des Startskripts (Journal von x11vnc) – nur druckbare Zeichen,
+    ohne Zeitstempel. Das Passwort steht nie darin (es liegt nur in der Datei)."""
+    teile = fehler.split("):", 1)
+    zeilen = [z.strip() for z in (teile[1] if len(teile) == 2 else "").splitlines() if z.strip()]
+    zeilen = [re.sub(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} ", "", z) for z in zeilen
+              if not z.startswith(("bonys-hilfe", "Started ", "passing arg"))]
+    text = zeilen[-1] if zeilen else ""
+    return "".join(c for c in text if c.isprintable())[:200]
 
 
 def beenden(machine: VM) -> None:

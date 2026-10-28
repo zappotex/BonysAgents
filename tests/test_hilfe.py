@@ -819,3 +819,19 @@ def test_totmannschalter_stoppt_ohne_klopfen(tmp_path, monkeypatch):
     finally:
         proc.kill()
     assert not aktiv.exists() and not ordner.exists()
+
+
+def test_start_skript_ohne_auth_guess():
+    """„-auth guess“ ruft Hilfsprogramme auf – mit -nocmds brach x11vnc deshalb sofort ab (seit 0.22.0)."""
+    s = hilfe.start_skript(hilfe.ANSEHEN, "Ab3dEf7h")
+    assert "-nocmds" in s and "guess" not in s and '-auth "$AUTH"' in s
+    assert "/var/run/lightdm/root/:0" in s
+
+
+def test_grund_aus_der_ausgabe_des_agent_pcs():
+    fehler = ("Befehl im Agent-PC fehlgeschlagen (Code 5): Started bonys-hilfe.service\n"
+              "29/10/2026 00:43:47 passing arg to libvncserver: -listen\n"
+              "29/10/2026 00:43:47 -auth guess: cannot run external commands in -nocmds mode:\x1b[0m\n"
+              "bonys-hilfe.service: Main process exited, code=exited, status=1/FAILURE\n")
+    assert hilfe._grund(fehler) == "-auth guess: cannot run external commands in -nocmds mode:[0m"
+    assert hilfe._grund("Befehl im Agent-PC fehlgeschlagen (Code 5): ") == ""
