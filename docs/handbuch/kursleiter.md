@@ -428,6 +428,25 @@ den Test-Agent-PC zurück.
   vor dem ersten Start die Liste ihrer Skripte. Das ist gewollt: Die Skripte laufen zwar nur im Agent-PC, aber jeder
   soll wissen, was dort passiert.
 
+## Community-Kurspakete prüfen und freigeben
+
+In der Kursleiter-Version gibt es unten im Menü **ⓘ** den Eintrag **„Kursportal: Moderation …“**. Dort entscheidest
+du über eingereichte Kurspakete. Pakete sind dabei nur Daten: Bony's Agents führt nichts daraus aus.
+
+1. Oben **„Online (Kursportal)“** wählen und beim ersten Mal das **Moderator-Token** eingeben. Es wird nur
+   gespeichert, wenn die Verbindung klappt, und liegt in einer eigenen Datei auf deinem Rechner. Das Token legt der
+   Betreiber des Kursportals auf dem Server an; ohne Token gibt es hier nichts zu tun. „Lokal (dieser Rechner)“ ist
+   für Einreichungen, die du selbst als Datei prüfst.
+2. Eine Einreichung wählen. Du siehst den automatischen Prüfbericht (Skripte, Links, Fundstellen von Geheimnissen –
+   ohne die Werte) und den Verlauf. **„Inhalt ansehen …“** zeigt Texte und Skripte als Klartext, Bilder werden nicht
+   geöffnet.
+3. **Freigeben**, **Ablehnen**, **Veröffentlichen** oder **Zurückziehen** – jede Entscheidung braucht eine
+   Begründung und steht mit deinem Namen im Verlauf. Veröffentlicht heißt: Das Paket erscheint im
+   Community-Katalog aller Nutzer. Pakete, deren ID zu einem mitgelieferten Kurspaket gehört, werden nie veröffentlicht.
+
+Den Dialog gibt es nur in der Kursleiter-Version. Nutzer sehen veröffentlichte Pakete unter **Kurse → Kurspakete →
+„Aus dem Internet …“**.
+
 # Nach dem Kurs
 
 ## Kurs beenden

@@ -671,6 +671,11 @@ mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
   Fenster ziehen.
 - **„Aus dem Internet …“** zeigt die Kurspakete aus der offenen Bibliothek von Bony's Agents. Bony's Agents lädt
   nur über HTTPS und prüft jede Datei, bevor sie in die Bibliothek kommt.
+  Dazu kommt der **Community-Katalog**: Kurspakete, die andere eingereicht haben und die Bony's Agents-Moderation
+  freigegeben hat. Sie sind im Katalog mit „– Community“ gekennzeichnet. Das ist eine technische Prüfung plus eine
+  Entscheidung von Menschen, aber **keine Signatur von Bony's Agents**: Vor dem ersten Start zeigt Bony's Agents dir
+  deshalb wie bei jedem fremden Kurspaket die Liste der Skripte. Der Schalter **„Community-Kurspakete anzeigen“** im
+  Katalogfenster schaltet diese Quelle ab; dann fragt Bony's Agents `kurse.bony23.de` nicht mehr an.
 - **„Exportieren …“** speichert ein Kurspaket als Datei zum Weitergeben.
 
 ## Durcharbeiten
