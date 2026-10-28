@@ -116,6 +116,20 @@ def test_befehle_liste_und_entscheiden(portal, tmp_path, capsys, monkeypatch):
     assert ablage.status(sid) == "approved"
 
 
+def test_befehl_loeschen_und_alt(portal, tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(portal, "KATALOG", tmp_path / "katalog")
+    token = portal.token_neu("autor-1")
+    _post(portal, _paket(tmp_path, mit_skript=True), token)
+    mod, ablage = portal._moderation()
+    sid = ablage.ids()[0]
+    assert portal._cli(["loeschen", sid, "irgendwas", "bony"]) == 1 and ablage.ids() == [sid]
+    assert portal._cli(["loeschen", sid, "art17", ""]) == 1 and ablage.ids() == [sid]
+    ablage.entscheiden(sid, "rejected", "bony", "nein")
+    assert portal._cli(["alt", "1"]) == 0 and sid not in capsys.readouterr().out   # frisch: nicht älter als 1 Tag
+    assert portal._cli(["loeschen", sid, "art17", "bony"]) == 0
+    assert ablage.ids() == [] and "art17" in (portal.DATEN / "ablage" / "geloescht.jsonl").read_text()
+
+
 def test_reservierte_id_und_katalog_befehl(portal, tmp_path, monkeypatch, capsys):
     res = tmp_path / "res.json"
     res.write_text('["test-paket"]')

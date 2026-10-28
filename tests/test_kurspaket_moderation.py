@@ -109,3 +109,33 @@ def test_gleichzeitige_entscheidungen_halten_die_kette_gueltig(tmp_path):
     ablage.verlauf_pruefen(sid)                       # Kette unversehrt
     assert len([e for e in ergebnisse if e != "fehler"]) == 1      # genau eine Entscheidung gewinnt
     assert ablage.status(sid) in (mod.PUBLISHED, mod.REJECTED)
+
+
+def test_loeschen_entfernt_alles_und_protokolliert_nur_feste_angaben(tmp_path):
+    m = mod.Moderation(tmp_path / "ablage")
+    sid = m.einreichen(_datei(tmp_path), "Max Mustermann")
+    m.entscheiden(sid, mod.PUBLISHED, "mod-1", "frei")
+    with pytest.raises(mod.ModerationsFehler, match="zurückziehen"):
+        m.loeschen(sid, "art17", "mod-1")                      # veröffentlicht: erst zurückziehen
+    m.entscheiden(sid, mod.WITHDRAWN, "mod-1", "zurück")
+    for grund, akteur in (("freitext mit Namen", "mod-1"), ("art17", ""), ("art17", mod.AKTEUR_SYSTEM)):
+        with pytest.raises(mod.ModerationsFehler):
+            m.loeschen(sid, grund, akteur)
+    assert m.ids() == [sid]
+    m.loeschen(sid, "art17", "mod-1")
+    assert m.ids() == [] and not (tmp_path / "ablage" / sid).exists()
+    protokoll = (tmp_path / "ablage" / mod.LOESCHPROTOKOLL).read_text()
+    assert sid in protokoll and "art17" in protokoll and "mod-1" in protokoll
+    assert "Mustermann" not in protokoll and "test-paket" not in protokoll
+    with pytest.raises(mod.ModerationsFehler):
+        m.loeschen(sid, "art17", "mod-1")                      # gibt es nicht mehr
+
+
+def test_aelter_als_nennt_nur_abgelehnte_und_zurueckgezogene(tmp_path, monkeypatch):
+    m = mod.Moderation(tmp_path / "ablage")
+    a = m.einreichen(_datei(tmp_path, name="a.bonyspaket"), "autor-1")
+    b = m.einreichen(_datei(tmp_path, mit_skript=True, name="b.bonyspaket"), "autor-2")
+    m.entscheiden(b, mod.REJECTED, "mod-1", "nein")
+    assert m.aelter_als(30) == []                               # frisch
+    assert m.aelter_als(-1) == [b]                              # abgelehnt zählt, offenes (approved) nie
+    assert a not in m.aelter_als(-1)

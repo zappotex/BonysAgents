@@ -105,6 +105,16 @@ Selbst nachprüfen (nur lesend, mit Moderator-Token `<M>` und Einreicher-Token `
 Neue Restrisiken: Ein gestohlenes Moderator-Token erlaubt Freigabe und Veröffentlichung, bis es entfernt wird
 (`moderator-entfernen`); jeder Schritt steht im Verlauf. Die Anfragen des Dialogs laufen synchron (10 s Zeitlimit).
 
+## 6a. Zusätzlich ab Bundle v6: Löschen
+
+| # | Prüfpunkt | Erwartung | Wo prüfen |
+|---|---|---|---|
+| L1 | Nur über die Kommandozeile im Container | kein HTTP-Weg zum Löschen | `portal_server.py` (`_cli`) |
+| L2 | Veröffentlichtes wird nicht gelöscht | erst `withdrawn`, dann `loeschen` | Test `test_loeschen_entfernt_alles…` |
+| L3 | Feste Gründe, menschlicher Akteur | `art17`, `rechtsverstoss`, `abgelaufen`, `sonstiges`; `system`/leer abgelehnt | Test |
+| L4 | Löschprotokoll ohne Personendaten | nur Zeit, ID, Grund, Akteur | Test |
+| L5 | Container-Logs begrenzt | `max-size 5m`, `max-file 3` am Portal | `docker-compose.yml` |
+
 ## 7. Nach der Freigabe
 
 `docker compose exec portal python /app/server.py token-neu "<name>"` (Token einmalig anzeigen, sicher weitergeben,

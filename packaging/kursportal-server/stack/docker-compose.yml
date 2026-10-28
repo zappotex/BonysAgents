@@ -32,6 +32,11 @@ services:
     mem_limit: 768m
     cpus: 1.0
     pids_limit: 128
+    logging:                       # Container-Logs begrenzen (Datensparsamkeit)
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -67,6 +67,10 @@ def test_info_download_and_fingerprint(running, tmp_path):
     out = share.download(info, tmp_path / "laden", progress=lambda p, f, m: steps.append((p, f)))
     assert hashlib.sha256(out.read_bytes()).hexdigest() == running.sha256
     assert steps[-1] == ("verify", 1) and not list((tmp_path / "laden").glob("*.teil*"))
+    # der Server setzt „fertig“ erst nach dem Senden der letzten Bytes – kurz darauf warten (sonst flackert der Test)
+    ende = time.monotonic() + 5
+    while time.monotonic() < ende and [p.status for p in running.participants.values()] != ["fertig"]:
+        time.sleep(0.02)
     assert [p.status for p in running.participants.values()] == ["fertig"]
     # die geladene Datei lässt sich wie eine kopierte lesen
     assert bonysfile.read_manifest(out)["creator"] == "Kursleitung"

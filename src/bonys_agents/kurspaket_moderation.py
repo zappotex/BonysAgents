@@ -52,6 +52,9 @@ ERLAUBT_AUTO = {
 }
 
 AKTEUR_SYSTEM = "system"
+# feste Gründe, keine Freitexte (sie könnten Personendaten enthalten)
+LOESCH_GRUENDE = ("art17", "rechtsverstoss", "abgelaufen", "sonstiges")
+LOESCHPROTOKOLL = "geloescht.jsonl"
 _ID = re.compile(r"[0-9a-f]{32}")
 _GENESIS = "0" * 64
 MAX_TEXT = 2000
@@ -230,3 +233,37 @@ class Moderation:
                 raise ModerationsFehler("Die Paket-ID gehört zu einem mitgelieferten Kurspaket und wird nicht "
                                         "veröffentlicht.")
             return self._anhaengen_roh(submission_id, nach, akteur, begruendung)
+
+    # --- Löschen (Recht auf Löschung, Fristen) ---------------------------
+
+    def loeschen(self, submission_id: str, grund: str, akteur: str) -> None:
+        """Löscht Original und Verlauf einer Einreichung endgültig (Art. 17 DSGVO, Rechtsverstoß, Frist).
+
+        Eine veröffentlichte Einreichung muss vorher zurückgezogen werden. Im Löschprotokoll bleiben nur Zeit,
+        Einreichungs-ID, fester Grund und Akteur – keine Namen, keine Texte aus dem Paket.
+        """
+        akteur = (akteur or "").strip()
+        if not akteur or akteur == AKTEUR_SYSTEM:
+            raise ModerationsFehler("Löschen braucht einen menschlichen Akteur.")
+        if grund not in LOESCH_GRUENDE:
+            raise ModerationsFehler(f"Grund muss einer von {', '.join(LOESCH_GRUENDE)} sein.")
+        with self._sperre(submission_id):
+            if self.status(submission_id) == PUBLISHED:
+                raise ModerationsFehler("Die Einreichung ist veröffentlicht – erst zurückziehen (withdrawn).")
+            eintrag = json.dumps({"zeit": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                  "id": submission_id, "grund": grund, "akteur": akteur}, ensure_ascii=False)
+            with (self.wurzel / LOESCHPROTOKOLL).open("a", encoding="utf-8") as f:
+                f.write(eintrag + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            shutil.rmtree(self._ordner(submission_id))
+
+    def aelter_als(self, tage: int) -> list[str]:
+        """IDs abgelehnter oder zurückgezogener Einreichungen, deren letzter Eintrag älter als ``tage`` ist."""
+        grenze = datetime.now(timezone.utc).timestamp() - tage * 86400
+        alt = []
+        for sid in self.ids():
+            letzter = self._lesen(sid)[-1]
+            if letzter.nach in (REJECTED, WITHDRAWN) and datetime.fromisoformat(letzter.zeit).timestamp() < grenze:
+                alt.append(sid)
+        return alt

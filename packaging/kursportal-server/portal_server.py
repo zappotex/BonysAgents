@@ -463,6 +463,19 @@ def _cli(argv: list[str]) -> int:
         print(f"{argv[1]} -> {argv[2]}")
         _katalog_abgleichen(ablage)       # Entscheidung steht fest; bei Fehler Warnung, später `katalog` wiederholen
         return 0
+    if befehl == "loeschen" and len(argv) == 4:
+        mod, ablage = _moderation()
+        try:
+            ablage.loeschen(argv[1], argv[2], argv[3])
+        except mod.ModerationsFehler as exc:
+            print(f"Fehler: {exc}", file=sys.stderr)
+            return 1
+        print(f"{argv[1]} gelöscht ({argv[2]}).")
+        return _katalog_abgleichen(ablage)
+    if befehl == "alt" and len(argv) == 2 and argv[1].isdigit():
+        for sid in _moderation()[1].aelter_als(int(argv[1])):
+            print(sid)
+        return 0
     if befehl == "katalog" and len(argv) == 1:
         return _katalog_abgleichen(_moderation()[1])
     if befehl == "" or befehl == "server":
@@ -470,7 +483,7 @@ def _cli(argv: list[str]) -> int:
         ThreadingHTTPServer(("0.0.0.0", int(os.environ.get("PORT", "8080"))), Handler).serve_forever()
         return 0
     print("Aufruf: token-neu NAME | token-liste | token-entfernen NAME | moderator-neu NAME | moderator-liste | "
-          "moderator-entfernen NAME | liste | zeige ID | entscheiden ID NACH AKTEUR BEGRUENDUNG | katalog | server",
+          "moderator-entfernen NAME | liste | zeige ID | entscheiden ID NACH AKTEUR BEGRUENDUNG | loeschen ID GRUND AKTEUR | alt TAGE | katalog | server",
           file=sys.stderr)
     return 2
 

@@ -1,4 +1,4 @@
-# Kursportal-Annahme (Bundle v4 deployt)
+# Kursportal-Annahme (Bundle v5 deployt, v6 vorbereitet)
 
 Zusätzlicher Dienst im bestehenden Docker-Stack der Schulungsseite. Er nimmt `.bonyspaket`-Dateien an, prüft sie mit
 `kurspaket_portal` (Daten, nie Skripte ausführen) und legt Original und hashverkettetem Verlauf in einem Volume ab.
@@ -35,6 +35,17 @@ unberührt. Compose/Caddyfile basieren auf Bundle v16 der Schulungsseite – bei
     docker compose exec portal python /app/server.py liste
     docker compose exec portal python /app/server.py zeige <ID>
     docker compose exec portal python /app/server.py entscheiden <ID> approved|rejected|published|withdrawn <AKTEUR> "<Begründung>"
+    docker compose exec portal python /app/server.py loeschen <ID> art17|rechtsverstoss|abgelaufen|sonstiges <AKTEUR>
+    docker compose exec portal python /app/server.py alt <TAGE>      # abgelehnte/zurückgezogene Einreichungen, älter als TAGE
+
+## Löschen (Löschkonzept)
+
+- `loeschen` entfernt Original und Verlauf einer Einreichung endgültig (Anfrage nach Art. 17 DSGVO, Rechtsverstoß, Frist).
+  Eine **veröffentlichte** Einreichung muss vorher mit `entscheiden … withdrawn` zurückgezogen werden.
+- Im Löschprotokoll (`ablage/geloescht.jsonl`) bleiben nur Zeit, Einreichungs-ID, fester Grund und Akteur –
+  keine Namen und keine Texte aus dem Paket. Der Grund ist aus einer festen Liste, damit kein Freitext Personendaten enthält.
+- Frist-Vorschlag (Entscheidung Bony): abgelehnte und zurückgezogene Einreichungen nach 90 Tagen mit `alt 90` suchen
+  und mit Grund `abgelaufen` löschen; eine automatische Löschung gibt es bewusst nicht.
 
 Einreichen (Einreicher):
 

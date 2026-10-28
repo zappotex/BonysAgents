@@ -66,12 +66,14 @@ außer dem User-Agent (Programmname und Version).
   Veröffentlichung und zur Speicherung des Token-Namens).
 - Meldeweg für Rechtsverstöße (Mailadresse, Frist) im Impressum; Prozess „Zurückziehen und löschen“ schriftlich festhalten.
 - Löschkonzept (Fristen für abgelehnte, zurückgezogene und alte Einreichungen) und ein kleines Server-Kommando dafür.
+- [x] Löschkonzept im Server umgesetzt (Kommandos `loeschen`, `alt`, Löschprotokoll; Bundle v6 gebaut, Deploy durch Bony).
+- [x] Entwürfe für Datenschutzerklärung, Impressum, Einreichungsbedingungen und Meldeweg: `docs/recht/kursportal/` (Fachperson muss prüfen).
 - Pseudonyme als Token-Namen vorgeben.
 - Technische Prüfung der Paketmetadaten auf offensichtliche Personendaten (E-Mail-Adressen, Telefonnummern) als Hinweis
   im Prüfbericht (ohne Werte).
 - Hoster: Auftragsverarbeitungsvertrag und Standort dokumentieren.
 
-**C. Später:** Docker-Log-Rotation (`max-size`, `max-file`); Moderator-Token unter Windows im Schlüsselbund des
+**C. Später:** Docker-Log-Rotation für `web` (Portal ist in Bundle v6 begrenzt: `max-size 5m`, 3 Dateien); Moderator-Token unter Windows im Schlüsselbund des
 Systems speichern; Verzeichnis der Verarbeitungstätigkeiten.
 
 ## 5. Fragen an eine Fachperson
