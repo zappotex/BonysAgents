@@ -19,7 +19,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - **Auftrag:** Kursportal – Moderations-Schnittstelle, **Phase 1 (Server lesend)**: Moderator-Token, `GET /moderation/liste` und `/moderation/einreichung/<id>`, Dateisperre in der Moderation, Befehle `moderator-*`/`token-*`. Plan: `docs/dev/plan-kursportal-moderation-api.md` (Entscheidungen Bony 28.10.2026: Token, nur Bony, Phase 4 mitplanen, Klartext, gleicher Host).
 - **Bearbeiter:** Claude Code
 - **Koordination:** Phaseone0815
-- **Status:** Phase 1 gepusht, Phase 2 bis 4 lokal fertig (2 bis 4 committet), nicht gepusht; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
+- **Status:** Phase 1 gepusht, Phase 2 bis 4 committet, nicht gepusht; Bundle v5 gebaut; kein Bundle, kein Deploy. Bonys Auftrag: danach selbständig weiter (Phase 3 Client/Dialog, 4 Original ansehen, Bundle v5 bauen – Deploy durch Bony).
 - **Grenzen:** kein Commit, Push, Tag oder Release ohne Bonys Ja; Deployments und Serveränderungen nur durch Bony bzw. im ausdrücklich freigegebenen Rahmen (siehe „Freigaben von Bony“).
 
 ## Freigaben von Bony (2026-10-28, im Chat erteilt)
@@ -150,3 +150,8 @@ Client `kurspaket_moderation_client.py` (nur HTTPS bzw. 127.0.0.1, 10 s Zeitlimi
 ### 2026-10-28 – Claude Code (Moderations-Schnittstelle, Phase 4: Inhalt ansehen)
 
 Server: `GET /moderation/original/<id>` nur für Moderatoren, liefert die Paketdatei als `application/octet-stream`/`attachment`, nur wenn ihre SHA-256 noch zum Bericht passt (sonst 409), eigenes Limit 10 Downloads/Minute. Client: `OnlineAblage.original_bereit()` (Größen- und Prüfsummenkontrolle, temporäre Kopie wird gelöscht), `inhalt_lesen()` entpackt mit `kurspaket.entpacken` (alle Schutzgrenzen) und liest Texte und Skripte nur als bereinigten Klartext (je Datei 200 KiB, gesamt 4 MiB); Bilder und Sonstiges werden nicht geöffnet. Dialog: Knopf „Inhalt ansehen …“ (lokal und online) mit schreibgeschütztem Klartext-Fenster. Tests: 4 neue im Client-Modul, 1 neuer im Server-Modul.
+
+### 2026-10-28 – Claude Code (Phase 5 vorbereitet: Bundle v5)
+
+Bundle gebaut: `~/Downloads/bonys-schulung-web-kursportal-v5.tar.gz` (SHA-256 `e35269b2910a85dc451cfc061a68ee16a62b674061648253d2044774c6d18612`), **nicht deployt – Deploy und echter Test durch Bony**. Lokal im Container mit der Härtung aus `docker-compose.yml` (read-only, `cap_drop ALL`, `no-new-privileges`, Nutzer `nobody`) geprüft: 401 ohne Token, 403 mit Einreicher-Token, 200 mit Moderator-Token, Moderator-Token auf `/einreichen` → 401, Einreichung → Liste → Original (byteidentisch) → `published` (Akteur `bony`, trotz `akteur` im Body; Katalog geschrieben) → `withdrawn`; Schreiben außerhalb der Volumes scheitert. **Nicht** geprüft: der Weg über Caddy (nur `caddy validate`) und der echte Server. README um die neuen Befehle und die Schnittstelle ergänzt; Sicherheitsprüfliste um Abschnitt 6 (M1–M12) erweitert.
+Für den Deploy durch Bony (wie v3/v4): `scp` des Bundles, `tar -xzf … -C bonys-schulung-web --strip-components=1`, `./deploy.sh`. Danach `docker compose exec portal python /app/server.py moderator-neu bony` (Token einmalig anzeigen, in der App unter „Kursportal: Moderation … → Online“ eingeben). Offene Entscheidung: Wer das Token bekommt, steht (nur Bony) fest; der Server hat weiterhin kein Einreicher-Token.

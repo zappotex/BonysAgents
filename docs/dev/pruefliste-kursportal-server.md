@@ -1,7 +1,7 @@
 # Prüfliste: Sicherheit des Kursportal-Annahme-Servers
 
 Stand: 28.10.2026 · für Bonys Sicherheitsprüfung vor dem ersten echten Einreicher-Token.
-Gegenstand: Dienst `portal` und die Route `kurse.bony23.de` im Stack `bonys-schulung-web` (Bundle v4).
+Gegenstand: Dienst `portal` und die Route `kurse.bony23.de` im Stack `bonys-schulung-web` (Bundle v4; Abschnitt 6 gilt zusätzlich ab Bundle v5 mit Moderations-Schnittstelle).
 Quellen: `packaging/kursportal-server/` (`portal_server.py`, `stack/docker-compose.yml`, `stack/Caddyfile`,
 `stack/portal/Dockerfile`), `src/bonys_agents/kurspaket.py` (`entpacken`), `kurspaket_portal.py`, `kurspaket_moderation.py`,
 `kurspaket_katalog.py`.
@@ -71,7 +71,36 @@ einen Menschen per `entscheiden … published`.
 - [ ] Wer bekommt das erste Token, und wer moderiert?
 - [ ] Wann wird Claudes SSH-Zugang entfernt?
 
-## 6. Nach der Freigabe
+## 6. Zusätzlich ab Bundle v5: Moderations-Schnittstelle (`/moderation/*`)
+
+Neuer öffentlicher Pfad, der Zustände ändert. Plan: `docs/dev/plan-kursportal-moderation-api.md`.
+
+| # | Prüfpunkt | Erwartung | Wo prüfen |
+|---|---|---|---|
+| M1 | Zugänge getrennt | Einreicher-Token auf `/moderation/*` → 403; Moderator-Token auf `/einreichen` → 401 | `portal_server.py`, Tests `test_moderation_braucht_moderator_token…` |
+| M2 | Token nur als Hash, Rechte 600 | `moderatoren.json`, `tokens.json` | `ls -l` im Volume |
+| M3 | Eigene Zähler und Limits | 10 Fehlversuche/Min, 60 Anfragen/Min, 10 Downloads/Min je Moderator; Annahme und Moderation sperren sich nicht gegenseitig | Tests `…eigene_zaehler…` |
+| M4 | Akteur vom Token | ein `akteur` im Body wird ignoriert | Test `test_entscheiden_akteur_kommt_vom_token…` |
+| M5 | Feste Eingaben | Body ≤ 16 KiB (auch in Caddy), nur `nach` und `begruendung`, `nach` aus fester Liste, Begründung ≤ 2000 Zeichen | `portal_server.py`, Caddyfile |
+| M6 | Statusautomat und Sperren gelten serverseitig | verbotene Übergänge → 409; reservierte IDs werden nie veröffentlicht | Tests |
+| M7 | Verlauf bleibt unverändert und wird nicht gleichzeitig zerstört | Schreibsperre je Einreichung, `kette_ok` in der Antwort | `kurspaket_moderation.py`, Parallel-Test |
+| M8 | Antworten nur mit festen, bereinigten Feldern | kein Dateiname, keine Hashketten, keine Fundwerte, keine Pfade | Tests `…zeigen_nur_feste_felder` |
+| M9 | Original nur bei passender Prüfsumme | sonst 409; Downloads begrenzt | Test `test_original_nur_fuer_moderatoren…` |
+| M10 | Client: nur HTTPS, keine Weiterleitungen, Zeit- und Größenlimit, Schema-Prüfung | `kurspaket_moderation_client.py` | Tests |
+| M11 | Token auf dem Moderator-Rechner | Datei `kursportal-moderator.json`, Rechte 600, nicht in den Einstellungen | Test `test_zugang_wird_mit_rechten_600…` |
+| M12 | Paketinhalt nur als Klartext | Skripte nie ausgeführt, Bilder nicht geöffnet, Entpacken mit allen Schutzgrenzen | `inhalt_lesen`, Tests |
+
+Selbst nachprüfen (nur lesend, mit Moderator-Token `<M>` und Einreicher-Token `<E>`):
+
+    curl -s -o /dev/null -w "%{http_code}\n" https://kurse.bony23.de/moderation/liste                           # 401
+    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer <E>" https://kurse.bony23.de/moderation/liste   # 403
+    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer <M>" https://kurse.bony23.de/moderation/liste   # 200
+    curl -s -o /dev/null -w "%{http_code}\n" -X POST https://kurse.bony23.de/moderation/entscheiden/000                 # 401
+
+Neue Restrisiken: Ein gestohlenes Moderator-Token erlaubt Freigabe und Veröffentlichung, bis es entfernt wird
+(`moderator-entfernen`); jeder Schritt steht im Verlauf. Die Anfragen des Dialogs laufen synchron (10 s Zeitlimit).
+
+## 7. Nach der Freigabe
 
 `docker compose exec portal python /app/server.py token-neu "<name>"` (Token einmalig anzeigen, sicher weitergeben,
 nie in Dateien oder Chats ablegen).

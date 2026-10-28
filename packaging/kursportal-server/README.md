@@ -40,6 +40,26 @@ Einreichen (Einreicher):
 
     curl -H "Authorization: Bearer <TOKEN>" --data-binary @paket.bonyspaket https://kurse.bony23.de/einreichen
 
+## Moderation online (ab Bundle v5)
+
+Moderator-Token (getrennt von den Einreicher-Token; nur der SHA-256 liegt auf dem Server):
+
+    docker compose exec portal python /app/server.py moderator-neu "bony"      # Token einmalig anzeigen
+    docker compose exec portal python /app/server.py moderator-liste
+    docker compose exec portal python /app/server.py moderator-entfernen "bony"
+    docker compose exec portal python /app/server.py token-liste               # Einreicher (nur Namen)
+    docker compose exec portal python /app/server.py token-entfernen "autor-name"
+
+Schnittstelle (Moderator-Token als `Authorization: Bearer …`; Einreicher-Token → 403):
+
+    GET  /moderation/liste
+    GET  /moderation/einreichung/<ID>          # Bericht und Verlauf, ohne Fundwerte, mit kette_ok
+    POST /moderation/entscheiden/<ID>          # {"nach": "approved|rejected|published|withdrawn", "begruendung": "…"}
+    GET  /moderation/original/<ID>             # Paketdatei zum Ansehen (nur bei passender Prüfsumme)
+
+Der Akteur im Verlauf ist der Name des Moderator-Tokens. In der App (Kursleiter-Edition): „Kursportal: Moderation …“ →
+„Online (Kursportal)“. Limits: 10 Fehlversuche/Minute, 60 Anfragen/Minute, 10 Downloads/Minute je Moderator.
+
 ## Katalog (ab Bundle v3)
 
     docker compose exec portal python /app/server.py entscheiden <ID> approved <AKTEUR> "<Begründung>"
