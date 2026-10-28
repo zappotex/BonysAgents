@@ -674,8 +674,11 @@ mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
   Dazu kommt der **Community-Katalog**: Kurspakete, die andere eingereicht haben und die Bony's Agents-Moderation
   freigegeben hat. Sie sind im Katalog mit „– Community“ gekennzeichnet. Das ist eine technische Prüfung plus eine
   Entscheidung von Menschen, aber **keine Signatur von Bony's Agents**: Vor dem ersten Start zeigt Bony's Agents dir
-  deshalb wie bei jedem fremden Kurspaket die Liste der Skripte. Der Schalter **„Community-Kurspakete anzeigen“** im
-  Katalogfenster schaltet diese Quelle ab; dann fragt Bony's Agents `kurse.bony23.de` nicht mehr an.
+  deshalb wie bei jedem fremden Kurspaket die Liste der Skripte. Diese Quelle ist **ausgeschaltet**, bis du
+  den Schalter **„Community-Kurspakete anzeigen“** im Katalogfenster einschaltest. Beim ersten Mal erklärt dir
+  Bony's Agents, dass dabei Anfragen an `kurse.bony23.de` gehen (der Server und sein Hoster sehen deine IP-Adresse und
+  den Namen und die Version des Programms; Bony's Agents speichert das nicht) – erst nach deinem „Einschalten“ passiert
+  das. Mit dem Schalter kannst du die Quelle jederzeit wieder ausschalten.
 - **„Exportieren …“** speichert ein Kurspaket als Datei zum Weitergeben.
 
 ## Durcharbeiten

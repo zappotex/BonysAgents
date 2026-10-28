@@ -9,9 +9,10 @@ Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): sie
 - **Community-Katalog für Kurspakete.** Unter **Kurse → Kurspakete → „Aus dem Internet …“** zeigt Bony's Agents
   jetzt zusätzlich Kurspakete, die andere Autoren eingereicht haben und die von der Moderation freigegeben wurden.
   Sie sind mit „– Community“ gekennzeichnet. Das ist keine Signatur von Bony's Agents: Vor dem ersten Start zeigt die
-  App wie bei jedem fremden Kurspaket die Liste der Skripte. Der Schalter „Community-Kurspakete anzeigen“ im
-  Katalogfenster schaltet die Quelle ab. Im Standard ist sie an; die App fragt dann die Katalogliste von
-  `kurse.bony23.de` ab (nur Katalogdaten, keine Angaben über dich).
+  App wie bei jedem fremden Kurspaket die Liste der Skripte. Die Quelle ist im Standard
+  **aus**. Mit dem Schalter „Community-Kurspakete anzeigen“ im Katalogfenster schaltest du sie ein, nachdem du einmal
+  gelesen und bestätigt hast, was dabei passiert: Die App fragt dann die Katalogliste von `kurse.bony23.de` ab; der
+  Server und sein Hoster sehen deine IP-Adresse und Programmname und -version. Bony's Agents speichert nichts davon.
 - **Kursportal-Moderation (Kursleiter-Version).** Neuer Eintrag **ⓘ → „Kursportal: Moderation …“**: eingereichte
   Kurspakete ansehen (Prüfbericht, Verlauf, Inhalt als Klartext), freigeben, ablehnen, veröffentlichen und
   zurückziehen – lokal oder online am Kursportal mit einem Moderator-Token. Jede Entscheidung braucht eine

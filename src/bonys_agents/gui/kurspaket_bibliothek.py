@@ -172,6 +172,34 @@ def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | No
     return None
 
 
+COMMUNITY_HINWEIS = (
+    "Der Community-Katalog liegt auf einem eigenen Server (kurse.bony23.de), nicht bei GitHub.\n\n"
+    "Wenn du ihn einschaltest, fragt Bony's Agents bei jedem Öffnen dieses Fensters die Liste dort ab und lädt "
+    "Pakete von dort, wenn du sie wählst. Der Server und sein Hoster sehen dabei deine IP-Adresse und den Namen "
+    "und die Version des Programms – wie bei jedem Aufruf einer Internetseite. Bony's Agents speichert diese "
+    "Angaben nicht und legt kein Zugriffsprotokoll an.\n\n"
+    "Community-Pakete stammen von anderen Menschen. Sie wurden von der Moderation geprüft, aber nicht von "
+    "Bony's Agents signiert; ihre Skripte zeigt dir die App vor dem Start.\n\n"
+    "Du kannst die Quelle hier jederzeit wieder ausschalten.")
+
+
+def community_zustimmung(parent=None) -> bool:
+    """Fragt einmal um Erlaubnis, den Community-Server anzufragen; merkt sich ein Ja."""
+    if kurspaket.community_zugestimmt():
+        return True
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Question)
+    box.setWindowTitle("Community-Katalog einschalten?")
+    box.setText(COMMUNITY_HINWEIS)
+    ja = box.addButton("Einschalten", QMessageBox.AcceptRole)
+    box.addButton("Nicht einschalten", QMessageBox.RejectRole)
+    box.exec()
+    if box.clickedButton() is not ja:
+        return False
+    kurspaket.community_zustimmung_setzen(True)
+    return True
+
+
 class KatalogDialog(QDialog):
     """„Kurspakete aus dem Internet“: Liste aus dem öffentlichen Repo, Laden mit Prüfsumme."""
 
@@ -200,7 +228,7 @@ class KatalogDialog(QDialog):
         self.text.setWordWrap(True)
         self.text.setTextFormat(Qt.PlainText)
         root.addWidget(self.text)
-        self.community_box = QCheckBox("Community-Kurspakete anzeigen")
+        self.community_box = QCheckBox("Community-Kurspakete anzeigen (fragt kurse.bony23.de an)")
         self.community_box.setChecked(kurspaket.community_an())
         root.addWidget(self.community_box)
         knoepfe = QHBoxLayout()
@@ -221,6 +249,11 @@ class KatalogDialog(QDialog):
         self._neu_laden()
 
     def _community_umschalten(self, an: bool) -> None:
+        if an and not community_zustimmung(self):
+            self.community_box.blockSignals(True)
+            self.community_box.setChecked(False)
+            self.community_box.blockSignals(False)
+            return
         kurspaket.community_setzen(an)
         self._neu_laden()
 

@@ -93,7 +93,8 @@ KATALOG_ENV = "BONYS_AGENTS_PAKET_KATALOG"   # andere Adresse (Tests, eigener Ka
 KATALOG_FORMAT = "bonys-agents-kurspaket-katalog"
 COMMUNITY_URL = "https://kurse.bony23.de/katalog/index.json"
 COMMUNITY_ENV = "BONYS_AGENTS_COMMUNITY_KATALOG"
-COMMUNITY_EINSTELLUNG = "community_katalog"   # Einstellung; Standard: an
+COMMUNITY_EINSTELLUNG = "community_katalog"   # Einstellung; Standard: aus (Datenschutz)
+COMMUNITY_ZUSTIMMUNG = "community_zustimmung"  # einmal bestätigt: Anfragen an den Community-Server sind in Ordnung
 TIMEOUT = 20
 USER_AGENT = f"bonys-agents/{__version__}"
 
@@ -1182,8 +1183,22 @@ def community_url() -> str:
 
 
 def community_an() -> bool:
-    """Community-Katalog anzeigen? Standard: ja."""
-    return storage.load_settings().get(COMMUNITY_EINSTELLUNG) is not False
+    """Community-Katalog anzeigen? Standard: nein – erst nach ausdrücklicher Zustimmung, denn jede Anfrage verrät dem
+    Server die IP-Adresse."""
+    s = storage.load_settings()
+    return s.get(COMMUNITY_EINSTELLUNG) is True and s.get(COMMUNITY_ZUSTIMMUNG) is True
+
+
+def community_zugestimmt() -> bool:
+    return storage.load_settings().get(COMMUNITY_ZUSTIMMUNG) is True
+
+
+def community_zustimmung_setzen(ja: bool) -> None:
+    s = storage.load_settings()
+    s[COMMUNITY_ZUSTIMMUNG] = bool(ja)
+    if not ja:
+        s[COMMUNITY_EINSTELLUNG] = False
+    storage.save_settings(s)
 
 
 def community_setzen(an: bool) -> None:

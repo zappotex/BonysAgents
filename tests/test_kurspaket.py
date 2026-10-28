@@ -393,7 +393,13 @@ def test_community_katalog(datadir, tmp_path, monkeypatch):
     monkeypatch.setenv(kp.COMMUNITY_ENV, com)
     opener = _opener({com: _index(datei), "https://example.org/com/pakete/test-paket-1.0.0.bonyspaket": datei,
                       off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})
-    assert kp.community_an()                                  # Standard: an
+    assert not kp.community_an()                              # Standard: aus (Datenschutz)
+    assert kp.katalog_alle(opener=_opener({off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})) \
+        == ([], "")                                           # der Community-Server wird nicht einmal gefragt
+    kp.community_setzen(True)
+    assert not kp.community_an()                              # ohne Zustimmung bleibt es aus
+    kp.community_zustimmung_setzen(True)
+    assert kp.community_an()
     (e,), hinweis = kp.katalog_alle(opener=opener)
     assert e.community and not hinweis
     p = kp.herunterladen(e, opener=opener)
@@ -408,9 +414,13 @@ def test_community_katalog(datadir, tmp_path, monkeypatch):
     assert kp.katalog_alle(opener=_opener({off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})) \
         == ([], "")
     kp.community_setzen(True)
+    kp.community_zustimmung_setzen(False)                     # Zustimmung zurücknehmen schaltet auch aus
+    assert not kp.community_an() and not kp.community_zugestimmt()
 
 
 def test_community_fehler_blockiert_offizielle_liste_nicht(datadir, tmp_path, monkeypatch):
+    kp.community_zustimmung_setzen(True)
+    kp.community_setzen(True)
     datei = b"x"
     off, com = "https://example.org/off/index.json", "https://example.org/com/index.json"
     monkeypatch.setenv(kp.KATALOG_ENV, off)
@@ -745,6 +755,8 @@ def test_katalog_dialog_community(qapp, datadir, tmp_path, monkeypatch):
     monkeypatch.setenv(kp.COMMUNITY_ENV, com)
     opener = _opener({com: _index(datei), off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})
     monkeypatch.setattr(kp.urllib.request, "urlopen", opener)
+    kp.community_zustimmung_setzen(True)
+    kp.community_setzen(True)
     d = kb.KatalogDialog()
     _warten(qapp, lambda: d.tabelle.rowCount() == 1)
     assert "Community" in d.tabelle.item(0, 0).text()
@@ -752,4 +764,50 @@ def test_katalog_dialog_community(qapp, datadir, tmp_path, monkeypatch):
     assert "nicht von Bony's Agents" in d.text.text()
     d.community_box.setChecked(False)
     _warten(qapp, lambda: d.tabelle.rowCount() == 0 and not kp.community_an())
+    d.close()
+
+
+def test_katalog_dialog_community_fragt_vor_dem_ersten_einschalten(qapp, datadir, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from bonys_agents.gui import kurspaket_bibliothek as kb
+
+    datei = zippen(paket_ordner(tmp_path / "src"), tmp_path / "p.bonyspaket").read_bytes()
+    off, com = "https://example.org/off/index.json", "https://example.org/com/index.json"
+    monkeypatch.setenv(kp.KATALOG_ENV, off)
+    monkeypatch.setenv(kp.COMMUNITY_ENV, com)
+    abgefragt: list[str] = []
+
+    def opener(req, timeout=None):
+        abgefragt.append(req.full_url)
+        return _opener({com: _index(datei), off: json.dumps({"format": kp.KATALOG_FORMAT, "pakete": []}).encode()})(
+            req, timeout=timeout)
+
+    monkeypatch.setattr(kp.urllib.request, "urlopen", opener)
+    gezeigt: list[str] = []
+    antwort = {"ja": False}
+
+    def exec_(self):
+        gezeigt.append(self.text())
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", exec_)
+    monkeypatch.setattr(QMessageBox, "clickedButton",
+                        lambda self: next(b for b in self.buttons()
+                                          if b.text() == ("Einschalten" if antwort["ja"] else "Nicht einschalten")))
+    d = kb.KatalogDialog()
+    _warten(qapp, lambda: "Lade" not in d.text.text())
+    assert not d.community_box.isChecked() and not kp.community_an()
+    assert all("com/" not in u for u in abgefragt)                      # Community-Server nie angefragt
+    d.community_box.setChecked(True)                                    # Nein → bleibt aus, nichts gespeichert
+    assert len(gezeigt) == 1 and "IP-Adresse" in gezeigt[0] and "speichert diese" in gezeigt[0]
+    assert not d.community_box.isChecked() and not kp.community_an() and not kp.community_zugestimmt()
+    assert all("com/" not in u for u in abgefragt)
+    antwort["ja"] = True
+    d.community_box.setChecked(True)                                    # Ja → an und gemerkt
+    _warten(qapp, lambda: d.tabelle.rowCount() == 1)
+    assert kp.community_an() and kp.community_zugestimmt() and len(gezeigt) == 2
+    d.community_box.setChecked(False)
+    d.community_box.setChecked(True)                                    # zweites Einschalten: nicht noch einmal fragen
+    assert len(gezeigt) == 2
     d.close()
