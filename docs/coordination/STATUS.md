@@ -28,7 +28,7 @@ Diese Datei ist die gemeinsame Übergabestelle für Phaseone0815 und Claude Code
 - Auslieferung wie bei Schulungsseiten-Bundles: Claude baut das Bundle, **Bony lädt es hoch und deployt selbst**.
 - Claude hat auf Bonys Wunsch einen eigenen SSH-Zugang, begrenzt auf das Projektverzeichnis `bonys-schulung-web`: `docker compose ps/logs/exec portal …`, Test-Token anlegen, Upload-Tests. Entscheidungen (`entscheiden`), Deploys, `sudo`, andere Dienste und alles außerhalb nur nach Rückfrage.
 - Katalog-Entscheidungen: Ort `kurse.bony23.de/katalog/`; Community-Quelle in der App standardmäßig an; mitgelieferte Paket-IDs werden abgelehnt; neue Version ersetzt die alte im Katalog.
-- Test-Einreichungen, Test-Token und der SSH-Zugang bleiben auf Bonys Wunsch erst einmal bestehen.
+- Test-Einreichungen und Test-Token wurden am 2026-10-28 auf Bonys Wunsch gelöscht; der SSH-Zugang für Claude bleibt vorerst bestehen.
 - Veröffentlichungsschranke gilt weiter: Nichts wird ohne Bonys Ja öffentlich geschaltet (Veröffentlichen/Rücknahme am echten Server noch nicht getestet).
 
 ## Bekannter Stand (2026-10-28)
@@ -125,3 +125,7 @@ Auf Bonys Ja lokal committet (`1757e8b`, 26 Dateien), **nicht gepusht**, kein Ta
 ### 2026-10-28 – Claude Code (Push)
 
 Auf Bonys Ja gepusht: `f4fa626..c5b1d66` auf `main` (`zappotex/BonysAgents`). Kein Tag, kein Release, keine Auslieferung an Nutzer. Das Kursportal (Intake, Moderation, Annahme-Dienst, Community-Katalog, App-Seite, eingebundener Moderationsdialog) ist damit öffentlich im Repository; der Server-Betrieb bleibt unverändert (Bundle v4 durch Bony deployt, Katalog leer). Offen: Sicherheitsprüfung des Servers durch Bony; Termin zum Aufräumen von Test-Einreichungen, Test-Token und SSH-Zugang (bleiben vorerst bestehen).
+
+### 2026-10-28 – Claude Code (Aufräumen)
+
+Auf Bonys Auftrag am Server gelöscht: alle 10 Test-Einreichungen (sämtlich vom Test-Token, vorher geprüft) samt Verläufen und das Test-Token `bony-test` (`tokens.json` leer). Danach: Liste leer, Einreichen mit dem alten Token → 401, Katalog weiter leer. Das Token-Duplikat im Scratchpad wurde ebenfalls entfernt. **Der Server hat jetzt kein gültiges Einreicher-Token mehr**; für weitere Tests oder echte Einreicher: `token-neu <name>`. Der SSH-Zugang für Claude bleibt auf Bonys Wunsch bestehen; Entfernen des Schlüssels ist noch offen.
