@@ -121,3 +121,7 @@ Gefundener Fehler behoben: Lambda-Verbindung mit `self` hielt den Dialog bis zum
 ### 2026-10-28 – Claude Code (Commit)
 
 Auf Bonys Ja lokal committet (`1757e8b`, 26 Dateien), **nicht gepusht**, kein Tag/Release. Nicht enthalten: `AUFGABE-*.md` und die Kursleiter-Notiz im Projektstamm (nicht Teil dieses Blocks). Privater Pfad in der Server-README durch Platzhalter ersetzt.
+
+### 2026-10-28 – Claude Code (Push)
+
+Auf Bonys Ja gepusht: `f4fa626..c5b1d66` auf `main` (`zappotex/BonysAgents`). Kein Tag, kein Release, keine Auslieferung an Nutzer. Das Kursportal (Intake, Moderation, Annahme-Dienst, Community-Katalog, App-Seite, eingebundener Moderationsdialog) ist damit öffentlich im Repository; der Server-Betrieb bleibt unverändert (Bundle v4 durch Bony deployt, Katalog leer). Offen: Sicherheitsprüfung des Servers durch Bony; Termin zum Aufräumen von Test-Einreichungen, Test-Token und SSH-Zugang (bleiben vorerst bestehen).
