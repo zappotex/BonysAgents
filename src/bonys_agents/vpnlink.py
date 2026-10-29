@@ -289,13 +289,21 @@ def _guest(machine: VM, argv: list[str], stdin: bytes | None = None, password: s
 
     if not machine.is_running():
         raise VpnError(f"„{machine.name}“ läuft nicht.")
-    try:
+    def ueber_gast_agent() -> tuple[int, str, str]:
         with qemu.GuestAgent(qemu.runtime_target(machine.runtime(), "qga"), timeout=5) as ga:
-            rc, out, err = ga.exec(argv[0], argv[1:], stdin=stdin if stdin is not None else b"", timeout=timeout)
+            return ga.exec(argv[0], argv[1:], stdin=stdin if stdin is not None else b"", timeout=timeout)
+
+    try:
+        try:
+            rc, out, err = ueber_gast_agent()
+        except qemu.GuestAgentError:
+            # kurz nach dem Start: erst auf den Gast-Agent warten, statt nach dem Passwort zu fragen
+            if password or ssh_prompt or not machine.gast_agent_abwarten():
+                raise
+            rc, out, err = ueber_gast_agent()
     except qemu.GuestAgentError:
         if not password and not ssh_prompt:
-            raise vm.NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
-                                   "des Agent-PCs gebraucht.") from None
+            raise vm.NeedsPassword(vm.GAST_AGENT_FEHLT) from None
         lines: list[str] = []
         rc = machine._ssh("sudo " + shlex.join(argv), (stdin or b"").decode("utf-8"), password, lines.append)
         if rc == 255:

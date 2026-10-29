@@ -400,8 +400,8 @@ def nachtraeglich_verbinden(machine: VM, password: str | None = None) -> str:
 
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
         raise RuntimeError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
-    if not password and not machine.guest_agent_ready():
-        raise vm.NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort des Agent-PCs gebraucht.")
+    if not password and not machine.gast_agent_abwarten():
+        raise vm.NeedsPassword(vm.GAST_AGENT_FEHLT)
     beitritt = beitritt_vorbereiten(machine.name)
     skript = "set -uo pipefail\n" + gast_beitritt(aus_seed=False, skript=beitritt.skript) + 'exit "$NETZ_RC"\n'
     machine.config.netz_name = beitritt.netzname

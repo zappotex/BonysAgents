@@ -347,6 +347,7 @@ def ga(monkeypatch):
 
 def fake_machine(**over):
     m = SimpleNamespace(name="pc", is_running=lambda: True, runtime=lambda: {"qga_port": 1},
+                        gast_agent_abwarten=lambda: False,   # läuft schon länger: nicht warten
                         config=SimpleNamespace(username="agent", apps=["vpn"]))
     for k, v in over.items():
         setattr(m, k, v)
@@ -542,3 +543,17 @@ def test_template_work_copy_overwrites_free_space_with_zeros():
     assert s.index(cloudinit.VPN_CLEANUP) < zero < s.index("fstrim -av") < s.index("BONYS-GENERALIZED")
     assert "if ! fstrim" not in s  # Nullen immer, nicht nur, wenn fstrim fehlschlägt
     assert templates._WorkVM.zero_unmap and not vm.VM.zero_unmap
+
+
+def test_kurz_nach_dem_start_erst_warten(ga):
+    """Fährt der Agent-PC noch hoch, wartet die App auf den Gast-Agent, statt nach dem Passwort zu fragen."""
+    ga.fail, ga.reply = True, (0, json.dumps(STATUS), "")
+    gewartet = []
+
+    def warten():
+        gewartet.append(1)
+        ga.fail = False          # inzwischen hochgefahren
+        return True
+
+    st = vpnlink.status(fake_machine(gast_agent_abwarten=warten))
+    assert gewartet and st["active"] == "fritz"

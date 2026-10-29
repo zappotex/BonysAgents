@@ -102,6 +102,7 @@ def ga(monkeypatch):
 
 def fake_machine(**over):
     m = SimpleNamespace(name="pc", is_running=lambda: True, runtime=lambda: {"qga_port": 1},
+                        gast_agent_abwarten=lambda: False,
                         progress=lambda: SimpleNamespace(ready=True), save=lambda: None,
                         config=SimpleNamespace(username="agent", apps=["vpn"], first_boot_pending=False))
     for k, v in over.items():

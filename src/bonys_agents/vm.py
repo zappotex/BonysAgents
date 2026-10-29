@@ -750,17 +750,25 @@ class VM:
         ``via_stdin``: Bash-Skript über die Standardeingabe statt als Argument – für große Skripte (ein einzelnes
         Argument darf unter Linux höchstens 128 KB lang sein), z. B. mit eingebettetem Bild.
         """
-        try:
+        def ueber_gast_agent() -> tuple[int, str]:
             with qemu.GuestAgent(self.qga_endpoint(), timeout=5) as ga:
                 if via_stdin:
                     rc, o, e = ga.exec("/bin/bash", ["-s"], stdin=script.encode("utf-8"), timeout=timeout)
-                    out = o + e
-                else:
-                    rc, out = ga.run(script, timeout=timeout)
+                    return rc, o + e
+                return ga.run(script, timeout=timeout)
+
+        rc: int | None = None
+        out = ""
+        try:
+            rc, out = ueber_gast_agent()
         except qemu.GuestAgentError:
-            if not password and not ssh_prompt:
-                raise NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
-                                    "des Agent-PCs gebraucht.") from None
+            # Kurz nach dem Start fährt der Agent-PC noch hoch – erst warten, statt nach dem Passwort zu fragen
+            if not password and not ssh_prompt and self.gast_agent_abwarten():
+                with contextlib.suppress(qemu.GuestAgentError):
+                    rc, out = ueber_gast_agent()
+            if rc is None and not password and not ssh_prompt:
+                raise NeedsPassword(GAST_AGENT_FEHLT) from None
+        if rc is None:
             lines: list[str] = []
             rc = self._ssh(SSH_SUDO_SCRIPT, script, password, log=lines.append)
             out = "\n".join(lines)
@@ -1118,6 +1126,18 @@ class VM:
         except (OSError, RuntimeError, TypeError, ValueError):
             return False
 
+    def gast_agent_abwarten(self, jetzt=time.time, schlafen=time.sleep) -> bool:
+        """Kurz nach dem Start (bis ``START_WARTEN`` Sekunden danach) auf den Gast-Agent warten, statt gleich nach dem
+        Passwort zu fragen – sonst sieht ein frisch gestarteter Agent-PC so aus, als bräuchte er SSH. Blockiert
+        (nur in Hintergrund-Threads aufrufen). True, wenn der Gast-Agent antwortet."""
+        while True:
+            if self.guest_agent_ready():
+                return True
+            started = self.runtime().get("started")
+            if not isinstance(started, (int, float)) or jetzt() >= started + START_WARTEN or not self.is_running():
+                return False
+            schlafen(3)
+
     def guest_agent_ready(self) -> bool:
         """Antwortet der Gast-Agent (Gast fertig gebootet)?"""
         port = self.qga_endpoint()
@@ -1367,9 +1387,15 @@ class VM:
             pid = None
         if pid is not None:
             return self._guest_exec_follow(port, pid, pos, emit, timeout)
+        if not password and not ssh_prompt and self.gast_agent_abwarten():
+            with contextlib.suppress(qemu.GuestAgentError):
+                with qemu.GuestAgent(port, timeout=5) as ga:
+                    pid = ga.execute("guest-exec", path="/bin/bash", arg=["-c", script],
+                                     **{"capture-output": True})["pid"]
+            if pid is not None:
+                return self._guest_exec_follow(port, pid, pos, emit, timeout)
         if not password and not ssh_prompt:
-            raise NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort "
-                                "des Agent-PCs gebraucht.")
+            raise NeedsPassword(GAST_AGENT_FEHLT)
         lines: list[str] = []
 
         def collect(line: str) -> None:
@@ -1519,6 +1545,11 @@ class UpgradeResult:
         if self.reboot_required:
             text += " Ein Neustart des Agent-PCs ist nötig."
         return text
+
+
+START_WARTEN = 150   # so lange nach dem Start wartet die App auf den Gast-Agent, bevor sie nach dem Passwort fragt
+GAST_AGENT_FEHLT = ("Der Agent-PC antwortet gerade nicht direkt. Mit seinem Passwort geht es trotzdem – es wird nicht "
+                    "gespeichert. Ist er eben erst gestartet, „Abbrechen“ und in einer Minute noch einmal versuchen.")
 
 
 class NeedsPassword(RuntimeError):
