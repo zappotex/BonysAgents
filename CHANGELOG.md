@@ -3,6 +3,51 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.30.0 – Bony's Agents auf Englisch / in English
+
+### Neu
+- **Sprache wählbar:** ⓘ → „Sprache / Language“ mit „Automatisch“, „Deutsch“ und „English“, wirkt nach einem
+  Neustart. „Automatisch“ folgt der Systemsprache (Deutsch bei `de*`, sonst Englisch).
+- **Agent-PC auf Englisch:** „Neuer Agent-PC“ fragt nach der „Sprache des Agent-PCs“ (Standard: die der App,
+  CLI `create --sprache de|en`). Englisch heißt: `en_US.UTF-8`, US-Tastatur (änderbar), Ordner wie „Desktop“,
+  „Projects“ und „Agent Notes“, englische Starter-Texte und Hermes hört und spricht Englisch (Piper „Lessac“, Edge
+  „Aria“). Kurspakete richten den Agent-PC in ihrer `sprache` ein. Nachinstallierte Programme und Desktops richten
+  sich nach der Sprache im Agent-PC selbst – bestehende Agent-PCs bleiben unverändert deutsch.
+- **Handbücher auf Englisch:** `BonysAgents-User-Guide-….pdf` und `BonysAgents-Trainer-Guide-….pdf` an jedem Release
+  (Quelltext `docs/handbuch/en/`, Bildschirmfotos mit englischer Oberfläche). „Hilfe (Anleitung)“ öffnet das
+  Handbuch in der Sprache der App. Dazu eine englische README (`README.en.md`).
+- **Englisch nachgezogen:** der Kursraum (Seite mit Knöpfen, Chat-Hinweisen und Dialogen), die Schritte der
+  Einrichtung im Fortschritt („Step 5 of 10 – Install Hermes Agent“), die Liste „Persönliche Daten entfernen“ beim
+  Speichern als Vorlage, die Gliederung im Kurspaket-Editor und die Prüfspalte „✓ geschafft“.
+- **Kurspakete auf Englisch:** alle mitgelieferten Kurspakete gibt es zusätzlich auf Englisch (ID mit „-en“) – die
+  vier fertigen („Introduction to Hermes Agent“, „What is an MCP server?“, „n8n basics“, „Bony's VPN“) und die fünf
+  Entwürfe. Die Bibliothek und „Aus dem Internet …“ zeigen die Fassung in der Sprache der App, **„Alle Sprachen“**
+  zeigt beide. Ein Agent-PC für ein englisches Paket wird englisch eingerichtet; PDFs aus dem Editor (Ablaufplan,
+  Handout) richten sich nach der Sprache des Pakets. Dazu der englische Beispielkurs als PDF am Release.
+- **Agenten-Apps auf Englisch:** In einem englischen Agent-PC zeigt die Liste „Agent Apps“ englische Texte, der
+  Arbeitsordner heißt `~/Agent-Files`. Online: zappotex.github.io/BonysAgents/agenten-apps/en/.
+- **Seiten der Kursleiter-Version im Browser** (Vorführung ansehen, Hilfe im eigenen Netz) richten sich nach der
+  Sprache des Browsers, die Hilfe-Ansicht im Fenster nach der Sprache der App; Fehlermeldungen dieser Server kommen
+  in der Sprache des Browsers.
+
+### Noch deutsch
+- Mission Control, Meldungen des Bony-Netz-Servers (z. B. „Der Kurs ist voll“), die Webseiten (Schulung, Kursportal)
+  und der Schriftzug im Hintergrundbild – sie folgen als eigene Schritte.
+
+### Intern
+- Übersetzung über `i18n.tr("deutscher Text")` mit englischem Katalog `resources/i18n/en.json` (rund 2.400 Texte);
+  Texte, die im Code deutsch bleiben (Zustände, Beschreibungen), sind mit `n_()` markiert und werden beim Anzeigen
+  übersetzt. `packaging/i18n-sammeln.py` sammelt die Texte; Tests verlangen für jeden eine Übersetzung mit denselben
+  Platzhaltern und öffnen alle Fenster und Dialoge auf Englisch. `BONYS_AGENTS_SPRACHE=de|en` hat Vorrang (die Tests
+  laufen damit fest auf Deutsch).
+- Seiten im Browser übersetzt `i18n.seiten_texte()`/`seiten_js()` (Texte als `tr("…")` im JavaScript, `data-tr` im
+  HTML, `texte.js` aus dem Katalog) – für Kursraum, Hilfe-Ansicht und Vorführseiten; der Sammler nimmt sie mit.
+- Katalog (`index.json`) und Prüfbericht des Kursportals tragen die Sprache des Pakets (`sprache`).
+- Handbuch-Vorlage zweisprachig (Kästen, Inhalt, Fußzeile, Lizenzseite nach `-M sprache=en`), `erstellen.sh` nimmt
+  die Bildschirmfotos auf Deutsch und Englisch auf (`bildschirmfotos.py --sprache`). Die von Hand gemachten Bilder
+  n8n, Software-Center und Agenten-Apps liegen jetzt in `bilder/eigene/` – vorher hätte `erstellen.sh` sie beim
+  Neuaufnehmen gelöscht.
+
 ## 0.29.0 – Musik & Radio beim Lernen
 
 ### Neu

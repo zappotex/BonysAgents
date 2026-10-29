@@ -3,10 +3,12 @@
 
 from pathlib import Path
 
-__version__ = "0.29.0"
+from bonys_agents.i18n import n_
+
+__version__ = "0.30.0"
 APP_NAME = "Bony's Agents"
 APP_ID = "bonys-agents"
-TAGLINE = "Mit KI lernen, arbeiten und kreativ sein – aber der Mensch bleibt am Steuer"
+TAGLINE = n_("Mit KI lernen, arbeiten und kreativ sein – aber der Mensch bleibt am Steuer")
 
 YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@BonysAgents"
 # Vorstellungsvideo – sobald es online ist, nur diese Zeile ändern.
