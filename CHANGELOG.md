@@ -3,6 +3,16 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.29.0 – Musik & Radio beim Lernen
+
+### Neu
+- **Musik & Radio beim Lernen:** Leiste unten im Hauptfenster (♪, ▶/⏸, nächster Titel, Lautstärke). Radio: die acht
+  Kanäle von Hirschmilch (Chillout, Electronic, Hypnotic, Organic House, Prog House, Progressive, Psytrance, Techno)
+  und eigene Sender (nur `https://`, von Hand oder aus `.m3u`/`.pls`). Eigene Musik: Ordner und einzelne
+  Dateien (MP3, OGG, Opus, FLAC, M4A, AAC, WAV), auf Wunsch zufällig. Nichts spielt von selbst, auch nicht nach dem
+  Neustart; die Musik läuft weiter, während Lektionen und Agent-PCs wechseln. Nicht in Linux arm64 (dort fehlt
+  Qt Multimedia).
+
 ## 0.28.2 – Tor Browser mit voller Sandbox, ruhigerer Start
 
 ### Behoben
