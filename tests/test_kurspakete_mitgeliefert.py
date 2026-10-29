@@ -66,7 +66,7 @@ def test_englische_fassungen_passen_zur_deutschen():
             assert len(le.quiz()) == len(next(d for d in de.lektionen if d.ordner == le.ordner).quiz())
         for md in ("ablaufplan.md", "handout.md"):
             if (o / md).is_file():
-                assert "lang: en" in (o / md).read_text(), f"{o.name}/{md}"
+                assert "lang: en" in (o / md).read_text("utf-8"), f"{o.name}/{md}"
 
 
 def test_werden_als_mitgeliefert_gefunden():
@@ -80,7 +80,7 @@ def test_hermes_paket():
     assert sum(lek.dauer_minuten for lek in p.lektionen[:8]) + p.pause_minuten == 120
     assert [lek.pruefung.typ for lek in p.lektionen if lek.pruefung] == ["skript", "skript", "vorlage-vorhanden"]
     assert len(p.lernziele) == 6 and "kostenlos" in p.kosten
-    text = (HERMES / "ablaufplan.md").read_text() + (HERMES / "handout.md").read_text()
+    text = (HERMES / "ablaufplan.md").read_text("utf-8") + (HERMES / "handout.md").read_text("utf-8")
     assert "Nous" in text and "hermes --tui" in text and "/tools" in text and "64K" in text
     assert "<!--" not in text   # Bony's Agents zeigt kein HTML
 
@@ -107,7 +107,7 @@ def test_hermes_pruefskripte_in_einem_test_home(tmp_path):
     (home / ".hermes" / "config.yaml").write_text("model:\n  provider: nous\n  default: hermes-free\n",
                                                   encoding="utf-8")
     assert rc(sys.executable, "-I", str(hermes)) == 0
-    assert ".env" not in [z for z in hermes.read_text().splitlines() if not z.lstrip().startswith("#")][0]
+    assert ".env" not in [z for z in hermes.read_text("utf-8").splitlines() if not z.lstrip().startswith("#")][0]
 
     if shutil.which("bash") is None:
         pytest.skip("ohne bash")
@@ -130,9 +130,9 @@ def test_reihe_agenten_mcp_n8n():
     assert mcp.rezept.apps == ["brave", "hermes", "agenten-apps"] and n8n.rezept.apps == ["brave", "n8n"]
     # n8n-Prüfungen lesen die Datenbank im Docker-Volume – das geht nur als root
     assert {lek.pruefung.als for lek in n8n.lektionen if lek.pruefung and "n8n" in lek.pruefung.skript} == {"root"}
-    text = (N8N / "lektionen" / "05-erster-workflow" / "anleitung.md").read_text()
+    text = (N8N / "lektionen" / "05-erster-workflow" / "anleitung.md").read_text("utf-8")
     assert "Publish" in text and "RSS Feed Trigger" in text and "Execute step" in text
-    assert "Webseiten abrufen" not in "".join(p.read_text() for p in MCP.rglob("*.md"))   # Eintrag ausgesetzt
+    assert "Webseiten abrufen" not in "".join(p.read_text("utf-8") for p in MCP.rglob("*.md"))   # Eintrag ausgesetzt
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Prüfskripte sind für Linux im Agent-PC")
@@ -196,7 +196,7 @@ def test_vpn_paket():
     assert p.rezept.apps == ["brave", "vpn"] and not p.entwurf
     # bonys-vpn status braucht im Agent-PC root (bzw. pkexec) – die Prüfungen mit Tunnel laufen deshalb als root
     assert [lek.pruefung.als for lek in p.lektionen if lek.pruefung] == ["benutzer", "root", "root", "root"]
-    text = "".join(f.read_text() for f in VPN.rglob("*.md"))
+    text = "".join(f.read_text("utf-8") for f in VPN.rglob("*.md"))
     assert "nicht anonym" in text and "Kill-Switch" in text and "dnsleaktest" in text
     assert "<!--" not in text
 
@@ -227,7 +227,7 @@ def test_vpn_pruefskripte(tmp_path):
     if shutil.which("bash"):
         assert subprocess.run(["bash", str(geladen.with_name("loesung.sh"))], env=env, timeout=30).returncode == 0
         demo = home / "Downloads" / "demo-nl.conf"
-        assert demo.stat().st_mode & 0o077 == 0 and "vpn.example.net" in demo.read_text()
+        assert demo.stat().st_mode & 0o077 == 0 and "vpn.example.net" in demo.read_text("utf-8")
         assert rc(geladen) == 0
         demo.unlink()
     (home / "Downloads" / "proton.zip").write_bytes(b"PK")
@@ -255,7 +255,7 @@ def test_vpn_pruefskripte(tmp_path):
     setze(active=None, tunnels=[], killswitch=aus)
     assert rc(lek / "07-aufraeumen-und-abschluss" / "pruefung" / "conf-aufgeraeumt.py") == 1
     for skript in VPN.rglob("pruefung/*.py"):
-        code = skript.read_text()
+        code = skript.read_text("utf-8")
         assert "read_text" not in code and "open(" not in code, skript   # nie eine Konfiguration öffnen
 
 
@@ -290,7 +290,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
         (o / kurslauf.SIGNATUR).write_text(signing.sign(daten, secret, key_id, "Kurspaket von Bony's Agents v0"),
                                            encoding="utf-8")
     index = m.packen(bau, tmp_path / "out", public)
-    katalog = json.loads(index.read_text())
+    katalog = json.loads(index.read_text("utf-8"))
     assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == len(ordner)
     hermes = next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent")
     assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.1.bonyspaket" and "entwurf" not in hermes
@@ -317,6 +317,6 @@ def test_pack_skript_der_release_aktion(tmp_path):
 
 
 def test_handbuch_baut_den_beispielkurs_aus_dem_paket():
-    skript = (ROOT / "docs" / "handbuch" / "erstellen.sh").read_text()
+    skript = (ROOT / "docs" / "handbuch" / "erstellen.sh").read_text("utf-8")
     assert "kurspakete/einfuehrung-hermes-agent" in skript
     assert not (ROOT / "docs" / "handbuch" / "beispielkurs.md").exists()   # nur eine Quelle

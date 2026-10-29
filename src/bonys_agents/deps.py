@@ -68,39 +68,39 @@ def check(info: host.HostInfo | None = None) -> Report:
         qemu_bin = qemu.find_binary(qemu.ARCH_BINARY[info.arch], info.os)
         qemu.find_binary("qemu-img", info.os)
     except qemu.QemuNotFound:
-        r.issues.append(Issue("qemu", "QEMU (die Virtualisierungs-Software) ist nicht installiert.", True, True))
+        r.issues.append(Issue("qemu", tr("QEMU (die Virtualisierungs-Software) ist nicht installiert."), True, True))
 
     if qemu_bin and info.arch == "aarch64":
         try:
             qemu.find_aarch64_firmware(qemu_bin)
         except qemu.QemuNotFound:
-            r.issues.append(Issue("firmware", "UEFI-Firmware für ARM64 fehlt.", True, True))
+            r.issues.append(Issue("firmware", tr("UEFI-Firmware für ARM64 fehlt."), True, True))
 
     if info.os == "linux":
         if not os.path.exists("/dev/kvm"):
             r.issues.append(Issue(
                 "kvm-missing",
-                "Keine Hardware-Virtualisierung (/dev/kvm fehlt). Meist muss sie im BIOS/UEFI "
-                "eingeschaltet werden (Intel VT-x bzw. AMD-V/SVM).", True, False,
+                tr("Keine Hardware-Virtualisierung (/dev/kvm fehlt). Meist muss sie im BIOS/UEFI "
+                   "eingeschaltet werden (Intel VT-x bzw. AMD-V/SVM)."), True, False,
             ))
         elif not os.access("/dev/kvm", os.R_OK | os.W_OK):
-            r.issues.append(Issue("kvm-access", "Dein Benutzer darf KVM noch nicht verwenden.", True, False))
+            r.issues.append(Issue("kvm-access", tr("Dein Benutzer darf KVM noch nicht verwenden."), True, False))
     elif info.os == "windows":
         if host.windows_hypervisor_state() == "disabled":
             r.issues.append(Issue(
-                "whpx", "Die Windows-Hypervisorplattform ist ausgeschaltet – VMs liefen sehr langsam.", True, False,
+                "whpx", tr("Die Windows-Hypervisorplattform ist ausgeschaltet – VMs liefen sehr langsam."), True, False,
             ))
     elif info.os == "macos":
         if qemu_bin is None and find_brew(info.arch) is None:
             r.issues.append(Issue(
-                "homebrew", "Homebrew fehlt – damit wird QEMU installiert (kostenlos, von brew.sh).", True, True,
+                "homebrew", tr("Homebrew fehlt – damit wird QEMU installiert (kostenlos, von brew.sh)."), True, True,
             ))
         if info.accel != "hvf":
-            r.issues.append(Issue("hvf", "Dieser Mac unterstützt keine Hardware-Virtualisierung.", False, False))
+            r.issues.append(Issue("hvf", tr("Dieser Mac unterstützt keine Hardware-Virtualisierung."), False, False))
         if host.macos_rosetta():
             r.issues.append(Issue(
-                "rosetta", "Hier läuft die Intel-Version von Bony's Agents auf einem Mac mit Apple-Chip. "
-                "Bitte die Version für Apple-Chip laden (…-macos-applesilicon.dmg).", False, False,
+                "rosetta", tr("Hier läuft die Intel-Version von Bony's Agents auf einem Mac mit Apple-Chip. "
+                              "Bitte die Version für Apple-Chip laden (…-macos-applesilicon.dmg)."), False, False,
             ))
     return r
 
@@ -293,7 +293,7 @@ def install(
     report = report or check(info)
     keys = {i.key for i in report.fixable}
     if not keys:
-        return InstallResult(True, message="Alles ist bereits installiert.")
+        return InstallResult(True, message=tr("Alles ist bereits installiert."))
 
     reboot = False
     try:
@@ -302,23 +302,24 @@ def install(
             script = linux_root_script(info, report, user, linux_package_manager())
             log(tr("Installiere mit Administratorrechten (Passwortabfrage) …"))
             if _run(_elevate_linux(script, gui), log) != 0:
-                return InstallResult(False, message="Installation abgebrochen oder fehlgeschlagen.")
+                return InstallResult(False, message=tr("Installation abgebrochen oder fehlgeschlagen."))
 
         elif info.os == "windows":
             if "qemu" in keys:
                 if not shutil.which("winget"):
-                    return InstallResult(False, message=(
+                    return InstallResult(False, message=tr(
                         "winget fehlt. Bitte den „App-Installer“ aus dem Microsoft Store installieren "
                         "oder QEMU manuell von https://qemu.weilnetz.de/w64/ installieren."
                     ))
                 log(tr("Installiere QEMU über winget (Windows fragt nach Zustimmung) …"))
                 code = _run(WINGET_QEMU, log)
                 if code != 0 and not _qemu_present(info):
-                    return InstallResult(False, message=f"QEMU-Installation fehlgeschlagen (Code {code}).")
+                    return InstallResult(False, message=tr("QEMU-Installation fehlgeschlagen (Code {code}).",
+                                                           code=code))
             if "whpx" in keys:
                 log(tr("Schalte die Windows-Hypervisorplattform ein (Windows fragt nach Zustimmung) …"))
                 if _run(ENABLE_WHPX, log) != 0:
-                    return InstallResult(False, message="Hypervisorplattform konnte nicht eingeschaltet werden.")
+                    return InstallResult(False, message=tr("Hypervisorplattform konnte nicht eingeschaltet werden."))
                 reboot = True
 
         elif info.os == "macos":
@@ -327,22 +328,24 @@ def install(
                 if not brew:
                     # Den Installer starten die Aufrufer (App: Terminal-Fenster, Kommandozeile: direkt),
                     # nachdem sie erklärt und gefragt haben – siehe HOMEBREW_EXPLANATION.
-                    return InstallResult(False, message="Homebrew fehlt – bitte zuerst installieren (https://brew.sh).")
+                    return InstallResult(False, message=tr("Homebrew fehlt – bitte zuerst "
+                                                                    "installieren (https://brew.sh)."))
                 if info.arch == "x86_64":
                     log(tr(INTEL_QEMU_NOTE))
                 log(tr("Installiere QEMU über Homebrew …"))
                 if _run([str(brew), "install", "qemu"], log, env=_brew_env()) != 0:
-                    return InstallResult(False, message="QEMU-Installation über Homebrew fehlgeschlagen.")
+                    return InstallResult(False, message=tr("QEMU-Installation über Homebrew fehlgeschlagen."))
     except (OSError, RuntimeError) as e:
         return InstallResult(False, message=str(e))
 
     after = check(info)
     if reboot:
-        return InstallResult(True, True, "Fertig. Bitte Windows einmal neu starten, damit die Beschleunigung wirkt.")
+        return InstallResult(True, True, tr("Fertig. Bitte Windows einmal neu starten, damit die Beschleunigung "
+                                               "wirkt."))
     if after.ok:
-        return InstallResult(True, message="Alles installiert und bereit.")
+        return InstallResult(True, message=tr("Alles installiert und bereit."))
     rest = " ".join(i.text for i in after.issues)
-    return InstallResult(after.can_run, message=("Installiert, aber: " + rest) if after.can_run else rest)
+    return InstallResult(after.can_run, message=tr("Installiert, aber: {rest}", rest=rest) if after.can_run else rest)
 
 
 def _qemu_present(info: host.HostInfo) -> bool:
