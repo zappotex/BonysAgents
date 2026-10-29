@@ -230,3 +230,16 @@ Bony hat die Zentrale aus einem frischen Klon (`~/bonys-netz`, Commit `e0e9b36`)
 ### 2026-10-29 – Claude Code (Hilfe-Fehler gefunden)
 
 Bonys echter Test: „Bildschirmfreigabe nicht gestartet“. Ursache im Test-Agent-PC `aa-test` nachgestellt (mit Bonys Ja gestartet, danach wieder aus): `-auth guess` verträgt sich nicht mit `-nocmds` – Fehler seit 0.22.0, Hilfe hat nie funktioniert. Fix: Xauthority aus dem Xorg-Aufruf (Rückfall lightdm/`~/.Xauthority`), `-quiet` entfernt, Grund aus dem Agent-PC in der Meldung. Im Agent-PC geprüft: x11vnc lauscht, `-allow` weist fremde Adresse ab („denying client … does not match“), Totmannschalter stoppt ohne Klopfen nach ca. 21 s und löscht den Passwortordner. Nicht committet.
+
+### 2026-10-29 – Claude Code (Release 0.28.1 und Bony's VPN 1.1.0)
+
+Auf Bonys Ja veröffentlicht: Bony's Agents `v0.28.1` (auf `3b9ed9d`, 26 Dateien, APT) und Bony's VPN `v1.1.0` (auf `a074e48`, APT). Vorher CI rot durch zwei nur lokal grüne Tests (macOS-`stat`, vorhandene Xauthority) – repariert. Offen: echter Kurstest mit 0.28.1, Tor-AppArmor (Variante B).
+
+### 2026-10-29 – Claude Code (Tor-AppArmor Variante B)
+
+Bonys Auftrag „mach die Tor-Korrektur Variante B“. Befund: Debian 13 liefert torbrowser-launcher 0.3.7 ohne `userns,` im Profil (Warnleiste), ab 0.3.9 steht es drin. Umgesetzt (`apps.TOR_APPARMOR`): bei Installation und bei „Agent-PC aktualisieren“ `userns,` in `/etc/apparmor.d/local/torbrowser.Browser.firefox`, nur wenn es im Profil fehlt und AppArmor ≥ 4; lädt das Profil nicht, wird die Zeile wieder entfernt. Debian-13-Profil mit der Zeile per `apparmor_parser -Q -K` übersetzt (ok). Test mit nachgebautem apparmor_parser (4 Fälle). Nicht committet; nicht in einem echten Agent-PC mit Tor Browser geprüft.
+
+### 2026-10-29 – Claude Code (Passwortfrage beim Start)
+
+Bony: Beim Start eines Agent-PCs fragt die App nach dem Passwort „für SSH“ – verunsichert Nutzer. Ursache: Gast-Agent antwortet beim Hochfahren noch nicht, `guest_run`, `stream`, `vpnlink`, `netz.nachtraeglich_verbinden` fragten sofort. Neu: `VM.gast_agent_abwarten` (bis 150 s nach dem Start), danach erst `NeedsPassword` mit verständlichem Text `vm.GAST_AGENT_FEHLT`. Tests ergänzt. Nicht committet.
+- Echt geprüft in tor-test (Debian 13, torbrowser-launcher 0.3.7, AppArmor 4.1): vorher `DENIED userns_create profile=torbrowser_firefox`, nach der Korrektur Namensraum erlaubt; zweiter Lauf ändert nichts.

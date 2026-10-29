@@ -3,6 +3,20 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
+## 0.28.2 – Tor Browser mit voller Sandbox, ruhigerer Start
+
+### Behoben
+- **Keine Passwortfrage mehr, während der Agent-PC hochfährt:** Bony's Agents fragte nach dem Passwort „für SSH“, wenn
+  der Agent-PC noch startete (sein Gast-Agent antwortete noch nicht). Jetzt wartet die App in den ersten zweieinhalb
+  Minuten nach dem Start auf ihn. Kommt die Frage danach doch, erklärt sie verständlich, warum, und dass das Passwort
+  nicht gespeichert wird.
+
+### Geändert
+- **Tor Browser mit voller Firefox-Sandbox:** Unter Debian 13 verbot das AppArmor-Profil von torbrowser-launcher
+  (0.3.7) die Sandbox – der Tor Browser warnte „Einige Sicherheitsfunktionen … weniger Schutz“. Bony's Agents ergänzt
+  jetzt im Agent-PC die fehlende Regel (`userns,` in der lokalen Ergänzung des Profils, nur mit AppArmor ab 4; neuere
+  Pakete haben sie schon selbst). Vorhandene Agent-PCs bekommen sie mit „Agent-PC aktualisieren“.
+
 ## 0.28.1 – Sicherheit und Hilfe-Funktion
 
 Braucht die Zentrale **Bony-Netz 0.2.1** (auf `zentrale.bony23.de` schon aktiv). Mit einer älteren Zentrale gilt
