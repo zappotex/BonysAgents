@@ -718,6 +718,20 @@ Kursleitung nur, **in welcher Lektion** du bist und ob die **Prüfaufgabe gescha
 deine Antworten im Quiz.
 :::
 
+## Lerne auch mit Musik
+
+Unten links im Hauptfenster steht **„Lerne auch mit Musik:“** mit einem kleinen Player.
+
+- **♪** öffnet das Fenster „Musik & Radio“. Unter **„Radio“** findest du die Kanäle von Hirschmilch (Chillout,
+  Electronic, Techno …); mit **„Sender hinzufügen …“** trägst du einen eigenen Sender ein (Adresse mit `https://`),
+  mit **„Wiedergabeliste öffnen …“** übernimmst du Sender aus einer `.m3u`- oder `.pls`-Datei.
+- Unter **„Eigene Musik“** wählst du einen Ordner oder einzelne Dateien von deinem Rechner (MP3, OGG, FLAC, M4A, WAV),
+  auf Wunsch in zufälliger Reihenfolge.
+- **▶ / ⏸** startet und hält an, **⏭** springt zum nächsten Titel, der Regler stellt die Lautstärke ein.
+
+Es spielt **nichts von selbst** – auch nicht nach einem Neustart. Die Musik läuft weiter, während du Lektionen und
+Agent-PCs wechselst.
+
 # An einem Kurs teilnehmen
 
 ## Zwei Arten von Kursen
@@ -896,6 +910,7 @@ Ins Internet geht nur das:
 | Schulung im eigenen Netz | nur der Rechner der Kursleitung | dein Rechnername bzw. der Name, den du eingibst; mit Kurspaket deine Lektion und „geschafft / noch nicht“ |
 | Kurspakete aus dem Internet (nur auf Klick) | GitHub (Repository bonys-agents-kurspakete) | die Liste der Kurspakete bzw. den Download |
 | Kurs mit Kurspaket | der Bony-Netz-Server | deine Lektion und ob die Prüfaufgabe geschafft ist |
+| Radio hören (nur, wenn du einen Sender startest) | der gewählte Sender | deine IP-Adresse und der Stream – Bony's Agents speichert dazu nichts |
 
 **Was im Agent-PC passiert**, entscheidest du: Die KI und der Browser im Agent-PC schicken Daten an die Dienste,
 die du dort benutzt (zum Beispiel an den Anbieter deines KI-Modells).

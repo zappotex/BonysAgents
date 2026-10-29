@@ -56,7 +56,7 @@ EXCLUDES = [
     "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickWidgets",
     "PySide6.QtOpenGLWidgets", "PySide6.QtSql", "PySide6.QtTest",
     "PySide6.QtXml", "PySide6.QtConcurrent", "PySide6.QtDBus",   # QtPrintSupport braucht QtWebEngineCore
-    "PySide6.QtHelp", "PySide6.QtMultimedia", "PySide6.QtPdf",
+    "PySide6.QtHelp", "PySide6.QtPdf",
     "tkinter", "unittest", "pydoc",
 ] + ([] if TRAINER else [editions.TRAINER_PACKAGE])
 HIDDEN = ["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.gui.share_dialogs",
@@ -65,6 +65,9 @@ HIDDEN = ["bonys_agents.gui.app", "bonys_agents.gui.main_window", "bonys_agents.
 # Kursraum (Qt WebEngine) – nicht in Linux arm64 (dort ist PySide6-WebEngine nicht installiert, siehe Lock-Datei)
 if importlib.util.find_spec("PySide6.QtWebEngineWidgets") is not None:
     HIDDEN += ["PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore", "PySide6.QtWebChannel"]
+# Musik & Radio (Qt Multimedia mit FFmpeg) – wie WebEngine nur, wenn PySide6-Addons da ist (nicht Linux arm64)
+if importlib.util.find_spec("PySide6.QtMultimedia") is not None:
+    HIDDEN += ["PySide6.QtMultimedia"]
 if not (ROOT / "src" / "bonys_agents" / "resources" / "kursraum" / "vendor" / "livekit-client.umd.js").is_file():
     raise SystemExit("livekit-client fehlt – erst python packaging/fetch-livekit.py ausführen.")
 if TRAINER:   # werden erst bei Bedarf importiert – PyInstaller fände sie sonst nicht

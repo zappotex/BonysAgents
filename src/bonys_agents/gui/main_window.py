@@ -24,7 +24,7 @@ from bonys_agents import (
 )
 from bonys_agents import progress as pct
 
-from . import style
+from . import musik_ui, style
 from .about_dialog import AboutDialog
 from .create_dialog import CreateDialog
 from .desktop_dialog import AddDesktopDialog
@@ -298,6 +298,10 @@ class MainWindow(QMainWindow):
         sysinfo.setObjectName("Muted")
         sysinfo.setWordWrap(True)
         self.statusBar().addPermanentWidget(sysinfo)
+        # Musik & Radio: links neben der Versionsangabe (fehlt, wenn Qt Multimedia nicht vorhanden ist)
+        self.musik = musik_ui.leiste(self)
+        if self.musik:
+            self.statusBar().insertPermanentWidget(0, self.musik)
 
         self._zoom_actions()
         self._restore_window()
@@ -430,6 +434,8 @@ class MainWindow(QMainWindow):
         from .kursraum_fenster import alle_schliessen
 
         alle_schliessen()   # offene Kursräume verlassen (sie sind eigene Fenster)
+        if self.musik:
+            self.musik.abspieler.stop()
         super().closeEvent(event)
 
     def check_updates(self, manual: bool) -> None:

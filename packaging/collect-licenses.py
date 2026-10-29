@@ -189,7 +189,7 @@ def qt_and_icu(content: Path, out: Path, tmp: Path) -> tuple[str, Path]:
 
     repos = ["qtbase"] + (["qtsvg"] if has("Svg") else []) + (["qtwayland"] if has("Wayland") else []) \
         + (["qtdeclarative"] if has("Qml") else []) + (["qtpositioning"] if has("Positioning") else []) \
-        + (["qtwebchannel"] if has("WebChannel") else [])
+        + (["qtwebchannel"] if has("WebChannel") else []) + (["qtmultimedia"] if has("Multimedia") else [])
     text = ""
     base = None
     for repo in repos:
@@ -283,6 +283,27 @@ def webengine(content: Path, out: Path) -> str:
 SYSTEM_LIB_DIRS = ("/lib", "/usr/lib", "/lib64", "/usr/lib64")
 
 
+FFMPEG_LIBS = ("libavcodec", "libavformat", "libavutil", "libswresample", "libswscale", "libQt6FFmpegStub",
+               "avcodec-", "avformat-", "avutil-", "swresample-", "swscale-")
+
+
+def ffmpeg(content: Path, out: Path) -> str:
+    """Qt Multimedia (Musik & Radio) bringt FFmpeg mit – LGPL-2.1-or-later, Text und Quelle beilegen."""
+    libs = sorted({p.name for p in content.rglob("*") if p.is_file() and p.name.startswith(FFMPEG_LIBS)})
+    if not any(n.startswith(("libavcodec", "avcodec-")) for n in libs):
+        return ""
+    url = "https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/COPYING.LGPLv2.1"
+    with urllib.request.urlopen(url, timeout=60) as r:
+        text = r.read().decode("utf-8")
+    (out / "FFmpeg-LICENSE.txt").write_text(
+        "FFmpeg (mit Qt Multimedia aus PySide6-Addons mitgeliefert, für Musik & Radio)\n"
+        "Lizenz: GNU Lesser General Public License 2.1 oder neuer (LGPL-2.1-or-later)\n"
+        "Bibliotheken: " + ", ".join(libs) + "\n"
+        "Quelltexte: https://ffmpeg.org/download.html – Bauweise in Qt: "
+        "https://doc.qt.io/qt-6/qtmultimedia-attribution-ffmpeg.html\n\n" + text, "utf-8")
+    return "FFmpeg (Musik & Radio): FFmpeg-LICENSE.txt"
+
+
 def debian_packages(content: Path, out: Path) -> tuple[list[str], list[str]]:
     """Linux: Paket jeder mitgelieferten System-Bibliothek (dpkg -S mit ihrem Pfad im System) und dessen copyright.
 
@@ -294,8 +315,8 @@ def debian_packages(content: Path, out: Path) -> tuple[list[str], list[str]]:
     internal = content / "_internal" if (content / "_internal").is_dir() else content
     pkgs, unknown = set(), []
     for lib in sorted(p for p in internal.iterdir() if p.is_file() and ".so" in p.name):
-        if lib.name.startswith(("libpython", "libQt6", "libicu", "libpyside6", "libshiboken6")):
-            continue  # Python, Qt/PySide6 und ICU aus dem Qt-Wheel – oben erfasst
+        if lib.name.startswith(("libpython", "libQt6", "libicu", "libpyside6", "libshiboken6") + FFMPEG_LIBS):
+            continue  # Python, Qt/PySide6, ICU und FFmpeg aus dem Qt-Wheel – oben erfasst
         r = subprocess.run(["dpkg", "-S", f"*/{lib.name}"], capture_output=True, text=True)
         found = {line.split(":")[0] for line in r.stdout.splitlines()
                  if ":" in line and line.split(": ", 1)[-1].startswith(SYSTEM_LIB_DIRS)}
@@ -325,6 +346,7 @@ def main() -> int:
         pkgs = packages(content, out, qt_licenses)
         ssl = openssl(content, out, qt_licenses)
     web = webengine(content, out)
+    av = ffmpeg(content, out)
     deb, unknown = debian_packages(content, out)
     index = [
         "Lizenztexte der mitgelieferten Komponenten (beim Bauen aus dem Programmordner erzeugt)",
@@ -334,6 +356,7 @@ def main() -> int:
         f"Qt {qt_version} und dessen Drittkomponenten: Qt-third-party.txt"
         + (" (ICU: ICU-*-LICENSE.txt)" if list(out.glob("ICU-*")) else ""),
         *([web] if web else []),
+        *([av] if av else []),
         "Python-Pakete (Ordner python/):",
         *[f"  {p}" for p in pkgs],
     ]

@@ -172,6 +172,7 @@ QLabel, QCheckBox {{ background: transparent; }}
 QLabel#Title {{ font-size: 22px; font-weight: 600; }}
 QLabel#Tagline {{ color: {HIGHLIGHT}; font-size: 13px; }}
 QLabel#Muted {{ color: {MUTED}; }}
+QLabel#MusikEinladung {{ color: {WARN}; font-family: "Pacifico"; font-size: 16px; font-weight: 700; }}
 QLabel#Section {{ color: {MUTED}; font-size: 12px; font-weight: 600; letter-spacing: 1px; }}
 QFrame#Card {{
     background: {PANEL_GLASS};
