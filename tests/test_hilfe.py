@@ -75,11 +75,17 @@ def test_des_und_vnc_passwoerter():
 
 
 # ---------------------------------------------------------------- Startskript im Agent-PC
-def _falsche_programme(tmp_path: Path, ip="100.64.0.7", x11vnc=True, apt_ok=True, lauscht=True) -> dict:
+def _falsche_programme(tmp_path: Path, ip="100.64.0.7", x11vnc=True, apt_ok=True, lauscht=True,
+                       xserver=True) -> dict:
     bin_ = tmp_path / "bin"
     bin_.mkdir(parents=True)
     log = tmp_path / "aufrufe.log"
+    auth = tmp_path / "xauth-0"
+    auth.write_text("schluessel")
     programme = {
+        # X-Server wie im Agent-PC (lightdm) – nennt seine Zugangsdatei selbst
+        "ps": (f'echo "/usr/lib/xorg/Xorg :0 -seat seat0 -auth {auth} -nolisten tcp vt7"' if xserver
+               else "echo /sbin/init"),
         "tailscale": f'[ "$1 $2" = "ip -4" ] && echo "{ip}"',
         "systemd-run": f'printf "%s\\n" "$*" >> {log}; cp "$(echo "$*" | sed -n "s/.*rm:\\([^ ]*\\).*/\\1/p")" '
                        f'{tmp_path}/gelesen; exit 0',
@@ -123,6 +129,7 @@ def test_startskript_lauscht_nur_im_bony_netz(tmp_path):
     assert x[x.index("-listen") + 1] == "100.64.0.7" and "-noipv6" in x
     assert "-once" in x and x[x.index("-timeout") + 1] == "120" and "-viewonly" in x
     assert x[x.index("-passwdfile") + 1] == f"rm:{ordner}/passwort"
+    assert x[x.index("-auth") + 1] == str(tmp_path / "xauth-0") and "-nocmds" in x
     assert "Ab3dEf7h" not in aufruf               # nie auf der Kommandozeile
     assert (tmp_path / "gelesen").read_text() == "Ab3dEf7h\n"
     assert stat.S_IMODE(ordner.stat().st_mode) == 0o700
