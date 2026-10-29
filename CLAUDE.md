@@ -20,7 +20,7 @@ Die Kombination aus Agent-PCs, Lernumgebung, Kurspaketen, Bony-Netz und Mission 
 
 ## Aktueller Stand
 
-- Aktueller Code-Stand: Bony's Agents `0.28.0`.
+- Aktueller Code-Stand: Bony's Agents `0.29.0`.
 - Öffentliche Repository-Basis: `https://github.com/zappotex/BonysAgents`.
 - Mission Control und Bony-Netz sind eigene, verbundene Projekte.
 - Die Schulungswebsite `https://schulung.bony23.de` ist ein getrenntes Docker/Caddy-Projekt. Claude deployt sie nicht und ändert den Server nicht.

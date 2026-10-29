@@ -63,6 +63,25 @@ Alles uncommitted im Arbeitsbaum, nichts committet/gepusht/getaggt.
 - Prüfliste durchgesehen und entschieden (28.10.2026, siehe Abschnitt 5 der Prüfliste): Punkte 1–15 und alle neun Restrisiken vertretbar, kein Einreicher-Token vorerst, Moderator nur Bony, SSH-Zugang von Claude bleibt bis nach Bonys App-Test.
 - Online-Dialog der App von Bony am echten Server getestet (28.10.2026, siehe Protokoll); Katalogeintrag in der App von Bony bestätigt; offen: SSH-Zugang von Claude bis Bonys „fertig“.
 
+## Neue Produktideen
+
+### Kurs „Stricken lernen"
+
+- Entwurf liegt unter `kurspakete/stricken-lernen/`.
+- Version `0.1.0`, aktuell `entwurf: true`.
+- Fünf Lektionen, Ablaufplan, Handout und zwei Quizdateien.
+- Die praktische Tätigkeit findet mit echten Nadeln und Garn statt; Bony's Agents begleitet digital.
+- ElevenLabs-Sprechprobe mit Voice-ID `SfNQWfFVL6TQ3DIRvFyM` gefällt Bony.
+- Audio ist geplant, aber noch nicht in das Kurspaket eingebaut. Das Dateiformat muss vorher geprüft werden.
+
+### Musik oder Radio beim privaten Lernen
+
+- Spätere optionale Audioebene neben dem Kurs.
+- Bewusste Aktivierung, keine automatische Wiedergabe.
+- Lokale Musik oder sauber unterstützte Streams prüfen.
+- Pause, Lautstärke und Quellenwechsel; Audio darf Kursanweisungen nicht überdecken.
+- Noch kein aktueller Programmierauftrag.
+
 ## Übergabe Phaseone → Claude
 
 Phaseone erwartet nach jedem Arbeitsblock einen vollständigen Bericht mit:
@@ -252,3 +271,29 @@ Bony hat die Kursfunktionen mit 0.28.1 auf zwei Rechnern getestet: „alles hat 
 ### 2026-10-29 – Claude Code (Release 0.28.2)
 
 Veröffentlicht (Bonys Freigabe ohne weitere Rückfrage): Tag `v0.28.2` auf `aadcbb9` – Tor-Browser-Sandbox (echt in tor-test geprüft), keine Passwortfrage beim Hochfahren. Windows-Testjob im Release-Lauf wegen Zeitlimit abgebrochen, neu gestartet, grün; 26 Dateien, APT 0.28.2. Offen: Probekurs (Totmannschalter, Kurs > 15 min, Entfernen).
+
+### 2026-10-29 – Phaseone0815
+
+Abschnitt „Neue Produktideen“ ergänzt: Strickkurs, geplante ElevenLabs-Audioebene und spätere Musik-/Radio-Idee.
+
+### 2026-10-29 – Claude Code (STATUS wiederhergestellt)
+
+Phaseones Ergänzung hatte die Datei auf einer veralteten Fassung (Stand 0.27.1) neu geschrieben, das Protokoll vom 28./29.10. fehlte. Auf Bonys Ja die Fassung aus `8e4f511` wiederhergestellt und Phaseones Abschnitt „Neue Produktideen“ übernommen. **Bitte vor dem Schreiben immer die aktuelle Datei lesen und nur ergänzen.**
+Befunde zum Strickkurs: `kurspakete/stricken-lernen/` liegt noch nicht in diesem Repository – Validatorprüfung steht aus. Das Kurspaket-Format erlaubt derzeit keine Audiodateien (`ENDUNGEN` in `src/bonys_agents/kurspaket.py` nur Text, JSON, Skripte, Bilder); gesprochene Lektionen brauchen eine Formaterweiterung. **Entscheidung erforderlich (Bony):** Vorschlag für die Audio-Erweiterung ausarbeiten (nur Dokument, keine Codeänderung). Nichts committet.
+
+### 2026-10-29 – Claude Code (Vorschlag Audio-Erweiterung)
+
+Auf Bonys Ja: Vorschlag `docs/dev/plan-kurspaket-audio.md` (nur Dokument, kein Code geändert). Kern: optionales Lektionsfeld `audio` mit Pflicht-Transkript, nur Ogg/Opus mit Kopfprüfung, Grenzen 10 MB/Datei und 100 MB gesamt, `format_version` bleibt 1, neue `min_version`; Portal mindestens `needs_review`; Wiedergabe im Anleitungsfenster ohne Autoplay; Editor muss `audio` erhalten (heute ginge es beim Speichern verloren). Musik/Radio als späterer App-Teil (nicht im Paketformat), mit Vorrang für Kursansagen. **Entscheidung erforderlich (Bony):** sechs Punkte in Abschnitt 5 des Vorschlags. Strickkurs-Ordner liegt weiterhin nicht im Repository. Nichts committet.
+
+### 2026-10-29 – Claude Code (Beginn: Musik & Radio in der App)
+
+Bony: „wir übergehen mal kurs es geht im moment nur Musik und Radio soll man in der app zur verfügung haben“. Entscheidungen (Rückfrage): Leiste unten in der Statusleiste + Fenster „Musik & Radio“; kleine feste Senderliste (öffentlich-rechtlich) **und** eigene Sender; eigene Musik per Ordner **und** einzelne Dateien. Strickkurs/Audio im Paket ruht. In Arbeit, nicht committet.
+
+### 2026-10-29 – Claude Code (Musik & Radio umgesetzt, wartet auf Bonys Test)
+
+Neu: `src/bonys_agents/musik.py` (Sender, eigene Sender nur `https`, `.m3u`/`.pls` als Daten, Ordnersuche ohne verlinkte/versteckte Ordner, max. 5000 Titel, Einstellungen mit Bereinigung), `src/bonys_agents/gui/musik_ui.py` (Leiste in der Statusleiste, Fenster „Musik & Radio“ mit Tabs Radio/Eigene Musik; Qt Multimedia erst beim ersten Abspielen geladen; kein Autoplay; ohne Qt Multimedia keine Leiste), `gui/main_window.py` (Leiste einbinden, beim Schließen stoppen), `tests/test_musik.py` (30 Tests, nachgebauter Player). Bau: `packaging/bonys-agents.spec` nimmt Qt Multimedia mit (war ausgeschlossen); `packaging/collect-licenses.py` legt Qt-Multimedia-Drittteile und FFmpeg (LGPL-2.1+) bei. CHANGELOG „Unveröffentlicht“.
+Tests: `QT_QPA_PLATFORM=offscreen PYTHONPATH=src build/venv/bin/python -m pytest tests/test_musik.py tests/test_gui_layout.py tests/test_editions.py -q` → 62 bestanden; `ruff check src tests packaging/…` sauber. Echt (stumm, Qt-Player): alle sechs Sender erreichen „BufferedMedia“ und spielen.
+Nicht geprüft: Installationspaket-Bau (Größe ca. +20 MB durch FFmpeg, Lizenz-Sammler mit FFmpeg) – erst in CI/Release; vollständige Suite. Offen: Nutzungsbedingungen der Sender-Streams (öffentlich-rechtlich, offizielle Adressen); Vorrang für Kursansagen (Ducking) erst mit gesprochenen Lektionen. Nichts committet.
+- Nachtrag (Bonys Wunsch „ich hätte als sender lieber https://hirschmilch.de/homepage“): feste Senderliste ersetzt durch die acht Hirschmilch-Kanäle (offizielle MP3-Streams `hirschmilch.de:7000`, aus deren `.pls`; alle acht echt stumm abgespielt, `BufferedMedia`). Bedingungen von Hirschmilch: nur private, nicht kommerzielle Nutzung, keine Weiterverbreitung – die App verlinkt nur den Stream. `tests/test_musik.py` 30 bestanden.
+- Nachtrag (Bony): Text „Lerne auch mit Musik:“ vor dem Player – gelb (`WARN`), fett, Schreibschrift **Pacifico** (OFL-1.1, mitgeliefert unter `src/bonys_agents/resources/fonts/` mit Lizenztext; aus `github.com/google/fonts`). `THIRD-PARTY-LICENSES` um Qt Multimedia, FFmpeg 9.0.1 (LGPL-2.1+) und Pacifico (mit OFL-Text) ergänzt. `tests/test_musik.py` 30 bestanden, `ruff` sauber.
+- Nachtrag: Buchstabenabstand 1,5 px (`QFont.AbsoluteSpacing`) – die Schreibschrift war zu eng. `tests/test_musik.py` 30 bestanden, `ruff` sauber.
