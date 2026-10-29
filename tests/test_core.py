@@ -701,6 +701,47 @@ def test_set_resources_and_recommendation(datadir, monkeypatch):
     assert vm.get(m.name).config.ram_mb == 5632
 
 
+def _tor_apparmor(tmp_path, profil: str, version: str = "4.1.0", laedt: bool = True):
+    """Baustein TOR_APPARMOR mit Pfaden im tmp_path und nachgebautem apparmor_parser ausführen."""
+    import subprocess
+
+    etc, bin_ = tmp_path / "apparmor.d", tmp_path / "bin"
+    etc.mkdir(parents=True)
+    bin_.mkdir()
+    (etc / "torbrowser.Browser.firefox").write_text(profil)
+    (bin_ / "apparmor_parser").write_text(
+        f'#!/bin/bash\n[ "$1" = --version ] && {{ echo "AppArmor parser version {version}"; exit 0; }}\n'
+        f'echo "$*" >> {tmp_path}/geladen\n' + ("exit 0\n" if laedt else "exit 1\n"))
+    (bin_ / "apparmor_parser").chmod(0o755)
+    skript = apps.TOR_APPARMOR.replace("/etc/apparmor.d", str(etc))
+    r = subprocess.run(["bash", "-c", skript], capture_output=True, text=True, timeout=30,
+                       env={"PATH": f"{bin_}:/usr/bin:/bin"})
+    lokal = etc / "local" / "torbrowser.Browser.firefox"
+    return r, (lokal.read_text() if lokal.exists() else None)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="bash-Skript des Agent-PCs (GNU sed)")
+def test_tor_browser_volle_firefox_sandbox(tmp_path):
+    """Debian 13 (torbrowser-launcher 0.3.7): „userns,“ in die lokale Ergänzung – Bonys Entscheidung vom 28.10."""
+    alt = "profile torbrowser_firefox x {\n  #include <local/torbrowser.Browser.firefox>\n}\n"
+    r, lokal = _tor_apparmor(tmp_path / "a", alt)
+    assert r.returncode == 0 and lokal is not None and "userns," in lokal.splitlines()
+    assert "volle Firefox-Sandbox" in r.stdout
+    # Ab 0.3.9 steht es im Profil selbst – nichts tun
+    r, lokal = _tor_apparmor(tmp_path / "b", "profile torbrowser_firefox x {\n  userns,\n}\n")
+    assert lokal is None
+    # AppArmor 3 kennt die Regel nicht – nichts tun
+    r, lokal = _tor_apparmor(tmp_path / "c", alt, version="3.0.8")
+    assert lokal is None
+    # Lässt sich das Profil nicht laden, wird die Zeile wieder entfernt
+    r, lokal = _tor_apparmor(tmp_path / "d", alt, laedt=False)
+    assert r.returncode == 0 and "userns," not in (lokal or "") and "unverändert" in r.stderr
+    # Installation und „Agent-PC aktualisieren“ (auch vorhandene Agent-PCs) enthalten die Korrektur
+    assert apps.TOR_APPARMOR in apps.APPS["tor-browser"].install
+    assert "local/torbrowser.Browser.firefox" in apps.upgrade_script(["tor-browser"], "agent")
+    assert "local/torbrowser.Browser.firefox" not in apps.upgrade_script([], "agent")
+
+
 def test_tor_browser_only_on_x86_64(datadir, monkeypatch):
     tor = apps.APPS["tor-browser"]
     assert not tor.default and tor.available("x86_64") and not tor.available("aarch64")
@@ -2029,3 +2070,18 @@ def test_steuerkanal_wird_bei_fehler_im_aufbau_geschlossen(monkeypatch):
         gesendet = _bis_eof(qemu_seite)   # endet mit EOF: wirklich geschlossen, nicht nur vergessen
         assert (b"guest-sync-delimited" in gesendet) if art == "ga" else gesendet == b""
         qemu_seite.close()
+
+
+def test_gast_agent_kurz_nach_dem_start_abwarten(datadir, monkeypatch):
+    """Frisch gestartet: warten statt Passwort-Rückfrage; nach START_WARTEN Sekunden nicht mehr."""
+    m = _fake_vm(datadir)
+    antworten = iter([False, False, True])
+    monkeypatch.setattr(m, "guest_agent_ready", lambda: next(antworten))
+    monkeypatch.setattr(m, "is_running", lambda: True)
+    monkeypatch.setattr(m, "runtime", lambda: {"started": 1000.0})
+    geschlafen = []
+    assert m.gast_agent_abwarten(jetzt=lambda: 1010.0, schlafen=geschlafen.append)
+    assert geschlafen == [3, 3]
+    monkeypatch.setattr(m, "guest_agent_ready", lambda: False)
+    assert not m.gast_agent_abwarten(jetzt=lambda: 1000.0 + vm.START_WARTEN, schlafen=geschlafen.append)
+    assert "Passwort" in vm.GAST_AGENT_FEHLT and "SSH" not in vm.GAST_AGENT_FEHLT

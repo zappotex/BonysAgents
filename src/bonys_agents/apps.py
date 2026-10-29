@@ -461,6 +461,31 @@ cp /usr/share/applications/org.gnome.Software.desktop "$DESKTOP_DIR/"
 )
 
 
+# Firefox-Sandbox des Tor Browsers: Das AppArmor-Profil von torbrowser-launcher 0.3.7 (Debian 13) verbietet
+# Benutzer-Namensräume – der Tor Browser warnt dann „Einige Sicherheitsfunktionen … weniger Schutz“. Ab 0.3.9 steht
+# „userns,“ im Profil selbst. Sonst kommt die Zeile in die lokale Ergänzung (überlebt Paket-Updates) – nur mit
+# AppArmor ab 4 (ältere kennen die Regel nicht); lässt sich das Profil damit nicht laden, wird sie wieder entfernt.
+# Bony entschied am 28.10.2026 für diese Korrektur (betrifft nur den Tor Browser und nur den Agent-PC).
+TOR_APPARMOR = r"""
+P=/etc/apparmor.d/torbrowser.Browser.firefox
+L=/etc/apparmor.d/local/torbrowser.Browser.firefox
+if [ -f "$P" ] && ! grep -qE '^[[:space:]]*userns,' "$P" && command -v apparmor_parser >/dev/null 2>&1; then
+  AA="$(apparmor_parser --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\)\..*/\1/p' | head -n1)"
+  if [ "${AA:-0}" -ge 4 ] && ! grep -qxF 'userns,' "$L" 2>/dev/null; then
+    mkdir -p /etc/apparmor.d/local
+    printf '%s\n' '# Bonys Agents: Firefox-Sandbox des Tor Browsers braucht Benutzer-Namensraeume' 'userns,' >> "$L"
+    if apparmor_parser -r "$P" >/dev/null 2>&1; then
+      echo "Tor Browser: volle Firefox-Sandbox eingeschaltet (AppArmor userns)."
+    else
+      sed -i '/^# Bonys Agents: Firefox-Sandbox des Tor Browsers/d; /^userns,$/d' "$L"
+      apparmor_parser -r "$P" >/dev/null 2>&1 || true
+      echo "Hinweis: Die AppArmor-Korrektur für den Tor Browser ließ sich nicht laden – unverändert." >&2
+    fi
+  fi
+fi
+"""
+
+
 # Tor Browser: Debian-Paket torbrowser-launcher (Komponente „contrib“, wird dafür eingeschaltet). Es lädt beim ersten
 # Start den offiziellen Tor Browser von torproject.org und prüft dessen Signatur; Updates macht der Tor Browser selbst.
 # Das Tor Project baut für Linux nur x86_64 (kein ARM64) – daher nicht auf Macs mit Apple-Chip.
@@ -490,7 +515,7 @@ apt-get install -y torbrowser-launcher
 for d in torbrowser.desktop org.torproject.torbrowser-launcher.desktop; do
   if [ -f "/usr/share/applications/$d" ]; then cp "/usr/share/applications/$d" "$DESKTOP_DIR/"; break; fi
 done
-""",
+""" + TOR_APPARMOR,
 )
 
 
@@ -894,6 +919,8 @@ def upgrade_script(app_ids: list[str], username: str) -> str:
             f'  echo "{app.name} ist nicht installiert – übersprungen."',
             "fi",
         ]
+    if "tor-browser" in app_ids:   # auch schon vorhandene Agent-PCs bekommen die volle Firefox-Sandbox
+        lines += ["if command -v torbrowser-launcher >/dev/null 2>&1; then", TOR_APPARMOR, "fi"]
     lines += [
         'echo "== Anzeige-Treiber (Auflösung folgt dem Fenster) =="',
         "( set -e",
