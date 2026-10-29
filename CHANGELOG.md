@@ -3,10 +3,11 @@
 Alle wichtigen Änderungen an Bony's Agents. Ältere Versionen (bis 0.16.3): siehe die
 [Releases auf GitHub](https://github.com/zappotex/BonysAgents/releases).
 
-## Unveröffentlicht – Sicherheit vor 1.0 (Durchsicht Teil 2)
+## 0.28.1 – Sicherheit und Hilfe-Funktion
 
-Braucht die Zentrale **Bony-Netz 0.2.1** (Server). Mit einer älteren Zentrale gilt im Kursraum niemand als
-Kursleiter: Hilfe-Anfragen und Sprechfreigaben kommen dann nicht an.
+Braucht die Zentrale **Bony-Netz 0.2.1** (auf `zentrale.bony23.de` schon aktiv). Mit einer älteren Zentrale gilt
+im Kursraum niemand als Kursleiter: Hilfe-Anfragen und Sprechfreigaben kommen dann nicht an. Für „Diesen Rechner
+verbinden“ beim Kursleiter (Linux): **Bony's VPN 1.1.0**.
 
 ### Sicherheit
 - **Kursraum: Teilnehmer können sich nicht mehr als Kursleiter ausgeben.** Die Seite erkennt den Kursleiter nur noch
