@@ -353,16 +353,20 @@ die Schritte neben seinem Agent-PC, und du siehst, wer wo steht.
 | Stufe | Kurspaket | Stand |
 |---|---|---|
 | Anfänger | **Einführung in Hermes Agent** – 2 Stunden, 9 Lektionen (die neunte ist ein Zusatz) | fertig |
+| Anfänger | **Was ist ein MCP-Server? Hermes bekommt Werkzeuge** – 90 Minuten | fertig |
+| Anfänger | **n8n-Grundlagen: der erste Workflow** – 90 Minuten | fertig |
+| Anfänger | **Bony's VPN: sicher und privater ins Internet** – 90 Minuten | fertig |
 | Anfänger | Hermes über Telegram steuern | Entwurf |
 | Fortgeschritten | Aufgaben automatisieren: Recherche, Zusammenfassungen, Dateien | Entwurf |
 | Fortgeschritten | Sicherheit für KI-Agenten: Rechte begrenzen, Prompt-Injection erkennen | Entwurf |
 | Experte | Eigene Werkzeuge und Skills für Hermes, Mission Control mit Docker | Entwurf |
 | Experte | Lokale Modelle, VPN und mehrere Agenten | Entwurf |
 
-Ein **Entwurf** enthält Gliederung, Lernziele und Zeitplan, aber noch keine ausgearbeiteten Anleitungen. Mit dem
-Editor („Duplizieren …“ oder „Bearbeiten …“ → eigene Fassung) machst du daraus dein eigenes Kurspaket. Der
-Ablaufplan von „Einführung in Hermes Agent“ ist zugleich der Beispielkurs zu diesem Handbuch (eigenes PDF beim
-Release).
+Jedes mitgelieferte Kurspaket gibt es auf Deutsch und Englisch (ID mit „-en“); die Bibliothek zeigt die Fassung in
+der Sprache von Bony's Agents, „Alle Sprachen“ zeigt beide. Ein **Entwurf** enthält Gliederung, Lernziele und
+Zeitplan, aber noch keine ausgearbeiteten Anleitungen. Mit dem Editor („Duplizieren …“ oder „Bearbeiten …“ → eigene
+Fassung) machst du daraus dein eigenes Kurspaket. Der Ablaufplan von „Einführung in Hermes Agent“ ist zugleich der
+Beispielkurs zu diesem Handbuch (eigenes PDF beim Release).
 
 ## Kurspaket für einen Kurs wählen
 

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bonys_agents import storage
+from bonys_agents.i18n import tr
 
 EINSTELLUNG = "musik"
 MUSIK_ENDUNGEN = {".mp3", ".ogg", ".oga", ".opus", ".flac", ".m4a", ".aac", ".wav"}
@@ -62,7 +63,7 @@ _STEUERZEICHEN = re.compile(r"[\x00-\x1f\x7f]")
 def name_pruefen(name: str) -> str:
     name = _STEUERZEICHEN.sub("", str(name)).strip()
     if not name:
-        raise MusikFehler("Bitte einen Namen für den Sender angeben.")
+        raise MusikFehler(tr("Bitte einen Namen für den Sender angeben."))
     return name[:MAX_NAME]
 
 
@@ -70,16 +71,16 @@ def url_pruefen(url: str) -> str:
     """Stream-Adresse prüfen: nur ``https://`` mit Rechnername, ohne Zugangsdaten, ohne Leer-/Steuerzeichen."""
     url = str(url).strip()
     if not url or len(url) > MAX_URL or _STEUERZEICHEN.search(url) or " " in url:
-        raise MusikFehler("Die Adresse ist leer, zu lang oder enthält Leerzeichen.")
+        raise MusikFehler(tr("Die Adresse ist leer, zu lang oder enthält Leerzeichen."))
     try:
         teile = urllib.parse.urlsplit(url)
         teile.port  # noqa: B018 – wirft bei ungültigem Port
     except ValueError:
-        raise MusikFehler(f"„{url}“ ist keine gültige Adresse.") from None
+        raise MusikFehler(tr("„{url}“ ist keine gültige Adresse.", url=url)) from None
     if teile.scheme.lower() != "https" or not teile.hostname:
-        raise MusikFehler("Nur sichere Adressen mit „https://“ sind erlaubt.")
+        raise MusikFehler(tr("Nur sichere Adressen mit „https://“ sind erlaubt."))
     if teile.username or teile.password:
-        raise MusikFehler("Adressen mit Benutzername oder Passwort werden nicht gespeichert.")
+        raise MusikFehler(tr("Adressen mit Benutzername oder Passwort werden nicht gespeichert."))
     return url
 
 
@@ -88,13 +89,14 @@ def wiedergabeliste_lesen(datei: Path) -> list[Sender]:
     """Sender aus einer ``.m3u``/``.m3u8``/``.pls``-Datei – nur ``https``-Adressen, alles andere wird übergangen."""
     datei = Path(datei)
     if datei.suffix.lower() not in LISTEN_ENDUNGEN:
-        raise MusikFehler("Bitte eine Wiedergabeliste (.m3u, .m3u8 oder .pls) wählen.")
+        raise MusikFehler(tr("Bitte eine Wiedergabeliste (.m3u, .m3u8 oder .pls) wählen."))
     try:
         if datei.stat().st_size > MAX_LISTE:
-            raise MusikFehler("Die Wiedergabeliste ist zu groß.")
+            raise MusikFehler(tr("Die Wiedergabeliste ist zu groß."))
         text = datei.read_bytes().decode("utf-8", errors="replace")
     except OSError as e:
-        raise MusikFehler(f"„{datei.name}“ lässt sich nicht lesen: {e.strerror or e}") from None
+        raise MusikFehler(tr("„{name}“ lässt sich nicht lesen: {wert}", name=datei.name,
+                             wert=e.strerror or e)) from None
     paare = _pls(text) if datei.suffix.lower() == ".pls" else _m3u(text)
     out: list[Sender] = []
     for name, url in paare:
@@ -111,7 +113,7 @@ def wiedergabeliste_lesen(datei: Path) -> list[Sender]:
         if len(out) >= MAX_EIGENE_SENDER:
             break
     if not out:
-        raise MusikFehler("In der Wiedergabeliste steht keine sichere Sender-Adresse (https://).")
+        raise MusikFehler(tr("In der Wiedergabeliste steht keine sichere Sender-Adresse (https://)."))
     return out
 
 
@@ -146,7 +148,7 @@ def titel_im_ordner(ordner: Path) -> list[Path]:
     verlinkte Ordner werden übergangen, höchstens ``MAX_TITEL`` Dateien."""
     ordner = Path(ordner)
     if not ordner.is_dir():
-        raise MusikFehler(f"Der Ordner „{ordner}“ ist nicht vorhanden.")
+        raise MusikFehler(tr("Der Ordner „{ordner}“ ist nicht vorhanden.", ordner=ordner))
     out: list[Path] = []
     for wurzel, unterordner, dateien in os.walk(ordner, followlinks=False):
         tiefe = len(Path(wurzel).relative_to(ordner).parts)
@@ -181,15 +183,15 @@ class Einstellungen:
     def sender_hinzufuegen(self, sender: Sender) -> Sender:
         neu = Sender(name_pruefen(sender.name), url_pruefen(sender.url), eigen=True)
         if vorhanden := self.sender(neu.url):
-            raise MusikFehler(f"Den Sender „{vorhanden.name}“ gibt es schon.")
+            raise MusikFehler(tr("Den Sender „{name}“ gibt es schon.", name=vorhanden.name))
         if len(self.eigene_sender) >= MAX_EIGENE_SENDER:
-            raise MusikFehler(f"Höchstens {MAX_EIGENE_SENDER} eigene Sender.")
+            raise MusikFehler(tr("Höchstens {MAX_EIGENE_SENDER} eigene Sender.", MAX_EIGENE_SENDER=MAX_EIGENE_SENDER))
         self.eigene_sender.append(neu)
         return neu
 
     def sender_entfernen(self, url: str) -> None:
         if any(s.url == url for s in SENDER):
-            raise MusikFehler("Mitgelieferte Sender lassen sich nicht entfernen.")
+            raise MusikFehler(tr("Mitgelieferte Sender lassen sich nicht entfernen."))
         self.eigene_sender = [s for s in self.eigene_sender if s.url != url]
         if self.sender_url == url:
             self.sender_url = ""

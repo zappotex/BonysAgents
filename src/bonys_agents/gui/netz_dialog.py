@@ -18,25 +18,26 @@ from PySide6.QtWidgets import (
 from bony_netz import STANDARD_SERVER, Konto
 from bony_netz.konto import server_normalisieren
 from bonys_agents import APP_NAME, kurspaket, netz
+from bonys_agents.i18n import n_, tr
 
 from .widgets import confirm_delete, make_scrollable, open_url
 from .workers import TaskWorker
 
-INTRO = ("Über das Bony-Netz verbinden sich deine Agent-PCs übers Internet – mit dir und später mit Kursen. "
-         "Bony's VPN benutzt dieselbe Anmeldung. Ausgeschaltet bleibt alles wie bisher: Die App nimmt dann keinen "
-         "Kontakt zum Server auf.")
-DELETE_DETAIL = ("Auf dem Server werden dabei alle deine Agent-PCs aus dem Bony-Netz entfernt und alle deine Kurse "
-                 "und Kursteilnahmen gelöscht – auch für Bony's VPN. Die Agent-PCs selbst bleiben auf diesem "
-                 "Rechner. Das lässt sich nicht rückgängig machen.")
-DATENSCHUTZ_TEXT = ("Datenschutz: Der Server sieht bei jeder Anfrage deine IP-Adresse. Gespeichert werden nur die "
-                    "Instanz (ohne Namen oder E-Mail), deine Agent-PCs im Netz (Name, Netzadresse, zuletzt online) "
-                    "und – in Kursen – dein Anzeigename. Bild, Ton und Chat im Kursraum laufen über den Server, "
-                    "werden aber nicht aufgezeichnet.")
-DATENSCHUTZ_FREMD = ("Für einen eigenen Server ist dessen Betreiber verantwortlich – frag ihn nach seiner "
-                     "Datenschutzerklärung.")
-SWITCH_TEXT = ("Beim bisherigen Server ist eine Instanz angemeldet. Mit dem Wechsel wird diese Anmeldung hier und in "
-               "Bony's VPN verworfen – die Instanz bleibt auf dem alten Server bestehen, ist von hier aus aber nicht "
-               "mehr erreichbar.\n\nServer trotzdem wechseln?")
+INTRO = n_("Über das Bony-Netz verbinden sich deine Agent-PCs übers Internet – mit dir und später mit Kursen. "
+           "Bony's VPN benutzt dieselbe Anmeldung. Ausgeschaltet bleibt alles wie bisher: Die App nimmt dann keinen "
+           "Kontakt zum Server auf.")
+DELETE_DETAIL = n_("Auf dem Server werden dabei alle deine Agent-PCs aus dem Bony-Netz entfernt und alle deine Kurse "
+                   "und Kursteilnahmen gelöscht – auch für Bony's VPN. Die Agent-PCs selbst bleiben auf diesem "
+                   "Rechner. Das lässt sich nicht rückgängig machen.")
+DATENSCHUTZ_TEXT = n_("Datenschutz: Der Server sieht bei jeder Anfrage deine IP-Adresse. Gespeichert werden nur die "
+                      "Instanz (ohne Namen oder E-Mail), deine Agent-PCs im Netz (Name, Netzadresse, zuletzt online) "
+                      "und – in Kursen – dein Anzeigename. Bild, Ton und Chat im Kursraum laufen über den Server, "
+                      "werden aber nicht aufgezeichnet.")
+DATENSCHUTZ_FREMD = n_("Für einen eigenen Server ist dessen Betreiber verantwortlich – frag ihn nach seiner "
+                       "Datenschutzerklärung.")
+SWITCH_TEXT = n_("Beim bisherigen Server ist eine Instanz angemeldet. Mit dem Wechsel wird diese Anmeldung hier und "
+                 "in Bony's VPN verworfen – die Instanz bleibt auf dem alten Server bestehen, ist von hier aus aber "
+                 "nicht mehr erreichbar.\n\nServer trotzdem wechseln?")
 
 # Laufende Aufrufe auch nach dem Schließen des Fensters festhalten (sonst bräche Qt beim Aufräumen ab)
 _RUNNING: set[TaskWorker] = set()
@@ -68,30 +69,30 @@ def _muted(text: str = "") -> QLabel:
 class NetzDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Bony-Netz")
+        self.setWindowTitle(tr("Bony-Netz"))
         self.konto = Konto.laden()
         self.busy = 0
         self.status_text = ""
 
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Bony-Netz")
+        title = QLabel(tr("Bony-Netz"))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel(INTRO)
+        intro = QLabel(tr(INTRO))
         intro.setWordWrap(True)
         root.addWidget(intro)
 
-        self.active = QCheckBox("Bony-Netz verwenden")
+        self.active = QCheckBox(tr("Bony-Netz verwenden"))
         self.active.setChecked(netz.aktiv(self.konto))
         root.addWidget(self.active)
 
-        root.addWidget(_section("Server"))
+        root.addWidget(_section(tr("Server")))
         card, lay = _card()
         row = QHBoxLayout()
         self.server = QLineEdit(self.konto.server)
         self.server.setPlaceholderText(STANDARD_SERVER)
-        self.check_btn = QPushButton("Prüfen")
+        self.check_btn = QPushButton(tr("Prüfen"))
         row.addWidget(self.server, 1)
         row.addWidget(self.check_btn)
         lay.addLayout(row)
@@ -99,7 +100,7 @@ class NetzDialog(QDialog):
         lay.addWidget(self.server_info)
         root.addWidget(card)
 
-        root.addWidget(_section("Instanz"))
+        root.addWidget(_section(tr("Instanz")))
         card, lay = _card()
         self.instance = QLabel()
         self.instance.setWordWrap(True)
@@ -108,9 +109,9 @@ class NetzDialog(QDialog):
         self.instance_hint = _muted()
         lay.addWidget(self.instance_hint)
         row = QHBoxLayout()
-        self.create_btn = QPushButton("Instanz anlegen")
+        self.create_btn = QPushButton(tr("Instanz anlegen"))
         self.create_btn.setObjectName("Primary")
-        self.delete_btn = QPushButton("Instanz löschen …")
+        self.delete_btn = QPushButton(tr("Instanz löschen …"))
         self.delete_btn.setObjectName("Danger")
         row.addWidget(self.create_btn)
         row.addWidget(self.delete_btn)
@@ -130,7 +131,7 @@ class NetzDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        close = QPushButton("Schließen")
+        close = QPushButton(tr("Schließen"))
         close.clicked.connect(self.accept)
         buttons.addWidget(close)
         root.addLayout(buttons)
@@ -153,9 +154,9 @@ class NetzDialog(QDialog):
 
     def _datenschutz_text(self) -> str:
         if server_normalisieren(self.server.text().strip() or self.konto.server) == STANDARD_SERVER:
-            return (f"{html.escape(DATENSCHUTZ_TEXT)} "
-                    f'<a href="{kurspaket.DATENSCHUTZ_URL}">Datenschutzerklärung</a>')
-        return f"{html.escape(DATENSCHUTZ_TEXT)} {html.escape(DATENSCHUTZ_FREMD)}"
+            return (tr("{wert} <a href=\"{DATENSCHUTZ_URL}\">Datenschutzerklärung</a>",
+                       wert=html.escape(tr(DATENSCHUTZ_TEXT)), DATENSCHUTZ_URL=kurspaket.DATENSCHUTZ_URL))
+        return f"{html.escape(tr(DATENSCHUTZ_TEXT))} {html.escape(tr(DATENSCHUTZ_FREMD))}"
 
     def _update(self) -> None:
         self.datenschutz.setText(self._datenschutz_text())
@@ -165,21 +166,29 @@ class NetzDialog(QDialog):
         self.server.setEnabled(idle)
         self.check_btn.setEnabled(idle)
         if signed_in:
-            self.instance.setText(f"Instanz-ID: {netz.kurz_id(self.konto.instanz_id)} · "
-                                  f"Kursleiter: {'ja' if self.konto.ist_kursleiter else 'nein'}")
+            self.instance.setText(tr("Instanz-ID: {wert} · Kursleiter: {wert2}",
+                                     wert=netz.kurz_id(self.konto.instanz_id),
+                                     wert2='ja' if self.konto.ist_kursleiter else 'nein'))
             self.instance_hint.setText("")
         else:
-            self.instance.setText("Noch keine Instanz angelegt.")
-            self.instance_hint.setText("Erst den neuen Server mit „Prüfen“ übernehmen." if self._server_changed()
-                                       else "Eine Instanz ist deine Anmeldung beim Server – einmal pro Rechner.")
+            self.instance.setText(tr("Noch keine Instanz angelegt."))
+            self.instance_hint.setText(tr("Erst "
+                                          "den "
+                                          "neuen "
+                                          "Server "
+                                          "mit "
+                                          "„Prüfen“ "
+                                          "übernehmen.") if self._server_changed() else tr("Eine Instanz ist deine "
+                                                                                           "Anmeldung beim Server – "
+                                                                                           "einmal pro Rechner."))
         self.create_btn.setVisible(not signed_in)
         self.create_btn.setEnabled(idle and not self._server_changed())
         self.delete_btn.setVisible(signed_in)
         self.delete_btn.setEnabled(idle)
         if not on:
-            self.status.setText("Bony-Netz ist ausgeschaltet.")
+            self.status.setText(tr("Bony-Netz ist ausgeschaltet."))
         elif self.busy:
-            self.status.setText("Frage den Server …")
+            self.status.setText(tr("Frage den Server …"))
         else:
             self.status.setText(self.status_text)
 
@@ -237,9 +246,9 @@ class NetzDialog(QDialog):
             self._refresh()
             return
         if self.konto.angemeldet:
-            box = QMessageBox(QMessageBox.Warning, "Server wechseln", SWITCH_TEXT, QMessageBox.NoButton, self)
-            switch = box.addButton("Server wechseln", QMessageBox.DestructiveRole)
-            keep = box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box = QMessageBox(QMessageBox.Warning, tr("Server wechseln"), tr(SWITCH_TEXT), QMessageBox.NoButton, self)
+            switch = box.addButton(tr("Server wechseln"), QMessageBox.DestructiveRole)
+            keep = box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
             box.setDefaultButton(keep)
             box.setEscapeButton(keep)
             box.exec()
@@ -252,7 +261,7 @@ class NetzDialog(QDialog):
                 self._show(w.result)
             else:   # der alte Server bleibt
                 self.server_info.setText(netz.fehlertext(w.error))
-                self.status_text = f"Der Server wurde nicht übernommen: {netz.fehlertext(w.error)}"
+                self.status_text = tr("Der Server wurde nicht übernommen: {wert}", wert=netz.fehlertext(w.error))
 
         self._run(lambda: netz.server_wechseln(address), done)
 
@@ -261,7 +270,7 @@ class NetzDialog(QDialog):
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
-                self._failed(w.error, "Die Instanz wurde nicht angelegt.")
+                self._failed(w.error, tr("Die Instanz wurde nicht angelegt."))
                 return
             self.konto = w.result
             self._refresh()
@@ -269,17 +278,17 @@ class NetzDialog(QDialog):
         self._run(lambda: netz.instanz_anlegen(server), done)
 
     def _delete(self) -> None:
-        if not confirm_delete(self, "Instanz löschen",
-                              f"Instanz {netz.kurz_id(self.konto.instanz_id)} auf dem Server löschen?",
-                              DELETE_DETAIL):
+        if not confirm_delete(self, tr("Instanz löschen"),
+                              tr("Instanz {wert} auf dem Server löschen?", wert=netz.kurz_id(self.konto.instanz_id)),
+                              tr(DELETE_DETAIL)):
             return
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
-                self._failed(w.error, "Die Instanz wurde nicht gelöscht.")
+                self._failed(w.error, tr("Die Instanz wurde nicht gelöscht."))
                 return
             self.konto = w.result
-            self.status_text = "Instanz gelöscht."
+            self.status_text = tr("Instanz gelöscht.")
 
         self._run(netz.instanz_loeschen, done)
 

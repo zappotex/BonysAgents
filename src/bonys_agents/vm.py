@@ -29,10 +29,11 @@ from pathlib import Path
 import psutil
 
 from bonys_agents import (
-    apps, cloudinit, desktops, diagnose, distros, host, images, mission_control, n8n, qemu, remote, screen, storage,
-    vpnlink, x509,
+    apps, cloudinit, desktops, diagnose, distros, host, i18n, images, mission_control, n8n, qemu, remote, screen,
+    storage, vpnlink, x509,
 )
 from bonys_agents import progress as pct
+from bonys_agents.i18n import n_, tr
 from bonys_agents.procutil import clean_env, spawn_detached, terminal_command
 
 ProgressFn = Callable[[str, float, str], None]  # (Phase, 0..1, Nachricht)
@@ -50,7 +51,8 @@ def format_gb(gb: int) -> str:
 
 def check_disk_gb(gb: int) -> None:
     if not MIN_DISK_GB <= gb <= MAX_DISK_GB:
-        raise ValueError(f"Festplatte: {MIN_DISK_GB} bis {MAX_DISK_GB} GB erlaubt (angegeben: {gb} GB)")
+        raise ValueError(tr("Festplatte: {MIN_DISK_GB} bis {MAX_DISK_GB} GB erlaubt (angegeben: {gb} GB)",
+                            MIN_DISK_GB=MIN_DISK_GB, MAX_DISK_GB=MAX_DISK_GB, gb=gb))
 
 
 # Puffer über dem Mindestbedarf: Brave und der Agent brauchen nebenher spürbar Speicher. Mit genau dem Minimum
@@ -70,11 +72,11 @@ def recommended_ram_mb(desktop_id: str, app_ids: list[str]) -> int:
 
 IMAGES_DIRNAME = "_images"  # Bild-Cache je Speicherort (kann nie ein VM-Name sein)
 
-STATUS_ABORTED = "Einrichtung abgebrochen"
-STATUS_READY_FOR_DESKTOP = "startet mit Desktop"
-STATUS_STOPPING = "wird heruntergefahren"
-STATUS_TEMPLATE_MISSING = "nicht verfügbar – Vorlage fehlt"
-STATUS_BROKEN = "beschädigt"   # vm.json (und vm.json.bak) unlesbar oder ungültig
+STATUS_ABORTED = n_("Einrichtung abgebrochen")
+STATUS_READY_FOR_DESKTOP = n_("startet mit Desktop")
+STATUS_STOPPING = n_("wird heruntergefahren")
+STATUS_TEMPLATE_MISSING = n_("nicht verfügbar – Vorlage fehlt")
+STATUS_BROKEN = n_("beschädigt")   # vm.json (und vm.json.bak) unlesbar oder ungültig
 # Liegt im Ordner eines Agent-PCs, solange daraus eine Vorlage entsteht (Inhalt: PID des Prozesses)
 TEMPLATE_LOCK = "vorlage-wird-erstellt.lock"
 
@@ -132,7 +134,7 @@ def control_socket_path(vm_path: Path, kind: str) -> Path:
     base.mkdir(mode=0o700, exist_ok=True)
     st = base.lstat()
     if not base.is_dir() or base.is_symlink() or st.st_uid != os.getuid():
-        raise OSError(f"{base} gehört nicht diesem Benutzer")
+        raise OSError(tr("{base} gehört nicht diesem Benutzer", base=base))
     if st.st_mode & 0o077:
         base.chmod(0o700)
     key = hashlib.sha256(str(Path(vm_path).resolve()).encode()).hexdigest()[:16]
@@ -154,8 +156,8 @@ def vms_dir() -> Path:
 # Formatversion von vm.json. Erhöhen, wenn eine ältere Programmversion die Datei falsch verstehen würde –
 # die lässt den Agent-PC dann nur noch anzeigen (NEWER_FORMAT), statt ihn zu ändern.
 VM_FORMAT = 1
-NEWER_FORMAT = ("„{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's Agents "
-                "aktualisieren – bis dahin kann diese Version ihn nur anzeigen.")
+NEWER_FORMAT = (n_("„{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's Agents "
+                   "aktualisieren – bis dahin kann diese Version ihn nur anzeigen."))
 
 
 write_json = storage.write_json  # atomar, siehe dort
@@ -244,17 +246,17 @@ def checked_fields(cls, data, rules: dict[str, Callable], what: str, skip: froze
     liefert sie, damit sie beim Speichern erhalten bleiben.
     """
     if not isinstance(data, dict):
-        raise ValueError(f"{what}: kein gültiger Inhalt.")
+        raise ValueError(tr("{what}: kein gültiger Inhalt.", what=what))
     out = {}
     for f in fields(cls):
         if f.name in skip or f.name not in data:
             continue
         value = data[f.name]
         if not _type_ok(value, str(f.type)):
-            raise ValueError(f"{what}: „{f.name}“ hat den falschen Typ.")
+            raise ValueError(tr("{what}: „{name}“ hat den falschen Typ.", what=what, name=f.name))
         rule = rules.get(f.name)
         if rule is not None and not rule(value):
-            raise ValueError(f"{what}: unzulässiger Wert bei „{f.name}“.")
+            raise ValueError(tr("{what}: unzulässiger Wert bei „{name}“.", what=what, name=f.name))
         out[f.name] = value
     return out
 
@@ -389,7 +391,7 @@ class VM:
 
     def save(self) -> None:
         if self.newer_format():
-            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
+            raise RuntimeError(tr(NEWER_FORMAT, name=self.name))
         write_json(self.path / "vm.json", {**self._unknown, **asdict(self.config)}, backup=True)
 
     # ---------- Zustand ----------
@@ -534,13 +536,13 @@ class VM:
 
     def _check_usable(self) -> None:
         if self.newer_format():
-            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
+            raise RuntimeError(tr(NEWER_FORMAT, name=self.name))
         if self.template_lock_pid() is not None:
-            raise RuntimeError(f"Aus „{self.name}“ wird gerade eine Vorlage erstellt – bitte warten, bis das "
-                               "fertig ist.")
+            raise RuntimeError(tr("Aus „{name}“ wird gerade eine Vorlage erstellt – bitte warten, bis das fertig ist.",
+                                  name=self.name))
         if self.template_missing():
-            raise RuntimeError(f"„{self.name}“ ist mit einer Vorlage verknüpft, die nicht erreichbar ist:\n"
-                               f"{self.backing_file()}\nIst das Laufwerk eingesteckt?")
+            raise RuntimeError(tr("„{name}“ ist mit einer Vorlage verknüpft, die nicht erreichbar ist:\n{wert}\nIst "
+                                  "das Laufwerk eingesteckt?", name=self.name, wert=self.backing_file()))
         if self.disk.exists():
             # Agent-PC kann von einem fremden Laufwerk stammen: keine Verweise auf Dateien des Rechners
             qemu.check_disk_safe(self.disk, allow_backing=True, require_qcow2=False)
@@ -548,7 +550,7 @@ class VM:
     def make_independent(self, progress: Callable[[float], None] | None = None) -> None:
         """Verknüpften Agent-PC in eine unabhängige Festplatte umwandeln (übernimmt die Daten der Vorlage)."""
         if self.is_running():
-            raise RuntimeError("Bitte den Agent-PC zuerst herunterfahren.")
+            raise RuntimeError(tr("Bitte den Agent-PC zuerst herunterfahren."))
         self._check_usable()
         if not self.is_linked():
             return
@@ -563,12 +565,12 @@ class VM:
         if running:
             if self.runtime().get("stopping_since"):
                 return STATUS_STOPPING
-            return "läuft" if ready and not pending else "wird eingerichtet"
+            return n_("läuft") if ready and not pending else n_("wird eingerichtet")
         if pending and ready:
             return STATUS_READY_FOR_DESKTOP
         if pending and self.was_started():
             return STATUS_ABORTED
-        return "gestoppt"
+        return n_("gestoppt")
 
     def needs_window_start(self) -> bool:
         """Einrichtung fertig, Gast ausgeschaltet – jetzt mit Fenster starten."""
@@ -668,21 +670,21 @@ class VM:
         c = self.config
         running = self.is_running()
         if on and "xrdp" not in c.apps:
-            raise RuntimeError("Im Agent-PC fehlt „Fernzugriff (RDP)“ – über „Programme hinzufügen …“ "
-                               f"oder „bonys-agents install {self.name} xrdp“ nachrüsten.")
+            raise RuntimeError(tr("Im Agent-PC fehlt „Fernzugriff (RDP)“ – über „Programme hinzufügen …“ oder "
+                                  "„bonys-agents install {name} xrdp“ nachrüsten.", name=self.name))
         if on and not running and not permanent:
-            raise RuntimeError("Der Agent-PC läuft nicht. „Nur bis zum Herunterfahren“ geht nur bei laufendem "
-                               "Agent-PC – sonst „dauerhaft“ wählen.")
+            raise RuntimeError(tr("Der Agent-PC läuft nicht. „Nur bis zum Herunterfahren“ geht nur bei laufendem "
+                                  "Agent-PC – sonst „dauerhaft“ wählen."))
         self.ensure_remote_ports()
         if not running:
             c.remote_permanent = on and permanent
             if on:
                 self._ensure_spice_password()
             self.save()
-            return ("Fernzugriff dauerhaft eingeschaltet – wirkt ab dem nächsten Start." if on
-                    else "Fernzugriff ausgeschaltet.")
+            return (tr("Fernzugriff dauerhaft eingeschaltet – wirkt ab dem "
+                       "nächsten Start.") if on else "Fernzugriff ausgeschaltet.")
         if not self.progress().ready or c.first_boot_pending:
-            raise RuntimeError("Der Agent-PC richtet sich noch ein – Fernzugriff geht erst danach.")
+            raise RuntimeError(tr("Der Agent-PC richtet sich noch ein – Fernzugriff geht erst danach."))
         rule = qemu.rdp_forward(REMOTE_ADDR, c.rdp_port)
         if on:
             # Gast: xrdp an. Dauerhaft = auch beim Booten; sonst nur jetzt (systemd vergisst es beim Neustart).
@@ -698,7 +700,7 @@ class VM:
             self.save()
             self._update_runtime(remote_on=True, remote_boot_id=self._guest_boot_id())
             if permanent and not self.runtime().get("spice_lan"):
-                return "Fernzugriff dauerhaft an. RDP geht sofort, SPICE aus dem Heimnetz ab dem nächsten Start."
+                return tr("Fernzugriff dauerhaft an. RDP geht sofort, SPICE aus dem Heimnetz ab dem nächsten Start.")
             return "Fernzugriff an – " + ("dauerhaft." if permanent else "bis zum Herunterfahren.")
         # Aus: erst die Tür nach außen zu, dann xrdp im Gast stoppen
         with qemu.QMP(self.qmp_endpoint()) as q:
@@ -711,7 +713,7 @@ class VM:
             # SPICE lauscht seit dem Start im Heimnetz und lässt sich nicht umstellen – Passwort sofort
             # verfallen lassen, dann kommt niemand mehr hinein. Nicht beim SPICE-Fenster: das braucht den Zugang.
             if c.display == "spice":
-                return "Fernzugriff aus. SPICE bleibt bis zum Herunterfahren erreichbar (mit Passwort)."
+                return tr("Fernzugriff aus. SPICE bleibt bis zum Herunterfahren erreichbar (mit Passwort).")
             with qemu.QMP(self.qmp_endpoint()) as q:
                 q.execute("expire_password", protocol="spice", time="now")
         return "Fernzugriff ausgeschaltet."
@@ -767,15 +769,16 @@ class VM:
                 with contextlib.suppress(qemu.GuestAgentError):
                     rc, out = ueber_gast_agent()
             if rc is None and not password and not ssh_prompt:
-                raise NeedsPassword(GAST_AGENT_FEHLT) from None
+                raise NeedsPassword(tr(GAST_AGENT_FEHLT)) from None
         if rc is None:
             lines: list[str] = []
             rc = self._ssh(SSH_SUDO_SCRIPT, script, password, log=lines.append)
             out = "\n".join(lines)
             if rc == 255:
-                raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?") from None
+                raise RuntimeError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")) from None
         if rc != 0:
-            raise RuntimeError(f"Befehl im Agent-PC fehlgeschlagen (Code {rc}): {out.strip()[-300:]}")
+            raise RuntimeError(tr("Befehl im Agent-PC fehlgeschlagen (Code {rc}): {wert}", rc=rc,
+                                  wert=out.strip()[-300:]))
         return out
 
     def guest_notify(self, title: str, text: str) -> bool:
@@ -794,7 +797,7 @@ class VM:
 
     def set_display(self, mode: str) -> None:
         if mode not in ("qemu", "spice"):
-            raise ValueError("Anzeige: „qemu“ (QEMU-Fenster) oder „spice“ (SPICE-Fenster)")
+            raise ValueError(tr("Anzeige: „qemu“ (QEMU-Fenster) oder „spice“ (SPICE-Fenster)"))
         self.config.display = mode
         self.save()
 
@@ -826,14 +829,14 @@ class VM:
     def update_display_driver(self, password: str | None = None, ssh_prompt: bool = False) -> str:
         """Skripte für die automatische Auflösung im laufenden Agent-PC einrichten bzw. erneuern."""
         if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
-            raise RuntimeError(f"„{self.name}“ muss laufen und fertig eingerichtet sein.")
+            raise RuntimeError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=self.name))
         self.guest_run(screen.guest_setup_script(), password=password, ssh_prompt=ssh_prompt, timeout=300)
         if self.runtime().get("screen_setting") is None:
-            return ("Anzeige-Treiber eingerichtet. Damit die Auflösung dem Fenster folgt, den Agent-PC "
-                    "einmal herunterfahren und neu starten.")
+            return (tr("Anzeige-Treiber eingerichtet. Damit die Auflösung dem Fenster folgt, den Agent-PC "
+                       "einmal herunterfahren und neu starten."))
         mode, size = self.screen_settings()
         if mode == screen.AUTO:
-            return "Anzeige-Treiber eingerichtet – die Auflösung folgt jetzt dem Fenster."
+            return tr("Anzeige-Treiber eingerichtet – die Auflösung folgt jetzt dem Fenster.")
         return f"Anzeige-Treiber eingerichtet – Bildschirm: {screen.label(mode, size)}."
 
     def fullscreen(self) -> str:
@@ -843,7 +846,7 @@ class VM:
         geschickt (xdotool). Sonst: RuntimeError mit dem Hinweis auf die Tastenkombination.
         """
         if not self.is_running():
-            raise RuntimeError("Der Agent-PC läuft nicht.")
+            raise RuntimeError(tr("Der Agent-PC läuft nicht."))
         hint = ("Vollbild ein/aus: im Fenster des Agent-PCs Strg+Alt+F drücken "
                 "(macOS: ⌘+F, SPICE-Fenster: F11).")
         cmd = self.runtime().get("command") or []
@@ -855,13 +858,13 @@ class VM:
             raise RuntimeError(hint)
         win = _find_qemu_window(self.name)
         if not win:
-            raise RuntimeError("Das Fenster des Agent-PCs wurde nicht gefunden.\n\n" + hint)
+            raise RuntimeError(tr("Das Fenster des Agent-PCs wurde nicht gefunden.\n\n{hint}", hint=hint))
         try:
             subprocess.run(["xdotool", "windowactivate", "--sync", win, "key", "--clearmodifiers", "ctrl+alt+f"],
                            capture_output=True, timeout=5, env=clean_env(), check=True)
         except (OSError, subprocess.SubprocessError) as e:
-            raise RuntimeError(f"Vollbild ließ sich nicht umschalten ({e}).\n\n{hint}") from None
-        return "Vollbild umgeschaltet – zurück mit Strg+Alt+F."
+            raise RuntimeError(tr("Vollbild ließ sich nicht umschalten ({e}).\n\n{hint}", e=e, hint=hint)) from None
+        return tr("Vollbild umgeschaltet – zurück mit Strg+Alt+F.")
 
     # ---------- Bildschirm per VNC (nur lokal – für Schulungen: Vorführen, Hilfe-Modus) ----------
     def _vnc_target(self) -> str:
@@ -879,7 +882,8 @@ class VM:
         """Verbindung zum lokalen VNC-Bildschirm dieses Agent-PCs (RFB, ohne Passwort – nur lokal erreichbar)."""
         target = self.runtime().get("vnc") if self.is_running() else None
         if not target:
-            raise RuntimeError(f"„{self.name}“ zeigt seinen Bildschirm noch nicht für Schulungen – einmal neu starten.")
+            raise RuntimeError(tr("„{name}“ zeigt seinen Bildschirm noch nicht für Schulungen – einmal neu starten.",
+                                  name=self.name))
         if target.startswith("unix:"):
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.settimeout(timeout)
@@ -963,15 +967,15 @@ class VM:
     def connect(self, protocol: str) -> None:
         protocol = protocol.upper()
         if not self.is_running():
-            raise RuntimeError("Der Agent-PC läuft nicht.")
+            raise RuntimeError(tr("Der Agent-PC läuft nicht."))
         info = self.remote_info()
         if protocol == "RDP" and not info["rdp_installed"]:
-            raise RuntimeError("Im Agent-PC fehlt „Fernzugriff (RDP)“ – über „Programme hinzufügen …“ "
-                               f"oder „bonys-agents install {self.name} xrdp“ nachrüsten.")
+            raise RuntimeError(tr("Im Agent-PC fehlt „Fernzugriff (RDP)“ – über „Programme hinzufügen …“ oder "
+                                  "„bonys-agents install {name} xrdp“ nachrüsten.", name=self.name))
         if protocol == "RDP" and not info["active"]:
-            raise RuntimeError("Der Fernzugriff ist aus – erst „Fernzugriff einschalten“.")
+            raise RuntimeError(tr("Der Fernzugriff ist aus – erst „Fernzugriff einschalten“."))
         if protocol == "SPICE" and not info["spice_supported"]:
-            raise RuntimeError("Dieser QEMU-Build kann kein SPICE – bitte RDP verwenden.")
+            raise RuntimeError(tr("Dieser QEMU-Build kann kein SPICE – bitte RDP verwenden."))
         self.sync_remmina()
         if protocol == "RDP":
             remote.connect(protocol, self.name, self.config.username, self.config.rdp_port, self.path)
@@ -1088,7 +1092,7 @@ class VM:
                 _children.pop(proc.pid, None)
                 log.close()
                 err = self.qemu_log.read_text("utf-8", errors="replace")[-2000:]
-                raise RuntimeError("QEMU ist sofort beendet:\n" + err)
+                raise RuntimeError(tr("QEMU ist sofort beendet:\n{err}", err=err))
             if self.pidfile.exists():
                 break
         log.close()
@@ -1247,9 +1251,9 @@ class VM:
         plan = self.install_plan(app_ids)
         if not plan:
             names = ", ".join(apps.names([i for i in app_ids if i in apps.APPS]))
-            raise ValueError(f"{names} ist in „{self.name}“ bereits installiert.")
+            raise ValueError(tr("{names} ist in „{name}“ bereits installiert.", names=names, name=self.name))
         if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
-            raise RuntimeError("Der Agent-PC muss laufen und fertig eingerichtet sein.")
+            raise RuntimeError(tr("Der Agent-PC muss laufen und fertig eingerichtet sein."))
         done: list[str] = []
         for n, app_id in enumerate(plan, start=1):
             spec = apps.APPS[app_id]
@@ -1259,8 +1263,8 @@ class VM:
             rc, _out = self.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log,
                                        timeout=3 * 3600)
             if rc != 0:
-                raise RuntimeError(f"Installation von {spec.name} fehlgeschlagen (Code {rc}) – siehe Ausgabe. "
-                                   "Erneut starten setzt hier fort.")
+                raise RuntimeError(tr("Installation von {name} fehlgeschlagen (Code {rc}) – siehe Ausgabe. Erneut "
+                                      "starten setzt hier fort.", name=spec.name, rc=rc))
             self._mark_installed(app_id)
             done.append(app_id)
         return done
@@ -1281,7 +1285,8 @@ class VM:
         """Eine App (samt Abhängigkeiten) nachinstallieren – ohne Gast-Agent fragt ssh im Terminal."""
         spec = apps.APPS.get(app_id)
         if spec is None:
-            raise ValueError(f"Unbekannte App '{app_id}'. Verfügbar: {', '.join(apps.visible_ids())}")
+            raise ValueError(tr("Unbekannte App '{app_id}'. Verfügbar: {wert}", app_id=app_id,
+                                wert=', '.join(apps.visible_ids())))
         self.install_apps([app_id], password=password, ssh_prompt=password is None, log=log)
 
     def installed_desktops(self) -> list[str]:
@@ -1298,15 +1303,16 @@ class VM:
         distros.check(self.config.distro, self.config.arch, desktop_id)
         if desktop_id in self.installed_desktops():
             if not make_default or desktop_id == self.config.desktop:
-                raise ValueError(f"{spec.name} ist in „{self.name}“ bereits installiert.")
+                raise ValueError(tr("{name} ist in „{name2}“ bereits installiert.", name=spec.name, name2=self.name))
         if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
-            raise RuntimeError("Der Agent-PC muss laufen und fertig eingerichtet sein.")
+            raise RuntimeError(tr("Der Agent-PC muss laufen und fertig eingerichtet sein."))
         script = cloudinit.desktop_install_script(spec, self.config.username, make_default)
         rc = self._ssh(SSH_SUDO_SCRIPT, script, password, log)
         if rc == 255:
-            raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
+            raise RuntimeError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?"))
         if rc != 0:
-            raise RuntimeError(f"Installation von {spec.name} fehlgeschlagen (Code {rc}) – siehe Ausgabe.")
+            raise RuntimeError(tr("Installation von {name} fehlgeschlagen (Code {rc}) – siehe Ausgabe.",
+                                  name=spec.name, rc=rc))
         c = self.config
         installed = self.installed_desktops() + ([desktop_id] if desktop_id not in self.installed_desktops() else [])
         if make_default:
@@ -1323,7 +1329,7 @@ class VM:
         """
         ssh = shutil.which("ssh")
         if not ssh:
-            raise RuntimeError("Das Programm „ssh“ wurde nicht gefunden (Paket openssh-client).")
+            raise RuntimeError(tr("Das Programm „ssh“ wurde nicht gefunden (Paket openssh-client)."))
         cmd = [
             ssh, "-p", str(self.runtime().get("ssh_port")),
             "-o", "StrictHostKeyChecking=accept-new",
@@ -1360,7 +1366,7 @@ class VM:
         sonst per SSH – dafür braucht es das Passwort (``password``) bzw. ``ssh_prompt``.
         """
         if not self.is_running() or not self.progress().ready or self.config.first_boot_pending:
-            raise RuntimeError(f"„{self.name}“ muss laufen und fertig eingerichtet sein.")
+            raise RuntimeError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=self.name))
         script = apps.upgrade_script(self.config.apps, self.config.username)
         rc, out = self.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log, timeout=timeout)
         return UpgradeResult(ok=rc == 0, reboot_required=apps.REBOOT_MARKER in out, exit_code=rc,
@@ -1395,7 +1401,7 @@ class VM:
             if pid is not None:
                 return self._guest_exec_follow(port, pid, pos, emit, timeout)
         if not password and not ssh_prompt:
-            raise NeedsPassword(GAST_AGENT_FEHLT)
+            raise NeedsPassword(tr(GAST_AGENT_FEHLT))
         lines: list[str] = []
 
         def collect(line: str) -> None:
@@ -1404,7 +1410,7 @@ class VM:
 
         rc = self._ssh(SSH_SUDO_SCRIPT, script, password, collect)
         if rc == 255:
-            raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
+            raise RuntimeError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?"))
         return rc, "\n".join(lines)
 
     def _guest_exec_follow(self, port: int, pid: int, pos: int, emit: Callable[[str], None],
@@ -1437,7 +1443,8 @@ class VM:
             if st.get("exited"):
                 break
             if time.time() > deadline:
-                raise RuntimeError(f"Aktualisierung nicht innerhalb von {timeout / 3600:.0f} Stunden fertig.")
+                raise RuntimeError(tr("Aktualisierung nicht innerhalb von {wert:.0f} Stunden fertig.",
+                                      wert=timeout / 3600))
             time.sleep(1)
         if pending:
             emit(pending)
@@ -1448,7 +1455,7 @@ class VM:
         """Anmeldung per SSH als Benutzer des Agent-PCs (Port aus runtime.json)."""
         port = self.runtime().get("ssh_port")
         if not self.is_running() or not port:
-            raise RuntimeError("Der Agent-PC läuft nicht.")
+            raise RuntimeError(tr("Der Agent-PC läuft nicht."))
         ssh = shutil.which("ssh") or "ssh"
         return [ssh, "-p", str(port), "-o", "StrictHostKeyChecking=accept-new",
                 "-o", f"UserKnownHostsFile={self.path / 'known_hosts'}", f"{self.config.username}@127.0.0.1"]
@@ -1460,7 +1467,7 @@ class VM:
     def fetch_setup_logs(self, password: str | None = None, ssh_prompt: bool = False) -> list[Path]:
         """Einrichtungsprotokolle aus dem Gast in den VM-Ordner kopieren (Gast-Agent, sonst SSH)."""
         if not self.is_running():
-            raise RuntimeError("Der Agent-PC läuft nicht.")
+            raise RuntimeError(tr("Der Agent-PC läuft nicht."))
         sep = "=====BONYS-FILE "
         script = "".join(f'echo "{sep}{src}"; cat {src} 2>&1 || true\n' for src in GUEST_SETUP_LOGS)
         try:
@@ -1468,13 +1475,13 @@ class VM:
                 out = ga.run(script, timeout=60)[1]
         except (qemu.GuestAgentError, RuntimeError):
             if not password and not ssh_prompt:
-                raise NeedsPassword("Der Gast-Agent ist noch nicht installiert – für SSH wird das Passwort "
-                                    "des Agent-PCs gebraucht.") from None
+                raise NeedsPassword(tr("Der Gast-Agent ist noch nicht installiert – für SSH wird das Passwort "
+                                       "des Agent-PCs gebraucht.")) from None
             lines: list[str] = []
             rc = self._ssh(SSH_SUDO_SCRIPT, script, password, lines.append)
             if rc == 255:
-                raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort? "
-                                   "(Ganz am Anfang der Einrichtung gibt es den Benutzer noch nicht.)") from None
+                raise RuntimeError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort? "
+                                      "(Ganz am Anfang der Einrichtung gibt es den Benutzer noch nicht.)")) from None
             out = "\n".join(lines)
         files: list[Path] = []
         for chunk in out.split(sep)[1:]:
@@ -1485,18 +1492,18 @@ class VM:
                 target.write_text(pct.strip_ansi(content), "utf-8")
                 files.append(target)
         if not files:
-            raise RuntimeError("Keine Protokolle erhalten.")
+            raise RuntimeError(tr("Keine Protokolle erhalten."))
         return files
 
     def resize(self, new_gb: int) -> None:
         """Virtuelle Festplatte vergrößern (nie verkleinern). Der Gast erweitert die Partition beim Start."""
         check_disk_gb(new_gb)
         if self.is_running():
-            raise RuntimeError("Bitte den Agent-PC zuerst herunterfahren.")
+            raise RuntimeError(tr("Bitte den Agent-PC zuerst herunterfahren."))
         self._check_usable()
         if new_gb <= self.config.disk_gb:
-            raise ValueError(f"Nur vergrößern möglich: aktuell {format_gb(self.config.disk_gb)}, "
-                             f"gewünscht {format_gb(new_gb)}.")
+            raise ValueError(tr("Nur vergrößern möglich: aktuell {wert}, gewünscht {wert2}.",
+                                wert=format_gb(self.config.disk_gb), wert2=format_gb(new_gb)))
         qemu.resize_disk(qemu.find_binary("qemu-img", host.detect().os), self.disk, new_gb)
         self.config.disk_gb = new_gb
         self.save()
@@ -1509,13 +1516,13 @@ class VM:
         """CPU-Kerne und Arbeitsspeicher ändern – gilt ab dem nächsten Start, daher nur ausgeschaltet."""
         info = host.detect()
         if not 1 <= cpus <= info.cpus:
-            raise ValueError(f"CPU-Kerne: 1 bis {info.cpus} möglich (angegeben: {cpus}).")
+            raise ValueError(tr("CPU-Kerne: 1 bis {cpus} möglich (angegeben: {cpus2}).", cpus=info.cpus, cpus2=cpus))
         if not host.MIN_VM_RAM_MB <= ram_mb <= info.max_vm_ram_mb:
-            raise ValueError(f"Arbeitsspeicher: {desktops.format_ram(host.MIN_VM_RAM_MB)} bis "
-                             f"{desktops.format_ram(info.max_vm_ram_mb)} möglich – der Rest bleibt für diesen "
-                             f"Rechner (angegeben: {desktops.format_ram(ram_mb)}).")
+            raise ValueError(tr("Arbeitsspeicher: {wert} bis {wert2} möglich – der Rest bleibt für diesen Rechner "
+                                "(angegeben: {wert3}).", wert=desktops.format_ram(host.MIN_VM_RAM_MB),
+                                wert2=desktops.format_ram(info.max_vm_ram_mb), wert3=desktops.format_ram(ram_mb)))
         if self.is_running():
-            raise RuntimeError("Bitte den Agent-PC zuerst herunterfahren.")
+            raise RuntimeError(tr("Bitte den Agent-PC zuerst herunterfahren."))
         self._check_usable()
         self.config.cpus = cpus
         self.config.ram_mb = ram_mb
@@ -1523,7 +1530,7 @@ class VM:
 
     def delete(self) -> None:
         if self.template_lock_pid() is not None:
-            raise RuntimeError(f"Aus „{self.name}“ wird gerade eine Vorlage erstellt – bitte warten.")
+            raise RuntimeError(tr("Aus „{name}“ wird gerade eine Vorlage erstellt – bitte warten.", name=self.name))
         self.stop(force=True)
         shutil.rmtree(self.path, ignore_errors=True)
         storage.forget(self.name)
@@ -1548,8 +1555,9 @@ class UpgradeResult:
 
 
 START_WARTEN = 150   # so lange nach dem Start wartet die App auf den Gast-Agent, bevor sie nach dem Passwort fragt
-GAST_AGENT_FEHLT = ("Der Agent-PC antwortet gerade nicht direkt. Mit seinem Passwort geht es trotzdem – es wird nicht "
-                    "gespeichert. Ist er eben erst gestartet, „Abbrechen“ und in einer Minute noch einmal versuchen.")
+GAST_AGENT_FEHLT = (n_("Der Agent-PC antwortet gerade nicht direkt. Mit seinem Passwort geht es trotzdem – es wird "
+                       "nicht gespeichert. Ist er eben erst gestartet, „Abbrechen“ und in einer Minute noch einmal "
+                       "versuchen."))
 
 
 class NeedsPassword(RuntimeError):
@@ -1677,7 +1685,7 @@ class MissingVM:
             return False
 
     def status(self) -> str:
-        return STATUS_BROKEN if self.broken() else "nicht verfügbar"
+        return STATUS_BROKEN if self.broken() else n_("nicht verfügbar")
 
 
 def _scan(library: Path) -> list[Path]:
@@ -1719,8 +1727,9 @@ def get(name: str) -> VM:
             return m
     known = storage.load_settings()["known"].get(name)
     if known:
-        raise KeyError(f"Agent-PC '{name}' ist nicht verfügbar – liegt auf {known}. Ist das Laufwerk eingesteckt?")
-    raise KeyError(f"Agent-PC '{name}' gibt es nicht")
+        raise KeyError(tr("Agent-PC '{name}' ist nicht verfügbar – liegt auf {known}. Ist das Laufwerk eingesteckt?",
+                          name=name, known=known))
+    raise KeyError(tr("Agent-PC '{name}' gibt es nicht", name=name))
 
 
 def forget_missing(name: str) -> None:
@@ -1736,7 +1745,7 @@ def import_path(path: Path) -> list[VM]:
     elif _scan(path):
         library = path
     else:
-        raise ValueError(f"In {path} wurde kein Agent-PC gefunden (keine vm.json).")
+        raise ValueError(tr("In {path} wurde kein Agent-PC gefunden (keine vm.json).", path=path))
     storage.add_location(library)
     storage.invalidate_cache()
     added = [VM(p) for p in _scan(library)]
@@ -1774,7 +1783,7 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
     """Agent-PC an einen anderen Speicherort verschieben (muss ausgeschaltet sein)."""
     machine = get(name)
     if machine.is_running():
-        raise RuntimeError("Bitte den Agent-PC zuerst herunterfahren.")
+        raise RuntimeError(tr("Bitte den Agent-PC zuerst herunterfahren."))
     machine._check_usable()
     backing = machine.backing_file()
     target_library = Path(target_library)
@@ -1782,7 +1791,7 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
     if dest.resolve() == machine.path.resolve():
         return machine
     if dest.exists():
-        raise FileExistsError(f"Im Ziel gibt es schon einen Ordner {dest}")
+        raise FileExistsError(tr("Im Ziel gibt es schon einen Ordner {dest}", dest=dest))
     need_gb = max(1, -(-machine.size_on_disk() // storage.GB))
     chk = storage.check_location(target_library, 0, create=True, min_free_gb=0)
     if not chk.ok:
@@ -1822,7 +1831,7 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
             def flat(frac: float) -> None:
                 if progress:
                     progress("move", frac * disk_share / total,
-                             "Schreibe unabhängige Kopie der Festplatte (Vorlage bleibt auf dem alten Laufwerk) …")
+                             tr("Schreibe unabhängige Kopie der Festplatte (Vorlage bleibt auf dem alten Laufwerk) …"))
 
             qemu.convert_disk(qemu.find_binary("qemu-img", host.detect().os), machine.disk,
                               tmp / "disk.qcow2", progress=flat)
@@ -1839,11 +1848,11 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
                 dst.flush()
                 os.fsync(dst.fileno())
             if out.stat().st_size != f.stat().st_size:
-                raise OSError(f"Kopie von {f.name} unvollständig")
+                raise OSError(tr("Kopie von {name} unvollständig", name=f.name))
         # Die Quelle wird gleich gelöscht: vorher muss die Kopie wirklich auf dem Ziel stehen (Stromausfall,
         # Laufwerk sofort abgezogen) und die Festplatte darin lesbar sein.
         if progress:
-            progress("move", 0.99, "Schreibe alles auf das Ziel-Laufwerk und prüfe die Kopie …")
+            progress("move", 0.99, tr("Schreibe alles auf das Ziel-Laufwerk und prüfe die Kopie …"))
         fsync_tree(tmp)
         qemu.check_disk(qemu.find_binary("qemu-img", host.detect().os), tmp / "disk.qcow2")
         os.replace(tmp, dest)
@@ -1857,8 +1866,8 @@ def move(name: str, target_library: Path, progress: ProgressFn | None = None) ->
     storage.invalidate_cache()
     if progress:
         note = " – jetzt als unabhängige Kopie (die Vorlage liegt auf einem anderen Laufwerk)" if backing else ""
-        progress("done", 1.0, f"Verschoben nach {dest}{note}. Ein externes Laufwerk vor dem Abziehen bitte "
-                              "auswerfen.")
+        progress("done", 1.0, tr("Verschoben nach {dest}{note}. Ein externes Laufwerk vor dem Abziehen bitte "
+                                 "auswerfen.", dest=dest, note=note))
     return VM(dest)
 
 
@@ -1882,7 +1891,7 @@ def create(
     disk_gb: int | None = None,
     username: str = "agent",
     app_ids: list[str] | None = None,
-    keyboard: str = "de",
+    keyboard: str | None = None,
     timezone_name: str = "Europe/Berlin",
     location: Path | None = None,
     progress: ProgressFn | None = None,
@@ -1893,6 +1902,7 @@ def create(
     foreign_arch: bool = False,
     bony_netz: bool = False,
     distro: str = distros.DEFAULT,
+    sprache: str | None = None,
 ) -> VM:
     """Neuen Agent-PC anlegen – neu installiert (Cloud-Image + Einrichtung) oder aus einer Vorlage.
 
@@ -1907,6 +1917,9 @@ def create(
 
     ``distro``: Grundsystem bei einer Neuinstallation (``distros``: Debian oder Kali).
 
+    ``sprache``: Sprache im Agent-PC („de“ oder „en“: Locale, Ordnernamen, Starter, Hermes-Spracheingabe), ohne
+    Angabe die der App. ``keyboard`` ohne Angabe: passend zur Sprache. Aus einer Vorlage gilt beides der Vorlage.
+
     ``bony_netz``: beim ersten Start dem Bony-Netz beitreten. Der Geräteschlüssel wird erst direkt vor dem
     Schreiben des Seed-ISOs geholt (gilt 60 Minuten). Geht das nicht (kein Internet, Gerätegrenze …), wird der
     Agent-PC ohne Netz erstellt; der Grund steht dann in ``VM.hinweise``.
@@ -1916,7 +1929,11 @@ def create(
             progress(phase, frac, msg)
 
     if not NAME_RE.match(name):
-        raise ValueError("Name: 1–40 Zeichen, nur Buchstaben, Ziffern, - und _")
+        raise ValueError(tr("Name: 1–40 Zeichen, nur Buchstaben, Ziffern, - und _"))
+    sprache = sprache or i18n.sprache()
+    if sprache not in cloudinit.LOCALES:
+        raise ValueError(tr("Unbekannte Sprache „{wert}“.", wert=sprache))
+    keyboard = keyboard or cloudinit.KEYBOARDS[sprache]
     if template is not None:
         return _create_from_template(name, password, template, linked=linked, cpus=cpus, ram_mb=ram_mb,
                                      disk_gb=disk_gb, keyboard=keyboard, location=location, report=report,
@@ -1924,16 +1941,16 @@ def create(
     disk_gb = DEFAULT_DISK_GB if disk_gb is None else disk_gb
     desktops.get(desktop)
     if not re.match(r"^[a-z_][a-z0-9_-]{0,31}$", username):
-        raise ValueError("Benutzername: kleingeschrieben, beginnt mit Buchstabe")
+        raise ValueError(tr("Benutzername: kleingeschrieben, beginnt mit Buchstabe"))
     if len(password) < 4:
-        raise ValueError("Passwort: mindestens 4 Zeichen")
+        raise ValueError(tr("Passwort: mindestens 4 Zeichen"))
     check_disk_gb(disk_gb)
     if any(m.name == name for m in list_all()):
-        raise FileExistsError(f"Agent-PC '{name}' existiert bereits")
+        raise FileExistsError(tr("Agent-PC '{name}' existiert bereits", name=name))
     library = Path(location) if location else storage.preferred_library()
     path = library / name
     if path.exists():
-        raise FileExistsError(f"Ordner {path} existiert bereits")
+        raise FileExistsError(tr("Ordner {path} existiert bereits", path=path))
 
     info = host.detect()
     distros.check(distro, info.arch, desktop)
@@ -1960,7 +1977,7 @@ def create(
     if not chk.ok:
         raise RuntimeError(" ".join(chk.errors))
 
-    report("download", 0.0, f"Suche das aktuelle Abbild von {distros.name(distro)} …")
+    report("download", 0.0, tr("Suche das aktuelle Abbild von {wert} …", wert=distros.name(distro)))
     base = images.base_image(distro, info.arch)
     report("download", 0.0, f"Lade {base.name} …")
 
@@ -1981,7 +1998,8 @@ def create(
         report("seed", 0.0, "Schreibe Einrichtungsdaten …")
         guest = cloudinit.GuestConfig(
             hostname=name.lower().replace("_", "-"), username=username, password=password,
-            apps=app_specs, keyboard=keyboard, timezone=timezone_name, desktop=desktop, vpn=vpn,
+            apps=app_specs, keyboard=keyboard, timezone=timezone_name, locale=cloudinit.locale_fuer(sprache),
+            desktop=desktop, vpn=vpn,
             netz=beitritt.skript if beitritt else None, distro=distro,
         )
         cloudinit.write_seed_iso(path / "seed.iso", guest, instance_id=f"bonys-{uuid.uuid4()}")
@@ -1996,7 +2014,7 @@ def create(
     machine = VM(path)
     machine.hinweise = hinweise
     machine.ensure_remote_ports()  # feste Ports für RDP/SPICE gleich beim Anlegen
-    report("done", 1.0, f"Agent-PC angelegt in {path}")
+    report("done", 1.0, tr("Agent-PC angelegt in {path}", path=path))
     return machine
 
 
@@ -2004,7 +2022,7 @@ def _netz_beitritt(name: str, cfg: VMConfig, report: ProgressFn, hinweise: list[
     """Geräteschlüssel fürs Bony-Netz holen; Netzname in ``cfg``. Ohne Schlüssel: Hinweis, weiter ohne Netz."""
     from bonys_agents import netz
 
-    report("seed", 0.0, "Hole den Schlüssel für das Bony-Netz …")
+    report("seed", 0.0, tr("Hole den Schlüssel für das Bony-Netz …"))
     beitritt, hinweis = netz.beitritt_mit_hinweis(name)
     if beitritt is None:
         hinweise.append(hinweis)
@@ -2022,26 +2040,28 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
 
     t0 = time.monotonic()
     if len(password) < 4:
-        raise ValueError("Passwort: mindestens 4 Zeichen")
+        raise ValueError(tr("Passwort: mindestens 4 Zeichen"))
     tpl = templates.get(template_name)
     tpl.check_usable()
     if vpn and vpnlink.APP_ID not in tpl.apps:
-        raise ValueError(f"In der Vorlage „{tpl.name}“ ist Bony's VPN nicht installiert – die WireGuard-Konfiguration "
-                         "geht erst, wenn die VPN-App im Agent-PC nachinstalliert ist (Detailansicht → VPN).")
+        raise ValueError(tr("In der Vorlage „{name}“ ist Bony's VPN nicht installiert – die WireGuard-Konfiguration "
+                            "geht erst, wenn die VPN-App im Agent-PC nachinstalliert ist (Detailansicht → VPN).",
+                            name=tpl.name))
     info = host.detect()
     if tpl.arch != info.arch and not foreign_arch:
-        raise ValueError(f"Die Vorlage „{tpl.name}“ ist für {tpl.arch}, dieser Rechner ist {info.arch}. "
-                         "Sie liefe nur emuliert und sehr langsam – besser das Rezept nutzen (neu einrichten).")
+        raise ValueError(tr("Die Vorlage „{name}“ ist für {arch}, dieser Rechner ist {arch2}. Sie liefe nur emuliert "
+                            "und sehr langsam – besser das Rezept nutzen (neu einrichten).", name=tpl.name,
+                            arch=tpl.arch, arch2=info.arch))
     disk_gb = tpl.disk_gb if disk_gb is None else disk_gb
     check_disk_gb(disk_gb)
     if disk_gb < tpl.disk_gb:
-        raise ValueError(f"Festplatte: mindestens so groß wie die Vorlage ({format_gb(tpl.disk_gb)}).")
+        raise ValueError(tr("Festplatte: mindestens so groß wie die Vorlage ({wert}).", wert=format_gb(tpl.disk_gb)))
     if any(m.name == name for m in list_all()):
-        raise FileExistsError(f"Agent-PC '{name}' existiert bereits")
+        raise FileExistsError(tr("Agent-PC '{name}' existiert bereits", name=name))
     library = Path(location) if location else storage.preferred_library()
     path = library / name
     if path.exists():
-        raise FileExistsError(f"Ordner {path} existiert bereits")
+        raise FileExistsError(tr("Ordner {path} existiert bereits", path=path))
     chk = storage.check_location(library, disk_gb, create=True, min_free_gb=1)
     if not chk.ok:
         raise RuntimeError(" ".join(chk.errors))
@@ -2049,11 +2069,12 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     if linked is None:
         linked = same
     if linked and not same:
-        raise ValueError("„Schnell (verknüpft)“ geht nur, wenn der Agent-PC auf demselben Laufwerk liegt wie die "
-                         f"Vorlage ({tpl.library}). Sonst „Unabhängig (vollständige Kopie)“ wählen.")
+        raise ValueError(tr("„Schnell (verknüpft)“ geht nur, wenn der Agent-PC auf demselben Laufwerk liegt wie die "
+                            "Vorlage ({library}). Sonst „Unabhängig (vollständige Kopie)“ wählen.",
+                            library=tpl.library))
     if not linked and shutil.disk_usage(library).free < tpl.size * 3 + storage.GB:
-        raise RuntimeError(f"Zu wenig Platz für eine vollständige Kopie der Vorlage ({tpl.size / storage.GB:.1f} GB "
-                           "komprimiert, entpackt deutlich mehr).")
+        raise RuntimeError(tr("Zu wenig Platz für eine vollständige Kopie der Vorlage ({wert:.1f} GB komprimiert, "
+                              "entpackt deutlich mehr).", wert=tpl.size / storage.GB))
     qemu_img = qemu.find_binary("qemu-img", info.os)
     qemu.find_binary(qemu.ARCH_BINARY[tpl.arch], info.os)
     qemu.check_disk_safe(tpl.disk)  # Vorlage kann von einem fremden Laufwerk stammen
@@ -2072,18 +2093,18 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     hinweise: list[str] = []
     try:
         if linked:
-            report("disk", 0.0, f"Verknüpfe mit Vorlage „{tpl.name}“ …")
+            report("disk", 0.0, tr("Verknüpfe mit Vorlage „{name}“ …", name=tpl.name))
             qemu.create_overlay(qemu_img, tpl.disk, path / "disk.qcow2", disk_gb, relative=True)
         else:
             def copy(frac: float) -> None:
-                report("disk", frac, f"Kopiere Vorlage „{tpl.name}“ … {frac * 100:.0f} %")
+                report("disk", frac, tr("Kopiere Vorlage „{name}“ … {wert:.0f} %", name=tpl.name, wert=frac * 100))
 
-            report("disk", 0.0, f"Kopiere Vorlage „{tpl.name}“ …")
+            report("disk", 0.0, tr("Kopiere Vorlage „{name}“ …", name=tpl.name))
             qemu.convert_disk(qemu_img, tpl.disk, path / "disk.qcow2", progress=copy)
             if disk_gb * storage.GB > qemu.virtual_size(qemu_img, path / "disk.qcow2"):
                 qemu.resize_disk(qemu_img, path / "disk.qcow2", disk_gb)
         beitritt = _netz_beitritt(name, cfg, report, hinweise) if bony_netz else None
-        report("seed", 0.0, "Schreibe Rechnername und Passwort …")
+        report("seed", 0.0, tr("Schreibe Rechnername und Passwort …"))
         cloudinit.write_clone_seed_iso(path / "seed.iso", hostname=name.lower().replace("_", "-"),
                                        username=tpl.username, password=password,
                                        instance_id=f"bonys-{uuid.uuid4()}", vpn=vpn,
@@ -2100,6 +2121,6 @@ def _create_from_template(name: str, password: str, template_name: str, *, linke
     machine.hinweise = hinweise
     machine.ensure_remote_ports()
     kind = "verknüpft" if linked else "unabhängige Kopie"
-    report("done", 1.0, f"Agent-PC aus Vorlage „{tpl.name}“ angelegt ({kind}, {time.monotonic() - t0:.0f} s) "
-                        f"in {path}")
+    report("done", 1.0, tr("Agent-PC aus Vorlage „{name}“ angelegt ({kind}, {wert:.0f} s) in {path}", name=tpl.name,
+                           kind=kind, wert=time.monotonic() - t0, path=path))
     return machine

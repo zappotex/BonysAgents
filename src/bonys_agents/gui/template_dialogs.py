@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from bonys_agents import (
     APP_NAME, apps, bonysfile, cloudinit, edition, host, mission_control, n8n, storage, templates, vm, vpnlink,
 )
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import FlowLayout, PathLabel, PercentBar, confirm_delete, make_scrollable
@@ -49,23 +50,23 @@ def deletion_text(username: str, remove_personal: bool, vpn: bool = False, missi
     """``vpn``/``mission``/``workflows``: Bony's VPN, Mission Control bzw. n8n ist im Agent-PC installiert."""
     lines = []
     if remove_personal:
-        lines.append("PERSÖNLICHE DATEN (die Programme selbst bleiben installiert):")
-        lines.append(f"• {vpnlink.FRESH_CLEANUP}")
+        lines.append(tr("PERSÖNLICHE DATEN (die Programme selbst bleiben installiert):"))
+        lines.append(f"• {tr(vpnlink.FRESH_CLEANUP)}")
         if mission:
-            lines.append(f"• {mission_control.FRESH_CLEANUP}")
+            lines.append(f"• {tr(mission_control.FRESH_CLEANUP)}")
         if workflows:
-            lines.append(f"• {n8n.FRESH_CLEANUP}")
+            lines.append(f"• {tr(n8n.FRESH_CLEANUP)}")
         for item in cloudinit.PERSONAL_DATA:
-            lines.append(f"• {item.title}")
+            lines.append(f"• {tr(item.title)}")
             for p in item.paths:
                 lines.append(f"      /home/{username}/{p}{item.note()}")
     else:
-        lines.append("PERSÖNLICHE DATEN BLEIBEN ERHALTEN – Anmeldungen und API-Schlüssel stecken dann in der "
-                     "Vorlage. Nicht weitergeben!")
+        lines.append(tr("PERSÖNLICHE DATEN BLEIBEN ERHALTEN – Anmeldungen und API-Schlüssel stecken dann in der "
+                        "Vorlage. Nicht weitergeben!"))
         if vpn:
-            lines.append(f"⚠ {vpnlink.CLONE_WARNING}")
+            lines.append(f"⚠ {tr(vpnlink.CLONE_WARNING)}")
         if mission:
-            lines.append(f"⚠ {mission_control.CLONE_NOTE}")
+            lines.append(f"⚠ {tr(mission_control.CLONE_NOTE)}")
     lines.append("")
     lines.append("SYSTEM (immer):")
     lines += [f"• {line}" for line in cloudinit.SYSTEM_CLEANUP]
@@ -81,15 +82,15 @@ class SaveTemplateDialog(QDialog):
         self.worker: FnWorker | None = None
         self.password: str | None = None
         self.result_template: templates.Template | None = None
-        self.setWindowTitle("Als Vorlage speichern")
+        self.setWindowTitle(tr("Als Vorlage speichern"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel(f"„{machine.name}“ als Vorlage speichern")
+        title = QLabel(tr("„{name}“ als Vorlage speichern", name=machine.name))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Aus der Vorlage entstehen neue Agent-PCs in Sekunden – ohne Downloads und Einrichtung. "
-                       "Das Original bleibt unverändert: Verallgemeinert wird eine Kopie seiner Festplatte, "
-                       "ohne Internetverbindung.")
+        intro = QLabel(tr("Aus der Vorlage entstehen neue Agent-PCs in Sekunden – ohne Downloads und Einrichtung. "
+                          "Das Original bleibt unverändert: Verallgemeinert wird eine Kopie seiner Festplatte, "
+                          "ohne Internetverbindung."))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
@@ -97,15 +98,15 @@ class SaveTemplateDialog(QDialog):
         form = QFormLayout()
         self.name = QLineEdit(templates.suggest_name(machine.name))
         self.description = QLineEdit()
-        self.description.setPlaceholderText("z. B. Brave, Telegram und Hermes – frisch, ohne Anmeldungen")
-        form.addRow("Name", self.name)
-        form.addRow("Beschreibung", self.description)
+        self.description.setPlaceholderText(tr("z. B. Brave, Telegram und Hermes – frisch, ohne Anmeldungen"))
+        form.addRow(tr("Name"), self.name)
+        form.addRow(tr("Beschreibung"), self.description)
         root.addLayout(form)
-        self.personal = QCheckBox("Persönliche Daten entfernen (Anmeldungen, API-Schlüssel, Gedächtnis …)")
+        self.personal = QCheckBox(tr("Persönliche Daten entfernen (Anmeldungen, API-Schlüssel, Gedächtnis …)"))
         self.personal.setChecked(True)
         root.addWidget(self.personal)
 
-        sec = QLabel("WAS IN DER VORLAGE GELÖSCHT WIRD")
+        sec = QLabel(tr("WAS IN DER VORLAGE GELÖSCHT WIRD"))
         sec.setObjectName("Section")
         root.addWidget(sec)
         self.listing = QPlainTextEdit()
@@ -113,10 +114,10 @@ class SaveTemplateDialog(QDialog):
         self.listing.setMinimumHeight(style.px(160))
         root.addWidget(self.listing, 1)
         prow = QHBoxLayout()
-        self.preview_btn = QPushButton("Im Agent-PC nachsehen (Probelauf) …")
+        self.preview_btn = QPushButton(tr("Im Agent-PC nachsehen (Probelauf) …"))
         self.preview_btn.setObjectName("Small")
-        self.preview_btn.setToolTip("Startet kurz eine Kopie (ohne Netz) und listet auf, was dort tatsächlich "
-                                    "gelöscht würde – mit Größen. Ändert nichts.")
+        self.preview_btn.setToolTip(tr("Startet kurz eine Kopie (ohne Netz) und listet auf, was dort tatsächlich "
+                                       "gelöscht würde – mit Größen. Ändert nichts."))
         prow.addWidget(self.preview_btn)
         prow.addStretch(1)
         root.addLayout(prow)
@@ -130,8 +131,8 @@ class SaveTemplateDialog(QDialog):
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.ok_btn = QPushButton("Vorlage erstellen")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.ok_btn = QPushButton(tr("Vorlage erstellen"))
         self.ok_btn.setObjectName("Primary")
         buttons.addWidget(self.cancel_btn)
         buttons.addWidget(self.ok_btn)
@@ -144,7 +145,7 @@ class SaveTemplateDialog(QDialog):
         self.ok_btn.clicked.connect(self._create)
         self._update_listing()
         if machine.is_running():
-            self.status.setText(f"„{machine.name}“ läuft – er wird vorher heruntergefahren.")
+            self.status.setText(tr("„{name}“ läuft – er wird vorher heruntergefahren.", name=machine.name))
 
     def _update_listing(self) -> None:
         self.listing.setPlainText(deletion_text(self.machine.config.username, self.personal.isChecked(),
@@ -171,8 +172,9 @@ class SaveTemplateDialog(QDialog):
         m = self.machine
         if not m.is_running():
             return True
-        if QMessageBox.question(self, APP_NAME, f"„{m.name}“ läuft. Jetzt herunterfahren?\n\nDie Vorlage entsteht "
-                                "aus der ausgeschalteten Festplatte.") != QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, tr("„{name}“ läuft. Jetzt herunterfahren?\n\nDie Vorlage entsteht "
+                                                   "aus der ausgeschalteten Festplatte.",
+                                                   name=m.name)) != QMessageBox.Yes:
             return False
         return True
 
@@ -182,7 +184,7 @@ class SaveTemplateDialog(QDialog):
 
         def job(progress):
             if stop_first:
-                progress("shutdown", 0.0, f"Fahre „{machine.name}“ herunter …")
+                progress("shutdown", 0.0, tr("Fahre „{name}“ herunter …", name=machine.name))
                 machine.stop()
             return fn(progress)
 
@@ -200,13 +202,14 @@ class SaveTemplateDialog(QDialog):
     def _on_failed(self, msg: str) -> None:
         self._set_busy(False)
         if self.worker and isinstance(self.worker.error, vm.NeedsPassword):
-            pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{self.machine.name}“:",
+            pw, ok = QInputDialog.getText(self, APP_NAME, tr("{msg}\n\nPasswort von „{name}“:", msg=msg,
+                                                             name=self.machine.name),
                                           QLineEdit.Password)
             if ok and pw:
                 self.password = pw
-                self.status.setText("Passwort übernommen – bitte erneut starten.")
+                self.status.setText(tr("Passwort übernommen – bitte erneut starten."))
             return
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def _preview(self) -> None:
@@ -217,7 +220,7 @@ class SaveTemplateDialog(QDialog):
 
         def show(out: str) -> None:
             self._set_busy(False)
-            self.status.setText("Probelauf fertig – nichts wurde gelöscht.")
+            self.status.setText(tr("Probelauf fertig – nichts wurde gelöscht."))
             self.listing.setPlainText(deletion_text(self.machine.config.username, remove, self._has_vpn(),
                                                     self._has_mc(), self._has_n8n())
                                       + "\n\nGEFUNDEN IM AGENT-PC (Probelauf):\n" + out)
@@ -232,10 +235,11 @@ class SaveTemplateDialog(QDialog):
             return
         if not self._ensure_stopped():
             return
-        vpn_note = f"\n\n{vpnlink.CLONE_WARNING}" if self._has_vpn() else ""
+        vpn_note = f"\n\n{tr(vpnlink.CLONE_WARNING)}" if self._has_vpn() else ""
         if not self.personal.isChecked() and QMessageBox.warning(
-                self, APP_NAME, "Persönliche Daten bleiben in der Vorlage – Anmeldungen, Sitzungen und API-Schlüssel "
-                f"stecken dann in jedem Agent-PC, der daraus entsteht.{vpn_note}\n\nTrotzdem fortfahren?",
+                self, APP_NAME, tr("Persönliche Daten bleiben in der Vorlage – Anmeldungen, Sitzungen und "
+                                   "API-Schlüssel stecken dann in jedem Agent-PC, der daraus "
+                                   "entsteht.{vpn_note}\n\nTrotzdem fortfahren?", vpn_note=vpn_note),
                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
         name, desc = self.name.text().strip(), self.description.text().strip()
@@ -255,7 +259,6 @@ class SaveTemplateDialog(QDialog):
         super().reject()
 
 
-FILE_FILTER = f"Bony's-Agents-Vorlage (*{bonysfile.SUFFIX} *{templates.FILE_SUFFIX})"
 
 
 def creator_default() -> str:
@@ -278,40 +281,40 @@ class ExportDialog(QDialog):
         self.preview: Path | None = None
         self.result_file: Path | None = None
         self.clean = False
-        self.setWindowTitle("Vorlage weitergeben")
+        self.setWindowTitle(tr("Vorlage weitergeben"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel(f"„{t.name}“ weitergeben")
+        title = QLabel(tr("„{name}“ weitergeben", name=t.name))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Speichert die Vorlage als eine .bonys-Datei – z. B. für eine Schulung. Vorher startet eine "
-                       "Kopie ohne Netz und wird geprüft: Anmeldungen, Tokens, Schlüssel, Browser-Daten, Verläufe "
-                       "dürfen nicht mit. Die Vorlage selbst bleibt unverändert.")
+        intro = QLabel(tr("Speichert die Vorlage als eine .bonys-Datei – z. B. für eine Schulung. Vorher startet eine "
+                          "Kopie ohne Netz und wird geprüft: Anmeldungen, Tokens, Schlüssel, Browser-Daten, Verläufe "
+                          "dürfen nicht mit. Die Vorlage selbst bleibt unverändert."))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
         if not t.personal_data_removed:
-            warn = QLabel("⚠ Diese Vorlage wurde MIT persönlichen Daten erstellt (Klon). Weitergeben geht nur „frisch "
-                          "gemacht“: Die persönlichen Daten werden dabei in der Export-Kopie entfernt.")
+            warn = QLabel(tr("⚠ Diese Vorlage wurde MIT persönlichen Daten erstellt (Klon). Weitergeben geht nur "
+                             "„frisch gemacht“: Die persönlichen Daten werden dabei in der Export-Kopie entfernt."))
             warn.setWordWrap(True)
             warn.setStyleSheet(f"color: {style.WARN}; font-weight: 600;")
             root.addWidget(warn)
-            self.fresh = QCheckBox("Frisch machen (persönliche Daten in der Export-Kopie entfernen)")
+            self.fresh = QCheckBox(tr("Frisch machen (persönliche Daten in der Export-Kopie entfernen)"))
             root.addWidget(self.fresh)
         else:
             self.fresh = None
         removed = apps.not_redistributable(t.apps)
         if removed:
-            lic = QLabel(f"Lizenz: {', '.join(apps.names(removed))} darf nicht weitergegeben werden – wird aus der "
-                         "Kopie entfernt. Im Manifest steht „beim Empfänger neu installieren (offizielle Quelle)“; "
-                         "der Empfänger installiert es mit „Programme hinzufügen …“.")
+            lic = QLabel(tr("Lizenz: {wert} darf nicht weitergegeben werden – wird aus der Kopie entfernt. Im "
+                            "Manifest steht „beim Empfänger neu installieren (offizielle Quelle)“; der Empfänger "
+                            "installiert es mit „Programme hinzufügen …“.", wert=', '.join(apps.names(removed))))
             lic.setWordWrap(True)
             lic.setObjectName("Muted")
             root.addWidget(lic)
 
         form = QFormLayout()
         self.creator = QLineEdit(t.creator or creator_default())
-        self.creator.setPlaceholderText("z. B. dein Name oder der Kurs")
+        self.creator.setPlaceholderText(tr("z. B. dein Name oder der Kurs"))
         self.version = QLineEdit(t.version or "1.0")
         self.file = QLineEdit(str(Path.home() / bonysfile.default_filename(t.name, self.version.text())))
         file_row = QHBoxLayout()
@@ -319,17 +322,17 @@ class ExportDialog(QDialog):
         browse = QPushButton("…")
         browse.setObjectName("Small")
         file_row.addWidget(browse)
-        self.preview_btn = QPushButton("Vorschaubild wählen … (optional)")
+        self.preview_btn = QPushButton(tr("Vorschaubild wählen … (optional)"))
         self.preview_btn.setObjectName("Small")
-        form.addRow("Ersteller", self.creator)
-        form.addRow("Version", self.version)
+        form.addRow(tr("Ersteller"), self.creator)
+        form.addRow(tr("Version"), self.version)
         if target is None:
-            form.addRow("Datei", file_row)
+            form.addRow(tr("Datei"), file_row)
         else:
             self.file.setText(str(target))
             self.file.setVisible(False)
             browse.setVisible(False)
-        form.addRow("Bild", self.preview_btn)
+        form.addRow(tr("Bild"), self.preview_btn)
         root.addLayout(form)
 
         self.findings = QPlainTextEdit()
@@ -346,10 +349,10 @@ class ExportDialog(QDialog):
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.clean_btn = QPushButton("In der Kopie bereinigen und exportieren")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.clean_btn = QPushButton(tr("In der Kopie bereinigen und exportieren"))
         self.clean_btn.setVisible(False)
-        self.ok_btn = QPushButton("Prüfen und exportieren")
+        self.ok_btn = QPushButton(tr("Prüfen und exportieren"))
         self.ok_btn.setObjectName("Primary")
         for b in (self.cancel_btn, self.clean_btn, self.ok_btn):
             buttons.addWidget(b)
@@ -368,13 +371,14 @@ class ExportDialog(QDialog):
         self.file.setText(str(current.with_name(bonysfile.default_filename(self.t.name, v.strip() or "1"))))
 
     def _browse(self) -> None:
-        file, _ = QFileDialog.getSaveFileName(self, "Speichern unter", self.file.text(),
-                                              f"Bony's-Agents-Vorlage (*{bonysfile.SUFFIX})")
+        file, _ = QFileDialog.getSaveFileName(self, tr("Speichern unter"), self.file.text(),
+                                              tr("Bony's-Agents-Vorlage (*{SUFFIX})", SUFFIX=bonysfile.SUFFIX))
         if file:
             self.file.setText(file)
 
     def _choose_preview(self) -> None:
-        file, _ = QFileDialog.getOpenFileName(self, "Vorschaubild", str(Path.home()), "Bilder (*.png *.jpg *.jpeg)")
+        file, _ = QFileDialog.getOpenFileName(self, tr("Vorschaubild"), str(Path.home()), tr("Bilder (*.png *.jpg "
+                                                                                             "*.jpeg)"))
         if not file:
             return
         try:
@@ -383,7 +387,7 @@ class ExportDialog(QDialog):
             QMessageBox.warning(self, APP_NAME, str(e))
             return
         self.preview = Path(file)
-        self.preview_btn.setText(f"Bild: {self.preview.name}")
+        self.preview_btn.setText(tr("Bild: {name}", name=self.preview.name))
 
     def _busy(self, busy: bool) -> None:
         for w in (self.creator, self.version, self.file, self.preview_btn, self.ok_btn, self.clean_btn):
@@ -391,19 +395,20 @@ class ExportDialog(QDialog):
         if self.fresh is not None:
             self.fresh.setEnabled(not busy)
         self.progress.setVisible(busy)
-        self.cancel_btn.setText("Export abbrechen" if busy else "Schließen")
+        self.cancel_btn.setText(tr("Export abbrechen") if busy else tr("Schließen"))
         if busy:
             self.progress.set_percent(0)
             self.status.setStyleSheet("")
 
     def _start(self, clean: bool) -> None:
         if self.fresh is not None and not self.fresh.isChecked() and not clean:
-            self.status.setText("Bitte „Frisch machen“ ankreuzen – Klone lassen sich nur so weitergeben.")
+            self.status.setText(tr("Bitte „Frisch machen“ ankreuzen – Klone lassen sich nur so weitergeben."))
             return
         clean = clean or (self.fresh is not None and self.fresh.isChecked())
         target = Path(self.file.text().strip()).expanduser()
         if target.exists():
-            if QMessageBox.question(self, APP_NAME, f"{target.name} gibt es schon. Ersetzen?") != QMessageBox.Yes:
+            if QMessageBox.question(self, APP_NAME, tr("{name} gibt es schon. Ersetzen?",
+                                                       name=target.name)) != QMessageBox.Yes:
                 return
             target.unlink()
         self.cancel.clear()
@@ -424,8 +429,9 @@ class ExportDialog(QDialog):
         self.worker = None
         self._busy(False)
         self.result_file = file
-        self.status.setText(f"Fertig: {file} ({file.stat().st_size / storage.GB:.2f} GB). Diese Datei kannst du "
-                            "weitergeben – der Empfänger importiert sie unter „Vorlagen“ (oder per Drag & Drop).")
+        self.status.setText(tr("Fertig: {file} ({wert:.2f} GB). Diese Datei kannst du weitergeben – der Empfänger "
+                               "importiert sie unter „Vorlagen“ (oder per Drag & Drop).", file=file,
+                               wert=file.stat().st_size / storage.GB))
         self.ok_btn.setVisible(False)
 
     def _failed(self, msg: str) -> None:
@@ -433,34 +439,42 @@ class ExportDialog(QDialog):
         self.worker = None
         self._busy(False)
         if isinstance(err, bonysfile.Cancelled):
-            self.status.setText("Abgebrochen – nichts wurde gespeichert.")
+            self.status.setText(tr("Abgebrochen – nichts wurde gespeichert."))
             return
         if isinstance(err, vm.NeedsPassword):
-            pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort des Benutzers „{self.t.username}“ in "
-                                          "der Vorlage:", QLineEdit.Password)
+            pw, ok = QInputDialog.getText(self, APP_NAME, tr("{msg}\n\nPasswort des Benutzers „{username}“ in der "
+                                                             "Vorlage:", msg=msg,
+                                                             username=self.t.username), QLineEdit.Password)
             if ok and pw:
                 self.password = pw
-                self.status.setText("Passwort übernommen – bitte erneut starten.")
+                self.status.setText(tr("Passwort übernommen – bitte erneut starten."))
             return
         if isinstance(err, bonysfile.NotFreshError) and not err.not_fresh_template:
             self.findings.setVisible(True)
             self.findings.setPlainText(
-                ("Nach dem Bereinigen noch gefunden – Export abgebrochen:\n\n" if err.strict else
-                 "Gefunden (nur Art und Ort – Inhalte werden nie angezeigt):\n\n")
+                (tr("Nach "
+                    "dem "
+                    "Bereinigen "
+                    "noch "
+                    "gefunden "
+                    "– "
+                    "Export "
+                    "abgebrochen:\n\n") if err.strict else tr("Gefunden (nur Art und Ort – Inhalte werden nie "
+                                                              "angezeigt):\n\n"))
                 + bonysfile.format_findings(err.findings, per_category=20))
             if not err.strict:
-                self.status.setText("Export blockiert: In der Vorlage sind noch persönliche Daten oder Geheimnisse. "
-                                    "„Bereinigen“ entfernt sie nur in der Export-Kopie – die Vorlage bleibt, wie sie "
-                                    "ist.")
+                self.status.setText(tr("Export blockiert: In der Vorlage sind noch persönliche Daten oder "
+                                       "Geheimnisse. „Bereinigen“ entfernt sie nur in der Export-Kopie – die Vorlage "
+                                       "bleibt, wie sie ist."))
                 self.clean_btn.setVisible(True)
                 return
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def _cancel_or_close(self) -> None:
         if self.worker and self.worker.isRunning():
             self.cancel.set()
-            self.status.setText("Breche ab und räume auf …")
+            self.status.setText(tr("Breche ab und räume auf …"))
             return
         self.accept() if self.result_file else self.reject()
 
@@ -482,10 +496,10 @@ class ImportDialog(QDialog):
         self.cancel = threading.Event()
         self.result_template: templates.Template | None = None
         self.use_recipe = False
-        self.setWindowTitle("Vorlage importieren")
+        self.setWindowTitle(tr("Vorlage importieren"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel(f"Vorlage „{manifest['name']}“ importieren")
+        title = QLabel(tr("Vorlage „{wert}“ importieren", wert=manifest['name']))
         title.setObjectName("Title")
         root.addWidget(title)
         try:
@@ -504,47 +518,47 @@ class ImportDialog(QDialog):
         info.setWordWrap(True)
         info.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(info)
-        from_file = PathLabel(prefix="Datei: ")  # langer Pfad ohne Leerzeichen – in der Mitte gekürzt
+        from_file = PathLabel(prefix=tr("Datei: "))  # langer Pfad ohne Leerzeichen – in der Mitte gekürzt
         from_file.set_path(self.file)
         root.addWidget(from_file)
         self.arch_ok = bonysfile.arch_matches(manifest)
         if not self.arch_ok:
-            warn = QLabel("⚠ " + bonysfile.SLOW_ARCH_WARNING.format(
-                tpl=manifest["arch"], host=bonysfile.arch_name(host.detect().arch)))
+            warn = QLabel("⚠ " + tr(bonysfile.SLOW_ARCH_WARNING, tpl=manifest["arch"],
+                                    host=bonysfile.arch_name(host.detect().arch)))
             warn.setWordWrap(True)
             warn.setStyleSheet(f"color: {style.DANGER}; font-weight: 600;")
             root.addWidget(warn)
         # Rezept im Inhalt (nicht in der festen Knopfzeile – die darf nicht breiter als kleine Bildschirme werden)
         recipe_row = QHBoxLayout()
-        self.recipe_btn = QPushButton("Rezept nutzen …")
-        self.recipe_btn.setToolTip("Derselbe Desktop mit denselben Apps, neu eingerichtet mit dem Debian-Image für "
-                                   "diesen Rechner – ohne die Festplatte aus der Datei.")
+        self.recipe_btn = QPushButton(tr("Rezept nutzen …"))
+        self.recipe_btn.setToolTip(tr("Derselbe Desktop mit denselben Apps, neu eingerichtet mit dem Debian-Image für "
+                                      "diesen Rechner – ohne die Festplatte aus der Datei."))
         if not self.arch_ok:
             self.recipe_btn.setObjectName("Primary")
         recipe_row.addWidget(self.recipe_btn)
-        recipe_hint = QLabel("hier neu einrichten (passendes Debian-Image)")
+        recipe_hint = QLabel(tr("hier neu einrichten (passendes Debian-Image)"))
         recipe_hint.setObjectName("Muted")
         recipe_hint.setWordWrap(True)
         recipe_row.addWidget(recipe_hint, 1)
         root.addLayout(recipe_row)
         form = QFormLayout()
         self.name = QLineEdit(self._free_name(manifest["name"]))
-        form.addRow("Name", self.name)
+        form.addRow(tr("Name"), self.name)
         root.addLayout(form)
-        self.create = QCheckBox("Danach gleich einen Agent-PC daraus erstellen")
+        self.create = QCheckBox(tr("Danach gleich einen Agent-PC daraus erstellen"))
         self.create.setChecked(self.arch_ok)
         root.addWidget(self.create)
         self.progress = PercentBar()
         self.progress.setVisible(False)
-        self.status = QLabel("Beim Import wird die Prüfsumme (SHA-256) geprüft.")
+        self.status = QLabel(tr("Beim Import wird die Prüfsumme (SHA-256) geprüft."))
         self.status.setWordWrap(True)
         self.status.setObjectName("Muted")
         root.addWidget(self.progress)
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.ok_btn = QPushButton("Importieren" if self.arch_ok else "Trotzdem importieren")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.ok_btn = QPushButton(tr("Importieren") if self.arch_ok else tr("Trotzdem importieren"))
         self.ok_btn.setObjectName("Primary" if self.arch_ok else "")
         buttons.addWidget(self.cancel_btn)
         buttons.addWidget(self.ok_btn)
@@ -598,15 +612,15 @@ class ImportDialog(QDialog):
             w.setEnabled(True)
         self.progress.setVisible(False)
         if isinstance(err, bonysfile.Cancelled):
-            self.status.setText("Abgebrochen – nichts wurde übernommen.")
+            self.status.setText(tr("Abgebrochen – nichts wurde übernommen."))
             return
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def reject(self) -> None:
         if self.worker and self.worker.isRunning():
             self.cancel.set()
-            self.status.setText("Breche ab …")
+            self.status.setText(tr("Breche ab …"))
             return
         super().reject()
 
@@ -621,7 +635,7 @@ def open_bonys_file(parent, file: Path) -> str | None:
     try:
         m = bonysfile.read_manifest(file)
     except (OSError, ValueError) as e:
-        QMessageBox.warning(parent, APP_NAME, f"Datei lässt sich nicht öffnen: {e}")
+        QMessageBox.warning(parent, APP_NAME, tr("Datei lässt sich nicht öffnen: {e}", e=e))
         return None
     dlg = ImportDialog(file, m, parent)
     if not dlg.exec():
@@ -635,10 +649,10 @@ def open_bonys_file(parent, file: Path) -> str | None:
     if dlg.create.isChecked():
         create = CreateDialog(host.detect(), parent, preset_template=t.name)
         if create.exec() and t.reinstall:
-            QMessageBox.information(parent, APP_NAME, "Nicht mitgeliefert (Lizenz): "
-                                    f"{', '.join(apps.names(t.reinstall))}.\n\nSobald der Agent-PC läuft: "
-                                    "„Programme hinzufügen …“ – die Programme sind dort schon ausgewählt und kommen "
-                                    "aus der offiziellen Quelle.")
+            QMessageBox.information(parent, APP_NAME, tr("Nicht mitgeliefert (Lizenz): {wert}.\n\nSobald der "
+                                                         "Agent-PC läuft: „Programme hinzufügen …“ – die Programme "
+                                                         "sind dort schon ausgewählt und kommen aus der offiziellen "
+                                                         "Quelle.", wert=', '.join(apps.names(t.reinstall))))
     return t.name
 
 
@@ -648,16 +662,16 @@ class TemplatesDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.worker: FnWorker | None = None
-        self.setWindowTitle("Vorlagen")
+        self.setWindowTitle(tr("Vorlagen"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Vorlagen")
+        title = QLabel(tr("Vorlagen"))
         title.setObjectName("Title")
         root.addWidget(title)
-        hint = QLabel("Neue Agent-PCs aus einer Vorlage: „+ Neuer Agent-PC“ → Grundlage. Eine Vorlage entsteht über "
-                      "„Als Vorlage speichern …“ bei einem fertig eingerichteten Agent-PC. Weitergeben (z. B. für "
-                      "eine Schulung): „Weitergeben …“ speichert eine .bonys-Datei; zum Importieren die Datei "
-                      "einfach hierher ziehen.")
+        hint = QLabel(tr("Neue Agent-PCs aus einer Vorlage: „+ Neuer Agent-PC“ → Grundlage. Eine Vorlage entsteht über "
+                         "„Als Vorlage speichern …“ bei einem fertig eingerichteten Agent-PC. Weitergeben (z. B. für "
+                         "eine Schulung): „Weitergeben …“ speichert eine .bonys-Datei; zum Importieren die Datei "
+                         "einfach hierher ziehen."))
         hint.setWordWrap(True)
         hint.setObjectName("Muted")
         root.addWidget(hint)
@@ -671,20 +685,21 @@ class TemplatesDialog(QDialog):
         self.details.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.details.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         right.addWidget(self.details)
-        self.where = PathLabel(prefix="Ort: ")
+        self.where = PathLabel(prefix=tr("Ort: "))
         right.addWidget(self.where)
         right.addStretch(1)
         actions = FlowLayout()
-        self.rename_btn = QPushButton("Umbenennen …")
-        self.desc_btn = QPushButton("Beschreibung ändern …")
-        self.export_btn = QPushButton("Weitergeben (.bonys) …")
-        self.export_btn.setToolTip("Als eine Datei speichern – mit Frisch-Prüfung, ohne nicht weitergebbare Programme")
+        self.rename_btn = QPushButton(tr("Umbenennen …"))
+        self.desc_btn = QPushButton(tr("Beschreibung ändern …"))
+        self.export_btn = QPushButton(tr("Weitergeben (.bonys) …"))
+        self.export_btn.setToolTip(tr("Als eine Datei speichern – mit Frisch-Prüfung, ohne nicht weitergebbare "
+                                      "Programme"))
         self.share_btn: QPushButton | None = None   # nur Kursleiter-Version
         if edition.IS_TRAINER:
-            self.share_btn = QPushButton("Im Netzwerk freigeben …")
-            self.share_btn.setToolTip("Schulung: Teilnehmer im selben Netz bzw. VPN laden die Vorlage direkt von "
-                                      "hier („Schulung beitreten“)")
-        self.delete_btn = QPushButton("Löschen")
+            self.share_btn = QPushButton(tr("Im Netzwerk freigeben …"))
+            self.share_btn.setToolTip(tr("Schulung: Teilnehmer im selben Netz bzw. VPN laden die Vorlage direkt von "
+                                         "hier („Schulung beitreten“)"))
+        self.delete_btn = QPushButton(tr("Löschen"))
         self.delete_btn.setObjectName("Danger")
         for b in self._actions():
             actions.addWidget(b)
@@ -699,11 +714,11 @@ class TemplatesDialog(QDialog):
         root.addWidget(self.progress)
         root.addWidget(self.status)
         bottom = QHBoxLayout()
-        self.import_btn = QPushButton("Importieren …")
+        self.import_btn = QPushButton(tr("Importieren …"))
         self.setAcceptDrops(True)
         bottom.addWidget(self.import_btn)
         bottom.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
+        self.close_btn = QPushButton(tr("Schließen"))
         bottom.addWidget(self.close_btn)
         root.addLayout(bottom)
         make_scrollable(self, 760)
@@ -726,7 +741,7 @@ class TemplatesDialog(QDialog):
         for t in self.items.values():
             n = len(t.linked_vms())
             it = QListWidgetItem(f"{t.name}\n{t.size / storage.GB:.1f} GB · {t.created_local()}"
-                                 + (f" · {n} verknüpft" if n else ""))
+                                 + (tr(" · {n} verknüpft", n=n) if n else ""))
             it.setData(Qt.UserRole, t.name)
             self.list.addItem(it)
             if t.name == current:
@@ -749,7 +764,7 @@ class TemplatesDialog(QDialog):
             b.setEnabled(t is not None and not busy)
         self.import_btn.setEnabled(not busy)
         if t is None:
-            self.details.setText("Noch keine Vorlagen.")
+            self.details.setText(tr("Noch keine Vorlagen."))
             self.where.set_path("")
             return
         linked = t.linked_vms()
@@ -757,17 +772,19 @@ class TemplatesDialog(QDialog):
             f"<b style='font-size:{style.px(15)}px'>{t.name}</b>",
             html.escape(t.description) or "<i>keine Beschreibung</i>",
             "",
-            f"Erstellt: {html.escape(t.created_local())} aus „{html.escape(t.source)}“",
-            f"Debian {html.escape(t.debian) or '?'} · {t.arch} · Festplatte {vm.format_gb(t.disk_gb)}",
-            f"Programme: {', '.join(apps.names(t.apps)) or '–'}",
-            f"Größe: {t.size / storage.GB:.2f} GB",
-            "Persönliche Daten: " + ("entfernt" if t.personal_data_removed
-                                     else f"<b style='color:{style.DANGER}'>enthalten</b>"),
-            "Verknüpfte Agent-PCs: " + (", ".join(m.name for m in linked) if linked else "keine"),
+            tr("Erstellt: {wert} aus „{wert2}“", wert=html.escape(t.created_local()), wert2=html.escape(t.source)),
+            tr("Debian {debian} · {arch} · Festplatte {groesse}", debian=html.escape(t.debian) or "?", arch=t.arch,
+               groesse=vm.format_gb(t.disk_gb)),
+            tr("Programme: {programme}", programme=", ".join(apps.names(t.apps)) or "–"),
+            tr("Größe: {wert:.2f} GB", wert=t.size / storage.GB),
+            tr("Persönliche Daten: entfernt") if t.personal_data_removed else
+            tr("Persönliche Daten: <b style='color:{farbe}'>enthalten</b>", farbe=style.DANGER),
+            tr("Verknüpfte Agent-PCs: {namen}", namen=", ".join(m.name for m in linked)) if linked else
+            tr("Verknüpfte Agent-PCs: keine"),
         ]
         if t.creator or t.version:
-            rows.insert(4, f"Importiert: Version {html.escape(t.version) or '?'} von "
-                        f"{html.escape(t.creator) or 'unbekannt'}")
+            rows.insert(4, tr("Importiert: Version {wert} von {wert2}", wert=html.escape(t.version) or '?',
+                              wert2=html.escape(t.creator) or 'unbekannt'))
         if t.reinstall:
             rows.insert(6, "Beim Erstellen neu installieren (Lizenz, offizielle Quelle): "
                         + ", ".join(apps.names(t.reinstall)))
@@ -799,14 +816,14 @@ class TemplatesDialog(QDialog):
     def _failed(self, msg: str) -> None:
         self.worker = None
         self._busy(False)
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def _rename(self) -> None:
         t = self.current()
         if not t:
             return
-        new, ok = QInputDialog.getText(self, APP_NAME, "Neuer Name der Vorlage:", text=t.name)
+        new, ok = QInputDialog.getText(self, APP_NAME, tr("Neuer Name der Vorlage:"), text=t.name)
         if not ok or not new.strip() or new.strip() == t.name:
             return
         try:
@@ -820,7 +837,7 @@ class TemplatesDialog(QDialog):
         t = self.current()
         if not t:
             return
-        text, ok = QInputDialog.getText(self, APP_NAME, "Beschreibung:", text=t.description)
+        text, ok = QInputDialog.getText(self, APP_NAME, tr("Beschreibung:"), text=t.description)
         if ok:
             templates.set_description(t.name, text.strip())
             self.reload(t.name)
@@ -834,27 +851,31 @@ class TemplatesDialog(QDialog):
             names = ", ".join(m.name for m in linked)
             running = [m.name for m in linked if m.is_running()]
             if running:
-                QMessageBox.information(self, APP_NAME, f"Löschen gesperrt: Diese Agent-PCs bauen auf „{t.name}“ auf: "
-                                        f"{names}.\n\nZum Unabhängig-Machen bitte erst herunterfahren: "
-                                        f"{', '.join(running)}.")
+                QMessageBox.information(self, APP_NAME, tr("Löschen gesperrt: Diese Agent-PCs bauen auf „{name}“ "
+                                                           "auf: {names}.\n\nZum Unabhängig-Machen bitte erst "
+                                                           "herunterfahren: {wert}.", name=t.name, names=names,
+                                                           wert=', '.join(running)))
                 return
             if QMessageBox.question(
-                    self, APP_NAME, f"Löschen gesperrt: Diese Agent-PCs bauen auf „{t.name}“ auf: {names}.\n\n"
-                    "Sollen sie jetzt zu unabhängigen Kopien werden (übernimmt die Daten der Vorlage, braucht "
-                    "mehr Platz)? Danach kann die Vorlage gelöscht werden.") != QMessageBox.Yes:
+                    self, APP_NAME, tr("Löschen gesperrt: Diese Agent-PCs bauen auf „{name}“ auf: {names}.\n\nSollen "
+                                       "sie jetzt zu unabhängigen Kopien werden (übernimmt die Daten der Vorlage, "
+                                       "braucht mehr Platz)? Danach kann die Vorlage gelöscht werden.",
+                                       name=t.name, names=names)) != QMessageBox.Yes:
                 return
 
             def detach(progress):
                 for i, m in enumerate(linked):
-                    progress("detach", i / len(linked), f"Mache „{m.name}“ unabhängig …")
+                    progress("detach", i / len(linked), tr("Mache „{name}“ unabhängig …", name=m.name))
                     m.make_independent(lambda f, i=i: progress("detach", (i + f) / len(linked),
-                                                               f"Mache „{linked[i].name}“ unabhängig …"))
+                                                               tr("Mache „{name}“ unabhängig …", name=linked[i].name)))
                 return len(linked)
 
-            self._run(detach, lambda n: f"{n} Agent-PC(s) sind jetzt unabhängig – die Vorlage kann gelöscht werden.")
+            self._run(detach, lambda n: tr("{n} Agent-PC(s) sind jetzt unabhängig – die Vorlage kann gelöscht werden.",
+                                           n=n))
             return
-        if not confirm_delete(self, APP_NAME, f"Vorlage „{t.name}“ ({t.size / storage.GB:.1f} GB) löschen?",
-                              "Agent-PCs, die schon daraus erstellt wurden, bleiben erhalten."):
+        if not confirm_delete(self, APP_NAME, tr("Vorlage „{name}“ ({wert:.1f} GB) löschen?", name=t.name,
+                                                 wert=t.size / storage.GB),
+                              tr("Agent-PCs, die schon daraus erstellt wurden, bleiben erhalten.")):
             return
         try:
             templates.delete(t.name)
@@ -869,7 +890,7 @@ class TemplatesDialog(QDialog):
         dlg = ExportDialog(t, self)
         dlg.exec()
         if dlg.result_file:
-            self.status.setText(f"Gespeichert: {dlg.result_file}")
+            self.status.setText(tr("Gespeichert: {result_file}", result_file=dlg.result_file))
         self.reload(t.name)
 
     def _share(self) -> None:
@@ -881,7 +902,9 @@ class TemplatesDialog(QDialog):
             self.reload(t.name)
 
     def _import(self) -> None:
-        file, _ = QFileDialog.getOpenFileName(self, "Vorlage importieren", str(Path.home()), FILE_FILTER)
+        file, _ = QFileDialog.getOpenFileName(self, tr("Vorlage importieren"), str(Path.home()),
+                                              tr("Bony's-Agents-Vorlage ({muster})",
+                                                 muster=f"*{bonysfile.SUFFIX} *{templates.FILE_SUFFIX}"))
         if file:
             self.import_file(Path(file))
 
@@ -889,7 +912,7 @@ class TemplatesDialog(QDialog):
         if bonysfile.is_bonys(file):
             name = open_bonys_file(self, file)
             if name:
-                self.status.setText(f"Vorlage „{name}“ importiert.")
+                self.status.setText(tr("Vorlage „{name}“ importiert.", name=name))
                 self.reload(name)
             return
         self._import_legacy(file)
@@ -899,18 +922,18 @@ class TemplatesDialog(QDialog):
         try:
             info = templates.read_export_info(file)
         except (OSError, ValueError, KeyError, tarfile.TarError) as e:
-            QMessageBox.warning(self, APP_NAME, f"Datei lässt sich nicht lesen: {e}")
+            QMessageBox.warning(self, APP_NAME, tr("Datei lässt sich nicht lesen: {e}", e=e))
             return
         name = info.name
         if name in self.items:
-            new, ok = QInputDialog.getText(self, APP_NAME, f"Eine Vorlage „{name}“ gibt es schon. Name für die "
-                                           "importierte Vorlage:", text=f"{name}-2")
+            new, ok = QInputDialog.getText(self, APP_NAME, tr("Eine Vorlage „{name}“ gibt es schon. Name für die "
+                                                              "importierte Vorlage:", name=name), text=f"{name}-2")
             if not ok or not new.strip():
                 return
             name = new.strip()
         library = storage.preferred_library()
         self._run(lambda progress: templates.import_file(file, location=library, name=name, progress=progress),
-                  lambda t: f"Vorlage „{t.name}“ importiert nach {t.path}")
+                  lambda t: tr("Vorlage „{name}“ importiert nach {path}", name=t.name, path=t.path))
 
     @staticmethod
     def _dropped_file(event) -> Path | None:

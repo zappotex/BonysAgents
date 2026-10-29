@@ -19,6 +19,8 @@ import subprocess
 import sys
 from collections.abc import Mapping
 
+from bonys_agents.i18n import tr
+
 # Suchpfade für Bibliotheken: PyInstaller merkt sich den ursprünglichen Wert in <NAME>_ORIG.
 LIBRARY_PATH_VARS = ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "LIBPATH")
 # Variablen, die PyInstaller bzw. seine Laufzeit-Hooks auf den Programmordner setzen können.
@@ -122,7 +124,7 @@ def open_external(target: str) -> None:
     else:
         opener = shutil.which("xdg-open") or shutil.which("gio")
         if not opener:
-            raise RuntimeError("Kein Programm zum Öffnen gefunden (xdg-open fehlt).")
+            raise RuntimeError(tr("Kein Programm zum Öffnen gefunden (xdg-open fehlt)."))
         spawn_detached([opener, target] if opener.endswith("xdg-open") else [opener, "open", target])
 
 
@@ -159,4 +161,4 @@ def terminal_command(argv: list[str], host_os: str | None = None, which=shutil.w
 
                 return [name, "-e", shlex.join(argv)]
             return [name, *opts, *argv]
-    raise RuntimeError("Kein Terminal-Programm gefunden (z. B. gnome-terminal oder xterm installieren).")
+    raise RuntimeError(tr("Kein Terminal-Programm gefunden (z. B. gnome-terminal oder xterm installieren)."))

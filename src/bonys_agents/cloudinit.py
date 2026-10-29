@@ -11,12 +11,14 @@ import base64
 import io
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pycdlib
 
 from bonys_agents import desktops, distros, mission_control, n8n, netz, screen, vpnlink, wallpaper
+from bonys_agents.i18n import n_, tr
 from bonys_agents.apps import APT_WAIT, AppSpec
 
 READY_MARKER = "BONYS-AGENTS-READY"
@@ -108,9 +110,34 @@ def _q(s: str) -> str:
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
+# Sprache des Agent-PCs (Plan Englisch, Phase 3): Locale je Sprache; ältere Agent-PCs sind deutsch
+LOCALES = {"de": "de_DE.UTF-8", "en": "en_US.UTF-8"}
+# Tastatur, wenn beim Anlegen keine gewählt ist
+KEYBOARDS = {"de": "de", "en": "us"}
+
+
+def locale_fuer(sprache: str) -> str:
+    return LOCALES.get(sprache, LOCALES["de"])
+
+
+def sprache_von(locale: str) -> str:
+    """„de“ für deutsche Locales, sonst „en“ (wie ``i18n.system_sprache``)."""
+    return "de" if locale.startswith("de") else "en"
+
+
 def desktop_folder(locale: str) -> str:
     """Name des Schreibtisch-Ordners, wie ihn xdg-user-dirs für die Sprache anlegt."""
     return "Schreibtisch" if locale.startswith("de") else "Desktop"
+
+
+# In einem fertigen Agent-PC (Nachinstallieren): Sprache aus /etc/default/locale – so passt es auch bei Klonen
+# und älteren Agent-PCs (bis 0.29 immer de_DE), ohne dass die App die Sprache kennen muss.
+GUEST_LANG = r"""AGENT_LANG=de
+case "$(unset LANG; [ -r /etc/default/locale ] && . /etc/default/locale; echo "${LANG:-}")" in
+  de*|"") ;;
+  *) AGENT_LANG=en ;;
+esac
+if [ "$AGENT_LANG" = de ]; then DESKTOP_DIR="$AGENT_HOME/Schreibtisch"; else DESKTOP_DIR="$AGENT_HOME/Desktop"; fi"""
 
 
 def wallpaper_b64() -> str:
@@ -121,7 +148,7 @@ def wallpaper_b64() -> str:
 def provision_script(cfg: GuestConfig) -> str:
     desk = desktops.get(cfg.desktop)
     steps: list[tuple[str, str]] = [
-        ("Sprache, Tastatur und Zeitzone", f"""
+        (n_("Sprache, Tastatur und Zeitzone"), f"""
 apt-get update -y
 # git und build-essential braucht Hermes Agent – deshalb gleich zu Beginn.
 apt-get install -y locales keyboard-configuration console-setup curl ca-certificates gnupg \\
@@ -171,10 +198,10 @@ WantedBy=multi-user.target
 EOF
 systemctl enable bonys-growroot.service
 """),
-        (f"{desk.name}-Desktop mit automatischer Anmeldung", desktops.install_script(desk, locale=cfg.locale)),
+        (f"{desk.name}-Desktop mit automatischer Anmeldung", desktops.install_script(desk)),
     ]
     if cfg.distro == distros.KALI:
-        steps.insert(1, ("Kali: Kernel mit Grafik, keine automatische root-Anmeldung", KALI_PREPARE))
+        steps.insert(1, (n_("Kali: Kernel mit Grafik, keine automatische root-Anmeldung"), KALI_PREPARE))
     if cfg.netz:
         # Gleich nach den Grundlagen: Der Geräteschlüssel gilt nur 60 Minuten ab dem Erstellen.
         steps.insert(1, (netz.SCHRITT_TITEL, "\n" + netz.gast_beitritt() + 'exit "$NETZ_RC"\n', netz.SCHRITT_ID))
@@ -184,10 +211,25 @@ systemctl enable bonys-growroot.service
                   f'|| {{ echo "FEHLER: {app.name} wurde nach der Installation nicht gefunden."; exit 1; }}\n')
         steps.append((f"{app.name} installieren", app.install + favorite_snippet(app) + verify, app.id))
     if cfg.distro == distros.KALI:
-        steps.append(("Kali: auf den normalen Kernel umstellen", KALI_KERNEL_SWITCH))
+        steps.append((n_("Kali: auf den normalen Kernel umstellen"), KALI_KERNEL_SWITCH))
     # Ganz am Ende, nach allen Downloads: Ein eingeschalteter Kill-Switch sperrt ohne Tunnel das Internet.
     finish = vpnlink.guest_import_script(cfg.vpn) if cfg.vpn else ""
     return render_provision(steps, cfg.username, cfg.locale, finish=finish)
+
+
+# Titel der Einrichtungsschritte stehen deutsch im Protokoll des Gastes; angezeigt werden sie in der Sprache der App
+_SCHRITT_MUSTER = (
+    (re.compile(r"^(.+)-Desktop mit automatischer Anmeldung$"), n_("{name}-Desktop mit automatischer Anmeldung")),
+    (re.compile(r"^(.+) installieren$"), n_("{name} installieren")),
+)
+
+
+def schritt_titel(titel: str) -> str:
+    """Titel eines Einrichtungsschritts (aus der Konsole des Gastes) zum Anzeigen."""
+    for muster, text in _SCHRITT_MUSTER:
+        if m := muster.match(titel):
+            return tr(text, name=m.group(1))
+    return tr(titel)
 
 
 def favorite_snippet(app: AppSpec) -> str:
@@ -223,8 +265,9 @@ def render_provision(steps: list[tuple], username: str, locale: str = "de_DE.UTF
         f"AGENT_USER={_q(username)}",
         f'AGENT_HOME={_q(home_base)}"/$AGENT_USER"',
         f'DESKTOP_DIR="$AGENT_HOME/{desktop_folder(locale)}"',
+        f"AGENT_LANG={sprache_von(locale)}",
         'mkdir -p "$DESKTOP_DIR"',
-        "export AGENT_USER AGENT_HOME DESKTOP_DIR",
+        "export AGENT_USER AGENT_HOME DESKTOP_DIR AGENT_LANG",
         f"APT_LOCK_CONF={_q(apt_lock_conf)}",
         APT_HELPERS,
     ]
@@ -325,8 +368,7 @@ WantedBy=multi-user.target
 """
 
 
-def desktop_install_script(d: desktops.DesktopSpec, username: str, make_default: bool,
-                           locale: str = "de_DE.UTF-8") -> str:
+def desktop_install_script(d: desktops.DesktopSpec, username: str, make_default: bool) -> str:
     """Skript, das einen weiteren Desktop in einem fertigen Agent-PC installiert (läuft per sudo)."""
     return "\n".join([
         "#!/usr/bin/env bash",
@@ -335,11 +377,12 @@ def desktop_install_script(d: desktops.DesktopSpec, username: str, make_default:
         "export DEBIAN_FRONTEND=noninteractive",
         f"AGENT_USER={_q(username)}",
         'AGENT_HOME="/home/$AGENT_USER"',
-        "export AGENT_USER AGENT_HOME",
+        GUEST_LANG,
+        "export AGENT_USER AGENT_HOME DESKTOP_DIR AGENT_LANG",
         APT_WAIT,
         "bonys_apt_wait",
         "apt-get update -y || true",
-        desktops.install_script(d, set_default=make_default, locale=locale),
+        desktops.install_script(d, set_default=make_default),
         f'echo "{d.name} ist installiert."' + (" Ab dem nächsten Start meldet sich der Agent-PC dort an."
                                                if make_default else ""),
     ]) + "\n"
@@ -350,7 +393,7 @@ APPS_LOG = "/var/log/bonys-agents-apps.log"
 APPS_LOCK = "/run/bonys-agents-apps.lock"
 
 
-def app_install_script(app: AppSpec, username: str, locale: str = "de_DE.UTF-8", *,
+def app_install_script(app: AppSpec, username: str, *,
                        console: str = GUEST_CONSOLE, state_dir: str = APPS_STATE_DIR,
                        lock_file: str = APPS_LOCK, log_file: str = APPS_LOG, force: bool = False) -> str:
     """Skript, das eine App nachträglich in einem fertigen Agent-PC installiert (als root).
@@ -370,9 +413,9 @@ def app_install_script(app: AppSpec, username: str, locale: str = "de_DE.UTF-8",
         f'exec > >(tee -a {_q(log_file)} {_q(console)}) 2>&1',
         f"AGENT_USER={_q(username)}",
         'AGENT_HOME="/home/$AGENT_USER"',
-        f'DESKTOP_DIR="$AGENT_HOME/{desktop_folder(locale)}"',
+        GUEST_LANG,
         'mkdir -p "$DESKTOP_DIR"',
-        "export AGENT_USER AGENT_HOME DESKTOP_DIR",
+        "export AGENT_USER AGENT_HOME DESKTOP_DIR AGENT_LANG",
         f"STATE={_q(state_dir)}",
         'mkdir -p "$STATE"',
         f"exec 9>{_q(lock_file)}",
@@ -514,38 +557,42 @@ class PersonalItem:
 
     def note(self) -> str:
         if self.keep:
-            return f"  (außer {', '.join(self.keep)})"
-        return "  (nur der Inhalt)" if self.contents else ""
+            return tr("  (außer {wert})", wert=", ".join(self.keep))
+        return tr("  (nur der Inhalt)") if self.contents else ""
 
 
 PERSONAL_DATA: tuple[PersonalItem, ...] = (
-    PersonalItem("Telegram: Anmeldung, Sitzungen und zwischengespeicherte Chats",
+    PersonalItem(n_("Telegram: Anmeldung, Sitzungen und zwischengespeicherte Chats"),
                  (".var/app/org.telegram.desktop",)),
-    PersonalItem("Brave: ganzes Profil – gespeicherte Logins und Passwörter, Cookies, Verlauf, Lesezeichen, "
-                 "Erweiterungen", (".config/BraveSoftware", ".cache/BraveSoftware")),
-    PersonalItem("Schlüsselbund und KDE-Brieftasche (verschlüsseln u. a. die in Brave gespeicherten Passwörter)",
+    PersonalItem(n_("Brave: ganzes Profil – gespeicherte Logins und Passwörter, Cookies, Verlauf, Lesezeichen, "
+                 "Erweiterungen"), (".config/BraveSoftware", ".cache/BraveSoftware")),
+    PersonalItem(n_("Schlüsselbund und KDE-Brieftasche (verschlüsseln u. a. die in Brave gespeicherten "
+                    "Passwörter)"),
                  (".local/share/keyrings", ".local/share/kwalletd")),
     # tools (Node, Python, Chromium …) und installs legt der Installer an; skills sind die mitgelieferten
     # Fähigkeiten. Alles andere entsteht erst beim ersten Start und wird dann neu angelegt.
-    PersonalItem("Hermes Agent: Konfiguration (config.yaml), API-Schlüssel (.env), Gedächtnis, Sitzungen, Protokolle, "
-                 "Kopplungen, Caches – das Programm (hermes-agent, tools, installs) und die Skills bleiben",
+    PersonalItem(n_("Hermes Agent: Konfiguration (config.yaml), API-Schlüssel (.env), Gedächtnis, Sitzungen, "
+                    "Protokolle, "
+                 "Kopplungen, Caches – das Programm (hermes-agent, tools, installs) und die Skills bleiben"),
                  (".hermes",), keep=("hermes-agent", "tools", "installs", "skills")),
-    PersonalItem("OpenClaw: Konfiguration, Zugangsdaten, Agenten, Sitzungen, Arbeitsordner – "
-                 "das Programm (bin, tools, lib) bleibt", (".openclaw",), keep=("bin", "tools", "lib")),
-    PersonalItem("Claude Code: Anmeldung, Einstellungen, Verlauf", (".claude", ".claude.json", ".claude.json.backup")),
-    PersonalItem("Obsidian: Anmeldung, Einstellungen und Zwischenspeicher – die Liste der Tresore bleibt",
+    PersonalItem(n_("OpenClaw: Konfiguration, Zugangsdaten, Agenten, Sitzungen, Arbeitsordner – "
+                 "das Programm (bin, tools, lib) bleibt"), (".openclaw",), keep=("bin", "tools", "lib")),
+    PersonalItem(n_("Claude Code: Anmeldung, Einstellungen, Verlauf"),
+                 (".claude", ".claude.json", ".claude.json.backup")),
+    PersonalItem(n_("Obsidian: Anmeldung, Einstellungen und Zwischenspeicher – die Liste der Tresore bleibt"),
                  (".config/obsidian",), keep=("obsidian.json",)),
-    PersonalItem("Notizen im Tresor „Agent-Notizen“ (Obsidian)", ("Agent-Notizen",), contents=True),
-    PersonalItem("SSH-Schlüssel und bekannte Rechner", (".ssh",)),
-    PersonalItem("Git: Zugangsdaten, Name und E-Mail, GitHub-CLI-Anmeldung",
+    PersonalItem(n_("Notizen im Tresor „Agent-Notizen“ (Obsidian)"), ("Agent-Notizen", "Agent Notes"),
+                 contents=True),
+    PersonalItem(n_("SSH-Schlüssel und bekannte Rechner"), (".ssh",)),
+    PersonalItem(n_("Git: Zugangsdaten, Name und E-Mail, GitHub-CLI-Anmeldung"),
                  (".git-credentials", ".config/git/credentials", ".gitconfig", ".config/gh")),
-    PersonalItem("Online-Konten und E-Mail-Daten des Desktops (GNOME Online Accounts, Evolution)",
+    PersonalItem(n_("Online-Konten und E-Mail-Daten des Desktops (GNOME Online Accounts, Evolution)"),
                  (".config/goa-1.0", ".config/evolution", ".local/share/evolution")),
-    PersonalItem("Eigene Dateien in Downloads, Dokumente, Bilder, Musik, Videos, Öffentlich, Projekte – "
-                 "die Ordner bleiben, der Schreibtisch mit den Programm-Symbolen auch",
+    PersonalItem(n_("Eigene Dateien in Downloads, Dokumente, Bilder, Musik, Videos, Öffentlich, Projekte – "
+                 "die Ordner bleiben, der Schreibtisch mit den Programm-Symbolen auch"),
                  ("Downloads", "Dokumente", "Documents", "Bilder", "Pictures", "Musik", "Music", "Videos",
-                  "Öffentlich", "Public", "Projekte"), contents=True),
-    PersonalItem("Zuletzt geöffnete Dateien und Datei-Metadaten",
+                  "Öffentlich", "Public", "Projekte", "Projects"), contents=True),
+    PersonalItem(n_("Zuletzt geöffnete Dateien und Datei-Metadaten"),
                  (".local/share/recently-used.xbel", ".local/share/gvfs-metadata")),
 )
 

@@ -8,6 +8,7 @@
 import RFB from "/novnc/core/rfb.js";
 
 const $ = (id) => document.getElementById(id);
+const tr = window.tr || ((text) => text);   // aus /texte.js (Sprache der App)
 let betrachter = null;
 let rfb = null;
 let passwort = null;
@@ -28,7 +29,7 @@ function start(json) {
   try { d = JSON.parse(json); } catch (e) { return; }
   passwort = d.passwort;
   const bedienen = d.modus === "bedienen";
-  $("info").textContent = (d.titel || "") + (bedienen ? " · Ansehen und bedienen" : " · Nur ansehen");
+  $("info").textContent = (d.titel || "") + " · " + (bedienen ? tr("Ansehen und bedienen") : tr("Nur ansehen"));
   $("cad").hidden = !bedienen;
   rfb = new RFB($("bild"), d.url, { wsProtocols: ["binary"], shared: false, credentials: { password: passwort } });
   rfb.viewOnly = !bedienen;
@@ -38,30 +39,30 @@ function start(json) {
   rfb.addEventListener("credentialsrequired", () => rfb.sendCredentials({ password: passwort }));
   rfb.addEventListener("connect", () => {
     passwort = null;   // nur für diese eine Anmeldung
-    zustand("ok", bedienen ? "Verbunden – du kannst bedienen" : "Verbunden – nur ansehen");
+    zustand("ok", bedienen ? tr("Verbunden – du kannst bedienen") : tr("Verbunden – nur ansehen"));
     betrachter.verbunden();
     if (bedienen) rfb.focus();
   });
   rfb.addEventListener("securityfailure", (e) => {
     fertig = true;
-    zustand("aus", "Abgelehnt");
+    zustand("aus", tr("Abgelehnt"));
     const grund = (e.detail && e.detail.reason) || "";
-    betrachter.getrennt("Der Agent-PC hat die Anmeldung abgelehnt." + (grund ? " (" + grund + ")" : ""));
+    betrachter.getrennt(tr("Der Agent-PC hat die Anmeldung abgelehnt.") + (grund ? " (" + grund + ")" : ""));
   });
   rfb.addEventListener("disconnect", (e) => {
     rfb = null;
     if (fertig) return;
     fertig = true;
-    zustand("aus", "Getrennt");
-    betrachter.getrennt(e.detail && e.detail.clean ? "Die Hilfe ist beendet." :
-      "Die Verbindung zum Agent-PC ist abgebrochen.");
+    zustand("aus", tr("Getrennt"));
+    betrachter.getrennt(e.detail && e.detail.clean ? tr("Die Hilfe ist beendet.") :
+      tr("Die Verbindung zum Agent-PC ist abgebrochen."));
   });
 }
 
 function zeigen(text) {   // Python meldet das Ende (Teilnehmer hat beendet, Kurs pausiert …)
   fertig = true;
   if (rfb) { try { rfb.disconnect(); } catch (e) { /* schon weg */ } }
-  zustand("aus", "Getrennt");
+  zustand("aus", tr("Getrennt"));
   meldung(text);
 }
 

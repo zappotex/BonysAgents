@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "What distinguishes an agent from a chatbot?",
+      "antworten": [
+        "It's faster",
+        "It carries out steps itself with tools",
+        "It doesn't need internet"
+      ],
+      "richtig": 1,
+      "erklaerung": "An agent acts: it runs commands, creates files and opens web pages."
+    },
+    {
+      "frage": "Where are your own files while the agent is working?",
+      "antworten": [
+        "Separately on your computer – the agent can't get at them",
+        "In the Agent PC",
+        "In the cloud"
+      ],
+      "richtig": 0,
+      "erklaerung": "The agent only works in the Agent PC. Your own computer and your files stay separate."
+    }
+  ]
+}

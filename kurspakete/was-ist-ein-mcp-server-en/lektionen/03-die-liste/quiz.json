@@ -1,0 +1,34 @@
+{
+  "fragen": [
+    {
+      "frage": "Where do you install a program from the list from?",
+      "antworten": [
+        "From whatever page the search engine shows first",
+        "From the vendor's official source",
+        "From a forum where someone posted a link"
+      ],
+      "richtig": 1,
+      "erklaerung": "Only the official source – the list names it for every entry."
+    },
+    {
+      "frage": "A program has the status “alpha”. What does that mean?",
+      "antworten": [
+        "It's the best program in the list",
+        "It's still young: good for trying out, copy important files first",
+        "It costs money"
+      ],
+      "richtig": 1,
+      "erklaerung": "Alpha programs can still have bugs. With copies of important files you're on the safe side."
+    },
+    {
+      "frage": "What is the checksum for?",
+      "antworten": [
+        "It shows whether the downloaded file is unchanged",
+        "It counts how often the program was used",
+        "It's the password for the program"
+      ],
+      "richtig": 0,
+      "erklaerung": "The checksum is a fingerprint of the file. If it matches, nothing was changed on the way."
+    }
+  ]
+}

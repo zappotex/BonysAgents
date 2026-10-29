@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "In which order does Hermes get a new tool?",
+      "antworten": [
+        "Install → read the list → register",
+        "Read the list → install (with checksum) → register with Hermes and restart",
+        "Register → install → read the list"
+      ],
+      "richtig": 1,
+      "erklaerung": "First find out, then install properly, then register with Hermes – and restart Hermes."
+    },
+    {
+      "frage": "Hermes edited a PDF and says “Done!”. What do you do?",
+      "antworten": [
+        "Nothing – Hermes is never wrong",
+        "Open the file and check it yourself",
+        "Ask Hermes whether it's sure, and believe it"
+      ],
+      "richtig": 1,
+      "erklaerung": "People stay in control: always look at results yourself."
+    }
+  ]
+}

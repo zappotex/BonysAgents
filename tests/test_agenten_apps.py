@@ -74,6 +74,37 @@ def test_online_page_keeps_tilde_for_the_shell(build, liste):
     assert "--command ~/.local/bin/pdfcraft-cli --args mcp --compact --root ~/Agent-Dateien/pdf" in page
 
 
+def test_english_page_from_the_translation(build, liste):
+    """agent-apps.en.yaml: jeder Eintrag übersetzt, Befehle aus der Liste mit ~/Agent-Files, keine deutschen Texte."""
+    import html
+    import re
+
+    ueb = yaml.safe_load((ROOT / "agent-apps" / agenten_apps.TRANSLATION).read_text("utf-8"))
+    ids = {it["id"] for it in liste["apps"] + liste["vorinstalliert"]}
+    assert set(ueb["texte"]) == ids
+    en = build.uebersetzen(liste, ueb)
+    build.check(en)
+    page = build.render(en, "/home/agent", {"n8n"})
+    assert '<html lang="en">' in page and "Already installed" in page and "Install &amp; connect to Hermes" in page
+    assert "--root /home/agent/Agent-Files/pdf" in page and "Agent-Dateien" not in page
+    assert "/home/agent/Agent-Files/images" in page
+    text = html.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<(style|script)>.*?</\1>", "", page, flags=re.S)))
+    assert not re.findall(r"\w*[äöüßÄÖÜ]\w*", text)
+    # Die deutsche Liste bleibt unverändert
+    assert "Agent-Dateien" in build.render(liste, None) and liste["meta"]["titel"] == "Agenten-Apps"
+    # Fehlt ein Eintrag in der Übersetzung, bricht es ab statt deutsch zu mischen
+    with pytest.raises(SystemExit, match="pdfcraft"):
+        build.uebersetzen(liste, {**ueb, "texte": {k: v for k, v in ueb["texte"].items() if k != "pdfcraft"}})
+
+
+def test_agent_pc_builds_the_page_in_its_language():
+    script = agenten_apps.install_script()
+    assert agenten_apps.TRANSLATION in script and "unset LANG; [ -r /etc/default/locale ]" in script
+    assert f"W={agenten_apps.WORK_DIR}; else W={agenten_apps.WORK_DIR_EN}" in script
+    assert agenten_apps.WORK_DIR_EN in apps.APPS[agenten_apps.APP_ID].check
+    assert bash_syntax_ok(script)
+
+
 def test_shell_arg_quotes_but_keeps_tilde(build):
     assert build.shell_arg("~/A B") == "~/'A B'"
     assert build.shell_arg("a;rm -rf /") == "'a;rm -rf /'"

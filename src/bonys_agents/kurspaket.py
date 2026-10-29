@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from bonys_agents import __version__, apps, desktops, distros, storage, vm
+from bonys_agents.i18n import n_, tr
 
 SUFFIX = ".bonyspaket"
 FORMAT_ID = "bonys-agents-kurspaket"
@@ -67,7 +68,7 @@ MAX_LEKTIONEN = 100
 ENDUNGEN = {".md", ".txt", ".json", ".sh", ".py", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".minisig", ""}
 SKRIPT_ENDUNGEN = {".sh", ".py"}
 
-STUFEN = {"anfaenger": "Anfänger", "fortgeschritten": "Fortgeschritten", "experte": "Experte"}
+STUFEN = {"anfaenger": n_("Anfänger"), "fortgeschritten": n_("Fortgeschritten"), "experte": n_("Experte")}
 STUFEN_REIHENFOLGE = {s: i for i, s in enumerate(STUFEN)}
 LIZENZ_STANDARD = "CC-BY-SA-4.0"
 PRUEF_ZEIT_STANDARD, PRUEF_ZEIT_MAX = 30, 300
@@ -154,32 +155,34 @@ def _feld(d: dict, key: str, wo: str, *, pflicht: bool = False, max_len: int = 2
           standard: str = "") -> str:
     if key not in d or d[key] is None:
         if pflicht:
-            raise PaketFehler(f"{wo}: Angabe „{key}“ fehlt.")
+            raise PaketFehler(tr("{wo}: Angabe „{key}“ fehlt.", wo=wo, key=key))
         return standard
     wert = d[key]
     if not isinstance(wert, str):
-        raise PaketFehler(f"{wo}: „{key}“ muss ein Text sein.")
+        raise PaketFehler(tr("{wo}: „{key}“ muss ein Text sein.", wo=wo, key=key))
     if pflicht and not wert.strip():
-        raise PaketFehler(f"{wo}: „{key}“ darf nicht leer sein.")
+        raise PaketFehler(tr("{wo}: „{key}“ darf nicht leer sein.", wo=wo, key=key))
     if len(wert) > max_len:
-        raise PaketFehler(f"{wo}: „{key}“ ist zu lang (höchstens {max_len} Zeichen).")
+        raise PaketFehler(tr("{wo}: „{key}“ ist zu lang (höchstens {max_len} Zeichen).", wo=wo, key=key,
+                             max_len=max_len))
     if not mehrzeilig and ("\n" in wert or "\t" in wert):
-        raise PaketFehler(f"{wo}: „{key}“ muss einzeilig sein.")
+        raise PaketFehler(tr("{wo}: „{key}“ muss einzeilig sein.", wo=wo, key=key))
     if _STEUERZEICHEN.search(wert.replace("\n", " ").replace("\t", " ")):
-        raise PaketFehler(f"{wo}: „{key}“ enthält unerlaubte Steuerzeichen.")
+        raise PaketFehler(tr("{wo}: „{key}“ enthält unerlaubte Steuerzeichen.", wo=wo, key=key))
     return wert.strip()
 
 
 def _zahl(d: dict, key: str, wo: str, *, minimum: int, maximum: int, standard: int | None = None) -> int:
     if key not in d or d[key] is None:
         if standard is None:
-            raise PaketFehler(f"{wo}: Angabe „{key}“ fehlt.")
+            raise PaketFehler(tr("{wo}: Angabe „{key}“ fehlt.", wo=wo, key=key))
         return standard
     wert = d[key]
     if not isinstance(wert, int) or isinstance(wert, bool):
-        raise PaketFehler(f"{wo}: „{key}“ muss eine ganze Zahl sein.")
+        raise PaketFehler(tr("{wo}: „{key}“ muss eine ganze Zahl sein.", wo=wo, key=key))
     if not minimum <= wert <= maximum:
-        raise PaketFehler(f"{wo}: „{key}“ muss zwischen {minimum} und {maximum} liegen (gefunden: {wert}).")
+        raise PaketFehler(tr("{wo}: „{key}“ muss zwischen {minimum} und {maximum} liegen (gefunden: {wert}).", wo=wo,
+                             key=key, minimum=minimum, maximum=maximum, wert=wert))
     return wert
 
 
@@ -188,7 +191,8 @@ def _textliste(d: dict, key: str, wo: str, max_eintraege: int = 30, max_len: int
     if wert is None:
         return []
     if not isinstance(wert, list) or len(wert) > max_eintraege:
-        raise PaketFehler(f"{wo}: „{key}“ muss eine Liste mit höchstens {max_eintraege} Texten sein.")
+        raise PaketFehler(tr("{wo}: „{key}“ muss eine Liste mit höchstens {max_eintraege} Texten sein.", wo=wo,
+                             key=key, max_eintraege=max_eintraege))
     return [_feld({key: x}, key, wo, pflicht=True, max_len=max_len) for x in wert]
 
 
@@ -196,23 +200,26 @@ def _relpfad(wert: str, wo: str, key: str, endungen: set[str]) -> str:
     """Relativer Pfad innerhalb des Lektionsordners (POSIX), ohne Ausbruch und ohne versteckte Teile."""
     p = PurePosixPath(wert)
     if not wert or "\\" in wert or p.is_absolute() or ".." in p.parts or any(t.startswith(".") for t in p.parts):
-        raise PaketFehler(f"{wo}: „{key}“ muss ein Pfad innerhalb der Lektion sein (gefunden: „{wert}“).")
+        raise PaketFehler(tr("{wo}: „{key}“ muss ein Pfad innerhalb der Lektion sein (gefunden: „{wert}“).", wo=wo,
+                             key=key, wert=wert))
     if p.suffix.lower() not in endungen:
-        raise PaketFehler(f"{wo}: „{key}“ muss auf {' oder '.join(sorted(endungen))} enden (gefunden: „{wert}“).")
+        raise PaketFehler(tr("{wo}: „{key}“ muss auf {wert} enden (gefunden: „{wert2}“).", wo=wo, key=key,
+                             wert=' oder '.join(sorted(endungen)), wert2=wert))
     return str(p)
 
 
 def _lesen(path: Path, limit: int = MAX_TEXT) -> str:
     try:
         if path.stat().st_size > limit:
-            raise PaketFehler(f"{path.name} ist zu groß (höchstens {max(1, limit // 1024 // 1024)} MB).")
+            raise PaketFehler(tr("{name} ist zu groß (höchstens {wert} MB).", name=path.name,
+                                 wert=max(1, limit // 1024 // 1024)))
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        raise PaketFehler(f"{path.name} ist kein UTF-8-Text.") from None
+        raise PaketFehler(tr("{name} ist kein UTF-8-Text.", name=path.name)) from None
     except FileNotFoundError:
-        raise PaketFehler(f"{path.name} fehlt.") from None
+        raise PaketFehler(tr("{name} fehlt.", name=path.name)) from None
     except OSError as e:
-        raise PaketFehler(f"{path.name} lässt sich nicht lesen: {e.strerror or e}") from None
+        raise PaketFehler(tr("{name} lässt sich nicht lesen: {wert}", name=path.name, wert=e.strerror or e)) from None
 
 
 def _json_lesen(path: Path, wo: str):
@@ -220,7 +227,8 @@ def _json_lesen(path: Path, wo: str):
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        raise PaketFehler(f"{wo}: kein gültiges JSON (Zeile {e.lineno}, Spalte {e.colno}: {e.msg}).") from None
+        raise PaketFehler(tr("{wo}: kein gültiges JSON (Zeile {lineno}, Spalte {colno}: {msg}).", wo=wo,
+                             lineno=e.lineno, colno=e.colno, msg=e.msg)) from None
 
 
 def _innerhalb(basis: Path, ziel: Path) -> bool:
@@ -316,6 +324,7 @@ class Rezept:
     username: str = "agent"
     keyboard: str = "de"
     timezone: str = "Europe/Berlin"
+    sprache: str = "de"            # Sprache im Agent-PC: die des Kurspakets („de“ oder „en“)
     vorlage: str = ""              # optional: Name einer Vorlage, die genutzt wird, wenn sie hier vorhanden ist
     vorlage_sha256: str = ""       # optional: SHA-256 der passenden .bonys-Datei
 
@@ -328,6 +337,7 @@ class Rezept:
             "username": self.username,
             "keyboard": self.keyboard,
             "timezone_name": self.timezone,
+            "sprache": self.sprache,
             "ram_mb": self.ram_mb,
             "cpus": self.cpus,
             "disk_gb": self.disk_gb,
@@ -366,7 +376,7 @@ class Kurspaket:
 
     @property
     def stufe_text(self) -> str:
-        return STUFEN.get(self.stufe, self.stufe)
+        return tr(STUFEN.get(self.stufe, self.stufe))
 
     @property
     def dauer_text(self) -> str:
@@ -376,11 +386,11 @@ class Kurspaket:
     def teilnehmer_text(self) -> str:
         lo, hi = self.teilnehmer_min, self.teilnehmer_max
         if lo and hi:
-            return f"{lo}–{hi} Personen" if lo != hi else f"{lo} Personen"
+            return tr("{von}–{bis} Personen", von=lo, bis=hi) if lo != hi else tr("{n} Personen", n=lo)
         if hi:
-            return f"bis {hi} Personen"
+            return tr("bis {n} Personen", n=hi)
         if lo:
-            return f"ab {lo} Personen"
+            return tr("ab {n} Personen", n=lo)
         return "–"
 
     @property
@@ -422,17 +432,17 @@ class Kurspaket:
 # ---------------------------------------------------------------- paket.json und quiz.json prüfen
 def quiz_pruefen(d: object, wo: str = QUIZ) -> list[Frage]:
     if not isinstance(d, dict) or not isinstance(d.get("fragen"), list):
-        raise PaketFehler(f"{wo}: erwartet wird {{\"fragen\": [ … ]}}.")
+        raise PaketFehler(tr("{wo}: erwartet wird {{\"fragen\": [ … ]}}.", wo=wo))
     if not 1 <= len(d["fragen"]) <= 30:
-        raise PaketFehler(f"{wo}: 1 bis 30 Fragen erlaubt.")
+        raise PaketFehler(tr("{wo}: 1 bis 30 Fragen erlaubt.", wo=wo))
     fragen = []
     for i, f in enumerate(d["fragen"], 1):
         w = f"{wo}, Frage {i}"
         if not isinstance(f, dict):
-            raise PaketFehler(f"{w}: muss ein Objekt sein.")
+            raise PaketFehler(tr("{w}: muss ein Objekt sein.", w=w))
         antworten = f.get("antworten")
         if not isinstance(antworten, list) or not 2 <= len(antworten) <= 6:
-            raise PaketFehler(f"{w}: „antworten“ muss 2 bis 6 Texte enthalten.")
+            raise PaketFehler(tr("{w}: „antworten“ muss 2 bis 6 Texte enthalten.", w=w))
         antworten = [_feld({"antworten": a}, "antworten", w, pflicht=True, max_len=300) for a in antworten]
         richtig = _zahl(f, "richtig", w, minimum=0, maximum=len(antworten) - 1)
         fragen.append(Frage(_feld(f, "frage", w, pflicht=True, max_len=500), antworten, richtig,
@@ -443,7 +453,7 @@ def quiz_pruefen(d: object, wo: str = QUIZ) -> list[Frage]:
 def _als(d: dict, w: str, standard: str) -> str:
     als = _feld(d, "als", w, standard=standard)
     if als not in ALS:
-        raise PaketFehler(f"{w}: „als“ muss „benutzer“ oder „root“ sein.")
+        raise PaketFehler(tr("{w}: „als“ muss „benutzer“ oder „root“ sein.", w=w))
     return als
 
 
@@ -452,17 +462,18 @@ def _pruefung(d: object, wo: str) -> Pruefung | None:
         return None
     w = f"{wo}, Prüfung"
     if not isinstance(d, dict):
-        raise PaketFehler(f"{w}: muss ein Objekt sein.")
+        raise PaketFehler(tr("{w}: muss ein Objekt sein.", w=w))
     typ = _feld(d, "typ", w, standard=SKRIPT)
     if typ != SKRIPT and typ not in EINGEBAUTE_PRUEFUNGEN:
-        raise PaketFehler(f"{w}: unbekannter „typ“ „{typ}“ (bekannt: {SKRIPT}, {', '.join(EINGEBAUTE_PRUEFUNGEN)}) "
-                          "– vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
+        raise PaketFehler(tr("{w}: unbekannter „typ“ „{typ}“ (bekannt: {SKRIPT}, {wert}) – vielleicht braucht das "
+                             "Kurspaket eine neuere Version von Bony's Agents.", w=w, typ=typ, SKRIPT=SKRIPT,
+                             wert=', '.join(EINGEBAUTE_PRUEFUNGEN)))
     skript = _relpfad(_feld(d, "skript", w, pflicht=True), w, "skript", SKRIPT_ENDUNGEN) if typ == SKRIPT else ""
     loesung = _feld(d, "loesung", w) if typ == SKRIPT else ""
     if loesung:
         loesung = _relpfad(loesung, w, "loesung", SKRIPT_ENDUNGEN)
         if loesung == skript:
-            raise PaketFehler(f"{w}: „loesung“ muss ein anderes Skript sein als „skript“.")
+            raise PaketFehler(tr("{w}: „loesung“ muss ein anderes Skript sein als „skript“.", w=w))
     return Pruefung(
         typ=typ, skript=skript, loesung=loesung,
         aufgabe=_feld(d, "aufgabe", w, max_len=300),
@@ -478,55 +489,63 @@ def _start(d: object, wo: str) -> Start | None:
         return None
     w = f"{wo}, Startzustand"
     if not isinstance(d, dict):
-        raise PaketFehler(f"{w}: muss ein Objekt sein.")
+        raise PaketFehler(tr("{w}: muss ein Objekt sein.", w=w))
     return Start(skript=_relpfad(_feld(d, "skript", w, pflicht=True), w, "skript", SKRIPT_ENDUNGEN),
                  zeitlimit=_zahl(d, "zeitlimit", w, minimum=1, maximum=START_ZEIT_MAX, standard=START_ZEIT_STANDARD),
                  als=_als(d, w, "root"))
 
 
-def _rezept(d: object) -> Rezept:
+def _rezept(d: object, sprache: str = "de") -> Rezept:
     wo = f"{PAKET_JSON}, Rezept"
     if d is None:
         d = {}
     if not isinstance(d, dict):
-        raise PaketFehler(f"{wo}: „rezept“ muss ein Objekt sein.")
+        raise PaketFehler(tr("{wo}: „rezept“ muss ein Objekt sein.", wo=wo))
     distro = _feld(d, "distro", wo, standard=distros.DEFAULT)
     if distro not in distros.DISTROS:
-        raise PaketFehler(f"{wo}: unbekanntes Grundsystem „{distro}“ (bekannt: {', '.join(distros.DISTROS)}) – "
-                          "vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
+        raise PaketFehler(tr("{wo}: unbekanntes Grundsystem „{distro}“ (bekannt: {wert}) – vielleicht braucht das "
+                             "Kurspaket eine neuere Version von Bony's Agents.", wo=wo, distro=distro,
+                             wert=', '.join(distros.DISTROS)))
     # Ohne Angabe: der Standard-Desktop des Grundsystems (Kali: Xfce)
     desktop = _feld(d, "desktop", wo, standard=(distros.get(distro).desktops or (desktops.DEFAULT,))[0])
     if desktop not in desktops.DESKTOPS:
-        raise PaketFehler(f"{wo}: unbekannter Desktop „{desktop}“ (bekannt: {', '.join(desktops.DESKTOPS)}) – "
-                          "vielleicht braucht das Kurspaket eine neuere Version von Bony's Agents.")
+        raise PaketFehler(tr("{wo}: unbekannter Desktop „{desktop}“ (bekannt: {wert}) – vielleicht braucht das "
+                             "Kurspaket eine neuere Version von Bony's Agents.", wo=wo, desktop=desktop,
+                             wert=', '.join(desktops.DESKTOPS)))
     app_liste = d.get("apps", [])
     if not isinstance(app_liste, list) or len(app_liste) > 40 or not all(
             isinstance(a, str) and vm.APP_ID_RE.match(a) for a in app_liste):
-        raise PaketFehler(f"{wo}: „apps“ muss eine Liste von App-Kennungen sein (z. B. \"brave\", \"hermes\").")
+        raise PaketFehler(tr("{wo}: „apps“ muss eine Liste von App-Kennungen sein (z. B. \"brave\", \"hermes\").",
+                             wo=wo))
     name = _feld(d, "name", wo, max_len=40)
     if name and not vm.NAME_RE.match(name):
-        raise PaketFehler(f"{wo}: ungültiger Name für den Agent-PC „{name}“ (Buchstaben, Ziffern, - und _).")
+        raise PaketFehler(tr("{wo}: ungültiger Name für den Agent-PC „{name}“ (Buchstaben, Ziffern, - und _).",
+                             wo=wo, name=name))
     username = _feld(d, "username", wo, standard="agent")
     if not vm.USERNAME_RE.match(username):
-        raise PaketFehler(f"{wo}: ungültiger Benutzername „{username}“ (klein, beginnt mit einem Buchstaben).")
-    keyboard = _feld(d, "keyboard", wo, standard="de")
+        raise PaketFehler(tr("{wo}: ungültiger Benutzername „{username}“ (klein, beginnt mit einem Buchstaben).",
+                             wo=wo, username=username))
+    # Agent-PC in der Sprache des Kurspakets (nur Deutsch und Englisch, alles andere englisch)
+    sprache = "de" if sprache.startswith("de") else "en"
+    keyboard = _feld(d, "keyboard", wo, standard="de" if sprache == "de" else "us")
     if not vm.KEYBOARD_RE.match(keyboard):
-        raise PaketFehler(f"{wo}: ungültige Tastatur „{keyboard}“.")
+        raise PaketFehler(tr("{wo}: ungültige Tastatur „{keyboard}“.", wo=wo, keyboard=keyboard))
     timezone = _feld(d, "timezone", wo, standard="Europe/Berlin")
     if not vm.TIMEZONE_RE.match(timezone):
-        raise PaketFehler(f"{wo}: ungültige Zeitzone „{timezone}“.")
+        raise PaketFehler(tr("{wo}: ungültige Zeitzone „{timezone}“.", wo=wo, timezone=timezone))
     vorlage = _feld(d, "vorlage", wo, max_len=60)
     if vorlage and not vm.NAME_RE.match(vorlage):
-        raise PaketFehler(f"{wo}: ungültiger Vorlagenname „{vorlage}“.")
+        raise PaketFehler(tr("{wo}: ungültiger Vorlagenname „{vorlage}“.", wo=wo, vorlage=vorlage))
     sha = _feld(d, "vorlage_sha256", wo, max_len=64).lower()
     if sha and not _HEX64.match(sha):
-        raise PaketFehler(f"{wo}: „vorlage_sha256“ muss eine SHA-256-Prüfsumme (64 Hex-Zeichen) sein.")
+        raise PaketFehler(tr("{wo}: „vorlage_sha256“ muss eine SHA-256-Prüfsumme (64 Hex-Zeichen) sein.", wo=wo))
     return Rezept(
         name=name, desktop=desktop, apps=list(dict.fromkeys(app_liste)), distro=distro,
         ram_mb=_zahl(d, "ram_mb", wo, minimum=1024, maximum=262144, standard=0) or None,
         cpus=_zahl(d, "cpus", wo, minimum=1, maximum=64, standard=0) or None,
         disk_gb=_zahl(d, "disk_gb", wo, minimum=vm.MIN_DISK_GB, maximum=vm.MAX_DISK_GB, standard=0) or None,
-        username=username, keyboard=keyboard, timezone=timezone, vorlage=vorlage, vorlage_sha256=sha,
+        username=username, keyboard=keyboard, timezone=timezone, sprache=sprache, vorlage=vorlage,
+        vorlage_sha256=sha,
     )
 
 
@@ -534,14 +553,15 @@ def _quellen(d: dict) -> list[dict]:
     wert = d.get("quellen", [])
     wo = f"{PAKET_JSON}, Quelle"
     if not isinstance(wert, list) or len(wert) > 30:
-        raise PaketFehler(f"{PAKET_JSON}: „quellen“ muss eine Liste sein (höchstens 30 Einträge).")
+        raise PaketFehler(tr("{PAKET_JSON}: „quellen“ muss eine Liste sein (höchstens 30 Einträge).",
+                             PAKET_JSON=PAKET_JSON))
     out = []
     for q in wert:
         if not isinstance(q, dict):
-            raise PaketFehler(f"{wo}: braucht „titel“ und „url“.")
+            raise PaketFehler(tr("{wo}: braucht „titel“ und „url“.", wo=wo))
         url = _feld(q, "url", wo, pflicht=True, max_len=500)
         if urllib.parse.urlparse(url).scheme != "https":
-            raise PaketFehler(f"{wo}: nur https-Adressen erlaubt (gefunden: „{url}“).")
+            raise PaketFehler(tr("{wo}: nur https-Adressen erlaubt (gefunden: „{url}“).", wo=wo, url=url))
         out.append({"titel": _feld(q, "titel", wo, pflicht=True), "url": url})
     return out
 
@@ -552,46 +572,46 @@ def _teilnehmer(d: dict) -> tuple[int, int]:
         return 0, 0
     wo = f"{PAKET_JSON}, Teilnehmer"
     if not isinstance(t, dict):
-        raise PaketFehler(f"{wo}: erwartet wird z. B. {{\"min\": 5, \"max\": 10}}.")
+        raise PaketFehler(tr("{wo}: erwartet wird z. B. {{\"min\": 5, \"max\": 10}}.", wo=wo))
     lo = _zahl(t, "min", wo, minimum=1, maximum=1000, standard=0)
     hi = _zahl(t, "max", wo, minimum=1, maximum=1000, standard=0)
     if lo and hi and lo > hi:
-        raise PaketFehler(f"{wo}: „min“ ist größer als „max“.")
+        raise PaketFehler(tr("{wo}: „min“ ist größer als „max“.", wo=wo))
     return lo, hi
 
 
 def paket_pruefen(d: object, pfad: Path = Path(".")) -> Kurspaket:
     """``paket.json`` (fremde Daten!) prüfen und in ein ``Kurspaket`` wandeln – PaketFehler mit Meldung."""
     if not isinstance(d, dict) or d.get("format") != FORMAT_ID:
-        raise PaketFehler(f"Kein Kurspaket von Bony's Agents (in {PAKET_JSON} fehlt "
-                          f"\"format\": \"{FORMAT_ID}\").")
+        raise PaketFehler(tr("Kein Kurspaket von Bony's Agents (in {PAKET_JSON} fehlt \"format\": \"{FORMAT_ID}\").",
+                             PAKET_JSON=PAKET_JSON, FORMAT_ID=FORMAT_ID))
     fv = d.get("format_version")
     if not isinstance(fv, int) or isinstance(fv, bool) or fv < 1:
-        raise PaketFehler(f"{PAKET_JSON}: ungültige „format_version“.")
+        raise PaketFehler(tr("{PAKET_JSON}: ungültige „format_version“.", PAKET_JSON=PAKET_JSON))
     wo = PAKET_JSON
     min_v = _feld(d, "min_version", wo, standard=MIN_VERSION, max_len=20) or MIN_VERSION
     if not VERSION_RE.match(min_v):
-        raise PaketFehler(f"{wo}: ungültige „min_version“ „{min_v}“ (z. B. „0.23.0“).")
+        raise PaketFehler(tr("{wo}: ungültige „min_version“ „{min_v}“ (z. B. „0.23.0“).", wo=wo, min_v=min_v))
     if fv > FORMAT_VERSION or version_vergleich(min_v, __version__) > 0:
-        raise PaketFehler(f"Dieses Kurspaket braucht Bony's Agents {min_v} oder neuer (installiert: {__version__}). "
-                          "Bitte zuerst Bony's Agents aktualisieren.")
+        raise PaketFehler(tr("Dieses Kurspaket braucht Bony's Agents {min_v} oder neuer (installiert: {version__}). "
+                             "Bitte zuerst Bony's Agents aktualisieren.", min_v=min_v, version__=__version__))
     paket_id = _feld(d, "id", wo, pflicht=True, max_len=60)
     if not ID_RE.match(paket_id):
-        raise PaketFehler(f"{wo}: „id“ „{paket_id}“ ist ungültig – 3 bis 60 Zeichen, nur Kleinbuchstaben, Ziffern "
-                          "und Bindestrich (z. B. „einfuehrung-hermes-agent“).")
+        raise PaketFehler(tr("{wo}: „id“ „{paket_id}“ ist ungültig – 3 bis 60 Zeichen, nur Kleinbuchstaben, Ziffern "
+                             "und Bindestrich (z. B. „einfuehrung-hermes-agent“).", wo=wo, paket_id=paket_id))
     stufe = _feld(d, "stufe", wo, pflicht=True)
     if stufe not in STUFEN:
-        raise PaketFehler(f"{wo}: „stufe“ muss „anfaenger“, „fortgeschritten“ oder „experte“ sein "
-                          f"(gefunden: „{stufe}“).")
+        raise PaketFehler(tr("{wo}: „stufe“ muss „anfaenger“, „fortgeschritten“ oder „experte“ sein (gefunden: "
+                             "„{stufe}“).", wo=wo, stufe=stufe))
     version = _feld(d, "version", wo, pflicht=True, max_len=20)
     if not VERSION_RE.match(version):
-        raise PaketFehler(f"{wo}: „version“ „{version}“ ist ungültig (z. B. „1.0.0“).")
+        raise PaketFehler(tr("{wo}: „version“ „{version}“ ist ungültig (z. B. „1.0.0“).", wo=wo, version=version))
     sprache = _feld(d, "sprache", wo, standard="de", max_len=5)
     if not SPRACHE_RE.match(sprache):
-        raise PaketFehler(f"{wo}: „sprache“ „{sprache}“ ist ungültig (z. B. „de“).")
+        raise PaketFehler(tr("{wo}: „sprache“ „{sprache}“ ist ungültig (z. B. „de“).", wo=wo, sprache=sprache))
     entwurf = d.get("entwurf", False)
     if not isinstance(entwurf, bool):
-        raise PaketFehler(f"{wo}: „entwurf“ muss true oder false sein.")
+        raise PaketFehler(tr("{wo}: „entwurf“ muss true oder false sein.", wo=wo))
     lo, hi = _teilnehmer(d)
     paket = Kurspaket(
         id=paket_id,
@@ -610,24 +630,25 @@ def paket_pruefen(d: object, pfad: Path = Path(".")) -> Kurspaket:
         lernziele=_textliste(d, "lernziele", wo),
         quellen=_quellen(d),
         entwurf=entwurf,
-        rezept=_rezept(d.get("rezept")),
+        rezept=_rezept(d.get("rezept"), sprache),
         pfad=pfad,
     )
     lektionen = d.get("lektionen", [])
     if not isinstance(lektionen, list):
-        raise PaketFehler(f"{wo}: „lektionen“ muss eine Liste sein.")
+        raise PaketFehler(tr("{wo}: „lektionen“ muss eine Liste sein.", wo=wo))
     if len(lektionen) > MAX_LEKTIONEN:
-        raise PaketFehler(f"{wo}: höchstens {MAX_LEKTIONEN} Lektionen erlaubt.")
+        raise PaketFehler(tr("{wo}: höchstens {MAX_LEKTIONEN} Lektionen erlaubt.", wo=wo, MAX_LEKTIONEN=MAX_LEKTIONEN))
     gesehen: set[str] = set()
     for i, lek in enumerate(lektionen, 1):
         w = f"{wo}, Lektion {i}"
         if not isinstance(lek, dict):
-            raise PaketFehler(f"{w}: muss ein Objekt sein.")
+            raise PaketFehler(tr("{w}: muss ein Objekt sein.", w=w))
         ordner = _feld(lek, "ordner", w, pflicht=True, max_len=61)
         if not ORDNER_RE.match(ordner):
-            raise PaketFehler(f"{w}: „ordner“ „{ordner}“ ist ungültig – Form „NN-name“, z. B. „01-ankommen“.")
+            raise PaketFehler(tr("{w}: „ordner“ „{ordner}“ ist ungültig – Form „NN-name“, z. B. „01-ankommen“.", w=w,
+                                 ordner=ordner))
         if ordner in gesehen:
-            raise PaketFehler(f"{w}: Ordner „{ordner}“ kommt doppelt vor.")
+            raise PaketFehler(tr("{w}: Ordner „{ordner}“ kommt doppelt vor.", w=w, ordner=ordner))
         gesehen.add(ordner)
         titel = _feld(lek, "titel", w, pflicht=True, max_len=120)
         w = f"Lektion {i} „{titel}“"
@@ -650,20 +671,22 @@ def laden(ordner: Path, herkunft: str = DATEI) -> Kurspaket:
     ordner = Path(ordner)
     datei = ordner / PAKET_JSON
     if not datei.is_file():
-        raise PaketFehler(f"Im Ordner „{ordner.name}“ fehlt die Steuerdatei {PAKET_JSON}.")
+        raise PaketFehler(tr("Im Ordner „{name}“ fehlt die Steuerdatei {PAKET_JSON}.", name=ordner.name,
+                             PAKET_JSON=PAKET_JSON))
     paket = paket_pruefen(_json_lesen(datei, PAKET_JSON), ordner)
     paket.herkunft = herkunft
     if not paket.ablaufplan_datei.is_file():
-        raise PaketFehler(f"Im Kurspaket fehlt der Ablaufplan ({ABLAUFPLAN}).")
+        raise PaketFehler(tr("Im Kurspaket fehlt der Ablaufplan ({ABLAUFPLAN}).", ABLAUFPLAN=ABLAUFPLAN))
     for name in (ABLAUFPLAN, HANDOUT):
         if (ordner / name).is_file():
             _lesen(ordner / name)
     for i, lek in enumerate(paket.lektionen, 1):
         w = f"Lektion {i} „{lek.titel}“"
         if not lek.pfad.is_dir() or not _innerhalb(ordner, lek.pfad):
-            raise PaketFehler(f"{w}: Ordner {LEKTIONEN}/{lek.ordner} fehlt.")
+            raise PaketFehler(tr("{w}: Ordner {LEKTIONEN}/{ordner} fehlt.", w=w, LEKTIONEN=LEKTIONEN,
+                                 ordner=lek.ordner))
         if not lek.anleitung_datei.is_file():
-            raise PaketFehler(f"{w}: {ANLEITUNG} fehlt.")
+            raise PaketFehler(tr("{w}: {ANLEITUNG} fehlt.", w=w, ANLEITUNG=ANLEITUNG))
         lek.anleitung()
         for was, skript in (("Prüfskript", lek.pruefung.skript if lek.pruefung else ""),
                             ("Lösungsskript", lek.pruefung.loesung if lek.pruefung else ""),
@@ -671,7 +694,7 @@ def laden(ordner: Path, herkunft: str = DATEI) -> Kurspaket:
             if skript:
                 p = lek.pfad / skript
                 if p.is_symlink() or not p.is_file() or not _innerhalb(lek.pfad, p):
-                    raise PaketFehler(f"{w}: {was} „{skript}“ fehlt.")
+                    raise PaketFehler(tr("{w}: {was} „{skript}“ fehlt.", w=w, was=was, skript=skript))
                 _lesen(p)
         if lek.hat_quiz:
             lek.quiz()
@@ -893,20 +916,22 @@ def _zip_eintraege(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, PurePosix
     """
     infos = zf.infolist()
     if len(infos) > MAX_DATEIEN:
-        raise PaketFehler(f"Die Datei enthält zu viele Einträge (höchstens {MAX_DATEIEN}).")
+        raise PaketFehler(tr("Die Datei enthält zu viele Einträge (höchstens {MAX_DATEIEN}).", MAX_DATEIEN=MAX_DATEIEN))
     namen = []
     for info in infos:
         name = info.filename
         if "\\" in name or name.startswith("/") or re.match(r"^[A-Za-z]:", name) or "\x00" in name:
-            raise PaketFehler(f"Unerlaubter Pfad in der Datei: „{name}“.")
+            raise PaketFehler(tr("Unerlaubter Pfad in der Datei: „{name}“.", name=name))
         p = PurePosixPath(name)
         if ".." in p.parts:
-            raise PaketFehler(f"Unerlaubter Pfad in der Datei (führt aus dem Kurspaket heraus): „{name}“.")
+            raise PaketFehler(tr("Unerlaubter Pfad in der Datei (führt aus dem Kurspaket heraus): „{name}“.",
+                                 name=name))
         modus = info.external_attr >> 16
         if stat.S_ISLNK(modus) or (stat.S_IFMT(modus) and not (stat.S_ISREG(modus) or stat.S_ISDIR(modus))):
-            raise PaketFehler(f"Die Datei enthält einen Verweis oder eine Sonderdatei: „{name}“ – nicht erlaubt.")
+            raise PaketFehler(tr("Die Datei enthält einen Verweis oder eine Sonderdatei: „{name}“ – nicht erlaubt.",
+                                 name=name))
         if info.flag_bits & 0x1:
-            raise PaketFehler("Verschlüsselte ZIP-Dateien werden nicht unterstützt.")
+            raise PaketFehler(tr("Verschlüsselte ZIP-Dateien werden nicht unterstützt."))
         namen.append((info, p))
     oben = {p.parts[0] for _i, p in namen if p.parts and not _ueberspringen(p.parts[:1])}
     praefix = ""
@@ -914,7 +939,7 @@ def _zip_eintraege(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, PurePosix
         if len(oben) == 1 and any(p == PurePosixPath(next(iter(oben)), PAKET_JSON) for _i, p in namen):
             praefix = next(iter(oben))
         else:
-            raise PaketFehler(f"Keine Kurspaket-Datei von Bony's Agents: {PAKET_JSON} fehlt.")
+            raise PaketFehler(tr("Keine Kurspaket-Datei von Bony's Agents: {PAKET_JSON} fehlt.", PAKET_JSON=PAKET_JSON))
     eintraege = []
     gesamt = 0
     gesehen: set[str] = set()
@@ -925,19 +950,22 @@ def _zip_eintraege(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, PurePosix
         if not rel.parts or _ueberspringen(rel.parts) or info.is_dir():
             continue
         if len(rel.parts) > MAX_TIEFE:
-            raise PaketFehler(f"Zu tief verschachtelt: „{info.filename}“.")
+            raise PaketFehler(tr("Zu tief verschachtelt: „{filename}“.", filename=info.filename))
         if rel.suffix.lower() not in ENDUNGEN:
-            raise PaketFehler(f"Unerlaubte Dateiart „{rel.suffix}“ in „{info.filename}“ – erlaubt sind Texte "
-                              "(.md, .txt, .json), Skripte (.sh, .py) und Bilder (.png, .jpg, .gif, .webp).")
+            raise PaketFehler(tr("Unerlaubte Dateiart „{suffix}“ in „{filename}“ – erlaubt sind Texte (.md, .txt, "
+                                 ".json), Skripte (.sh, .py) und Bilder (.png, .jpg, .gif, .webp).",
+                                 suffix=rel.suffix, filename=info.filename))
         key = rel.as_posix().lower()
         if key in gesehen:
-            raise PaketFehler(f"Doppelter Pfad in der Datei: „{info.filename}“.")
+            raise PaketFehler(tr("Doppelter Pfad in der Datei: „{filename}“.", filename=info.filename))
         gesehen.add(key)
         if info.file_size > MAX_DATEI:
-            raise PaketFehler(f"„{info.filename}“ ist zu groß (höchstens {MAX_DATEI // 1024 // 1024} MB je Datei).")
+            raise PaketFehler(tr("„{filename}“ ist zu groß (höchstens {wert} MB je Datei).", filename=info.filename,
+                                 wert=MAX_DATEI // 1024 // 1024))
         gesamt += info.file_size
         if gesamt > MAX_GESAMT:
-            raise PaketFehler(f"Das Kurspaket ist entpackt zu groß (höchstens {MAX_GESAMT // 1024 // 1024} MB).")
+            raise PaketFehler(tr("Das Kurspaket ist entpackt zu groß (höchstens {wert} MB).",
+                                 wert=MAX_GESAMT // 1024 // 1024))
         eintraege.append((info, rel))
     return eintraege
 
@@ -950,9 +978,11 @@ def entpacken(datei: Path, ziel: Path) -> None:
     try:
         zf = zipfile.ZipFile(datei)
     except zipfile.BadZipFile:
-        raise PaketFehler(f"„{Path(datei).name}“ ist keine gültige Kurspaket-Datei (kein ZIP-Archiv).") from None
+        raise PaketFehler(tr("„{name}“ ist keine gültige Kurspaket-Datei (kein ZIP-Archiv).",
+                             name=Path(datei).name)) from None
     except OSError as e:
-        raise PaketFehler(f"„{Path(datei).name}“ lässt sich nicht öffnen: {e.strerror or e}") from None
+        raise PaketFehler(tr("„{name}“ lässt sich nicht öffnen: {wert}", name=Path(datei).name,
+                             wert=e.strerror or e)) from None
     with zf:
         eintraege = _zip_eintraege(zf)
         ziel.mkdir(parents=True)
@@ -967,12 +997,12 @@ def entpacken(datei: Path, ziel: Path) -> None:
                         geschrieben += len(chunk)
                         gesamt += len(chunk)
                         if geschrieben > MAX_DATEI or gesamt > MAX_GESAMT:
-                            raise PaketFehler("Das Kurspaket ist entpackt zu groß – Entpacken abgebrochen.")
+                            raise PaketFehler(tr("Das Kurspaket ist entpackt zu groß – Entpacken abgebrochen."))
                         dst.write(chunk)
             except (zipfile.BadZipFile, EOFError, NotImplementedError, RuntimeError) as e:
-                raise PaketFehler(f"„{info.filename}“ ist beschädigt: {e}") from None
+                raise PaketFehler(tr("„{filename}“ ist beschädigt: {e}", filename=info.filename, e=e)) from None
             except FileExistsError:
-                raise PaketFehler(f"Doppelter Pfad in der Datei: „{info.filename}“.") from None
+                raise PaketFehler(tr("Doppelter Pfad in der Datei: „{filename}“.", filename=info.filename)) from None
             # Lesbar, aber auf diesem Rechner nie ausführbar – Skripte laufen nur im Agent-PC
             out.chmod(0o644)
 
@@ -998,7 +1028,8 @@ def packen(ordner: Path, datei: Path) -> Path:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
             for p, rel in _dateien(ordner):
                 if p.is_symlink():
-                    raise PaketFehler(f"Der Paket-Ordner enthält einen Verweis (Link): „{rel.as_posix()}“.")
+                    raise PaketFehler(tr("Der Paket-Ordner enthält einen Verweis (Link): „{wert}“.",
+                                         wert=rel.as_posix()))
                 if rel.suffix.lower() in ENDUNGEN:
                     zf.write(p, rel.as_posix())
         os.replace(tmp, datei)
@@ -1083,7 +1114,7 @@ def holen(paket_id: str) -> Kurspaket:
     for k in liste():
         if k.id == paket_id:
             return k
-    raise PaketFehler(f"Das Kurspaket „{paket_id}“ gibt es nicht (mehr) in der Bibliothek.")
+    raise PaketFehler(tr("Das Kurspaket „{paket_id}“ gibt es nicht (mehr) in der Bibliothek.", paket_id=paket_id))
 
 
 def importieren(quelle: Path, ersetzen: bool = False, herkunft: str = DATEI, sha256: str = "") -> Kurspaket:
@@ -1103,7 +1134,7 @@ def importieren(quelle: Path, ersetzen: bool = False, herkunft: str = DATEI, sha
         elif quelle.is_file():
             entpacken(quelle, neu_dir)
         else:
-            raise PaketFehler(f"„{quelle.name}“ gibt es nicht.")
+            raise PaketFehler(tr("„{name}“ gibt es nicht.", name=quelle.name))
         neu = laden(neu_dir, herkunft)
         alt = next((k for k in liste() if k.id == neu.id), None)
         if alt is not None and not ersetzen:
@@ -1125,16 +1156,17 @@ def _ordner_kopieren(quelle: Path, ziel: Path) -> None:
     ziel.mkdir(parents=True)
     for p, rel in _dateien(quelle):
         if p.is_symlink():
-            raise PaketFehler(f"Der Paket-Ordner enthält einen Verweis (Link): „{rel.as_posix()}“ – nicht erlaubt.")
+            raise PaketFehler(tr("Der Paket-Ordner enthält einen Verweis (Link): „{wert}“ – nicht erlaubt.",
+                                 wert=rel.as_posix()))
         if rel.suffix.lower() not in ENDUNGEN:
-            raise PaketFehler(f"Unerlaubte Dateiart „{rel.suffix}“ in „{rel.as_posix()}“.")
+            raise PaketFehler(tr("Unerlaubte Dateiart „{suffix}“ in „{wert}“.", suffix=rel.suffix, wert=rel.as_posix()))
         if len(rel.parts) > MAX_TIEFE:
-            raise PaketFehler(f"Zu tief verschachtelt: „{rel.as_posix()}“.")
+            raise PaketFehler(tr("Zu tief verschachtelt: „{wert}“.", wert=rel.as_posix()))
         groesse = p.stat().st_size
         anzahl += 1
         gesamt += groesse
         if groesse > MAX_DATEI or gesamt > MAX_GESAMT or anzahl > MAX_DATEIEN:
-            raise PaketFehler("Der Paket-Ordner ist zu groß.")
+            raise PaketFehler(tr("Der Paket-Ordner ist zu groß."))
         out = ziel / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(p, out)
@@ -1146,8 +1178,8 @@ def loeschen(paket_id: str, fortschritt_auch: bool = True) -> None:
     ziel = bibliothek_dir() / paket_id
     if not ID_RE.match(paket_id) or not ziel.is_dir():
         if any(k.id == paket_id and k.mitgeliefert for k in liste()):
-            raise PaketFehler("Mitgelieferte Kurspakete gehören zum Programm und lassen sich nicht löschen.")
-        raise PaketFehler(f"Das Kurspaket „{paket_id}“ gibt es nicht in der Bibliothek.")
+            raise PaketFehler(tr("Mitgelieferte Kurspakete gehören zum Programm und lassen sich nicht löschen."))
+        raise PaketFehler(tr("Das Kurspaket „{paket_id}“ gibt es nicht in der Bibliothek.", paket_id=paket_id))
     papierkorb = bibliothek_dir() / f".loeschen-{paket_id}-{os.getpid()}"
     os.replace(ziel, papierkorb)
     shutil.rmtree(papierkorb, ignore_errors=True)
@@ -1169,10 +1201,11 @@ class KatalogEintrag:
     groesse: int
     entwurf: bool = False
     community: bool = False
+    sprache: str = "de"            # fehlt in älteren Katalogen = Deutsch
 
     @property
     def stufe_text(self) -> str:
-        return STUFEN.get(self.stufe, self.stufe)
+        return tr(STUFEN.get(self.stufe, self.stufe))
 
 
 def katalog_url() -> str:
@@ -1220,17 +1253,17 @@ def katalog_laden(url: str | None = None, opener: Opener | None = None, timeout:
     bestimmt die App, nie die Datei)."""
     url = url or (community_url() if community else katalog_url())
     if not _url_ok(url):
-        raise PaketFehler("Die Liste der Kurspakete muss über https:// geladen werden.")
+        raise PaketFehler(tr("Die Liste der Kurspakete muss über https:// geladen werden."))
     opener = opener or urllib.request.urlopen
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
         with opener(req, timeout=timeout) as r:
             daten = json.loads(r.read(MAX_JSON + 1)[:MAX_JSON].decode("utf-8"))
     except (OSError, ValueError) as e:
-        raise PaketFehler(f"Die Liste der Kurspakete ließ sich nicht laden ({e}).") from None
+        raise PaketFehler(tr("Die Liste der Kurspakete ließ sich nicht laden ({e}).", e=e)) from None
     if not isinstance(daten, dict) or daten.get("format") != KATALOG_FORMAT or not isinstance(daten.get("pakete"),
                                                                                            list):
-        raise PaketFehler("Die Liste der Kurspakete aus dem Internet hat ein unbekanntes Format.")
+        raise PaketFehler(tr("Die Liste der Kurspakete aus dem Internet hat ein unbekanntes Format."))
     eintraege = []
     for d in daten["pakete"][:500]:
         if not isinstance(d, dict):
@@ -1251,10 +1284,38 @@ def katalog_laden(url: str | None = None, opener: Opener | None = None, timeout:
                 beschreibung=_feld(d, "beschreibung", w, max_len=2000, mehrzeilig=True),
                 dauer_minuten=_zahl(d, "dauer_minuten", w, minimum=0, maximum=6000, standard=0),
                 url=ziel, sha256=sha, groesse=groesse, entwurf=d.get("entwurf") is True,
-                community=community))
+                community=community, sprache=_katalog_sprache(d.get("sprache"))))
         except PaketFehler:
             continue
     return eintraege
+
+
+def _katalog_sprache(wert) -> str:
+    return wert if isinstance(wert, str) and SPRACHE_RE.match(wert) else "de"
+
+
+# Sprachfassungen (Plan Englisch, Bony 29.10.2026): die englische Fassung eines Kurspakets hat die deutsche ID mit
+# „-en“. Gezeigt wird die Fassung in der Sprache der App; ein Paket ohne Gegenstück immer.
+EN_ENDUNG = "-en"
+
+
+def sprache_kurz(sprache: str) -> str:
+    """„de“ für deutsche Kurspakete (de, de-AT …), sonst „en“."""
+    return "de" if (sprache or "de").lower().startswith("de") else "en"
+
+
+def gegenstueck(paket_id: str) -> str:
+    """ID der anderen Sprachfassung: „x“ ↔ „x-en“."""
+    return paket_id.removesuffix(EN_ENDUNG) if paket_id.endswith(EN_ENDUNG) else paket_id + EN_ENDUNG
+
+
+def nach_sprache(eintraege: list, sprache: str, alle: bool = False) -> list:
+    """Kurspakete bzw. Katalogeinträge (mit ``id`` und ``sprache``) für die Sprache ``sprache``: die Fassung in dieser
+    Sprache, Pakete ohne Gegenstück immer. ``alle``: nichts ausblenden."""
+    if alle:
+        return list(eintraege)
+    ids = {e.id for e in eintraege}
+    return [e for e in eintraege if sprache_kurz(e.sprache) == sprache or gegenstueck(e.id) not in ids]
 
 
 def katalog_alle(opener: Opener | None = None, timeout: float = TIMEOUT) -> tuple[list[KatalogEintrag], str]:
@@ -1276,7 +1337,7 @@ def herunterladen(eintrag: KatalogEintrag, ersetzen: bool = False, opener: Opene
                   progress: ProgressFn | None = None, timeout: float = TIMEOUT) -> Kurspaket:
     """Kurspaket aus dem Katalog laden, Größe und Prüfsumme vergleichen, dann importieren."""
     if not _url_ok(eintrag.url):
-        raise PaketFehler("Kurspakete werden nur über https:// geladen.")
+        raise PaketFehler(tr("Kurspakete werden nur über https:// geladen."))
     opener = opener or urllib.request.urlopen
     req = urllib.request.Request(eintrag.url, headers={"User-Agent": USER_AGENT})
     h = hashlib.sha256()
@@ -1291,19 +1352,20 @@ def herunterladen(eintrag: KatalogEintrag, ersetzen: bool = False, opener: Opene
                     while chunk := r.read(256 * 1024):
                         geladen += len(chunk)
                         if geladen > eintrag.groesse:
-                            raise PaketFehler("Der Download ist größer als angekündigt – abgebrochen.")
+                            raise PaketFehler(tr("Der Download ist größer als angekündigt – abgebrochen."))
                         h.update(chunk)
                         out.write(chunk)
                         if progress:
-                            progress(geladen / eintrag.groesse, f"Lade „{eintrag.name}“ …")
+                            progress(geladen / eintrag.groesse, tr("Lade „{name}“ …", name=eintrag.name))
             except OSError as e:
-                raise PaketFehler(f"Download fehlgeschlagen ({e}).") from None
+                raise PaketFehler(tr("Download fehlgeschlagen ({e}).", e=e)) from None
         if h.hexdigest() != eintrag.sha256:
-            raise PaketFehler("Die Prüfsumme des heruntergeladenen Kurspakets stimmt nicht – Datei verworfen.")
+            raise PaketFehler(tr("Die Prüfsumme des heruntergeladenen Kurspakets stimmt nicht – Datei verworfen."))
         with tempfile.TemporaryDirectory(prefix=".pruefen-", dir=bibliothek_dir()) as pruef:
             entpacken(tmp, Path(pruef) / "p")
             if laden(Path(pruef) / "p").id != eintrag.id:
-                raise PaketFehler("Das heruntergeladene Kurspaket passt nicht zum Eintrag in der Liste – verworfen.")
+                raise PaketFehler(tr("Das heruntergeladene Kurspaket passt nicht zum Eintrag in der Liste – "
+                                     "verworfen."))
         return importieren(tmp, ersetzen=ersetzen, herkunft=COMMUNITY if eintrag.community else INTERNET,
                            sha256=eintrag.sha256)
     finally:
@@ -1390,10 +1452,10 @@ class Fortschritt:
 
     def text(self, paket: Kurspaket) -> str:
         if not self.begonnen:
-            return "nicht begonnen"
+            return tr("nicht begonnen")
         if paket.lektionen and self.fertig(paket) == len(paket.lektionen):
             return "abgeschlossen"
-        return f"{self.fertig(paket)} von {len(paket.lektionen)} Lektionen"
+        return tr("{wert} von {wert2} Lektionen", wert=self.fertig(paket), wert2=len(paket.lektionen))
 
     def gehe_zu(self, paket: Kurspaket, index: int) -> None:
         self.lektion = max(0, min(index, len(paket.lektionen) - 1))

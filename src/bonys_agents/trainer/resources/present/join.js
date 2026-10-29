@@ -1,4 +1,6 @@
 // Bony's Agents – Vorführung: Name und Code eingeben (Code kann aus dem QR-Code hinter „#“ mitkommen)
+// Sprache: /assets/texte.js (Sprache des Browsers)
+const tr = window.tr || ((text, kw) => (kw ? text.replace(/\{(\w+)\}/g, (m, k) => (k in kw ? String(kw[k]) : m)) : text));
 const form = document.getElementById("form");
 const msg = document.getElementById("msg");
 const nameInput = document.getElementById("name");
@@ -15,7 +17,7 @@ window.addEventListener("hashchange", () => location.reload());  // neuer QR-Cod
 
 fetch("/bonys/v1/present/status", { credentials: "same-origin" }).then(r => r.json()).then(s => {
   if (s.title) document.getElementById("title").textContent =
-    `Der Kursleiter zeigt „${s.title}“. Du kannst nur zuschauen.`;
+    tr("Der Kursleiter zeigt „{titel}“. Du kannst nur zuschauen.", { titel: s.title });
   if (s.state === "live" || s.state === "paused") location.replace("/view");  // schon beigetreten
 }).catch(() => {});
 
@@ -34,9 +36,9 @@ form.addEventListener("submit", async (ev) => {
       location.replace("/view");
       return;
     }
-    msg.textContent = data.error || `Fehler ${r.status}`;
+    msg.textContent = data.error || tr("Fehler {status}", { status: r.status });
   } catch (e) {
-    msg.textContent = "Keine Verbindung zum Rechner des Kursleiters.";
+    msg.textContent = tr("Keine Verbindung zum Rechner des Kursleiters.");
   }
   document.getElementById("go").disabled = false;
 });

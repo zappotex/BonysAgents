@@ -18,6 +18,7 @@ from pathlib import Path
 from bonys_agents import screen as screen_cfg
 from bonys_agents import x509
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import tr
 
 ARCH_BINARY = {"x86_64": "qemu-system-x86_64", "aarch64": "qemu-system-aarch64"}
 
@@ -57,7 +58,7 @@ def find_binary(name: str, host_os: str) -> Path:
         p = d / exe
         if p.exists():
             return p
-    raise QemuNotFound(f"{exe} nicht gefunden.\nInstallation:\n{INSTALL_HINTS.get(host_os, '')}")
+    raise QemuNotFound(tr("{exe} nicht gefunden.\nInstallation:\n{wert}", exe=exe, wert=INSTALL_HINTS.get(host_os, '')))
 
 
 def find_aarch64_firmware(qemu_bin: Path) -> Path:
@@ -76,7 +77,7 @@ def find_aarch64_firmware(qemu_bin: Path) -> Path:
     for c in candidates:
         if c.exists():
             return c
-    raise QemuNotFound("UEFI-Firmware für ARM64 (edk2-aarch64-code.fd) nicht gefunden")
+    raise QemuNotFound(tr("UEFI-Firmware für ARM64 (edk2-aarch64-code.fd) nicht gefunden"))
 
 
 @dataclass
@@ -149,7 +150,7 @@ def build_command(s: LaunchSpec) -> list[str]:
     res = f"edid=on,xres={s.screen[0]},yres={s.screen[1]}"
     if s.arch == "aarch64":
         if s.firmware is None:
-            raise ValueError("ARM64 braucht UEFI-Firmware")
+            raise ValueError(tr("ARM64 braucht UEFI-Firmware"))
         cmd += ["-machine", "virt", "-cpu", "host" if s.accel == "hvf" else "max",
                 "-bios", str(s.firmware), "-device", f"virtio-gpu-pci,{res}"]
     else:
@@ -201,7 +202,7 @@ def build_command(s: LaunchSpec) -> list[str]:
             spice = f"port={s.spice_port},addr={s.spice_addr},password-secret=spicepw"
         else:
             # Ein TCP-Port ohne Passwort wäre aus jedem Agent-PC über 10.0.2.2 erreichbar
-            raise ValueError("SPICE an einem TCP-Port nur mit Passwort")
+            raise ValueError(tr("SPICE an einem TCP-Port nur mit Passwort"))
         cmd += [
             "-spice", spice,
             # Kanal für spice-vdagent im Gast: Zwischenablage und automatische Bildschirmgröße
@@ -247,7 +248,7 @@ def vnc_option(target: str) -> str:
     elif re.fullmatch(r"127\.0\.0\.1:\d{1,2}", target):
         where = target
     else:
-        raise ValueError(f"VNC nur lokal (unix:… oder 127.0.0.1:N), nicht {target}")
+        raise ValueError(tr("VNC nur lokal (unix:… oder 127.0.0.1:N), nicht {target}", target=target))
     return f"{where},share=force-shared,lossy=on"
 
 
@@ -260,7 +261,7 @@ def free_vnc_display(first: int = 5900, last: int = 5999) -> int:
             except OSError:
                 continue
             return port - 5900
-    raise RuntimeError("Kein freier VNC-Port zwischen 5900 und 5999")
+    raise RuntimeError(tr("Kein freier VNC-Port zwischen 5900 und 5999"))
 
 
 def _netdev(s: LaunchSpec) -> str:
@@ -449,7 +450,7 @@ def convert_disk(qemu_img: Path, src: Path, dst: Path, compress: bool = False,
         if rc == 0:
             return
     dst.unlink(missing_ok=True)
-    raise RuntimeError(f"qemu-img convert fehlgeschlagen: {err.strip()[-400:]}")
+    raise RuntimeError(tr("qemu-img convert fehlgeschlagen: {wert}", wert=err.strip()[-400:]))
 
 
 _PROGRESS_RE = re.compile(rb"\((\d+(?:\.\d+)?)/100%\)")
@@ -484,8 +485,9 @@ def check_disk(qemu_img: Path, disk: Path) -> None:
                           creationflags=no_window_flags(), env=clean_env())
     # Code 3 = nur „verwaiste Cluster“ (verschwendeter Platz, keine Datenfehler)
     if proc.returncode not in (0, 3):
-        raise RuntimeError(f"Festplattenabbild {disk.name} ist beschädigt (qemu-img check, Code "
-                           f"{proc.returncode}): {(proc.stdout + proc.stderr).strip()[-400:]}")
+        raise RuntimeError(tr("Festplattenabbild {name} ist beschädigt (qemu-img check, Code {returncode}): {wert}",
+                              name=disk.name, returncode=proc.returncode,
+                              wert=(proc.stdout + proc.stderr).strip()[-400:]))
 
 
 def rebase(qemu_img: Path, disk: Path, backing: Path | None, unsafe: bool = False, progress=None) -> None:
@@ -503,7 +505,7 @@ def rebase(qemu_img: Path, disk: Path, backing: Path | None, unsafe: bool = Fals
         cmd += ["-F", "qcow2", "-b", os.path.relpath(backing, disk.parent) if unsafe else str(backing)]
     rc, err = _run_with_progress(cmd + [str(disk)], progress)
     if rc != 0:
-        raise RuntimeError(f"qemu-img rebase fehlgeschlagen: {err.strip()[-400:]}")
+        raise RuntimeError(tr("qemu-img rebase fehlgeschlagen: {wert}", wert=err.strip()[-400:]))
 
 
 def virtual_size(qemu_img: Path, disk: Path) -> int:
@@ -515,7 +517,8 @@ def virtual_size(qemu_img: Path, disk: Path) -> int:
 def _run_img(cmd: list[str]) -> str:
     proc = subprocess.run(cmd, capture_output=True, text=True, creationflags=no_window_flags(), env=clean_env())
     if proc.returncode != 0:
-        raise RuntimeError(f"{Path(cmd[0]).name} {cmd[1]} fehlgeschlagen: {proc.stderr.strip()[-400:]}")
+        raise RuntimeError(tr("{name} {wert} fehlgeschlagen: {wert2}", name=Path(cmd[0]).name, wert=cmd[1],
+                              wert2=proc.stderr.strip()[-400:]))
     return proc.stdout
 
 
@@ -552,21 +555,21 @@ def _qcow2_header(disk: Path) -> dict:
     with open(disk, "rb") as f:
         head = f.read(104)
         if len(head) < 72 or head[:4] != b"QFI\xfb":
-            raise ValueError(f"{disk.name} ist kein qcow2-Festplattenabbild.")
+            raise ValueError(tr("{name} ist kein qcow2-Festplattenabbild.", name=disk.name))
         version = int.from_bytes(head[4:8], "big")
         if version not in (2, 3):
-            raise ValueError(f"{disk.name}: unbekannte qcow2-Version {version}.")
+            raise ValueError(tr("{name}: unbekannte qcow2-Version {version}.", name=disk.name, version=version))
         offset, size = int.from_bytes(head[8:16], "big"), int.from_bytes(head[16:20], "big")
         backing = None
         if offset and size:
             if size > 1023:
-                raise ValueError(f"{disk.name}: ungültiger Verweis auf eine Backing-Datei.")
+                raise ValueError(tr("{name}: ungültiger Verweis auf eine Backing-Datei.", name=disk.name))
             f.seek(offset)
             backing = f.read(size).decode("utf-8", errors="replace")
         incompatible, ext_start = 0, 72
         if version == 3:
             if len(head) < 104:
-                raise ValueError(f"{disk.name}: qcow2-Kopf ist zu kurz.")
+                raise ValueError(tr("{name}: qcow2-Kopf ist zu kurz.", name=disk.name))
             incompatible = int.from_bytes(head[72:80], "big")
             ext_start = int.from_bytes(head[100:104], "big")
         extensions: dict[int, bytes] = {}
@@ -579,7 +582,7 @@ def _qcow2_header(disk: Path) -> dict:
             if typ == 0:
                 break
             if length > 65536:
-                raise ValueError(f"{disk.name}: ungültige qcow2-Kopferweiterung.")
+                raise ValueError(tr("{name}: ungültige qcow2-Kopferweiterung.", name=disk.name))
             extensions[typ] = f.read(length)
             f.seek((8 - length % 8) % 8, os.SEEK_CUR)
     return {"backing": backing, "incompatible": incompatible, "extensions": extensions}
@@ -603,25 +606,26 @@ def check_disk_safe(disk: Path, allow_backing: bool = False, require_qcow2: bool
     for _ in range(16):
         h = _qcow2_header(current)
         if h["incompatible"] & _QCOW2_DATA_FILE_BIT or _EXT_DATA_FILE in h["extensions"]:
-            raise ValueError(f"{current.name} verweist auf eine externe Datendatei – so eine Festplatte "
-                             "könnte Dateien deines Rechners lesen und wird nicht verwendet.")
+            raise ValueError(tr("{name} verweist auf eine externe Datendatei – so eine Festplatte könnte Dateien "
+                                "deines Rechners lesen und wird nicht verwendet.", name=current.name))
         name = h["backing"]
         if name is None:
             return
         if not allow_backing:
-            raise ValueError(f"{current.name} ist nicht eigenständig (verweist auf {name}).")
+            raise ValueError(tr("{name} ist nicht eigenständig (verweist auf {name2}).", name=current.name, name2=name))
         fmt = h["extensions"].get(_EXT_BACKING_FORMAT)
         if "\0" in name or _PROTOCOL_RE.match(name) or (fmt is not None and fmt.rstrip(b"\0") != b"qcow2"):
-            raise ValueError(f"{current.name} hat einen unzulässigen Verweis auf eine Backing-Datei: {name}")
+            raise ValueError(tr("{name} hat einen unzulässigen Verweis auf eine Backing-Datei: {name2}",
+                                name=current.name, name2=name))
         p = Path(name)
         nxt = (p if p.is_absolute() else current.parent / p).resolve()
         if nxt in seen:
-            raise ValueError(f"{current.name}: Backing-Dateien verweisen im Kreis.")
+            raise ValueError(tr("{name}: Backing-Dateien verweisen im Kreis.", name=current.name))
         seen.add(nxt)
         if not nxt.exists():
             return  # fehlende Vorlage meldet der Aufrufer verständlicher
         current = nxt
-    raise ValueError(f"{disk.name}: zu viele verschachtelte Backing-Dateien.")
+    raise ValueError(tr("{name}: zu viele verschachtelte Backing-Dateien.", name=disk.name))
 
 
 def free_port() -> int:
@@ -651,7 +655,7 @@ def connect_local(target: int | str | None, timeout: float = 5.0) -> socket.sock
     """
     if isinstance(target, str) and target.startswith("unix:"):
         if not hasattr(socket, "AF_UNIX"):
-            raise ConnectionRefusedError("Unix-Sockets gibt es auf diesem System nicht")
+            raise ConnectionRefusedError(tr("Unix-Sockets gibt es auf diesem System nicht"))
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         try:
@@ -670,7 +674,7 @@ def connect_local(target: int | str | None, timeout: float = 5.0) -> socket.sock
     else:
         port = target if isinstance(target, int) and not isinstance(target, bool) else 0
     if not 0 < port < 65536:
-        raise ConnectionRefusedError("Kein Steuerkanal bekannt (läuft der Agent-PC?)")
+        raise ConnectionRefusedError(tr("Kein Steuerkanal bekannt (läuft der Agent-PC?)"))
     sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
     if tls_dir is None:
         return sock
@@ -718,16 +722,16 @@ class QMP:
         while not _ANSI.sub(b"", buf).endswith(_HMP_PROMPT):
             chunk = self.sock.recv(4096)
             if not chunk:
-                raise ConnectionError("Monitor-Verbindung geschlossen")
+                raise ConnectionError(tr("Monitor-Verbindung geschlossen"))
             buf += chunk
             if len(buf) > 1_000_000:
-                raise ConnectionError("Monitor antwortet unerwartet")
+                raise ConnectionError(tr("Monitor antwortet unerwartet"))
         text = _ANSI.sub(b"", buf)[: -len(_HMP_PROMPT)].replace(b"\r", b"")
         return text.decode("utf-8", errors="replace")
 
     def _text_command(self, line: str) -> str:
         if "\n" in line or "\r" in line:
-            raise ValueError("Monitor-Befehl mit Zeilenumbruch")
+            raise ValueError(tr("Monitor-Befehl mit Zeilenumbruch"))
         self.sock.sendall(line.encode() + b"\n")
         out = self._until_prompt()
         # Der Monitor wiederholt die Eingabe – nur die Ausgabe danach zurückgeben
@@ -738,7 +742,7 @@ class QMP:
         while True:
             line = self.file.readline()
             if not line:
-                raise ConnectionError("QMP-Verbindung geschlossen")
+                raise ConnectionError(tr("QMP-Verbindung geschlossen"))
             msg = json.loads(line)
             if "event" not in msg:
                 return msg
@@ -748,7 +752,7 @@ class QMP:
             if command == "human-monitor-command":
                 return self._text_command(arguments["command-line"])
             if command not in _HMP_COMMANDS:
-                raise RuntimeError(f"{command} geht über den TLS-Kanal nicht")
+                raise RuntimeError(tr("{command} geht über den TLS-Kanal nicht", command=command))
             try:
                 out = self._text_command(_HMP_COMMANDS[command](arguments)).strip()
             except ConnectionError:
@@ -776,7 +780,7 @@ class QMP:
         """Port-Weiterleitung zur Laufzeit einrichten (kein Neustart nötig)."""
         out = self.hmp(f"hostfwd_add {NETDEV} {rule}").strip()
         if out:  # Erfolg = keine Ausgabe
-            raise RuntimeError(f"Weiterleitung {rule} nicht möglich: {out}")
+            raise RuntimeError(tr("Weiterleitung {rule} nicht möglich: {out}", rule=rule, out=out))
 
     def hostfwd_remove(self, rule: str) -> None:
         """Port-Weiterleitung entfernen; „nicht gefunden“ ist auch in Ordnung."""
@@ -824,7 +828,7 @@ class GuestAgent:
         try:
             self.sock = connect_local(target, timeout)
         except (OSError, ValueError) as e:
-            raise GuestAgentError(f"Gast-Agent nicht erreichbar ({e})") from None
+            raise GuestAgentError(tr("Gast-Agent nicht erreichbar ({e})", e=e)) from None
         try:
             self.file = self.sock.makefile("rwb")
             self._sync()
@@ -833,7 +837,7 @@ class GuestAgent:
             # weil gerade ein anderer Client verbunden war), nimmt QEMU sie später an – und blockiert alle anderen.
             _schliessen(self)
             if isinstance(e, (OSError, ValueError)):
-                raise GuestAgentError(f"Gast-Agent nicht erreichbar ({e})") from None
+                raise GuestAgentError(tr("Gast-Agent nicht erreichbar ({e})", e=e)) from None
             raise
 
     def _send(self, command: str, **arguments) -> None:
@@ -846,7 +850,7 @@ class GuestAgent:
     def _read(self) -> dict:
         line = self.file.readline()
         if not line:
-            raise GuestAgentError("Verbindung zum Gast-Agent geschlossen")
+            raise GuestAgentError(tr("Verbindung zum Gast-Agent geschlossen"))
         return json.loads(line.lstrip(b"\xff"))
 
     def _sync(self) -> None:
@@ -857,7 +861,7 @@ class GuestAgent:
         while True:
             line = self.file.readline()
             if not line:
-                raise GuestAgentError("Verbindung zum Gast-Agent geschlossen")
+                raise GuestAgentError(tr("Verbindung zum Gast-Agent geschlossen"))
             try:
                 msg = json.loads(line.lstrip(b"\xff"))
             except ValueError:
@@ -870,7 +874,7 @@ class GuestAgent:
             self._send(command, **arguments)
             reply = self._read()
         except (OSError, ValueError) as e:
-            raise GuestAgentError(f"Gast-Agent antwortet nicht ({e})") from None
+            raise GuestAgentError(tr("Gast-Agent antwortet nicht ({e})", e=e)) from None
         if "error" in reply:
             raise RuntimeError(reply["error"].get("desc", str(reply["error"])))
         return reply.get("return")
@@ -880,7 +884,7 @@ class GuestAgent:
         try:
             self._send("guest-shutdown", mode="powerdown")
         except (OSError, ValueError) as e:
-            raise GuestAgentError(f"Gast-Agent antwortet nicht ({e})") from None
+            raise GuestAgentError(tr("Gast-Agent antwortet nicht ({e})", e=e)) from None
 
     def run(self, script: str, timeout: float = 120, shell: str = "/bin/sh", poll=None) -> tuple[int, str]:
         """Shell-Skript im Gast ausführen. Gibt (Exit-Code, Ausgabe) zurück."""
@@ -908,7 +912,7 @@ class GuestAgent:
             if poll:
                 poll()
             time.sleep(0.2)
-        raise GuestAgentError(f"Befehl im Gast nicht innerhalb von {timeout:.0f} s fertig")
+        raise GuestAgentError(tr("Befehl im Gast nicht innerhalb von {timeout:.0f} s fertig", timeout=timeout))
 
     def close(self) -> None:
         try:

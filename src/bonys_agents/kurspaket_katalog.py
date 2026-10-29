@@ -62,7 +62,7 @@ def katalog_erzeugen(ablage: mod.Moderation) -> dict:
             "stufe": b.get("stufe") if b.get("stufe") in kurspaket.STUFEN else "anfaenger",
             "beschreibung": b.get("beschreibung", ""), "dauer_minuten": int(b.get("dauer_minuten") or 0),
             "datei": f"{PAKETE}/{_dateiname(b)}", "sha256": b["sha256"], "groesse": int(b["groesse"]),
-            "community": True})
+            "sprache": b.get("sprache") or "de", "community": True})
     return {"format": kurspaket.KATALOG_FORMAT, "pakete": eintraege}
 
 

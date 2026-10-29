@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from bonys_agents import desktops, storage
+from bonys_agents.i18n import n_, tr
 
 if TYPE_CHECKING:
     from bonys_agents.apps import AppSpec
@@ -56,12 +57,12 @@ FIRST_FORWARD_PORT = 18787
 GUEST_NET_ADDR = "10.0.2.15"     # Adresse des Agent-PCs im QEMU-Netz (immer dieselbe)
 GUEST_FORWARD_PORT = 8788
 FORWARD_UNIT = "bonys-mc-forward"
-FORWARD_WARNING = ("Die Weiterleitung macht Mission Control auch im Browser DIESES Rechners erreichbar – nur "
-                   "unter 127.0.0.1, nicht im Heimnetz. Jedes Programm auf diesem Rechner kann die Oberfläche dann "
-                   "aufrufen. Nur einschalten, wenn du sie hier wirklich brauchst.")
-FRESH_CLEANUP = ("Mission Control: Geheimnisse (.env) und Benutzerdaten (Docker-Volume) – jeder neue Agent-PC "
-                 "erzeugt beim ersten Start eigene; Programm und Docker-Images bleiben")
-CLONE_NOTE = ("Mission Control behält seine Geheimnisse und Daten – alle Agent-PCs aus diesem Klon teilen sie.")
+FORWARD_WARNING = n_("Die Weiterleitung macht Mission Control auch im Browser DIESES Rechners erreichbar – nur "
+                     "unter 127.0.0.1, nicht im Heimnetz. Jedes Programm auf diesem Rechner kann die Oberfläche dann "
+                     "aufrufen. Nur einschalten, wenn du sie hier wirklich brauchst.")
+FRESH_CLEANUP = (n_("Mission Control: Geheimnisse (.env) und Benutzerdaten (Docker-Volume) – jeder neue Agent-PC "
+                    "erzeugt beim ersten Start eigene; Programm und Docker-Images bleiben"))
+CLONE_NOTE = (n_("Mission Control behält seine Geheimnisse und Daten – alle Agent-PCs aus diesem Klon teilen sie."))
 # Platz, den ein Agent-PC ohne Mission Control ungefähr belegt (System, Desktop, Programme)
 BASE_DISK_GB = 16
 
@@ -145,7 +146,8 @@ def requirement_note(req: Requirements | None = None) -> str:
     req = req or requirements(fetch=False)
     ram = f"{req.min_ram_mb / 1024:.1f} GB".replace(".0 GB", " GB") if req.min_ram_mb >= 1024 else \
         f"{req.min_ram_mb} MB"
-    return f"benötigt Docker, ca. {req.min_free_disk_gb} GB zusätzlich auf der Festplatte und {ram} mehr RAM"
+    return tr("benötigt Docker, ca. {platte} GB zusätzlich auf der Festplatte und {ram} mehr RAM",
+              platte=req.min_free_disk_gb, ram=ram)
 
 
 def resource_warnings(app_ids: list[str], ram_mb: int, disk_gb: int, desktop_min_ram_mb: int,
@@ -163,18 +165,20 @@ def resource_warnings(app_ids: list[str], ram_mb: int, disk_gb: int, desktop_min
     out = []
     need_ram = desktop_min_ram_mb + req.min_ram_mb
     if ram_mb < need_ram:
-        out.append(f"{NAME} braucht etwa {req.min_ram_mb} MB RAM zusätzlich – empfohlen sind mindestens "
-                   f"{need_ram / 1024:.1f} GB für den Agent-PC (eingestellt: {ram_mb / 1024:.1f} GB). "
-                   "Vorschlag: Arbeitsspeicher erhöhen.")
+        out.append(tr("{name} braucht etwa {zusatz} MB RAM zusätzlich – empfohlen sind mindestens {empfohlen} GB für "
+                      "den Agent-PC (eingestellt: {eingestellt} GB). Vorschlag: Arbeitsspeicher erhöhen.", name=NAME,
+                      zusatz=req.min_ram_mb, empfohlen=f"{need_ram / 1024:.1f}", eingestellt=f"{ram_mb / 1024:.1f}"))
     if free_disk_gb is not None:
         if free_disk_gb < req.min_free_disk_gb:
-            out.append(f"{NAME} braucht etwa {req.min_free_disk_gb} GB freien Platz, im Agent-PC sind nur "
-                       f"{free_disk_gb:.1f} GB frei. Vorschlag: Festplatte vergrößern (ausgeschaltet).")
+            out.append(tr("{name} braucht etwa {zusatz} GB freien Platz, im Agent-PC sind nur {frei} GB frei. "
+                          "Vorschlag: Festplatte vergrößern (ausgeschaltet).", name=NAME,
+                          zusatz=req.min_free_disk_gb, frei=f"{free_disk_gb:.1f}"))
     else:
         need_disk = BASE_DISK_GB + req.min_free_disk_gb
         if disk_gb < need_disk:
-            out.append(f"{NAME} braucht etwa {req.min_free_disk_gb} GB zusätzlich – empfohlen sind mindestens "
-                       f"{need_disk} GB Festplatte (eingestellt: {disk_gb} GB). Vorschlag: Festplatte vergrößern.")
+            out.append(tr("{name} braucht etwa {zusatz} GB zusätzlich – empfohlen sind mindestens {empfohlen} GB "
+                          "Festplatte (eingestellt: {eingestellt} GB). Vorschlag: Festplatte vergrößern.", name=NAME,
+                          zusatz=req.min_free_disk_gb, empfohlen=need_disk, eingestellt=disk_gb))
     return out
 
 
@@ -238,7 +242,8 @@ cat > /usr/share/applications/""" + LAUNCHER + r""" <<'EOF'
 Type=Application
 Version=1.0
 Name=Mission Control
-Comment=Bony's Agents Mission Control im Browser öffnen
+Comment=Open Bony's Agents Mission Control in the browser
+Comment[de]=Bony's Agents Mission Control im Browser öffnen
 Exec=""" + OPENER + r"""
 Icon=""" + INSTALL_DIR + r"""/share/mission-control.svg
 Terminal=false
@@ -263,8 +268,8 @@ def app_spec() -> AppSpec:
     return AppSpec(
         id=APP_ID,
         name=NAME,
-        description="Übersicht und Steuerzentrale für deine Agenten im Browser (Open Source, läuft als "
-                    "Docker-Container nur im Agent-PC)",
+        description=n_("Übersicht und Steuerzentrale für deine Agenten im Browser (Open Source, läuft als "
+                       "Docker-Container nur im Agent-PC)"),
         default=False,
         weight=14.0,   # Image und Start dauern – mit Docker zusammen etwa wie ein großes Programm
         # Brave: die Verknüpfung öffnet die Oberfläche darin – ohne Browser im Agent-PC ginge sie ins Leere
@@ -327,16 +332,16 @@ def parse_status(out: str) -> dict:
                     or not 0 < st["port"] < 65536:
                 st["port"] = PORT
             return st
-    raise RuntimeError("Der Zustand von Mission Control ließ sich nicht lesen.")
+    raise RuntimeError(tr("Der Zustand von Mission Control ließ sich nicht lesen."))
 
 
 def status_text(st: dict) -> str:
     if not st.get("installed"):
-        return "nicht installiert"
+        return tr("nicht installiert")
     if st.get("healthy"):
-        return f"läuft (Version {st.get('health_version') or st.get('version')})"
+        return tr("läuft (Version {wert})", wert=st.get('health_version') or st.get('version'))
     if st.get("active"):
-        return "gestartet, antwortet aber nicht (Healthcheck rot)"
+        return tr("gestartet, antwortet aber nicht (Healthcheck rot)")
     return "gestoppt"
 
 
@@ -373,12 +378,12 @@ def open_in_guest(machine: VM, password: str | None = None, ssh_prompt: bool = F
     rc, out = machine.run_logged(open_script(machine.config.username), password=password,
                                  ssh_prompt=ssh_prompt, timeout=60)
     if rc == 3:
-        raise RuntimeError("Mission Control ist in diesem Agent-PC nicht installiert.")
+        raise RuntimeError(tr("Mission Control ist in diesem Agent-PC nicht installiert."))
     if rc == 4:
-        raise RuntimeError("Im Agent-PC ist (noch) kein Desktop angemeldet – bitte kurz warten.")
+        raise RuntimeError(tr("Im Agent-PC ist (noch) kein Desktop angemeldet – bitte kurz warten."))
     if rc != 0:
-        raise RuntimeError(f"Mission Control ließ sich nicht öffnen (Code {rc}).")
-    return "Mission Control öffnet sich im Fenster des Agent-PCs (Brave)."
+        raise RuntimeError(tr("Mission Control ließ sich nicht öffnen (Code {rc}).", rc=rc))
+    return tr("Mission Control öffnet sich im Fenster des Agent-PCs (Brave).")
 
 
 VERSION_RE = re.compile(r"^(latest|v?\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?)$")
@@ -386,7 +391,7 @@ VERSION_RE = re.compile(r"^(latest|v?\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?)$")
 
 def update_script(version: str = "latest") -> str:
     if not VERSION_RE.match(version):
-        raise ValueError("Version: z. B. 0.2.0 oder latest")
+        raise ValueError(tr("Version: z. B. 0.2.0 oder latest"))
     return _logged("update", r"""
 [ -x """ + SCRIPTS + r"""/update.sh ] || { echo "Mission Control ist nicht installiert." >&2; exit 3; }
 """ + SCRIPTS + r"""/update.sh --version """ + _sq(version) + r"""
@@ -439,13 +444,13 @@ def _logged(what: str, body: str) -> str:
 
 def _require_running(machine: VM) -> None:
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
-        raise RuntimeError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
+        raise RuntimeError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=machine.name))
 
 
 def _require_installed(machine: VM) -> None:
     if APP_ID not in machine.config.apps:
-        raise RuntimeError(f"{NAME} ist in „{machine.name}“ nicht installiert – „Programme hinzufügen …“ bzw. "
-                           f"„bonys-agents install {machine.name} {APP_ID}“.")
+        raise RuntimeError(tr("{NAME} ist in „{name}“ nicht installiert – „Programme hinzufügen …“ bzw. "
+                              "„bonys-agents install {name} {APP_ID}“.", NAME=NAME, name=machine.name, APP_ID=APP_ID))
 
 
 def _remember_version(machine: VM, version: str) -> None:
@@ -465,9 +470,9 @@ def update(machine: VM, version: str = "latest", password: str | None = None, ss
     rc, out = machine.run_logged(update_script(version), password=password, ssh_prompt=ssh_prompt, log=log,
                                  timeout=2 * 3600)
     if rc != 0:
-        raise RuntimeError(f"Aktualisieren von {NAME} fehlgeschlagen (Code {rc}) – siehe Ausgabe.")
+        raise RuntimeError(tr("Aktualisieren von {NAME} fehlgeschlagen (Code {rc}) – siehe Ausgabe.", NAME=NAME, rc=rc))
     st = status(machine, password=password, ssh_prompt=ssh_prompt)
-    return f"{NAME} ist aktuell: {status_text(st)}."
+    return tr("{NAME} ist aktuell: {wert}.", NAME=NAME, wert=status_text(st))
 
 
 def uninstall(machine: VM, purge: bool = False, password: str | None = None, ssh_prompt: bool = False,
@@ -478,7 +483,8 @@ def uninstall(machine: VM, purge: bool = False, password: str | None = None, ssh
     rc, out = machine.run_logged(uninstall_script(purge), password=password, ssh_prompt=ssh_prompt, log=log,
                                  timeout=1800)
     if rc != 0:
-        raise RuntimeError(f"Deinstallieren von {NAME} fehlgeschlagen (Code {rc}) – siehe Ausgabe.")
+        raise RuntimeError(tr("Deinstallieren von {NAME} fehlgeschlagen (Code {rc}) – siehe Ausgabe.", NAME=NAME,
+                              rc=rc))
     c = machine.config
     c.apps = [a for a in c.apps if a != APP_ID]
     c.app_info.pop(APP_ID, None)
@@ -593,22 +599,23 @@ def set_forward(machine: VM, on: bool, password: str | None = None, ssh_prompt: 
                                    timeout=60)
             except RuntimeError:
                 pass  # die QEMU-Seite ist schon zu
-        return "Weiterleitung ausgeschaltet – Mission Control ist nur noch im Agent-PC erreichbar."
+        return tr("Weiterleitung ausgeschaltet – Mission Control ist nur noch im Agent-PC erreichbar.")
     _require_installed(machine)
     if not machine.is_running():
-        raise RuntimeError("Der Agent-PC muss laufen, damit die Weiterleitung eingerichtet werden kann.")
+        raise RuntimeError(tr("Der Agent-PC muss laufen, damit die Weiterleitung eingerichtet werden kann."))
     _require_running(machine)
     port = _ensure_forward_port(machine)
     rc, _out = machine.run_logged(guest_forward_script(True), password=password, ssh_prompt=ssh_prompt, timeout=60)
     if rc != 0:
-        raise RuntimeError(f"Die Weiterleitung ließ sich im Agent-PC nicht einrichten (Code {rc}).")
+        raise RuntimeError(tr("Die Weiterleitung ließ sich im Agent-PC nicht einrichten (Code {rc}).", rc=rc))
     rule = forward_rule(port)
     with qemu.QMP(qemu.runtime_target(machine.runtime(), "qmp")) as q:
         q.hostfwd_remove(rule)
         q.hostfwd_add(rule)
     c.mc_forward = True
     machine.save()
-    return f"Weiterleitung an: Mission Control ist auf diesem Rechner unter http://127.0.0.1:{port}/ erreichbar."
+    return tr("Weiterleitung an: Mission Control ist auf diesem Rechner unter http://127.0.0.1:{port}/ erreichbar.",
+              port=port)
 
 
 # ---------------------------------------------------------------- Vorlagen

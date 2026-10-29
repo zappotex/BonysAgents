@@ -36,7 +36,8 @@ from pathlib import Path
 
 from bony_netz import ZentraleFehler
 
-from bonys_agents import kurse
+from bonys_agents import i18n, kurse
+from bonys_agents.i18n import n_, tr
 
 SCHEMA = "kursraum"                  # eigene Adresse der Seite: kursraum://app/index.html
 HOST = "app"
@@ -46,19 +47,19 @@ ZEITLIMIT = 15
 
 KURSLEITER, TEILNEHMER = "kursleiter", "teilnehmer"
 
-KURS_LAEUFT_NICHT = ("Der Kurs läuft gerade nicht. Den Kursraum gibt es nur, solange der Kursleiter den Kurs "
-                     "gestartet hat.")
-KARTE_ABGELAUFEN = "Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein."
-KEIN_WEBENGINE = ("Für den Kursraum fehlt dieser Installation der eingebettete Browser (Qt WebEngine). "
-                  "Mit den fertigen Paketen von Bony's Agents ist er dabei; aus dem Quelltext: "
-                  "pip install PySide6-WebEngine (bzw. PySide6-Addons bis Version 6.11).")
-KEIN_WEBENGINE_ARM = ("Den Kursraum gibt es für Linux auf ARM (z. B. Raspberry Pi) noch nicht: Der eingebettete "
-                      "Browser (Qt WebEngine) braucht dort neuere Systembibliotheken als Debian 12 und Ubuntu 22.04 "
-                      "haben. Nimm für den Kursraum einen anderen Rechner (Linux auf x86, Windows oder macOS).")
+KURS_LAEUFT_NICHT = (n_("Der Kurs läuft gerade nicht. Den Kursraum gibt es nur, solange der Kursleiter den Kurs "
+                        "gestartet hat."))
+KARTE_ABGELAUFEN = n_("Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein.")
+KEIN_WEBENGINE = (n_("Für den Kursraum fehlt dieser Installation der eingebettete Browser (Qt WebEngine). "
+                     "Mit den fertigen Paketen von Bony's Agents ist er dabei; aus dem Quelltext: "
+                     "pip install PySide6-WebEngine (bzw. PySide6-Addons bis Version 6.11)."))
+KEIN_WEBENGINE_ARM = (n_("Den Kursraum gibt es für Linux auf ARM (z. B. Raspberry Pi) noch nicht: Der eingebettete "
+                         "Browser (Qt WebEngine) braucht dort neuere Systembibliotheken als Debian 12 und Ubuntu 22.04 "
+                         "haben. Nimm für den Kursraum einen anderen Rechner (Linux auf x86, Windows oder macOS)."))
 KEINE_SEITE = ("Die Seite des Kursraums fehlt in dieser Installation (beim Bauen: python packaging/fetch-livekit.py).")
-WAYLAND_HINWEIS = ("Bildschirm teilen geht unter Linux nur in einer X11-Sitzung: Der eingebaute Browser kann unter "
-                   "Wayland keine Bildschirmaufnahme. Melde dich dafür mit „Cinnamon“/„GNOME on Xorg“ o. Ä. an. "
-                   "Kamera, Ton und Chat gehen auch so.")
+WAYLAND_HINWEIS = (n_("Bildschirm teilen geht unter Linux nur in einer X11-Sitzung: Der eingebaute Browser kann unter "
+                      "Wayland keine Bildschirmaufnahme. Melde dich dafür mit „Cinnamon“/„GNOME on Xorg“ o. Ä. an. "
+                      "Kamera, Ton und Chat gehen auch so."))
 
 # Was die Seite bekommen darf (Namen von QWebEnginePermission.PermissionType bzw. QWebEnginePage.Feature)
 ERLAUBT = frozenset({
@@ -114,18 +115,18 @@ def token_ablauf(token: str) -> float | None:
 
 
 def eintreten(kurs_id: str) -> Karte:
-    """Eintrittskarte holen. Läuft der Kurs nicht (409), kommt ``KursraumFehler(KURS_LAEUFT_NICHT)``."""
+    """Eintrittskarte holen. Läuft der Kurs nicht (409), kommt ``KursraumFehler(tr(KURS_LAEUFT_NICHT))``."""
     try:
         d = kurse._aufruf(lambda z: z.eintrittskarte(kurs_id))
     except ZentraleFehler as e:
         if e.status == 409:
-            raise KursraumFehler(KURS_LAEUFT_NICHT) from None
+            raise KursraumFehler(tr(KURS_LAEUFT_NICHT)) from None
         raise
     if not isinstance(d, dict):
-        raise KursraumFehler("Die Zentrale hat keine Eintrittskarte geschickt.")
+        raise KursraumFehler(tr("Die Zentrale hat keine Eintrittskarte geschickt."))
     url, token = d.get("kursraum_url"), d.get("eintrittskarte")
     if not isinstance(url, str) or not isinstance(token, str) or not token:
-        raise KursraumFehler("Die Zentrale hat keine gültige Eintrittskarte geschickt.")
+        raise KursraumFehler(tr("Die Zentrale hat keine gültige Eintrittskarte geschickt."))
     server_adresse(url)   # prüft das Schema
     rolle = KURSLEITER if d.get("rolle") == KURSLEITER else TEILNEHMER
     leiter = d.get("kursleiter_identitaet")
@@ -139,18 +140,18 @@ def server_adresse(kursraum_url: str) -> str:
     teile = urllib.parse.urlsplit(kursraum_url.strip())
     schema = {"wss": "https", "ws": "http", "https": "https", "http": "http"}.get(teile.scheme.lower())
     if schema is None or not teile.netloc:
-        raise KursraumFehler(f"Unbekannte Adresse des Kursraums: {kursraum_url}")
+        raise KursraumFehler(tr("Unbekannte Adresse des Kursraums: {kursraum_url}", kursraum_url=kursraum_url))
     pfad = teile.path.rstrip("/")
     return urllib.parse.urlunsplit((schema, teile.netloc, pfad, "", ""))
 
 
 def _twirp(karte: Karte, methode: str, daten: dict) -> dict:
     if not karte.kursleiter:
-        raise KursraumFehler("Das darf nur der Kursleiter.")
+        raise KursraumFehler(tr("Das darf nur der Kursleiter."))
     if karte.abgelaufen(time.time() + 30):   # kurz gültig – rechtzeitig eine neue holen
         neu = eintreten(karte.kurs_id)
         if not neu.kursleiter:
-            raise KursraumFehler("Das darf nur der Kursleiter.")
+            raise KursraumFehler(tr("Das darf nur der Kursleiter."))
         karte.token, karte.ablauf, karte.leiter = neu.token, neu.ablauf, neu.leiter
     url = f"{server_adresse(karte.kursraum_url)}/twirp/livekit.RoomService/{methode}"
     anfrage = urllib.request.Request(url, data=json.dumps(daten).encode(), method="POST", headers={
@@ -165,7 +166,7 @@ def _twirp(karte: Karte, methode: str, daten: dict) -> dict:
         raise KursraumFehler(_twirp_fehler(e)) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         grund = getattr(e, "reason", e)
-        raise KursraumFehler(f"Der Kursraum-Server ist nicht erreichbar ({grund}).") from None
+        raise KursraumFehler(tr("Der Kursraum-Server ist nicht erreichbar ({grund}).", grund=grund)) from None
     except ValueError:
         return {}
 
@@ -177,18 +178,18 @@ def _twirp_fehler(e: urllib.error.HTTPError) -> str:
     except Exception:  # noqa: BLE001
         code, msg = "", ""
     if e.code == 401 or code == "unauthenticated":
-        return "Der Kursraum-Server hat die Karte nicht angenommen – tritt bitte erneut ein."
+        return tr("Der Kursraum-Server hat die Karte nicht angenommen – tritt bitte erneut ein.")
     if e.code == 403 or code == "permission_denied":
-        return "Der Kursraum-Server erlaubt das dieser Karte nicht."
+        return tr("Der Kursraum-Server erlaubt das dieser Karte nicht.")
     if e.code == 404 or code == "not_found":
-        return "Der Teilnehmer ist nicht mehr im Kursraum."
+        return tr("Der Teilnehmer ist nicht mehr im Kursraum.")
     return f"Der Kursraum-Server hat mit Fehler {e.code} geantwortet" + (f": {msg}" if msg else ".")
 
 
 def stummschalten(karte: Karte, identitaet: str, track_sid: str) -> None:
     """Mikrofon eines Teilnehmers stumm schalten. Er kann es danach selbst wieder einschalten."""
     if not identitaet or not track_sid:
-        raise KursraumFehler("Der Teilnehmer hat kein Mikrofon an.")
+        raise KursraumFehler(tr("Der Teilnehmer hat kein Mikrofon an."))
     _twirp(karte, "MutePublishedTrack",
            {"room": karte.raum, "identity": identitaet, "track_sid": track_sid, "muted": True})
 
@@ -196,7 +197,7 @@ def stummschalten(karte: Karte, identitaet: str, track_sid: str) -> None:
 def entfernen(karte: Karte, identitaet: str) -> None:
     """Teilnehmer aus dem Kursraum werfen (nicht aus dem Kurs – dafür „Entfernen …“ in der Kursansicht)."""
     if not identitaet:
-        raise KursraumFehler("Kein Teilnehmer gewählt.")
+        raise KursraumFehler(tr("Kein Teilnehmer gewählt."))
     _twirp(karte, "RemoveParticipant", {"room": karte.raum, "identity": identitaet})
 
 
@@ -221,6 +222,26 @@ def seiten_datei(pfad: str, ordner: Path | None = None) -> tuple[Path, str] | No
         return None
     mime = MIME.get(datei.suffix.lower())
     return (datei, mime) if mime else None
+
+
+# Texte der Seite (Plan Englisch): Regeln in i18n.seiten_texte(). Dazu die Hilfe-Ansicht des Kursleiters
+# (trainer/resources/hilfe, nur in der Kursleiter-Version) – sie läuft im selben Schema.
+TEXTE_PFAD = "/texte.js"
+
+
+def _texte_ordner() -> list[Path]:
+    hilfe = Path(__file__).resolve().parent / "trainer" / "resources" / "hilfe"
+    return [seiten_ordner()] + ([hilfe] if hilfe.is_dir() else [])
+
+
+def seiten_texte() -> list[str]:
+    """Alle deutschen Texte der Seiten im Schema kursraum://, die übersetzt werden."""
+    return i18n.seiten_texte(*_texte_ordner())
+
+
+def texte_js(sprache: str | None = None) -> bytes:
+    """``texte.js`` für die Seiten: Sprache der App und Übersetzungen ihrer Texte."""
+    return i18n.seiten_js(seiten_texte(), sprache or i18n.sprache())
 
 
 def erlaubt(schema: str, host: str, art: str) -> bool:
@@ -271,9 +292,9 @@ def linux_arm() -> bool:
 
 def kein_webengine_text() -> str:
     """Hinweis, wenn Qt WebEngine fehlt – im Paket für Linux arm64 ist das so gewollt."""
-    return KEIN_WEBENGINE_ARM if linux_arm() else KEIN_WEBENGINE
+    return tr(KEIN_WEBENGINE_ARM) if linux_arm() else tr(KEIN_WEBENGINE)
 
 
 def bildschirm_teilen() -> tuple[bool, str]:
     """(möglich, Hinweis) für den Knopf „Bildschirm teilen“ beim Kursleiter."""
-    return (False, WAYLAND_HINWEIS) if wayland() else (True, "")
+    return (False, tr(WAYLAND_HINWEIS)) if wayland() else (True, "")

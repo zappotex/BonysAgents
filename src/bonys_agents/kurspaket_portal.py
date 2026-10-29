@@ -49,6 +49,7 @@ class Pruefbericht:
     stufe: str = ""
     beschreibung: str = ""
     dauer_minuten: int = 0
+    sprache: str = "de"
     skripte: list[str] = field(default_factory=list)
     externe_links: list[str] = field(default_factory=list)
     findings: list[str] = field(default_factory=list)
@@ -134,7 +135,7 @@ def pruefen(datei: Path, bekannt: Mapping[str, set[str]] | None = None,
                         paket_id=_bereinigen(paket.id), version=_bereinigen(paket.version),
                         name=_bereinigen(paket.name), stufe=_bereinigen(paket.stufe),
                         beschreibung=_bereinigen(paket.beschreibung, MAX_BESCHREIBUNG),
-                        dauer_minuten=int(paket.dauer_minuten))
+                        dauer_minuten=int(paket.dauer_minuten), sprache=_bereinigen(paket.sprache))
             if paket.id in set(reserviert):
                 return Pruefbericht(status=STATUS_REJECTED, **kopf, findings=[
                     "Diese Paket-ID gehört zu einem mitgelieferten Kurspaket. Bitte eine andere ID wählen."])

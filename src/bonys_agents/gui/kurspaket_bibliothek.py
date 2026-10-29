@@ -20,22 +20,23 @@ from PySide6.QtWidgets import (
     QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, edition, host, kurslauf, kurspaket, vm
+from bonys_agents import apps, desktops, edition, host, i18n, kurslauf, kurspaket, vm
+from bonys_agents.i18n import n_, tr
 
 from .widgets import open_url
 from .workers import TaskWorker
 
-INTRO = ("Kurspakete sind fertige Inhalte zum Durcharbeiten – allein zu Hause (Selbstlern-Modus) oder in einem Kurs. "
-         "„Durcharbeiten“ richtet dafür einen eigenen Agent-PC nach dem Rezept des Pakets ein, zeigt die Anleitung "
-         "neben dem Agent-PC und merkt sich deinen Fortschritt – nur auf diesem Rechner.")
+INTRO = n_("Kurspakete sind fertige Inhalte zum Durcharbeiten – allein zu Hause (Selbstlern-Modus) oder in einem "
+           "Kurs. „Durcharbeiten“ richtet dafür einen eigenen Agent-PC nach dem Rezept des Pakets ein, zeigt die "
+           "Anleitung neben dem Agent-PC und merkt sich deinen Fortschritt – nur auf diesem Rechner.")
 FILTER = f"Kurspakete (*{kurspaket.SUFFIX});;Alle Dateien (*)"
 _RUNNING: set[TaskWorker] = set()
 
 
 def _paket_text(p: kurspaket.Kurspaket) -> str:
     """Beschreibung als Markdown (für ein QLabel mit MarkdownText)."""
-    zeilen = [f"**{p.name}**" + ("  *(Entwurf)*" if p.entwurf else ""), "", p.beschreibung, ""]
-    angaben = [f"Stufe: {p.stufe_text}", f"Dauer: {p.dauer_text}"]
+    zeilen = [f"**{p.name}**" + (f"  *{tr('(Entwurf)')}*" if p.entwurf else ""), "", p.beschreibung, ""]
+    angaben = [tr("Stufe: {stufe}", stufe=p.stufe_text), tr("Dauer: {dauer}", dauer=p.dauer_text)]
     if p.teilnehmer_min or p.teilnehmer_max:
         angaben.append(f"Gruppe: {p.teilnehmer_text}")
     angaben.append(f"{len(p.lektionen)} Lektionen" if p.lektionen else "ohne Lektionen (nur Ablaufplan/Handout)")
@@ -48,8 +49,8 @@ def _paket_text(p: kurspaket.Kurspaket) -> str:
         zeilen += [f"Kosten: {p.kosten}", ""]
     r = p.rezept
     app_namen = ", ".join(apps.names([a for a in r.apps if a in apps.APPS])) or "–"
-    zeilen += [f"Agent-PC: {desktops.name(r.desktop)}, Programme: {app_namen}"
-               + (f", Vorlage „{r.vorlage}“ (wenn vorhanden)" if r.vorlage else ""), ""]
+    zeilen += [tr("Agent-PC: {wert}, Programme: {app_namen}", wert=desktops.name(r.desktop), app_namen=app_namen)
+               + (tr(", Vorlage „{vorlage}“ (wenn vorhanden)", vorlage=r.vorlage) if r.vorlage else ""), ""]
     autor = f"{p.autor} · " if p.autor else ""
     zeilen.append(f"{autor}Version {p.version} · Lizenz {p.lizenz} · {kurspaket.HERKUNFT_TEXT.get(p.herkunft, '')}")
     return "\n".join(zeilen)
@@ -57,15 +58,19 @@ def _paket_text(p: kurspaket.Kurspaket) -> str:
 
 def _vertrauen_text(p: kurspaket.Kurspaket) -> str:
     if kurslauf.geprueft(p):
-        return "\n\n✓ **Geprüftes Kurspaket** (von Bony's Agents)"
+        return tr("\n\n✓ **Geprüftes Kurspaket** (von Bony's Agents)")
     n = len(p.skripte())
     if p.herkunft == kurspaket.COMMUNITY:
-        return ("\n\nCommunity-Kurspaket – von der Moderation geprüft, nicht von Bony's Agents."
-                + (f" Enthält {n} Skript{'e' if n > 1 else ''}; vor dem ersten Start wirst du gefragt." if n else ""))
+        return (tr("\n\nCommunity-Kurspaket – von der Moderation geprüft, nicht von Bony's Agents.")
+                + (" " + tr("Enthält 1 Skript; vor dem ersten Start wirst du gefragt.") if n == 1 else
+                   " " + tr("Enthält {n} Skripte; vor dem ersten Start wirst du gefragt.", n=n) if n else ""))
     if not n:
-        return "\n\nNicht geprüft – enthält aber keine Skripte."
-    return (f"\n\n⚠ Nicht geprüft – enthält {n} Skript{'e' if n > 1 else ''}, die nur im Agent-PC laufen. "
-            "Vor dem ersten Start wirst du gefragt.")
+        return tr("\n\nNicht geprüft – enthält aber keine Skripte.")
+    if n == 1:
+        return "\n\n" + tr("⚠ Nicht geprüft – enthält 1 Skript, das nur im Agent-PC läuft. Vor dem ersten Start wirst "
+                           "du gefragt.")
+    return "\n\n" + tr("⚠ Nicht geprüft – enthält {n} Skripte, die nur im Agent-PC laufen. Vor dem ersten Start "
+                       "wirst du gefragt.", n=n)
 
 
 def _md(text: str) -> str:
@@ -89,13 +94,14 @@ def importieren(parent: QWidget, quelle: Path, fertig: Callable[[kurspaket.Kursp
         def ende() -> None:
             _RUNNING.discard(w)
             if isinstance(w.error, kurspaket.PaketExistiert):
-                if QMessageBox.question(parent, "Kurspaket importieren", str(w.error)) == QMessageBox.Yes:
+                if QMessageBox.question(parent, tr("Kurspaket importieren"), str(w.error)) == QMessageBox.Yes:
                     lauf(True)
                     return
                 fertig(None)
             elif w.error is not None:
-                QMessageBox.warning(parent, "Kurspaket importieren",
-                                    f"„{quelle.name}“ lässt sich nicht importieren:\n\n{w.error}")
+                QMessageBox.warning(parent, tr("Kurspaket importieren"),
+                                    tr("„{name}“ lässt sich nicht importieren:\n\n{error}", name=quelle.name,
+                                       error=w.error))
                 fertig(None)
             else:
                 fertig(w.result)
@@ -119,15 +125,16 @@ def skripte_ansehen(parent: QWidget | None, paket: kurspaket.Kurspaket) -> None:
         try:
             text = (paket.pfad / pfad).read_text(encoding="utf-8", errors="replace")[:200_000]
         except OSError:
-            text = "(nicht lesbar)"
-        teile.append(f"===== {pfad} – {art}, läuft als {_skript_als(lek, art)} =====\n{text}")
+            text = tr("(nicht lesbar)")
+        teile.append(tr("===== {pfad} – {art}, läuft als {wert} =====\n{inhalt}", pfad=pfad, art=art,
+                        wert=_skript_als(lek, art), inhalt=text))
     dlg = QDialog(parent)
-    dlg.setWindowTitle(f"Skripte von „{paket.name}“")
+    dlg.setWindowTitle(tr("Skripte von „{name}“", name=paket.name))
     lay = QVBoxLayout(dlg)
     feld = QPlainTextEdit("\n\n".join(teile))
     feld.setReadOnly(True)
     lay.addWidget(feld)
-    zu = QPushButton("Schließen")
+    zu = QPushButton(tr("Schließen"))
     zu.clicked.connect(dlg.accept)
     lay.addWidget(zu)
     dlg.resize(820, 560)
@@ -142,22 +149,24 @@ def skripte_erlauben(parent: QWidget | None, paket: kurspaket.Kurspaket) -> bool
     """
     if not kurslauf.zustimmung_noetig(paket):
         return True
-    liste = "\n".join(f"• Lektion „{lek.titel}“ – {art}: {pfad} (läuft als {_skript_als(lek, art)})"
+    liste = "\n".join(tr("• Lektion „{titel}“ – {art}: {pfad} (läuft als {benutzer})", titel=lek.titel, art=art,
+                          pfad=pfad, benutzer=_skript_als(lek, art))
                       for lek, art, pfad in paket.skripte())
     while True:
-        box = QMessageBox(QMessageBox.Warning, paket.name, "Dieses Kurspaket führt Skripte im Agent-PC aus.",
+        box = QMessageBox(QMessageBox.Warning, paket.name, tr("Dieses Kurspaket führt Skripte im Agent-PC aus."),
                           QMessageBox.NoButton, parent)
         box.setTextFormat(Qt.PlainText)
         box.setInformativeText(
-            "Das Kurspaket ist nicht von Bony's Agents geprüft. Seine Skripte laufen ausschließlich im abgeschotteten "
-            "Agent-PC – nie auf deinem Rechner. Dort können sie aber alles: Skripte „als root“ haben volle Rechte, "
-            "alle Skripte dürfen ins Internet und können lesen, was im Agent-PC gespeichert ist – auch Anmeldungen "
-            "(z. B. bei Telegram, im Browser oder die Schlüssel von Hermes). Nimm für fremde Kurspakete am besten "
-            "einen eigenen, neuen Agent-PC ohne deine persönlichen Konten, und öffne das Paket nur, wenn du der Quelle "
-            f"vertraust.\n\n{liste}")
-        ja = box.addButton("Erlauben und starten", QMessageBox.AcceptRole)
-        ansehen = box.addButton("Skripte ansehen …", QMessageBox.ActionRole)
-        nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
+            tr("Das Kurspaket ist nicht von Bony's Agents geprüft. Seine Skripte laufen ausschließlich "
+               "im abgeschotteten Agent-PC – nie auf deinem Rechner. Dort können sie aber alles: "
+               "Skripte „als root“ haben volle Rechte, alle Skripte dürfen ins Internet und können "
+               "lesen, was im Agent-PC gespeichert ist – auch Anmeldungen (z. B. bei Telegram, im "
+               "Browser oder die Schlüssel von Hermes). Nimm für fremde Kurspakete am besten einen "
+               "eigenen, neuen Agent-PC ohne deine persönlichen Konten, und öffne das Paket nur, wenn "
+               "du der Quelle vertraust.\n\n{liste}", liste=liste))
+        ja = box.addButton(tr("Erlauben und starten"), QMessageBox.AcceptRole)
+        ansehen = box.addButton(tr("Skripte ansehen …"), QMessageBox.ActionRole)
+        nein = box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
         box.setDefaultButton(nein)
         box.exec()
         if box.clickedButton() is ansehen:
@@ -176,20 +185,20 @@ def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | No
         return vorhanden.name
     andere = [m.name for m in vm.list_vms()]
     box = QMessageBox(QMessageBox.Question, paket.name,
-                      f"Für „{paket.name}“ brauchst du einen Agent-PC.", QMessageBox.NoButton, parent)
+                      tr("Für „{name}“ brauchst du einen Agent-PC.", name=paket.name), QMessageBox.NoButton, parent)
     unbekannt = paket.rezept.unbekannte_apps()
     vorlage = kurspaket.passende_vorlage(paket)
-    erklaerung = ("Am besten einen neuen, eigenen Agent-PC nach dem Rezept des Kurspakets – dann kann beim Üben nichts "
-                  "an deinen anderen Agent-PCs kaputtgehen.")
+    erklaerung = (tr("Am besten einen neuen, eigenen Agent-PC nach dem Rezept des Kurspakets – dann kann beim Üben "
+                     "nichts an deinen anderen Agent-PCs kaputtgehen."))
     if vorlage:
-        erklaerung += f" Er entsteht schnell aus deiner Vorlage „{vorlage}“."
+        erklaerung += tr(" Er entsteht schnell aus deiner Vorlage „{vorlage}“.", vorlage=vorlage)
     if unbekannt:
-        erklaerung += ("\n\nDiese Programme aus dem Rezept kennt deine Version von Bony's Agents nicht (bitte "
-                       f"aktualisieren): {', '.join(unbekannt)}")
+        erklaerung += (tr("\n\nDiese Programme aus dem Rezept kennt deine Version von Bony's Agents nicht (bitte "
+                          "aktualisieren): {wert}", wert=', '.join(unbekannt)))
     box.setInformativeText(erklaerung)
-    neu = box.addButton("Neuen Agent-PC erstellen …", QMessageBox.AcceptRole)
-    alt = box.addButton("Vorhandenen verwenden …", QMessageBox.ActionRole) if andere else None
-    box.addButton("Abbrechen", QMessageBox.RejectRole)
+    neu = box.addButton(tr("Neuen Agent-PC erstellen …"), QMessageBox.AcceptRole)
+    alt = box.addButton(tr("Vorhandenen verwenden …"), QMessageBox.ActionRole) if andere else None
+    box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
     box.setDefaultButton(neu)
     box.exec()
     if box.clickedButton() is neu:
@@ -197,7 +206,7 @@ def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | No
 
         dlg = CreateDialog(host.detect(), parent, preset_template=vorlage, recipe=paket.rezept.fuer_erstellen(),
                            preset_name=kurspaket.agent_pc_vorschlag(paket))
-        dlg.setWindowTitle(f"Neuer Agent-PC für „{paket.name}“")
+        dlg.setWindowTitle(tr("Neuer Agent-PC für „{name}“", name=paket.name))
         if not dlg.exec() or not dlg.created_name:
             return None
         if dlg.hints:
@@ -205,8 +214,8 @@ def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | No
         kurspaket.agent_pc_merken(paket, dlg.created_name)
         return dlg.created_name
     if alt is not None and box.clickedButton() is alt:
-        name, ok = QInputDialog.getItem(parent, paket.name, "Mit welchem Agent-PC möchtest du das Kurspaket "
-                                        "durcharbeiten?", andere, 0, False)
+        name, ok = QInputDialog.getItem(parent, paket.name, tr("Mit welchem Agent-PC möchtest du das Kurspaket "
+                                                               "durcharbeiten?"), andere, 0, False)
         if ok and name:
             kurspaket.agent_pc_merken(paket, name)
             return name
@@ -214,19 +223,19 @@ def agent_pc_einrichten(parent: QWidget, paket: kurspaket.Kurspaket) -> str | No
 
 
 COMMUNITY_HINWEIS = (
-    "Der Community-Katalog liegt auf einem eigenen Server (kurse.bony23.de), nicht bei GitHub.\n\n"
-    "Wenn du ihn einschaltest, fragt Bony's Agents bei jedem Öffnen dieses Fensters die Liste dort ab und lädt "
-    "Pakete von dort, wenn du sie wählst. Der Server und sein Hoster sehen dabei deine IP-Adresse und den Namen "
-    "und die Version des Programms – wie bei jedem Aufruf einer Internetseite. Bony's Agents speichert diese "
-    "Angaben nicht und legt kein Zugriffsprotokoll an.\n\n"
-    "Community-Pakete stammen von anderen Menschen. Sie wurden von der Moderation geprüft, aber nicht von "
-    "Bony's Agents signiert; ihre Skripte zeigt dir die App vor dem Start.\n\n"
-    "Du kannst die Quelle hier jederzeit wieder ausschalten.")
+    n_("Der Community-Katalog liegt auf einem eigenen Server (kurse.bony23.de), nicht bei GitHub.\n\n"
+       "Wenn du ihn einschaltest, fragt Bony's Agents bei jedem Öffnen dieses Fensters die Liste dort ab und lädt "
+       "Pakete von dort, wenn du sie wählst. Der Server und sein Hoster sehen dabei deine IP-Adresse und den Namen "
+       "und die Version des Programms – wie bei jedem Aufruf einer Internetseite. Bony's Agents speichert diese "
+       "Angaben nicht und legt kein Zugriffsprotokoll an.\n\n"
+       "Community-Pakete stammen von anderen Menschen. Sie wurden von der Moderation geprüft, aber nicht von "
+       "Bony's Agents signiert; ihre Skripte zeigt dir die App vor dem Start.\n\n"
+       "Du kannst die Quelle hier jederzeit wieder ausschalten."))
 
 
 def datenschutz_link() -> str:
     """Link auf die Datenschutzerklärung des Community-Servers (HTML für Beschriftungen)."""
-    return f'<a href="{kurspaket.DATENSCHUTZ_URL}">Datenschutzerklärung</a>'
+    return tr("<a href=\"{DATENSCHUTZ_URL}\">Datenschutzerklärung</a>", DATENSCHUTZ_URL=kurspaket.DATENSCHUTZ_URL)
 
 
 def community_zustimmung(parent=None) -> bool:
@@ -235,10 +244,11 @@ def community_zustimmung(parent=None) -> bool:
         return True
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Question)
-    box.setWindowTitle("Community-Katalog einschalten?")
-    box.setText(f"{COMMUNITY_HINWEIS}\n\nDatenschutzerklärung: {kurspaket.DATENSCHUTZ_URL}")
-    ja = box.addButton("Einschalten", QMessageBox.AcceptRole)
-    box.addButton("Nicht einschalten", QMessageBox.RejectRole)
+    box.setWindowTitle(tr("Community-Katalog einschalten?"))
+    box.setText(tr("{COMMUNITY_HINWEIS}\n\nDatenschutzerklärung: {DATENSCHUTZ_URL}",
+                   COMMUNITY_HINWEIS=tr(COMMUNITY_HINWEIS), DATENSCHUTZ_URL=kurspaket.DATENSCHUTZ_URL))
+    ja = box.addButton(tr("Einschalten"), QMessageBox.AcceptRole)
+    box.addButton(tr("Nicht einschalten"), QMessageBox.RejectRole)
     box.exec()
     if box.clickedButton() is not ja:
         return False
@@ -251,18 +261,21 @@ class KatalogDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Kurspakete aus dem Internet")
+        self.setWindowTitle(tr("Kurspakete aus dem Internet"))
         self.geladen: list[str] = []
         root = QVBoxLayout(self)
-        intro = QLabel(f"Kurspakete aus dem öffentlichen Repository {kurspaket.KATALOG_REPO} auf GitHub. Jede Datei "
-                       "wird nach dem Laden mit ihrer Prüfsumme verglichen und vollständig geprüft. Kurspakete "
-                       "enthalten nie Zugangsdaten. „Community“-Kurspakete stammen von anderen Menschen und wurden "
-                       "von der Moderation geprüft – nicht von Bony's Agents.")
+        intro = QLabel(tr("Kurspakete aus dem öffentlichen Repository "
+                          "{KATALOG_REPO} auf GitHub. Jede Datei wird nach dem "
+                          "Laden mit ihrer Prüfsumme verglichen und "
+                          "vollständig geprüft. Kurspakete enthalten nie "
+                          "Zugangsdaten. „Community“-Kurspakete stammen von "
+                          "anderen Menschen und wurden von der Moderation "
+                          "geprüft – nicht von Bony's Agents.", KATALOG_REPO=kurspaket.KATALOG_REPO))
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         root.addWidget(intro)
         self.tabelle = QTableWidget(0, 4)
-        self.tabelle.setHorizontalHeaderLabels(["Kurspaket", "Stufe", "Dauer", "Version"])
+        self.tabelle.setHorizontalHeaderLabels([tr("Kurspaket"), tr("Stufe"), tr("Dauer"), tr("Version")])
         self.tabelle.verticalHeader().setVisible(False)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -274,7 +287,9 @@ class KatalogDialog(QDialog):
         self.text.setWordWrap(True)
         self.text.setTextFormat(Qt.PlainText)
         root.addWidget(self.text)
-        self.community_box = QCheckBox("Community-Kurspakete anzeigen (fragt kurse.bony23.de an)")
+        self.alle_sprachen = QCheckBox(tr("Alle Sprachen"))
+        root.addWidget(self.alle_sprachen)
+        self.community_box = QCheckBox(tr("Community-Kurspakete anzeigen (fragt kurse.bony23.de an)"))
         self.community_box.setChecked(kurspaket.community_an())
         root.addWidget(self.community_box)
         datenschutz = QLabel(datenschutz_link())
@@ -282,10 +297,10 @@ class KatalogDialog(QDialog):
         datenschutz.linkActivated.connect(open_url)   # eigener Weg: saubere Umgebung für den Browser
         root.addWidget(datenschutz)
         knoepfe = QHBoxLayout()
-        self.laden_knopf = QPushButton("Laden")
+        self.laden_knopf = QPushButton(tr("Laden"))
         self.laden_knopf.setObjectName("Primary")
         self.laden_knopf.setEnabled(False)
-        zu = QPushButton("Schließen")
+        zu = QPushButton(tr("Schließen"))
         knoepfe.addStretch(1)
         knoepfe.addWidget(self.laden_knopf)
         knoepfe.addWidget(zu)
@@ -296,6 +311,9 @@ class KatalogDialog(QDialog):
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
         self.eintraege: list[kurspaket.KatalogEintrag] = []
         self.community_box.toggled.connect(self._community_umschalten)
+        self.alle_sprachen.toggled.connect(lambda _an: self._zeigen())
+        self.alle: list[kurspaket.KatalogEintrag] = []
+        self.hinweis = ""
         self._neu_laden()
 
     def _community_umschalten(self, an: bool) -> None:
@@ -311,7 +329,7 @@ class KatalogDialog(QDialog):
         self.tabelle.setRowCount(0)
         self.eintraege = []
         self.laden_knopf.setEnabled(False)
-        self.text.setText("Lade die Liste …")
+        self.text.setText(tr("Lade die Liste …"))
         self._lauf(kurspaket.katalog_alle, self._liste)
 
     def _lauf(self, fn, fertig) -> None:
@@ -324,19 +342,26 @@ class KatalogDialog(QDialog):
         if w.error is not None:
             self.text.setText(str(w.error))
             return
+        self.alle, self.hinweis = w.result or ([], "")
+        self._zeigen()
+
+    def _zeigen(self) -> None:
+        self.tabelle.setRowCount(0)
         lokal = {p.id: p.version for p in kurspaket.liste()}
-        self.eintraege, hinweis = w.result or ([], "")
+        self.eintraege = kurspaket.nach_sprache(self.alle, i18n.sprache(), self.alle_sprachen.isChecked())
+        hinweis = self.hinweis
         for e in self.eintraege:
             r = self.tabelle.rowCount()
             self.tabelle.insertRow(r)
             status = ""
             if e.id in lokal:
-                status = " (vorhanden)" if kurspaket.version_vergleich(e.version, lokal[e.id]) <= 0 else " (neuer)"
-            name = e.name + (" – Entwurf" if e.entwurf else "") + (" – Community" if e.community else "")
+                status = "  " + (tr("(vorhanden)") if kurspaket.version_vergleich(e.version, lokal[e.id]) <= 0
+                                 else tr("(neuer)"))
+            name = e.name + (" – " + tr("Entwurf") if e.entwurf else "") + (" – Community" if e.community else "")
             for i, wert in enumerate([name, e.stufe_text, kurspaket.dauer_text(e.dauer_minuten),
                                       e.version + status]):
                 self.tabelle.setItem(r, i, QTableWidgetItem(wert))
-        self.text.setText(hinweis or ("Keine Kurspakete gefunden." if not self.eintraege else ""))
+        self.text.setText(hinweis or (tr("Keine Kurspakete gefunden.") if not self.eintraege else ""))
 
     def _eintrag(self) -> kurspaket.KatalogEintrag | None:
         rows = self.tabelle.selectionModel().selectedRows()
@@ -348,8 +373,9 @@ class KatalogDialog(QDialog):
         if e is None:
             self.text.setText("")
         elif e.community:
-            self.text.setText(f"Community, von der Moderation geprüft – nicht von Bony's Agents. Skripte darin "
-                              f"laufen nur im Agent-PC und erst nach deiner Rückfrage.\n\n{e.beschreibung}")
+            self.text.setText(tr("Community, von der Moderation geprüft – nicht von Bony's Agents. Skripte darin "
+                                 "laufen nur im Agent-PC und erst nach deiner Rückfrage.\n\n{beschreibung}",
+                                 beschreibung=e.beschreibung))
         else:
             self.text.setText(e.beschreibung)
 
@@ -358,7 +384,7 @@ class KatalogDialog(QDialog):
         if e is None:
             return
         self.laden_knopf.setEnabled(False)
-        self.text.setText(f"Lade „{e.name}“ …")
+        self.text.setText(tr("Lade „{name}“ …", name=e.name))
 
         def fertig(w: TaskWorker) -> None:
             self.laden_knopf.setEnabled(True)
@@ -372,7 +398,7 @@ class KatalogDialog(QDialog):
                 self.text.setText(str(w.error))
                 return
             self.geladen.append(w.result.id)
-            self.text.setText(f"„{w.result.name}“ ist jetzt in deiner Bibliothek.")
+            self.text.setText(tr("„{name}“ ist jetzt in deiner Bibliothek.", name=w.result.name))
 
         self._lauf(lambda: kurspaket.herunterladen(e, ersetzen=ersetzen), fertig)
 
@@ -386,7 +412,7 @@ class BibliothekSeite(QWidget):
         self.setAcceptDrops(True)
         root = QVBoxLayout(self)
         root.setSpacing(8)
-        intro = QLabel(INTRO)
+        intro = QLabel(tr(INTRO))
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         root.addWidget(intro)
@@ -402,7 +428,7 @@ class BibliothekSeite(QWidget):
         root.addWidget(self.fehler)
 
         self.tabelle = QTableWidget(0, 4)
-        self.tabelle.setHorizontalHeaderLabels(["Kurspaket", "Stufe", "Dauer", "Fortschritt"])
+        self.tabelle.setHorizontalHeaderLabels([tr("Kurspaket"), tr("Stufe"), tr("Dauer"), tr("Fortschritt")])
         self.tabelle.verticalHeader().setVisible(False)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -420,17 +446,25 @@ class BibliothekSeite(QWidget):
         self.details.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(self.details)
 
+        # Sprachfassungen: nur die in der Sprache der App, die andere mit „Alle Sprachen“ (Plan Englisch)
+        self.alle_sprachen = QCheckBox(tr("Alle Sprachen"))
+        self.alle_sprachen.setToolTip(tr("Auch die Kurspakete in der anderen Sprache zeigen, wenn es sie in beiden "
+                                         "Sprachen gibt"))
+        root.addWidget(self.alle_sprachen)
+
         knoepfe = QHBoxLayout()
-        self.start_knopf = QPushButton("Durcharbeiten")
+        self.start_knopf = QPushButton(tr("Durcharbeiten"))
         self.start_knopf.setObjectName("Primary")
-        self.start_knopf.setToolTip("Selbstlern-Modus: eigener Agent-PC, Anleitung daneben, Fortschritt wird gemerkt")
-        self.import_knopf = QPushButton("Importieren …")
-        self.import_knopf.setToolTip(f"Kurspaket aus einer {kurspaket.SUFFIX}-Datei übernehmen – oder die Datei "
-                                     "einfach hierher ziehen")
-        self.internet_knopf = QPushButton("Aus dem Internet …")
-        self.export_knopf = QPushButton("Exportieren …")
-        self.export_knopf.setToolTip(f"Kurspaket als {kurspaket.SUFFIX}-Datei speichern, z. B. zum Weitergeben")
-        self.loeschen_knopf = QPushButton("Löschen …")
+        self.start_knopf.setToolTip(tr("Selbstlern-Modus: eigener Agent-PC, Anleitung daneben, Fortschritt wird "
+                                       "gemerkt"))
+        self.import_knopf = QPushButton(tr("Importieren …"))
+        self.import_knopf.setToolTip(tr("Kurspaket aus einer {SUFFIX}-Datei übernehmen – "
+                                        "oder die Datei einfach hierher ziehen", SUFFIX=kurspaket.SUFFIX))
+        self.internet_knopf = QPushButton(tr("Aus dem Internet …"))
+        self.export_knopf = QPushButton(tr("Exportieren …"))
+        self.export_knopf.setToolTip(tr("Kurspaket als {SUFFIX}-Datei speichern, z. B. zum "
+                                        "Weitergeben", SUFFIX=kurspaket.SUFFIX))
+        self.loeschen_knopf = QPushButton(tr("Löschen …"))
         for b in (self.import_knopf, self.internet_knopf, self.export_knopf, self.loeschen_knopf):
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
@@ -451,6 +485,7 @@ class BibliothekSeite(QWidget):
         self.export_knopf.clicked.connect(self._exportieren)
         self.loeschen_knopf.clicked.connect(self._loeschen)
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
+        self.alle_sprachen.toggled.connect(lambda _an: self.laden())
         self.pakete: list[kurspaket.Kurspaket] = []
         self.laden()
 
@@ -458,16 +493,16 @@ class BibliothekSeite(QWidget):
     def laden(self, waehlen: str | None = None) -> None:
         vorher = waehlen or (self.paket().id if self.paket() else None)
         bestand = kurspaket.bestand()
-        self.pakete = bestand.pakete
+        self.pakete = kurspaket.nach_sprache(bestand.pakete, i18n.sprache(), self.alle_sprachen.isChecked())
         self.fehler.setVisible(bool(bestand.fehler))
-        self.fehler_text.setText("Diese Kurspakete in der Bibliothek sind fehlerhaft:\n"
-                                 + "\n".join(f"• {o}: {m}" for o, m in bestand.fehler))
+        self.fehler_text.setText(tr("Diese Kurspakete in der Bibliothek sind fehlerhaft:\n{wert}",
+                                    wert="\n".join(f"• {o}: {m}" for o, m in bestand.fehler)))
         self.tabelle.setRowCount(0)
         for p in self.pakete:
             r = self.tabelle.rowCount()
             self.tabelle.insertRow(r)
             f = kurspaket.Fortschritt.laden(p.id)
-            werte = [p.name + ("  (Entwurf)" if p.entwurf else ""), p.stufe_text, p.dauer_text,
+            werte = [p.name + ("  " + tr("(Entwurf)") if p.entwurf else ""), p.stufe_text, p.dauer_text,
                      f.text(p) if p.lektionen else "–"]
             for i, w in enumerate(werte):
                 self.tabelle.setItem(r, i, QTableWidgetItem(w))
@@ -483,19 +518,29 @@ class BibliothekSeite(QWidget):
 
     def _auswahl(self) -> None:
         p = self.paket()
-        self.details.setText(_md_ganz(p) + _vertrauen_text(p) if p else ("Noch keine Kurspakete. Importiere eine "
-                                                     f"{kurspaket.SUFFIX}-Datei oder lade eines aus dem Internet."))
+        self.details.setText(_md_ganz(p) + _vertrauen_text(p) if p else tr("Noch keine "
+                                                                           "Kurspakete. "
+                                                                           "Importiere "
+                                                                           "eine "
+                                                                           "{SUFFIX}-Datei "
+                                                                           "oder lade "
+                                                                           "eines aus dem "
+                                                                           "Internet.", SUFFIX=kurspaket.SUFFIX))
         self.start_knopf.setEnabled(p is not None and bool(p.lektionen))
         self.export_knopf.setEnabled(p is not None)
         self.loeschen_knopf.setEnabled(p is not None and not p.mitgeliefert)
-        self.loeschen_knopf.setToolTip("Mitgelieferte Kurspakete gehören zum Programm" if p and p.mitgeliefert
-                                       else "Kurspaket aus der Bibliothek entfernen")
+        self.loeschen_knopf.setToolTip(tr("Mitgelieferte "
+                                          "Kurspakete "
+                                          "gehören "
+                                          "zum "
+                                          "Programm") if p and p.mitgeliefert else tr("Kurspaket aus der Bibliothek "
+                                                                                      "entfernen"))
         if p is not None:
             begonnen = kurspaket.Fortschritt.laden(p.id).begonnen
-            self.start_knopf.setText("Fortsetzen" if begonnen else "Durcharbeiten")
+            self.start_knopf.setText(tr("Fortsetzen") if begonnen else tr("Durcharbeiten"))
             if not p.lektionen:
-                self.start_knopf.setToolTip("Dieses Kurspaket hat keine Lektionen zum Durcharbeiten "
-                                            "(nur Ablaufplan und Handout)")
+                self.start_knopf.setToolTip(tr("Dieses Kurspaket hat keine Lektionen zum Durcharbeiten "
+                                               "(nur Ablaufplan und Handout)"))
 
     # ---------------------------------------------------------------- Aktionen
     def _durcharbeiten(self) -> None:
@@ -504,7 +549,7 @@ class BibliothekSeite(QWidget):
             self.durcharbeiten(p)
 
     def _importieren(self) -> None:
-        datei, _ = QFileDialog.getOpenFileName(self, "Kurspaket importieren", str(Path.home()), FILTER)
+        datei, _ = QFileDialog.getOpenFileName(self, tr("Kurspaket importieren"), str(Path.home()), FILTER)
         if datei:
             self.importieren(Path(datei))
 
@@ -526,7 +571,7 @@ class BibliothekSeite(QWidget):
         p = self.paket()
         if p is None:
             return
-        ziel, _ = QFileDialog.getSaveFileName(self, "Kurspaket exportieren",
+        ziel, _ = QFileDialog.getSaveFileName(self, tr("Kurspaket exportieren"),
                                               str(Path.home() / kurspaket.dateiname(p)), FILTER)
         if not ziel:
             return
@@ -535,20 +580,21 @@ class BibliothekSeite(QWidget):
         try:
             kurspaket.packen(p.pfad, Path(ziel))
         except (kurspaket.PaketFehler, OSError) as e:
-            QMessageBox.warning(self, "Kurspaket exportieren", str(e))
+            QMessageBox.warning(self, tr("Kurspaket exportieren"), str(e))
             return
-        QMessageBox.information(self, "Kurspaket exportieren", f"Gespeichert: {ziel}")
+        QMessageBox.information(self, tr("Kurspaket exportieren"), tr("Gespeichert: {ziel}", ziel=ziel))
 
     def _loeschen(self) -> None:
         p = self.paket()
         if p is None or p.mitgeliefert:
             return
-        box = QMessageBox(QMessageBox.Warning, "Kurspaket löschen", f"„{p.name}“ aus der Bibliothek löschen?",
+        box = QMessageBox(QMessageBox.Warning, tr("Kurspaket "
+                                                  "löschen"), tr("„{name}“ aus der Bibliothek löschen?", name=p.name),
                           QMessageBox.NoButton, self)
-        box.setInformativeText("Der Fortschritt in diesem Kurspaket wird ebenfalls gelöscht. Agent-PCs bleiben "
-                               "unverändert.")
-        ja = box.addButton("Löschen", QMessageBox.DestructiveRole)
-        nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
+        box.setInformativeText(tr("Der Fortschritt in diesem Kurspaket wird ebenfalls gelöscht. Agent-PCs bleiben "
+                                  "unverändert."))
+        ja = box.addButton(tr("Löschen"), QMessageBox.DestructiveRole)
+        nein = box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
         box.setDefaultButton(nein)
         box.exec()
         if box.clickedButton() is not ja:
@@ -556,7 +602,7 @@ class BibliothekSeite(QWidget):
         try:
             kurspaket.loeschen(p.id)
         except (kurspaket.PaketFehler, OSError) as e:
-            QMessageBox.warning(self, "Kurspaket löschen", str(e))
+            QMessageBox.warning(self, tr("Kurspaket löschen"), str(e))
         self.laden()
 
     # ---------------------------------------------------------------- Drag & Drop

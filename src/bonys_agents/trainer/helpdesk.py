@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 from bonys_agents import __version__, share, websocket
 from bonys_agents.trainer import share_server
 from bonys_agents.helpmode import API, VM_HEADER, HelpError, _clean
+from bonys_agents.i18n import n_, tr
 
 COOKIE = "bonys_help"
 TUNNEL_WAIT = 15.0
@@ -114,7 +115,7 @@ class HelpDesk:
         Browser des Kursleiters zurück (Schlüssel hinter „#“, gilt nur für diese Ansicht)."""
         s = self.get(sid)
         if s is None or not s.connected:
-            raise HelpError("Der Teilnehmer ist nicht mehr verbunden.")
+            raise HelpError(tr("Der Teilnehmer ist nicht mehr verbunden."))
         token = secrets.token_urlsafe(24)
         with self.lock:
             s.view_token_hash = _hash(token)
@@ -130,7 +131,7 @@ class HelpDesk:
     def request_control(self, sid: str) -> None:
         s = self.get(sid)
         if s is None or not s.view_allowed:
-            raise HelpError("Erst ansehen – Steuerung geht nur, während du zusiehst.")
+            raise HelpError(tr("Erst ansehen – Steuerung geht nur, während du zusiehst."))
         if s.control:
             return
         s.control_requested = True
@@ -262,33 +263,33 @@ class HelpDesk:
         elif method == "GET" and name == "view":
             self._teacher_view(h)
         else:
-            h._json(404, {"error": "Nicht gefunden."})
+            h._json(404, {"error": n_("Nicht gefunden.")})
         return True
 
     def _local(self, h) -> bool:
         if h.client_address[0] in LOOPBACK:
             return True
-        h._json(403, {"error": "Nur auf dem Rechner des Kursleiters."})
+        h._json(403, {"error": n_("Nur auf dem Rechner des Kursleiters.")})
         return False
 
     def _code_ok(self, h) -> bool:
         if self.server.stopped.is_set():
-            h._json(410, {"error": "Der Kurs ist beendet."})
+            h._json(410, {"error": n_("Der Kurs ist beendet.")})
             return False
         why = self.server.check_code(h.client_address[0], h.headers.get(share.CODE_HEADER, ""))
         if why == "gesperrt":
-            h._json(429, {"error": "Zu viele falsche Codes – bitte eine Minute warten."},
+            h._json(429, {"error": n_("Zu viele falsche Codes – bitte eine Minute warten.")},
                     {"Retry-After": str(share.LOCK_SECONDS)})
             return False
         if why:
-            h._json(403, {"error": "Falscher Code."})
+            h._json(403, {"error": n_("Falscher Code.")})
             return False
         return True
 
     def _participant(self, h) -> None:
         """Steuer-Kanal eines Teilnehmers (Bony's Agents des Teilnehmers, nicht der Browser)."""
         if not h.is_websocket():
-            h._json(400, {"error": "WebSocket erwartet."})
+            h._json(400, {"error": n_("WebSocket erwartet.")})
             return
         if not self._code_ok(h):
             return
@@ -324,7 +325,7 @@ class HelpDesk:
     def _tunnel(self, h) -> None:
         """Tunnel vom Teilnehmer: Bild seines Agent-PCs für genau eine Ansicht des Kursleiters."""
         if not h.is_websocket():
-            h._json(400, {"error": "WebSocket erwartet."})
+            h._json(400, {"error": n_("WebSocket erwartet.")})
             return
         if not self._code_ok(h):
             return
@@ -334,7 +335,7 @@ class HelpDesk:
         t = s.tunnels.get(tid) if s else None
         if s is None or t is None or not s.view_allowed or t.ready.is_set() \
                 or s.address != h.client_address[0]:
-            h._json(403, {"error": "Kein Tunnel angefordert."})
+            h._json(403, {"error": n_("Kein Tunnel angefordert.")})
             return
         h.accept_websocket()
         t.ready.set()
@@ -369,25 +370,25 @@ class HelpDesk:
         if not self._local(h):
             return
         if not h._same_origin():
-            h._json(403, {"error": "Anfrage von einer fremden Seite."})
+            h._json(403, {"error": n_("Anfrage von einer fremden Seite.")})
             return
         try:
             data = json.loads(h._read_body() or b"{}")
             sid = str(data.get("s", ""))
         except (ValueError, AttributeError):
-            h._json(400, {"error": "Anfrage nicht verstanden."})
+            h._json(400, {"error": n_("Anfrage nicht verstanden.")})
             return
         if name == "auth":
             s = self.get(sid)
             token = str(data.get("t", ""))
             if s is None or not s.view_token_hash or not hmac.compare_digest(_hash(token), s.view_token_hash):
-                h._json(403, {"error": "Diese Ansicht ist abgelaufen – in Bony's Agents erneut „Ansehen“."})
+                h._json(403, {"error": n_("Diese Ansicht ist abgelaufen – in Bony's Agents erneut „Ansehen“.")})
                 return
             h._json(200, {"ok": True}, {"Set-Cookie": f"{COOKIE}={token}; Path=/; Secure; HttpOnly; SameSite=Strict"})
             return
         s = self._token_session(h, sid)
         if s is None:
-            h._json(403, {"error": "Keine gültige Ansicht."})
+            h._json(403, {"error": n_("Keine gültige Ansicht.")})
             return
         try:
             if name == "control":
@@ -411,7 +412,7 @@ class HelpDesk:
         sid = (parse_qs(urlsplit(h.path).query).get("s") or [""])[0]
         s = self._token_session(h, sid)
         if s is None:
-            h._json(403, {"state": "unbekannt", "error": "Keine gültige Ansicht."})
+            h._json(403, {"state": "unbekannt", "error": n_("Keine gültige Ansicht.")})
             return
         h._json(200, self.status(s))
 
@@ -420,15 +421,15 @@ class HelpDesk:
         if not self._local(h):
             return
         if not h.is_websocket() or not h._same_origin():
-            h._json(403, {"error": "Anfrage von einer fremden Seite."})
+            h._json(403, {"error": n_("Anfrage von einer fremden Seite.")})
             return
         sid = (parse_qs(urlsplit(h.path).query).get("s") or [""])[0]
         s = self._token_session(h, sid)
         if s is None:
-            h._json(403, {"error": "Keine gültige Ansicht."})
+            h._json(403, {"error": n_("Keine gültige Ansicht.")})
             return
         if not s.view_allowed or not s.connected:
-            h._json(409, {"error": "Noch keine Zustimmung des Teilnehmers.", "state": s.state})
+            h._json(409, {"error": n_("Noch keine Zustimmung des Teilnehmers."), "state": s.state})
             return
         t = _Tunnel(id=secrets.token_urlsafe(12))
         with self.lock:
@@ -439,7 +440,7 @@ class HelpDesk:
         if not t.ready.wait(TUNNEL_WAIT) or t.closed:
             with self.lock:
                 s.tunnels.pop(t.id, None)
-            h._json(504, {"error": "Der Teilnehmer-Rechner antwortet nicht."})
+            h._json(504, {"error": n_("Der Teilnehmer-Rechner antwortet nicht.")})
             return
         h.accept_websocket()
         self._event(f"Kursleiter sieht den Agent-PC von {s.name}.")

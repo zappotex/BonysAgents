@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "What is a trigger in n8n?",
+      "antworten": [
+        "The step that starts the workflow",
+        "An error in the workflow",
+        "The last step that saves the result"
+      ],
+      "richtig": 0,
+      "erklaerung": "The trigger decides when the workflow runs – for example when there's something new in the RSS feed."
+    },
+    {
+      "frage": "What is n8n especially good for?",
+      "antworten": [
+        "For processes that should run the same way reliably every time",
+        "For free conversations in natural language",
+        "For editing photos"
+      ],
+      "richtig": 0,
+      "erklaerung": "n8n is predictable: same trigger, same steps. Understanding language and deciding by itself is what Hermes does."
+    }
+  ]
+}

@@ -20,6 +20,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from bonys_agents.i18n import n_, tr
+
 from . import updates
 from .procutil import clean_env
 from .vpnlink import VPN_REPO, VPN_REPO_URL
@@ -31,23 +33,31 @@ VPN_SOURCES = Path("/etc/apt/sources.list.d/bonys-vpn.sources")
 # Altes .deb von Bony's Agents (bis 0.14) brachte Bony's VPN mit – Reste davon erkennen
 OLD_STATE = Path("/etc/bonys-vpn/killswitch.json")
 
-WHOLE_COMPUTER = "Das VPN gilt dann für deinen ganzen Rechner, nicht nur für die Agent-PCs."
-LINUX_INTRO = (
+WHOLE_COMPUTER = n_("Das VPN gilt dann für deinen ganzen Rechner, nicht nur für die Agent-PCs.")
+# Platzhalter in den Einleitungen: {ganzer_rechner} = WHOLE_COMPUTER, {repo} = VPN_REPO_URL (siehe intro())
+LINUX_INTRO = n_(
     "Bony's VPN ist ein eigenes Programm von mir für WireGuard-Tunnel – mit Kill-Switch, Tray-Symbol und "
-    f"Import per Drag&Drop ({VPN_REPO_URL}).\n\n" + WHOLE_COMPUTER + "\n\n"
+    "Import per Drag&Drop ({repo}).\n\n{ganzer_rechner}\n\n"
     "Bony's Agents installiert jetzt das Paket „bonys-vpn“ aus der offiziellen Quelle: aus der Paketquelle "
     "von Bony's Agents, sonst aus dem GitHub-Release (Signatur und Prüfsumme werden geprüft). Dein Rechner "
     "fragt dafür nach dem Administrator-Passwort. Updates kommen danach über die Aktualisierungsverwaltung.")
-OLD_INSTALL_HINT = ("Bony's VPN steckt nicht mehr in Bony's Agents. Deine Tunnel in /etc/wireguard sind noch da – "
-                    "zum Verwalten Bony's VPN installieren.")
+OLD_INSTALL_HINT = n_("Bony's VPN steckt nicht mehr in Bony's Agents. Deine Tunnel in /etc/wireguard sind noch da – "
+                      "zum Verwalten Bony's VPN installieren.")
+
+
+
+def intro(text: str) -> str:
+    """Einleitung (LINUX_INTRO, WINDOWS_INTRO, MAC_INTRO) übersetzt und mit eingesetzten Platzhaltern."""
+    return tr(text, ganzer_rechner=tr(WHOLE_COMPUTER), repo=VPN_REPO_URL)
+
 
 # Windows
 WINGET_ID = "WireGuard.WireGuard"
 WINGET_INSTALL = ["winget", "install", "--id", WINGET_ID, "-e", "--silent",
                   "--accept-package-agreements", "--accept-source-agreements"]
-WINDOWS_INTRO = (
+WINDOWS_INTRO = n_(
     "Bony's Agents installiert jetzt die offizielle WireGuard-App über winget (Paket „WireGuard.WireGuard“, "
-    "von wireguard.com).\n\n" + WHOLE_COMPUTER + "\n\nWindows fragt gleich nach Administratorrechten. "
+    "von wireguard.com).\n\n{ganzer_rechner}\n\nWindows fragt gleich nach Administratorrechten. "
     "Danach öffnest du die App, importierst dort deine .conf („Tunnel aus Datei importieren“) und klickst "
     "„Aktivieren“. Einen Kill-Switch bietet die App beim Bearbeiten eines Tunnels an "
     "(„Untunnelten Datenverkehr blockieren“).")
@@ -57,10 +67,10 @@ MAC_APP_ID = "1451685025"
 MAC_APP_STORE_URL = f"https://apps.apple.com/app/wireguard/id{MAC_APP_ID}"
 MAC_APP_STORE_DEEPLINK = f"macappstore://apps.apple.com/app/id{MAC_APP_ID}"
 MAC_APP = Path("/Applications/WireGuard.app")
-MAC_INTRO = (
+MAC_INTRO = n_(
     "Die offizielle WireGuard-App für den Mac gibt es nur im App Store (kostenlos, von WireGuard "
     "Development Team). Einen offiziellen Weg, sie automatisch zu installieren, gibt es nicht – "
-    "Homebrew bringt nur die Kommandozeilen-Werkzeuge ohne App.\n\n" + WHOLE_COMPUTER + "\n\n"
+    "Homebrew bringt nur die Kommandozeilen-Werkzeuge ohne App.\n\n{ganzer_rechner}\n\n"
     "Gleich öffnet sich der App Store: dort „Laden“ klicken. Danach in der WireGuard-App „Tunnel aus "
     "Datei importieren“ wählen, deine .conf auswählen, macOS die VPN-Konfiguration erlauben und "
     "„Aktivieren“ klicken.")
@@ -106,7 +116,7 @@ def can_install() -> bool:
 def open_app() -> None:
     cmd = gui_command()
     if cmd is None:
-        raise HostVpnError("Bony's VPN ist nicht installiert.")
+        raise HostVpnError(tr("Bony's VPN ist nicht installiert."))
     subprocess.Popen([cmd], env=clean_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
@@ -125,7 +135,7 @@ def asset_name(info: updates.UpdateInfo, arch: str) -> str:
     for candidate in (f"{PACKAGE}_{info.version}_all.deb", f"{PACKAGE}_{info.version}_{arch}.deb"):
         if candidate in info.assets:
             return candidate
-    raise HostVpnError(f"Im Release {info.tag} von Bony's VPN gibt es kein Paket für {arch}.")
+    raise HostVpnError(tr("Im Release {tag} von Bony's VPN gibt es kein Paket für {arch}.", tag=info.tag, arch=arch))
 
 
 def apt_configured() -> bool:
@@ -148,33 +158,33 @@ def install(log: Callable[[str], None], opener=None, runner=None) -> str:
 
     run = runner or (lambda script: deps._run(deps._elevate_linux(script, gui=True), log))
     if apt_configured():
-        log("Installiere bonys-vpn aus der Paketquelle (fragt nach deinem Passwort) …")
+        log(tr("Installiere bonys-vpn aus der Paketquelle (fragt nach deinem Passwort) …"))
         rc = run(apt_script())
         if rc in (126, 127):
-            raise HostVpnError("Die Anmeldung wurde abgebrochen – nichts installiert.")
+            raise HostVpnError(tr("Die Anmeldung wurde abgebrochen – nichts installiert."))
         if rc == 0 and installed_version():
             return installed_version() or ""
-        log("Über die Paketquelle ging es nicht – lade das Paket direkt aus dem Release.")
-    log("Suche die neueste Version von Bony's VPN auf GitHub …")
+        log(tr("Über die Paketquelle ging es nicht – lade das Paket direkt aus dem Release."))
+    log(tr("Suche die neueste Version von Bony's VPN auf GitHub …"))
     try:
         info = updates.fetch_latest(VPN_REPO, opener=opener)
     except Exception as e:  # noqa: BLE001
-        raise HostVpnError(f"GitHub ist nicht erreichbar: {e}") from None
+        raise HostVpnError(tr("GitHub ist nicht erreichbar: {e}", e=e)) from None
     if info is None:
-        raise HostVpnError("Auf GitHub gibt es noch kein Release von Bony's VPN.")
+        raise HostVpnError(tr("Auf GitHub gibt es noch kein Release von Bony's VPN."))
     name = asset_name(info, deb_arch())
-    log(f"Lade {name} und prüfe Signatur und Prüfsumme …")
+    log(tr("Lade {name} und prüfe Signatur und Prüfsumme …", name=name))
     try:
         deb = updates.download_verified(info, name, updates.download_dir(), repo=VPN_REPO, opener=opener)
     except updates.UpdateError as e:
         raise HostVpnError(str(e)) from None
-    log("Signatur und Prüfsumme in Ordnung. Installiere (fragt nach deinem Passwort) …")
+    log(tr("Signatur und Prüfsumme in Ordnung. Installiere (fragt nach deinem Passwort) …"))
     rc = run(updates.deb_install_script(deb))
     shutil.rmtree(deb.parent, ignore_errors=True)
     if rc in (126, 127):
-        raise HostVpnError("Die Anmeldung wurde abgebrochen – nichts installiert.")
+        raise HostVpnError(tr("Die Anmeldung wurde abgebrochen – nichts installiert."))
     if rc != 0:
-        raise HostVpnError(f"Die Installation ist fehlgeschlagen (Code {rc}).")
+        raise HostVpnError(tr("Die Installation ist fehlgeschlagen (Code {rc}).", rc=rc))
     return installed_version() or info.version
 
 
@@ -193,19 +203,20 @@ def windows_app() -> Path | None:
 def windows_install() -> None:
     """Offizielle WireGuard-App per winget installieren (Windows fragt nach Administratorrechten)."""
     if not shutil.which("winget"):
-        raise HostVpnError("winget fehlt. Es kommt mit dem „App-Installer“ aus dem Microsoft Store. Alternativ "
-                           "das Installationsprogramm von https://www.wireguard.com/install/ verwenden.")
+        raise HostVpnError(tr("winget fehlt. Es kommt mit dem „App-Installer“ aus dem Microsoft Store. Alternativ "
+                              "das Installationsprogramm von https://www.wireguard.com/install/ verwenden."))
     proc = subprocess.run(WINGET_INSTALL, capture_output=True, text=True, env=clean_env(),
                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if proc.returncode != 0 and windows_app() is None:
         detail = (proc.stdout or proc.stderr).strip().splitlines()[-1:] or [""]
-        raise HostVpnError(f"WireGuard konnte nicht installiert werden (winget, Code {proc.returncode}). {detail[0]}")
+        raise HostVpnError(tr("WireGuard konnte nicht installiert werden (winget, Code {returncode}). {wert}",
+                              returncode=proc.returncode, wert=detail[0]))
 
 
 def windows_open(exe: Path | None = None) -> None:
     exe = exe or windows_app()
     if exe is None:
-        raise HostVpnError("Die WireGuard-App wurde nicht gefunden.")
+        raise HostVpnError(tr("Die WireGuard-App wurde nicht gefunden."))
     subprocess.Popen([str(exe)], env=clean_env(), close_fds=True)
 
 

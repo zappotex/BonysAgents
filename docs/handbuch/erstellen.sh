@@ -47,15 +47,20 @@ if [ "$BILDER" = 1 ]; then
     || "$PYTHON" "$REPO/packaging/fetch-livekit.py"
   [ -d "$REPO/src/bonys_agents/trainer" ] || fehlt "src/bonys_agents/trainer" "Die Kursleiter-Bilder brauchen den vollständigen Quellcode."
   echo "== Bildschirmfotos (Version $VERSION)"
-  # Nur die automatisch erzeugten Bilder ersetzen – selbst gemachte liegen in bilder/eigene/
-  find "$HANDBUCH/bilder" -maxdepth 1 -name '*.png' -delete
-  "$PYTHON" "$HANDBUCH/vorfuehrung/bildschirmfotos.py" --edition anwender --ziel "$HANDBUCH/bilder" 2>&1 \
-    | grep -v -E '^\[[0-9]+:|libva|Vulkan|GLX|GPUInfo|propagateSizeHints|plugin does not|QRhi|RHI for' || true
-  "$PYTHON" "$HANDBUCH/vorfuehrung/bildschirmfotos.py" --edition kursleiter --ziel "$HANDBUCH/bilder" 2>&1 \
-    | grep -v -E '^\[[0-9]+:|libva|Vulkan|GLX|GPUInfo|propagateSizeHints|plugin does not|QRhi|RHI for' || true
-  [ -f "$HANDBUCH/bilder/hauptfenster.png" ] && [ -f "$HANDBUCH/bilder/kl-kursansicht.png" ] \
-    || { echo "Die Bildschirmfotos wurden nicht vollständig erzeugt." >&2; exit 1; }
-  "$PYTHON" "$HANDBUCH/vorfuehrung/pruefen.py" "$HANDBUCH/bilder"
+  # Nur die automatisch erzeugten Bilder ersetzen – selbst gemachte liegen in bilder/eigene/.
+  # Deutsch in bilder/, Englisch (Oberfläche auf Englisch, für docs/handbuch/en/) in bilder/en/.
+  for sprache in de en; do
+    ziel="$HANDBUCH/bilder"; [ "$sprache" = de ] || ziel="$HANDBUCH/bilder/$sprache"
+    mkdir -p "$ziel"
+    find "$ziel" -maxdepth 1 -name '*.png' -delete
+    for edition in anwender kursleiter; do
+      "$PYTHON" "$HANDBUCH/vorfuehrung/bildschirmfotos.py" --edition "$edition" --sprache "$sprache" --ziel "$ziel" 2>&1 \
+        | grep -v -E '^\[[0-9]+:|libva|Vulkan|GLX|GPUInfo|propagateSizeHints|plugin does not|QRhi|RHI for' || true
+    done
+    [ -f "$ziel/hauptfenster.png" ] && [ -f "$ziel/kl-kursansicht.png" ] \
+      || { echo "Die Bildschirmfotos ($sprache) wurden nicht vollständig erzeugt." >&2; exit 1; }
+    "$PYTHON" "$HANDBUCH/vorfuehrung/pruefen.py" "$ziel"
+  done
 fi
 
 # ---------------------------------------------------------------- PDFs
@@ -64,11 +69,12 @@ if [ "$PDFS" = 1 ]; then
   command -v typst >/dev/null || fehlt typst "https://github.com/typst/typst/releases (eine Datei nach ~/.local/bin)"
   mkdir -p "$BAU" "$AUSGABE"
   cd "$HANDBUCH"
-  bauen() {   # bauen QUELLE DATEINAME DOKUMENT [kurz|kompakt]
+  bauen() {   # bauen QUELLE DATEINAME DOKUMENT [kurz|kompakt]   (SPRACHE=en für die englischen)
     local quelle="$1" name="$2" dokument="$3" art="${4:-}"
     local ziel="$AUSGABE/BonysAgents-$name-$VERSION.pdf"
     pandoc "$quelle" -f markdown-citations -t typst --template vorlage/pandoc.typ --lua-filter vorlage/filter.lua \
       -V version="$VERSION" -V datum="$DATUM" -V dokument="$dokument" ${art:+-V "$art=true"} \
+      -M sprache="${SPRACHE:-de}" \
       -o "$BAU/$name.typ"
     typst compile --root "$REPO" --font-path vorlage/schriften "$BAU/$name.typ" "$ziel"
     echo "  $(basename "$ziel")"
@@ -80,4 +86,11 @@ if [ "$PDFS" = 1 ]; then
   BEISPIEL="../../kurspakete/einfuehrung-hermes-agent"
   bauen "$BEISPIEL/ablaufplan.md" Beispielkurs-Hermes-Kursleitung "Beispielkurs „Einführung in Hermes Agent“ – Kursleitung" kompakt
   bauen "$BEISPIEL/handout.md" Beispielkurs-Hermes-Handout "Handout „Einführung in Hermes Agent“" kurz
+  # Englisch (docs/handbuch/en/, Bilder aus bilder/en/); Datum im englischen Format
+  DATUM="$(git -C "$REPO" log -1 --format=%cd --date=format:%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)"
+  SPRACHE=en bauen en/user-guide.md User-Guide "User Guide"
+  SPRACHE=en bauen en/trainer-guide.md Trainer-Guide "Trainer Guide"
+  BEISPIEL_EN="../../kurspakete/einfuehrung-hermes-agent-en"
+  SPRACHE=en bauen "$BEISPIEL_EN/ablaufplan.md" Sample-Course-Hermes-Trainer "Sample course “Introduction to Hermes Agent” – trainer" kompakt
+  SPRACHE=en bauen "$BEISPIEL_EN/handout.md" Sample-Course-Hermes-Handout "Handout “Introduction to Hermes Agent”" kurz
 fi

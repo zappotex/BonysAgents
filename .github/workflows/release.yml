@@ -6,7 +6,8 @@ name: Release
 #   - BonysAgents-Setup-<version>.exe                  (Windows-Installer; BonysAgents-Kursleiter-Setup-…)
 #   - BonysAgents-<version>-macos-applesilicon.dmg     (macOS, Apple-Chip M1 … – arm64; BonysAgents-Kursleiter-…)
 #   - BonysAgents-<version>-macos-intel.dmg            (macOS, Intel – x86_64)
-#   - BonysAgents-Benutzerhandbuch-<version>.pdf, …-Kursleiter-Handbuch-…, Beispielkurs (docs/handbuch/)
+#   - BonysAgents-Benutzerhandbuch-<version>.pdf, …-Kursleiter-Handbuch-…, Beispielkurs (docs/handbuch/),
+#     englisch: BonysAgents-User-Guide-<version>.pdf, …-Trainer-Guide-…, …-Sample-Course-Hermes-… (docs/handbuch/en/)
 #   - SHA256SUMS + SHA256SUMS.minisig                  (Prüfsummen aller Dateien, signiert – die App prüft sie vor
 #                                                       jedem Update; Updates bleiben in der eigenen Edition)
 # hängt alles an eine GitHub-Release-Seite und veröffentlicht danach die signierte APT-Paketquelle
@@ -487,6 +488,8 @@ jobs:
 
             **Handbücher (PDF):** `BonysAgents-Benutzerhandbuch-….pdf` für alle, `BonysAgents-Kursleiter-Handbuch-….pdf` für
             Kursleiter, dazu der Beispielkurs „Einführung in Hermes Agent“ (Ablaufplan und Handout).
+            In English: `BonysAgents-User-Guide-….pdf`, `BonysAgents-Trainer-Guide-….pdf` and the sample course
+            "Introduction to Hermes Agent" (`BonysAgents-Sample-Course-Hermes-…`).
 
             **Kurspakete (`.bonyspaket`):** die mitgelieferten Kurspakete, signiert – auch zum Weitergeben (Fenster „Kurse“ →
             „Kurspakete“ → „Importieren …“).

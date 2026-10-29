@@ -9,6 +9,8 @@ const token = frag.get("t");
 if (location.hash) history.replaceState(null, "", location.pathname);   // Schlüssel nicht stehen lassen
 window.addEventListener("hashchange", () => location.reload());
 
+// Sprache: /assets/texte.js (Sprache des Browsers)
+const tr = window.tr || ((text, kw) => (kw ? text.replace(/\{(\w+)\}/g, (m, k) => (k in kw ? String(kw[k]) : m)) : text));
 const screenEl = document.getElementById("screen");
 const stateEl = document.getElementById("state");
 const infoEl = document.getElementById("info");
@@ -50,29 +52,30 @@ async function poll() {
       cache: "no-store" });
     s = await r.json();
   } catch (e) {
-    setState("lost", "Verbindung verloren"); show("Verbindung verloren", "Läuft der Hilfe-Schalter noch?");
+    setState("lost", tr("Verbindung verloren")); show(tr("Verbindung verloren"), tr("Läuft der Hilfe-Schalter noch?"));
     return;
   }
   infoEl.textContent = s.name ? `${s.name} · ${s.vm}` : "";
   btnControl.hidden = !(s.view && !s.control);
   btnControl.disabled = !!s.control_requested;
-  btnControl.textContent = s.control_requested ? "Steuerung angefragt …" : "Steuerung anfragen";
+  btnControl.textContent = s.control_requested ? tr("Steuerung angefragt …") : tr("Steuerung anfragen");
   btnRelease.hidden = !s.control;
   if (!s.connected || s.state === "beendet" || s.state === "abgelehnt" || s.state === "unbekannt") {
     final = true;
     if (rfb) rfb.disconnect();
-    setState("ended", s.state === "abgelehnt" ? "Abgelehnt" : "Beendet");
-    show(s.state === "abgelehnt" ? "Der Teilnehmer hat abgelehnt" : "Hilfe beendet",
-         s.connected === false ? "Der Teilnehmer ist nicht mehr verbunden." :
-         (s.error || "In Bony's Agents kannst du erneut „Ansehen“ wählen."));
+    setState("ended", s.state === "abgelehnt" ? tr("Abgelehnt") : tr("Beendet"));
+    show(s.state === "abgelehnt" ? tr("Der Teilnehmer hat abgelehnt") : tr("Hilfe beendet"),
+         s.connected === false ? tr("Der Teilnehmer ist nicht mehr verbunden.") :
+         (s.error || tr("In Bony's Agents kannst du erneut „Ansehen“ wählen.")));
     return;
   }
   if (!s.view) {
-    setState("paused", "Warte auf Zustimmung");
-    show("Warte auf Zustimmung …", `${s.name} wird gefragt, ob du den Agent-PC „${s.vm}“ ansehen darfst.`);
+    setState("paused", tr("Warte auf Zustimmung"));
+    show(tr("Warte auf Zustimmung …"), tr("{name} wird gefragt, ob du den Agent-PC „{vm}“ ansehen darfst.",
+                                          { name: s.name, vm: s.vm }));
     return;
   }
-  setState(s.control ? "live" : "paused", s.control ? "Du steuerst" : "Nur ansehen");
+  setState(s.control ? "live" : "paused", s.control ? tr("Du steuerst") : tr("Nur ansehen"));
   if (rfb) rfb.viewOnly = !s.control;
   else connect(s.control);
 }
@@ -83,20 +86,20 @@ document.getElementById("stop").addEventListener("click", async () => {
   await post("stop");
   final = true;
   if (rfb) rfb.disconnect();
-  setState("ended", "Beendet");
-  show("Hilfe beendet", "Du kannst dieses Fenster schließen.");
+  setState("ended", tr("Beendet"));
+  show(tr("Hilfe beendet"), tr("Du kannst dieses Fenster schließen."));
 });
 
 (async () => {
   if (token) {
     const r = await post("auth");
-    if (r.error) { final = true; setState("ended", "Ungültig"); show("Ansicht nicht gültig", r.error); return; }
+    if (r.error) { final = true; setState("ended", tr("Ungültig")); show(tr("Ansicht nicht gültig"), r.error); return; }
   }
   try {
     RFB = (await import("/novnc/core/rfb.js")).default;
   } catch (e) {
-    final = true; setState("ended", "Ungültig");
-    show("Ansicht nicht gültig", "In Bony's Agents erneut „Ansehen“ wählen."); return;
+    final = true; setState("ended", tr("Ungültig"));
+    show(tr("Ansicht nicht gültig"), tr("In Bony's Agents erneut „Ansehen“ wählen.")); return;
   }
   poll();
   setInterval(() => { if (!final) poll(); }, 1500);

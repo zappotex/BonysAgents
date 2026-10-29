@@ -839,3 +839,16 @@ def test_katalog_dialog_community_fragt_vor_dem_ersten_einschalten(qapp, datadir
     d.community_box.setChecked(True)                                    # zweites Einschalten: nicht noch einmal fragen
     assert len(gezeigt) == 2
     d.close()
+
+
+def test_sprachfassungen_nach_sprache():
+    """Englische Fassung = deutsche ID + „-en“; gezeigt wird die passende Sprache, Pakete ohne Gegenstück immer."""
+    from types import SimpleNamespace as P
+
+    pakete = [P(id="kurs", sprache="de"), P(id="kurs-en", sprache="en"), P(id="nur-de", sprache="de"),
+              P(id="only-en", sprache="en"), P(id="wien", sprache="de-AT"), P(id="wien-en", sprache="en")]
+    ids = lambda liste: [p.id for p in liste]  # noqa: E731
+    assert ids(kp.nach_sprache(pakete, "de")) == ["kurs", "nur-de", "only-en", "wien"]
+    assert ids(kp.nach_sprache(pakete, "en")) == ["kurs-en", "nur-de", "only-en", "wien-en"]
+    assert ids(kp.nach_sprache(pakete, "en", alle=True)) == ids(pakete)
+    assert kp.gegenstueck("kurs") == "kurs-en" and kp.gegenstueck("kurs-en") == "kurs"

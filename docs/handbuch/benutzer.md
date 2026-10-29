@@ -72,6 +72,14 @@ Vorlagen und Einstellungen bleiben erhalten.
   Kapitel „Häufige Fragen und Probleme“.
 - Eine **Internetverbindung** für die Einrichtung.
 
+## Sprache
+
+Bony's Agents richtet sich nach der Sprache deines Systems: Deutsch auf deutschen Systemen, sonst Englisch. Umstellen
+kannst du das im Menü **ⓘ → „Sprache / Language“**; es gilt nach einem Neustart.
+
+Jeder Agent-PC hat seine eigene Sprache, die du beim Erstellen wählst (**„Sprache des Agent-PCs“**). Sie bestimmt
+Menüs und Ordnernamen im Agent-PC, den Vorschlag für die Tastatur und die Sprache, in der Hermes zuhört und spricht.
+
 # Installation
 
 Lade die Datei für dein System von der Releases-Seite herunter:
@@ -188,8 +196,8 @@ Agent-PC von einer SSD aufnehmen) und **„Vorlagen“**. Das kleine **ⓘ** neb
 
 ![Das Menü hinter dem ⓘ](bilder/menue.png)
 
-Dort findest du unter anderem „Über Bony's Agents“, diese Anleitung, die Update-Einstellungen, „Bony-Netz …“ und
-unter „Ansicht“ die **Anzeigegröße** (größer oder kleiner, auch mit Strg + Plus und Strg + Minus).
+Dort findest du unter anderem „Über Bony's Agents“, diese Anleitung, die Update-Einstellungen, „Bony-Netz …“,
+„Sprache / Language“ und unter „Ansicht“ die **Anzeigegröße** (größer oder kleiner, auch mit Strg + Plus und Strg + Minus).
 
 ## Einen Agent-PC erstellen
 
@@ -207,21 +215,24 @@ Klicke auf **„+ Neuer Agent-PC“**. Es öffnet sich dieses Fenster:
    brauchst es selten, zum Beispiel für den Fernzugriff.
 5. **CPU-Kerne, Arbeitsspeicher, Festplatte** ④: Bony's Agents schlägt passende Werte vor. Du musst nichts ändern.
    Die Festplatte wächst nur so weit, wie sie wirklich gefüllt wird.
-6. **Desktop**: Cinnamon ist der Standard und sieht ähnlich aus wie Windows. Für schwache Rechner ist Xfce gut.
+6. **Sprache des Agent-PCs** und **Tastatur**: die Sprache im Agent-PC – Menüs, Ordner und die Spracheingabe von
+   Hermes. Vorgegeben ist die Sprache von Bony's Agents; die Tastatur zieht mit (Englisch: US-Belegung), außer du
+   wählst eine andere.
+7. **Desktop**: Cinnamon ist der Standard und sieht ähnlich aus wie Windows. Für schwache Rechner ist Xfce gut.
 
 Scrolle im Fenster nach unten:
 
 ![Neuer Agent-PC: unterer Teil mit Speicherort, Programmen und KI-Werkzeugen](bilder/neuer-agent-pc-programme.png){width=75%}
 
-7. **Speicherort**: Wo der Agent-PC liegen soll. Normalerweise auf deinem Rechner. Du kannst auch eine externe
+8. **Speicherort**: Wo der Agent-PC liegen soll. Normalerweise auf deinem Rechner. Du kannst auch eine externe
    SSD wählen.
-8. **Programme**: Brave, Telegram, Fernzugriff (RDP), das **Software-Center**, die Liste **Agenten-Apps** und
+9. **Programme**: Brave, Telegram, Fernzugriff (RDP), das **Software-Center**, die Liste **Agenten-Apps** und
    **n8n** sind schon angehakt. **Obsidian** (Notizen) und **Mission Control** kannst du zusätzlich wählen.
-9. **VPN**: Nur wenn du einen eigenen WireGuard-Zugang hast (siehe Kapitel „VPN“).
-10. **Bony-Netz**: Das Häkchen „Mit dem Bony-Netz verbinden“ erscheint nur, wenn du das Bony-Netz eingeschaltet
+10. **VPN**: Nur wenn du einen eigenen WireGuard-Zugang hast (siehe Kapitel „VPN“).
+11. **Bony-Netz**: Das Häkchen „Mit dem Bony-Netz verbinden“ erscheint nur, wenn du das Bony-Netz eingeschaltet
     hast. Für Kurse über das Internet muss es gesetzt sein (siehe Kapitel „Bony-Netz“).
-11. **KI-Werkzeuge**: **Hermes Agent** ist angehakt. OpenClaw und Claude Code sind freiwillig.
-12. Klicke auf **„Erstellen und starten“**.
+12. **KI-Werkzeuge**: **Hermes Agent** ist angehakt. OpenClaw und Claude Code sind freiwillig.
+13. Klicke auf **„Erstellen und starten“**.
 
 ## Warten, bis er eingerichtet ist
 
@@ -285,8 +296,8 @@ Ein Doppelklick startet das Programm.
 - **Telegram** ist ein Messenger. Du kannst dich mit deiner Telefonnummer anmelden – oder es weglassen.
 - **Hermes Agent** öffnet ein Terminal-Fenster, in dem du mit Hermes schreibst.
 
-Der Agent-PC ist auf Deutsch eingestellt, auch die Tastatur. Nach ein paar Minuten ohne Eingabe kommt ein
-Bildschirmschoner. Er geht mit einem Tastendruck weg, ohne Passwort.
+Der Agent-PC nutzt die Sprache und Tastatur, die du beim Erstellen gewählt hast. Nach ein paar Minuten ohne
+Eingabe kommt ein Bildschirmschoner. Er geht mit einem Tastendruck weg, ohne Passwort.
 
 ## Programme nachträglich hinzufügen
 
@@ -354,7 +365,7 @@ am Rechner, und der Agent-PC muss in seinem **eigenen Fenster** laufen (nicht im
 2. Drücke **Strg+B**, sprich deinen Satz und drücke wieder **Strg+B**.
 3. Hermes zeigt, was er verstanden hat, und antwortet als Text und mit Stimme.
 
-Erkannt wird auf Deutsch, direkt im Agent-PC – deine Stimme geht dafür nicht ins Internet. Im normalen Hermes-Fenster
+Erkannt wird in der Sprache des Agent-PCs, direkt im Agent-PC – deine Stimme geht dafür nicht ins Internet. Im normalen Hermes-Fenster
 schaltest du die Sprache mit `/voice on` ein. Mit Mission Control geht es genauso: Dort gibt es im Chat und beim
 Anlegen einer Mission den Knopf **„Sprechen“** und an jeder Antwort einen Knopf zum Vorlesen. Beim ersten Mal
 fragt der Browser, ob die Seite das Mikrofon benutzen darf – erlaube es.
@@ -369,7 +380,7 @@ ein. Dein API-Schlüssel liegt nur im Agent-PC (`~/.hermes/.env`), nicht auf dei
 - **OpenClaw**: Symbol „OpenClaw“ öffnen. Beim ersten Mal startet die Einrichtung: Modell wählen, anmelden,
   optional einen Chat verbinden.
 - **Claude Code**: Symbol „Claude Code“ öffnen. Es braucht ein **eigenes, bezahltes Claude-Konto**. Die Anmeldung
-  läuft beim ersten Start im Browser. Claude Code ist kein Open Source.
+  läuft beim ersten Start im Browser. Claude Code ist kein Open Source. Es startet im Ordner `~/Projekte`.
 
 # Weitere Funktionen
 
@@ -391,6 +402,8 @@ Kasten darunter steht genau, was gelöscht wird.
 
 - **Schnell (verknüpft)**: sofort fertig, braucht kaum Platz. Die Vorlage muss auf demselben Laufwerk bleiben.
 - **Unabhängig (vollständige Kopie)**: braucht mehr Platz, funktioniert aber ohne die Vorlage.
+
+Ein neuer Agent-PC aus einer Vorlage übernimmt deren Sprache und Tastatur.
 
 **Vorlagen verwalten:** Knopf **„Vorlagen“** oben im Hauptfenster. Dort kannst du umbenennen, die Beschreibung
 ändern, löschen, weitergeben und importieren.
@@ -450,7 +463,7 @@ Inkscape. Öffne **„Software“** über das Startmenü oder den Schreibtisch, 
 Passwort brauchst du dafür nicht. Beim ersten Start lädt das Software-Center einmal die Liste aller Programme,
 das dauert eine Minute.
 
-![Das Software-Center im Agent-PC](bilder/software-center.png){width=75%}
+![Das Software-Center im Agent-PC](bilder/eigene/software-center.png){width=75%}
 
 ## Tor Browser
 
@@ -516,7 +529,7 @@ schicken, Dateien bearbeiten, Webseiten und Dienste abfragen. Es ist beim Erstel
 - n8n braucht etwa **1 GB mehr Arbeitsspeicher**. Ist der Agent-PC zu knapp eingestellt, warnt das Fenster
   „Neuer Agent-PC“ und schlägt einen besseren Wert vor.
 
-![n8n im Agent-PC](bilder/n8n.png){width=75%}
+![n8n im Agent-PC](bilder/eigene/n8n.png){width=75%}
 
 ::: hinweis
 **Lizenz:** n8n steht unter der **Sustainable Use License**. Der Quellcode ist offen und du darfst n8n für dich
@@ -559,7 +572,7 @@ Auf dem Schreibtisch jedes neuen Agent-PCs liegt **„Agenten-Apps“**: eine Li
 PowerPoint), CADCraft und SolidCraft (Konstruktion) sowie die offiziellen MCP-Server für Dateien und Git und
 Playwright, mit dem Hermes einen Browser steuert.
 
-![Die Liste „Agenten-Apps“](bilder/agenten-apps.png){width=75%}
+![Die Liste „Agenten-Apps“](bilder/eigene/agenten-apps.png){width=75%}
 
 Bony's Agents installiert diese Programme **nicht** von selbst – du entscheidest. Jeder Eintrag zeigt unter
 **„Installieren & mit Hermes verbinden“** die Befehle zum Kopieren:
@@ -665,8 +678,10 @@ mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
 
 ![Die Bibliothek „Kurspakete“](bilder/kurspakete.png){width=80%}
 
-- **Mitgeliefert** sind „Einführung in Hermes Agent“ (fertig) und fünf **Entwürfe** – Gliederungen für weitere
-  Kurspakete von „Hermes über Telegram steuern“ bis „Lokale Modelle, VPN und mehrere Agenten“.
+- **Mitgeliefert** sind „Einführung in Hermes Agent“, „Was ist ein MCP-Server?“, „n8n-Grundlagen“ und „Bony's VPN“
+  (fertig) und fünf **Entwürfe** – Gliederungen für weitere Kurspakete von „Hermes über Telegram steuern“ bis „Lokale
+  Modelle, VPN und mehrere Agenten“. Alle gibt es auf Deutsch und Englisch; die Bibliothek zeigt die Fassung in der
+  Sprache von Bony's Agents – mit **„Alle Sprachen“** beide.
 - **„Importieren …“** übernimmt eine `.bonyspaket`-Datei, die du bekommen hast. Du kannst sie auch einfach auf das
   Fenster ziehen.
 - **„Aus dem Internet …“** zeigt die Kurspakete aus der offenen Bibliothek von Bony's Agents. Bony's Agents lädt
@@ -686,7 +701,7 @@ mit Stufe (Anfänger, Fortgeschritten, Experte), Dauer und deinem Fortschritt.
 1. Kurspaket wählen → **„Durcharbeiten“**.
 2. Bony's Agents schlägt einen **eigenen Agent-PC** für das Kurspaket vor (mit den Programmen, die es braucht) – oder
    du wählst einen vorhandenen. Ein eigener Agent-PC ist besser: Beim Üben geht dann nichts an deinen anderen
-   Agent-PCs kaputt.
+   Agent-PCs kaputt. Der neue Agent-PC wird in der Sprache des Kurspakets eingerichtet.
 3. Neben dem Agent-PC öffnet sich das Fenster **„Anleitung“**. Es bleibt über allen Fenstern am rechten Rand, damit
    du lesen und gleichzeitig im Agent-PC arbeiten kannst („Immer im Vordergrund“ lässt sich abschalten).
 

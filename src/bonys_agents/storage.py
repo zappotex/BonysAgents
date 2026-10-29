@@ -27,6 +27,7 @@ import platformdirs
 import psutil
 
 from bonys_agents import APP_ID
+from bonys_agents.i18n import tr
 
 LIBRARY_DIRNAME = "BonysAgents"
 GB = 1024 ** 3
@@ -113,7 +114,7 @@ def load_settings() -> dict:
     try:
         s = read_json(f)
         if not isinstance(s, dict):
-            raise ValueError("kein Objekt")
+            raise ValueError(tr("kein Objekt"))
     except OSError:
         s = {}
     except ValueError:
@@ -375,24 +376,25 @@ def check_location(path: Path, disk_gb: int, create: bool = False, min_free_gb: 
     drive = drive_for(path)
 
     if drive and drive.is_fat:
-        errors.append(
-            f"Das Laufwerk ist mit {drive.fstype.upper()} formatiert – das erlaubt keine Dateien über 4 GB. "
-            "Bitte als exFAT, NTFS oder ext4 formatieren."
-        )
+        errors.append(tr(
+            "Das Laufwerk ist mit {format} formatiert – das erlaubt keine Dateien über 4 GB. "
+            "Bitte als exFAT, NTFS oder ext4 formatieren.", format=drive.fstype.upper()
+        ))
 
     try:
         free = shutil.disk_usage(_existing_parent(path)).free
     except OSError:
         free = None
-        errors.append("Ordner ist nicht erreichbar – ist das Laufwerk eingesteckt?")
+        errors.append(tr("Ordner ist nicht erreichbar – ist das Laufwerk eingesteckt?"))
     if free is not None:
         if free < min_free_gb * GB:
-            errors.append(f"Zu wenig Platz: nur {free / GB:.1f} GB frei, mindestens {min_free_gb:g} GB nötig.")
+            errors.append(tr("Zu wenig Platz: nur {frei} GB frei, mindestens {mindestens} GB nötig.",
+                             frei=f"{free / GB:.1f}", mindestens=f"{min_free_gb:g}"))
         elif free < (disk_gb + 1) * GB:
-            warnings.append(
-                f"Nur {free / GB:.0f} GB frei. Die virtuelle Festplatte ({disk_gb} GB) wächst erst bei Bedarf, "
-                "kann das Laufwerk aber irgendwann füllen."
-            )
+            warnings.append(tr(
+                "Nur {frei} GB frei. Die virtuelle Festplatte ({groesse} GB) wächst erst bei Bedarf, "
+                "kann das Laufwerk aber irgendwann füllen.", frei=f"{free / GB:.0f}", groesse=disk_gb
+            ))
 
     if not errors and create:
         try:
@@ -401,10 +403,10 @@ def check_location(path: Path, disk_gb: int, create: bool = False, min_free_gb: 
             probe.write_bytes(b"ok")
             probe.unlink()
         except OSError as e:
-            errors.append(f"Keine Schreibrechte für {path}: {e.strerror or e}")
+            errors.append(tr("Keine Schreibrechte für {pfad}: {fehler}", pfad=path, fehler=e.strerror or e))
 
     if drive and drive.removable and not errors:
-        warnings.append("Wechseldatenträger: den Agent-PC vor dem Abziehen immer herunterfahren.")
+        warnings.append(tr("Wechseldatenträger: den Agent-PC vor dem Abziehen immer herunterfahren."))
     return LocationCheck(path, errors, warnings, drive)
 
 

@@ -1,0 +1,44 @@
+{
+  "fragen": [
+    {
+      "frage": "The DNS test shows your internet provider's servers. What does that mean?",
+      "antworten": [
+        "All good",
+        "The name requests bypass the tunnel – the provider still sees where you go",
+        "The kill switch is broken"
+      ],
+      "richtig": 1,
+      "erklaerung": "Good is: only the VPN provider's servers. Otherwise the DNS line is usually missing from the configuration."
+    },
+    {
+      "frage": "What does a VPN NOT help against?",
+      "antworten": [
+        "Your browser's fingerprint",
+        "Someone reading along on café Wi-Fi",
+        "Websites seeing your address"
+      ],
+      "richtig": 0,
+      "erklaerung": "The fingerprint comes from the browser, screen, fonts and more – no matter via which address you come."
+    },
+    {
+      "frage": "You sign in to your e-mail account via the VPN. Are you private there?",
+      "antworten": [
+        "Yes, the VPN hides me",
+        "No – through the sign-in, the e-mail provider knows who you are",
+        "Only in a private window"
+      ],
+      "richtig": 1,
+      "erklaerung": "Signing in always gives you away. So keep private things (your own Agent PC) apart from trying things out (throwaway PC)."
+    },
+    {
+      "frage": "What is a throwaway PC good for?",
+      "antworten": [
+        "Looking at unknown sites and downloads – delete it afterwards, nothing is left behind",
+        "It replaces the VPN",
+        "It makes the internet faster"
+      ],
+      "richtig": 0,
+      "erklaerung": "Created from a template, used, deleted – cookies, history and possible malware are gone."
+    }
+  ]
+}

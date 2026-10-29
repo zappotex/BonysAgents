@@ -13,8 +13,8 @@
 </head>
 <body>
   <header id="kopf">
-    <div id="kursname">Kursraum</div>
-    <div id="verbindung" hidden>Verbindung wird wiederhergestellt …</div>
+    <div id="kursname" data-tr>Kursraum</div>
+    <div id="verbindung" hidden data-tr>Verbindung wird wiederhergestellt …</div>
     <div id="rolle"></div>
   </header>
 
@@ -22,34 +22,34 @@
     <section id="buehne-bereich">
       <div id="buehne">
         <video id="buehne-video" autoplay playsinline muted></video>
-        <div id="buehne-leer">Der Kursleiter zeigt gerade nichts.</div>
+        <div id="buehne-leer" data-tr>Der Kursleiter zeigt gerade nichts.</div>
         <div id="buehne-name"></div>
       </div>
-      <div id="kameras" aria-label="Kameras"></div>
+      <div id="kameras"></div>
     </section>
 
     <aside id="seitenleiste">
-      <h2>Teilnehmer <span id="anzahl"></span></h2>
+      <h2><span data-tr>Teilnehmer</span> <span id="anzahl"></span></h2>
       <ul id="teilnehmer"></ul>
-      <h2>Chat</h2>
+      <h2 data-tr>Chat</h2>
       <div id="chat" aria-live="polite"></div>
       <form id="chat-form" autocomplete="off">
-        <input id="chat-text" maxlength="1000" placeholder="Nachricht an alle …" disabled>
-        <button id="chat-senden" type="submit" disabled>Senden</button>
+        <input id="chat-text" maxlength="1000" placeholder="Nachricht an alle …" data-tr-placeholder disabled>
+        <button id="chat-senden" type="submit" disabled data-tr>Senden</button>
       </form>
     </aside>
   </main>
 
   <footer id="leiste">
-    <button id="mikrofon" type="button" disabled>Mikrofon an</button>
-    <button id="kamera" type="button" disabled>Kamera an</button>
-    <button id="hand" type="button" disabled>✋ Hand heben</button>
-    <button id="teilen" type="button" disabled hidden>Bildschirm teilen</button>
-    <button id="hilfe" type="button" disabled hidden>🆘 Hilfe anfordern</button>
-    <label id="freigabe-wahl" hidden><input id="freigabe-pflicht" type="checkbox"> Sprechen nur nach Freigabe</label>
+    <button id="mikrofon" type="button" disabled data-tr>Mikrofon an</button>
+    <button id="kamera" type="button" disabled data-tr>Kamera an</button>
+    <button id="hand" type="button" disabled data-tr>✋ Hand heben</button>
+    <button id="teilen" type="button" disabled hidden data-tr>Bildschirm teilen</button>
+    <button id="hilfe" type="button" disabled hidden data-tr>🆘 Hilfe anfordern</button>
+    <label id="freigabe-wahl" hidden><input id="freigabe-pflicht" type="checkbox"> <span data-tr>Sprechen nur nach Freigabe</span></label>
     <span class="luecke"></span>
-    <button id="ton" type="button" hidden>Ton einschalten</button>
-    <button id="verlassen" type="button" class="gefahr">Kursraum verlassen</button>
+    <button id="ton" type="button" hidden data-tr>Ton einschalten</button>
+    <button id="verlassen" type="button" class="gefahr" data-tr>Kursraum verlassen</button>
   </footer>
 
   <div id="hinweis" hidden></div>
@@ -64,6 +64,7 @@
 
   <div id="audio" hidden></div>
 
+  <script src="texte.js"></script>
   <script src="qwebchannel.js"></script>
   <script src="vendor/livekit-client.umd.js"></script>
   <script src="kursraum.js"></script>

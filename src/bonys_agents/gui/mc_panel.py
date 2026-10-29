@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import APP_NAME, mission_control, vm
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import FlowLayout, open_url
@@ -47,10 +48,10 @@ class McPanel(QWidget):
         self.note.setWordWrap(True)
         lay.addWidget(self.note)
 
-        self.install_btn = QPushButton("Mission Control installieren")
+        self.install_btn = QPushButton(tr("Mission Control installieren"))
         self.install_btn.setObjectName("Primary")
-        self.install_btn.setToolTip("Installiert Mission Control samt Docker im laufenden Agent-PC – wie "
-                                    "„Programme hinzufügen“")
+        self.install_btn.setToolTip(tr("Installiert Mission Control samt Docker im laufenden Agent-PC – wie "
+                                       "„Programme hinzufügen“"))
         lay.addWidget(self.install_btn)
 
         self.body = QWidget()
@@ -58,28 +59,28 @@ class McPanel(QWidget):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(8)
         buttons = FlowLayout()
-        self.open_btn = QPushButton("Öffnen")
+        self.open_btn = QPushButton(tr("Öffnen"))
         self.open_btn.setObjectName("Primary")
-        self.open_btn.setToolTip("Öffnet die Oberfläche im Agent-PC (Brave)")
-        self.update_btn = QPushButton("Aktualisieren")
-        self.update_btn.setToolTip("Auf das neueste Release von Mission Control umstellen – Einstellungen, "
-                                   "Geheimnisse und Daten bleiben")
-        self.uninstall_btn = QPushButton("Deinstallieren …")
+        self.open_btn.setToolTip(tr("Öffnet die Oberfläche im Agent-PC (Brave)"))
+        self.update_btn = QPushButton(tr("Aktualisieren"))
+        self.update_btn.setToolTip(tr("Auf das neueste Release von Mission Control umstellen – Einstellungen, "
+                                      "Geheimnisse und Daten bleiben"))
+        self.uninstall_btn = QPushButton(tr("Deinstallieren …"))
         self.uninstall_btn.setObjectName("Danger")
-        self.refresh_btn = QPushButton("Status prüfen")
+        self.refresh_btn = QPushButton(tr("Status prüfen"))
         self.refresh_btn.setObjectName("Small")
         for b in (self.open_btn, self.update_btn, self.uninstall_btn, self.refresh_btn):
             buttons.addWidget(b)
         bl.addLayout(buttons)
 
-        self.forward = QCheckBox("Auch im Browser dieses Rechners öffnen (Weiterleitung, nur 127.0.0.1)")
-        self.forward.setToolTip(MC.FORWARD_WARNING)
+        self.forward = QCheckBox(tr("Auch im Browser dieses Rechners öffnen (Weiterleitung, nur 127.0.0.1)"))
+        self.forward.setToolTip(tr(MC.FORWARD_WARNING))
         bl.addWidget(self.forward)
         self.forward_note = QLabel()
         self.forward_note.setWordWrap(True)
         self.forward_note.setObjectName("Muted")
         bl.addWidget(self.forward_note)
-        self.host_open_btn = QPushButton("Hier im Browser öffnen")
+        self.host_open_btn = QPushButton(tr("Hier im Browser öffnen"))
         self.host_open_btn.setObjectName("Small")
         frow = FlowLayout()
         frow.addWidget(self.host_open_btn)
@@ -152,30 +153,31 @@ class McPanel(QWidget):
         self.body.setVisible(installed)
         self.headline.setStyleSheet("")
         if not installed:
-            self.headline.setText("Mission Control ist nicht installiert")
-            self.note.setText("Mission Control ist eine Übersicht und Steuerzentrale für deine Agenten im Browser "
-                              f"(Open Source, {MC.REPO_URL}). Sie läuft als Docker-Container nur im Agent-PC – "
-                              f"{MC.requirement_note()}. "
-                              + ("" if running else "Zum Installieren muss der Agent-PC laufen."))
+            self.headline.setText(tr("Mission Control ist nicht installiert"))
+            self.note.setText(tr("Mission Control ist eine Übersicht und Steuerzentrale für deine Agenten im Browser "
+                                 "(Open Source, {REPO_URL}). Sie läuft als Docker-Container nur im Agent-PC – "
+                                 "{wert}. ", REPO_URL=MC.REPO_URL, wert=MC.requirement_note())
+                              + ("" if running else tr("Zum Installieren muss der Agent-PC laufen.")))
         else:
             version = (c.app_info.get(MC.APP_ID) or {}).get("version", "")
             st = self.state
             if not running:
                 self.headline.setText("Mission Control" + (f" {version}" if version else ""))
-                self.note.setText("Status, Öffnen und Aktualisieren gibt es, solange der Agent-PC läuft.")
+                self.note.setText(tr("Status, Öffnen und Aktualisieren gibt es, solange der Agent-PC läuft."))
             elif st is None:
                 self.headline.setText("Mission Control")
-                self.note.setText(self.error or "Frage den Status im Agent-PC ab …")
+                self.note.setText(self.error or tr("Frage den Status im Agent-PC ab …"))
             else:
                 healthy = st.get("healthy")
                 self.headline.setText(f"●  {MC.status_text(st)}")
                 self.headline.setStyleSheet(f"color: {style.OK if healthy else style.WARN};")
-                notes = [f"Adresse im Agent-PC: http://127.0.0.1:{st.get('port', MC.PORT)}/ (nur dort erreichbar)"]
+                notes = [tr("Adresse im Agent-PC: http://127.0.0.1:{wert}/ (nur dort erreichbar)",
+                            wert=st.get('port', MC.PORT))]
                 if not st.get("installed"):
-                    notes = ["Laut Einstellungen installiert, im Agent-PC aber nicht gefunden – über „Programme "
-                             "hinzufügen“ bzw. Deinstallieren und neu installieren reparieren."]
+                    notes = [tr("Laut Einstellungen installiert, im Agent-PC aber nicht gefunden – über „Programme "
+                                "hinzufügen“ bzw. Deinstallieren und neu installieren reparieren.")]
                 elif not st.get("docker"):
-                    notes.append("⚠ Docker läuft im Agent-PC nicht.")
+                    notes.append(tr("⚠ Docker läuft im Agent-PC nicht."))
                 if self.error:
                     notes.append(f"⚠ {self.error}")
                 self.note.setText("\n".join(notes))
@@ -189,9 +191,10 @@ class McPanel(QWidget):
         self.forward.setChecked(c.mc_forward)
         fwd = c.mc_forward and bool(c.mc_forward_port)
         self.forward_note.setText(
-            (f"An: {MC.forward_url(m)} – nur auf diesem Rechner erreichbar." if fwd else
-             "Aus (Standard). Mission Control ist nur im Agent-PC erreichbar.")
-            + ("" if not fwd or m.is_running() else " Wirkt beim nächsten Start."))
+            (tr("An: {wert} – nur auf diesem Rechner erreichbar.",
+                wert=MC.forward_url(m)) if fwd else tr("Aus (Standard). Mission Control ist nur im Agent-PC "
+                                                       "erreichbar."))
+            + ("" if not fwd or m.is_running() else tr(" Wirkt beim nächsten Start.")))
         self.host_open_btn.setVisible(fwd)
         self.host_open_btn.setEnabled(fwd and m.is_running())
 
@@ -218,14 +221,15 @@ class McPanel(QWidget):
                 if done:
                     done(w.result)
             elif isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{w.error}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{error}\n\nPasswort "
+                                                                 "von „{name}“:", error=w.error, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._start(lambda _pw: fn(pw), done, message)
                     return
                 self.status.setText("")
             else:
-                self.status.setText(f"Fehler: {w.error}")
+                self.status.setText(tr("Fehler: {error}", error=w.error))
                 self.status.setStyleSheet(f"color: {style.DANGER};")
             self._show()
 
@@ -244,7 +248,7 @@ class McPanel(QWidget):
                 return MC.status(m, password=pw)
             except vm.NeedsPassword:
                 if quiet:
-                    return {"_error": "Der Gast-Agent antwortet nicht – „Status prüfen“ fragt nach dem Passwort."}
+                    return {"_error": tr("Der Gast-Agent antwortet nicht – „Status prüfen“ fragt nach dem Passwort.")}
                 raise
 
         def done(result) -> None:
@@ -254,7 +258,7 @@ class McPanel(QWidget):
                 return
             self.state, self.error = result, ""
 
-        self._start(fetch, done, "" if quiet else "Frage den Status ab …")
+        self._start(fetch, done, "" if quiet else tr("Frage den Status ab …"))
 
     def _done_message(self, text: str) -> None:
         self.status.setText(text)
@@ -264,16 +268,24 @@ class McPanel(QWidget):
         m = self.machine
         if m is None:
             return
-        self._start(lambda pw: MC.open_in_guest(m, password=pw), self._done_message, "Öffne Mission Control …")
+        self._start(lambda pw: MC.open_in_guest(m, password=pw), self._done_message, tr("Öffne Mission Control …"))
 
     def _update_app(self) -> None:
         m = self.machine
         if m is None:
             return
         if QMessageBox.question(
-                self, APP_NAME, f"Mission Control in „{m.name}“ auf das neueste Release umstellen?\n\nQuelle: "
-                f"{MC.REPO_URL} (Prüfsumme wird geprüft). Einstellungen, Geheimnisse und Daten bleiben. Dauert je nach "
-                "Download ein paar Minuten.") != QMessageBox.Yes:
+                self, APP_NAME, tr("Mission Control in "
+                                   "„{name}“ auf das neueste "
+                                   "Release "
+                                   "umstellen?\n\nQuelle: "
+                                   "{REPO_URL} (Prüfsumme "
+                                   "wird geprüft). "
+                                   "Einstellungen, "
+                                   "Geheimnisse und Daten "
+                                   "bleiben. Dauert je nach "
+                                   "Download ein paar "
+                                   "Minuten.", name=m.name, REPO_URL=MC.REPO_URL)) != QMessageBox.Yes:
             return
         self.output.clear()
 
@@ -282,7 +294,7 @@ class McPanel(QWidget):
             self.state = MC.status(m, password=pw)
             return msg
 
-        self._start(run, self._done_message, "Aktualisiere Mission Control im Agent-PC …")
+        self._start(run, self._done_message, tr("Aktualisiere Mission Control im Agent-PC …"))
 
     def _uninstall(self) -> None:
         m = self.machine
@@ -291,19 +303,20 @@ class McPanel(QWidget):
         box = QMessageBox(self)
         box.setWindowTitle(APP_NAME)
         box.setIcon(QMessageBox.Question)
-        box.setText(f"Mission Control aus „{m.name}“ entfernen?")
-        box.setInformativeText("Einstellungen und Daten bleiben im Agent-PC, eine spätere Neuinstallation übernimmt "
-                               "sie. Docker bleibt installiert.")
-        purge_cb = QCheckBox("Auch alle Daten und Einstellungen löschen (nicht umkehrbar)")
+        box.setText(tr("Mission Control aus „{name}“ entfernen?", name=m.name))
+        box.setInformativeText(tr("Einstellungen und Daten bleiben im Agent-PC, eine spätere Neuinstallation übernimmt "
+                                  "sie. Docker bleibt installiert."))
+        purge_cb = QCheckBox(tr("Auch alle Daten und Einstellungen löschen (nicht umkehrbar)"))
         box.setCheckBox(purge_cb)
         box.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-        box.button(QMessageBox.Yes).setText("Deinstallieren")
+        box.button(QMessageBox.Yes).setText(tr("Deinstallieren"))
         if box.exec() != QMessageBox.Yes:
             return
         purge = purge_cb.isChecked()
         if purge and QMessageBox.warning(
-                self, APP_NAME, "Wirklich ALLE Daten, Einstellungen und Geheimnisse von Mission Control in "
-                f"„{m.name}“ löschen?\n\nDas lässt sich nicht rückgängig machen.",
+                self, APP_NAME, tr("Wirklich ALLE Daten, Einstellungen und Geheimnisse von Mission "
+                                   "Control in „{name}“ löschen?\n\nDas lässt sich nicht rückgängig "
+                                   "machen.", name=m.name),
                 QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
             return
         self.output.clear()
@@ -320,9 +333,10 @@ class McPanel(QWidget):
         m = self.machine
         if m is None:
             return
-        if on and QMessageBox.warning(self, APP_NAME, MC.FORWARD_WARNING + "\n\nWeiterleitung einschalten?",
+        if on and QMessageBox.warning(self, APP_NAME, tr(MC.FORWARD_WARNING) + "\n\n" + tr("Weiterleitung "
+                                                                                           "einschalten?"),
                                       QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
             self._show()
             return
         self._start(lambda pw: MC.set_forward(m, on, password=pw), self._done_message,
-                    "Richte die Weiterleitung ein …" if on else "Schalte die Weiterleitung aus …")
+                    tr("Richte die Weiterleitung ein …") if on else tr("Schalte die Weiterleitung aus …"))

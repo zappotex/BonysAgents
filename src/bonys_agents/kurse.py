@@ -29,6 +29,7 @@ from bony_netz import Konto, Zentrale, ZentraleFehler
 from bony_netz.zentrale import kurscode_formatieren
 
 from bonys_agents import kurslauf, kurspaket, netz
+from bonys_agents.i18n import n_, tr
 
 T = TypeVar("T")
 
@@ -36,7 +37,7 @@ KURSLEITER_NAME = "kursleiter_name"   # Schlüssel in konto.extra
 ANZEIGENAME = "anzeigename"
 
 OFFEN, LAEUFT, PAUSIERT, BEENDET = "offen", "laeuft", "pausiert", "beendet"
-STATUS_TEXT = {OFFEN: "offen", LAEUFT: "läuft", PAUSIERT: "pausiert", BEENDET: "beendet"}
+STATUS_TEXT = {OFFEN: n_("offen"), LAEUFT: n_("läuft"), PAUSIERT: n_("pausiert"), BEENDET: n_("beendet")}
 _REIHENFOLGE = {LAEUFT: 0, PAUSIERT: 1, OFFEN: 2, BEENDET: 3}
 
 TAGE_MIN, TAGE_MAX, TAGE_STANDARD = 1, 60, 14
@@ -47,9 +48,9 @@ TEILNAHMEN_SEKUNDEN = 60      # „Der Kurs X hat begonnen“ – höchstens so 
 MAX_PAKET_MB = 25            # wie MAX_KURSPAKET_MB der Zentrale (Standard)
 MAX_PAKET = MAX_PAKET_MB * 1024 * 1024
 
-NETZ_HINWEIS = ("Solange der Kurs läuft, kannst du die gewählten Agenten-PCs der Teilnehmer über das Bony-Netz "
-                "erreichen.")
-BEENDEN_HINWEIS = "Alle Teilnehmer verlieren den Zugang."
+NETZ_HINWEIS = (n_("Solange der Kurs läuft, kannst du die gewählten Agenten-PCs der Teilnehmer über das Bony-Netz "
+                   "erreichen."))
+BEENDEN_HINWEIS = n_("Alle Teilnehmer verlieren den Zugang.")
 
 
 def _aufruf(fn: Callable[[Zentrale], T]) -> T:
@@ -123,11 +124,11 @@ class Stand:
     def lektion_text(self, paket: kurspaket.Kurspaket | None = None, gesamt: int = 0) -> str:
         if paket is not None and 0 < self.lektion <= len(paket.lektionen):
             return f"{self.lektion}. {paket.lektionen[self.lektion - 1].titel}"
-        return f"{self.lektion} von {gesamt}" if gesamt else str(self.lektion)
+        return tr("{lektion} von {gesamt}", lektion=self.lektion, gesamt=gesamt) if gesamt else str(self.lektion)
 
     @property
     def pruefung_text(self) -> str:
-        return {True: "✓ geschafft", False: "✗ noch nicht"}.get(self.geschafft, "–")
+        return {True: tr("✓ geschafft"), False: tr("✗ noch nicht")}.get(self.geschafft, "–")
 
 
 @dataclass
@@ -161,7 +162,7 @@ class Kurs:
     @classmethod
     def aus(cls, d) -> Kurs:
         if not isinstance(d, dict):
-            raise TypeError("kein Kurs")
+            raise TypeError(tr("kein Kurs"))
         return cls(
             kurs_id=str(d["kurs_id"]), name=str(d.get("name") or "?"),
             kursleiter_name=str(d.get("kursleiter_name") or ""), status=str(d.get("status") or OFFEN),
@@ -174,7 +175,7 @@ class Kurs:
 
     @property
     def status_text(self) -> str:
-        return STATUS_TEXT.get(self.status, self.status)
+        return tr(STATUS_TEXT.get(self.status, self.status))
 
     @property
     def laeuft(self) -> bool:
@@ -191,7 +192,7 @@ def _sortiert(kurse: list[Kurs]) -> list[Kurs]:
 
 def _liste(antwort) -> list[Kurs]:
     if not isinstance(antwort, list):
-        raise TypeError("keine Liste")
+        raise TypeError(tr("keine Liste"))
     return _sortiert([Kurs.aus(d) for d in antwort])
 
 
@@ -211,9 +212,10 @@ def _merken(schluessel: str, wert: str) -> None:
 def _text(wert: str, was: str) -> str:
     wert = " ".join(wert.split())
     if not wert:
-        raise ValueError(f"Bitte {was} eingeben.")
+        raise ValueError(tr("Bitte {was} eingeben.", was=was))
     if len(wert) > NAME_MAX:
-        raise ValueError(f"{was[0].upper()}{was[1:]} ist zu lang (höchstens {NAME_MAX} Zeichen).")
+        raise ValueError(tr("{wert}{wert2} ist zu lang (höchstens {NAME_MAX} Zeichen).", wert=was[0].upper(),
+                            wert2=was[1:], NAME_MAX=NAME_MAX))
     return wert
 
 
@@ -242,7 +244,7 @@ def _kursleiter_merken(an: bool) -> None:
 def kursleiter_freischalten(code: str) -> None:
     code = code.strip()
     if not code:
-        raise ValueError("Bitte den Kursleiter-Code eingeben.")
+        raise ValueError(tr("Bitte den Kursleiter-Code eingeben."))
     _aufruf(lambda z: z.kursleiter_freischalten(code))
     _kursleiter_merken(True)
 
@@ -260,7 +262,8 @@ def kurs_anlegen(name: str, kursleiter_name: str, tage: int = TAGE_STANDARD) -> 
     name = _text(name, "einen Kursnamen")
     kursleiter_name = _text(kursleiter_name, "deinen Anzeigenamen")
     if not TAGE_MIN <= int(tage) <= TAGE_MAX:
-        raise ValueError(f"Der Code kann {TAGE_MIN} bis {TAGE_MAX} Tage gültig sein.")
+        raise ValueError(tr("Der Code kann {TAGE_MIN} bis {TAGE_MAX} Tage gültig sein.", TAGE_MIN=TAGE_MIN,
+                            TAGE_MAX=TAGE_MAX))
     _merken(KURSLEITER_NAME, kursleiter_name)
     return Kurs.aus(_aufruf(lambda z: z.kurs_anlegen(name, kursleiter_name, int(tage))))
 
@@ -268,7 +271,7 @@ def kurs_anlegen(name: str, kursleiter_name: str, tage: int = TAGE_STANDARD) -> 
 def status_setzen(kurs_id: str, status: str) -> Kurs:
     aufrufe = {LAEUFT: Zentrale.kurs_starten, PAUSIERT: Zentrale.kurs_pausieren, BEENDET: Zentrale.kurs_beenden}
     if status not in aufrufe:
-        raise ValueError(f"Unbekannter Status: {status}")
+        raise ValueError(tr("Unbekannter Status: {status}", status=status))
     antwort = _aufruf(lambda z: aufrufe[status](z, kurs_id))
     try:
         return Kurs.aus(antwort)
@@ -286,8 +289,9 @@ def paket_packen(paket: kurspaket.Kurspaket) -> bytes:
         datei = kurspaket.packen(paket.pfad, Path(tmp) / kurspaket.dateiname(paket))
         daten = datei.read_bytes()
     if len(daten) > MAX_PAKET:
-        raise ValueError(f"Das Kurspaket ist gepackt {len(daten) / 1024 ** 2:.1f} MB groß – für einen Kurs gehen "
-                         f"höchstens {MAX_PAKET_MB} MB. Große Bilder verkleinern oder weglassen.")
+        raise ValueError(tr("Das Kurspaket ist gepackt {wert:.1f} MB groß – für einen Kurs gehen höchstens "
+                            "{MAX_PAKET_MB} MB. Große Bilder verkleinern oder weglassen.",
+                            wert=len(daten) / 1024 ** 2, MAX_PAKET_MB=MAX_PAKET_MB))
     return daten
 
 
@@ -327,7 +331,7 @@ def eigene_geraete() -> list[dict]:
     """
     liste = _aufruf(lambda z: z.geraete())
     if not isinstance(liste, list):
-        raise TypeError("keine Liste")
+        raise TypeError(tr("keine Liste"))
     selbst = _vpn_rechner()
     geraete = [g for g in liste if isinstance(g, dict) and g.get("geraet_id") is not None
                and not (selbst and g.get("name") == selbst)]
@@ -337,9 +341,9 @@ def eigene_geraete() -> list[dict]:
 def kurs_beitreten(code: str, geraet_id: str, anzeigename: str) -> Kurs:
     code = kurscode_formatieren(code)
     if len(code) < 4:
-        raise ValueError("Bitte den Kurscode eingeben (z. B. K7QX-M3PA).")
+        raise ValueError(tr("Bitte den Kurscode eingeben (z. B. K7QX-M3PA)."))
     if not geraet_id:
-        raise ValueError("Bitte einen Agent-PC wählen.")
+        raise ValueError(tr("Bitte einen Agent-PC wählen."))
     anzeigename = _text(anzeigename, "deinen Anzeigenamen")
     _merken(ANZEIGENAME, anzeigename)
     antwort = _aufruf(lambda z: z.kurs_beitreten(code, str(geraet_id), anzeigename))
@@ -379,7 +383,7 @@ def kurspaket_fuer_kurs(kurs: Kurs) -> kurspaket.Kurspaket:
     """
     a = kurs.kurspaket
     if a is None:
-        raise ValueError(f"Der Kurs „{kurs.name}“ hat kein Kurspaket.")
+        raise ValueError(tr("Der Kurs „{name}“ hat kein Kurspaket.", name=kurs.name))
     schon = kurspaket_vorhanden(a)
     if schon is not None:
         return schon
@@ -392,8 +396,8 @@ def paket_uebernehmen(daten: bytes, paket_id: str, sha256: str) -> kurspaket.Kur
 
     ``daten`` muss genau ``sha256`` haben; ist der Inhalt gleich einem vorhandenen Paket, bleibt das vorhandene."""
     if not isinstance(daten, bytes) or hashlib.sha256(daten).hexdigest() != sha256:
-        raise kurspaket.PaketFehler("Das Kurspaket kam nicht vollständig an (Prüfsumme passt nicht) – bitte später "
-                                    "noch einmal versuchen.")
+        raise kurspaket.PaketFehler(tr("Das Kurspaket kam nicht vollständig an (Prüfsumme passt nicht) – bitte später "
+                                       "noch einmal versuchen."))
     with tempfile.TemporaryDirectory(prefix="bonys-kurspaket-") as tmp:
         datei = Path(tmp) / "kurs.bonyspaket"
         datei.write_bytes(daten)
@@ -401,7 +405,7 @@ def paket_uebernehmen(daten: bytes, paket_id: str, sha256: str) -> kurspaket.Kur
         kurspaket.entpacken(datei, inhalt)
         neu = kurspaket.laden(inhalt)
         if neu.id != paket_id:
-            raise kurspaket.PaketFehler("Das Kurspaket des Kurses passt nicht zu seinen Angaben.")
+            raise kurspaket.PaketFehler(tr("Das Kurspaket des Kurses passt nicht zu seinen Angaben."))
         vorhanden = next((p for p in kurspaket.liste() if p.id == neu.id), None)
         if vorhanden is not None and vorhanden.version == neu.version \
                 and kurslauf.pruefsummen_text(vorhanden.pfad) == kurslauf.pruefsummen_text(neu.pfad):
@@ -409,9 +413,9 @@ def paket_uebernehmen(daten: bytes, paket_id: str, sha256: str) -> kurspaket.Kur
             return vorhanden
         if vorhanden is not None and vorhanden.herkunft == kurspaket.EIGEN:
             raise kurspaket.PaketFehler(
-                f"Du hast selbst ein Kurspaket mit derselben Kennung („{neu.id}“) erstellt. Damit es nicht "
-                "überschrieben wird, übernimmt Bony's Agents das Kurspaket des Kurses nicht – bitte dein eigenes "
-                "unter „Kurspakete“ duplizieren oder löschen.")
+                tr("Du hast selbst ein Kurspaket mit derselben Kennung („{id}“) erstellt. Damit es nicht "
+                   "überschrieben wird, übernimmt Bony's Agents das Kurspaket des Kurses nicht – bitte dein eigenes "
+                   "unter „Kurspakete“ duplizieren oder löschen.", id=neu.id))
         return kurspaket.importieren(datei, ersetzen=True, herkunft=kurspaket.KURS, sha256=sha256)
 
 
@@ -435,5 +439,5 @@ class Beobachter:
 
 def begonnen_text(kurse: list[Kurs]) -> str:
     if len(kurse) == 1:
-        return f"Der Kurs „{kurse[0].name}“ hat begonnen – „Kurse“ → „Kursraum betreten“."
+        return tr("Der Kurs „{name}“ hat begonnen – „Kurse“ → „Kursraum betreten“.", name=kurse[0].name)
     return "Diese Kurse haben begonnen: " + ", ".join(f"„{k.name}“" for k in kurse) + "."

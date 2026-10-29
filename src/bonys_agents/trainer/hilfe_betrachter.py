@@ -30,6 +30,7 @@ from pathlib import Path
 
 from bonys_agents import vncauth, websocket
 from bonys_agents.hilfe import ANSEHEN, Freigabe
+from bonys_agents.i18n import tr
 
 VERBINDEN_SEKUNDEN = 10
 KOPF_MAX = 16 * 1024
@@ -202,8 +203,8 @@ def tigervnc() -> str | None:
 
 def tigervnc_fehlt_text() -> str:
     schluessel = "linux" if sys.platform.startswith("linux") else sys.platform
-    return ("Für die Hilfe-Funktion fehlt der eingebettete Betrachter (Qt WebEngine) und TigerVNC ist nicht "
-            "installiert. " + TIGERVNC_FEHLT.get(schluessel, TIGERVNC_FEHLT["linux"]))
+    return (tr("Für die Hilfe-Funktion fehlt der eingebettete Betrachter (Qt WebEngine) und TigerVNC ist nicht "
+               "installiert. {wert}", wert=TIGERVNC_FEHLT.get(schluessel, TIGERVNC_FEHLT["linux"])))
 
 
 def passwortdatei(passwort: str, ordner: str | None = None) -> Path:
@@ -240,7 +241,7 @@ class TigerVNC:
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as e:
             self.aufraeumen()
-            raise BetrachterFehler(f"TigerVNC ließ sich nicht starten: {e}") from None
+            raise BetrachterFehler(tr("TigerVNC ließ sich nicht starten: {e}", e=e)) from None
 
     def laeuft(self) -> bool:
         return self.proc.poll() is None

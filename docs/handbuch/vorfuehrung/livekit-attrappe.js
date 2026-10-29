@@ -36,7 +36,7 @@
     x.fillStyle = '#fff'; x.font = '600 76px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillText(name[0], 240, 128);
     x.font = '20px sans-serif'; x.fillStyle = 'rgba(255,255,255,0.8)';
-    x.fillText('Kamera (Beispiel)', 240, 235);
+    x.fillText(document.documentElement.lang === 'en' ? 'Camera (sample)' : 'Kamera (Beispiel)', 240, 235);
     return c;
   }
 

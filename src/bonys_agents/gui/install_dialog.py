@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from bonys_agents import apps, desktops, mission_control, n8n, vm
 from bonys_agents import progress as pct
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import PercentBar, make_scrollable
@@ -42,7 +43,7 @@ class InstallWorker(QThread):
         except Exception as e:  # noqa: BLE001 – Fehler gehen an die Oberfläche
             self.done.emit(False, str(e))
         else:
-            self.done.emit(True, "Fertig – die Symbole liegen auf dem Schreibtisch des Agent-PCs.")
+            self.done.emit(True, tr("Fertig – die Symbole liegen auf dem Schreibtisch des Agent-PCs."))
         finally:
             self.password = ""  # nicht länger als nötig im Speicher halten
 
@@ -56,15 +57,16 @@ class InstallAppsDialog(QDialog):
         self.current = -1
         self.step_text = ""
         self.mc_req = mission_control.requirements(fetch=False)
-        self.setWindowTitle("Programme hinzufügen")
+        self.setWindowTitle(tr("Programme hinzufügen"))
 
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Programme hinzufügen")
+        title = QLabel(tr("Programme hinzufügen"))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel(f"Installiert fehlende Programme in „{machine.name}“, während er läuft. Bricht etwas ab, "
-                       "einfach erneut „Installieren“ – fertige Programme werden übersprungen.")
+        intro = QLabel(tr("Installiert fehlende Programme in „{name}“, während er läuft. Bricht "
+                          "etwas ab, einfach erneut „Installieren“ – fertige Programme werden "
+                          "übersprungen.", name=machine.name))
         intro.setWordWrap(True)
         root.addWidget(intro)
 
@@ -73,13 +75,13 @@ class InstallAppsDialog(QDialog):
         choices.setSpacing(2)
         root.addLayout(choices)
         for a in machine.missing_apps():
-            cb = QCheckBox(a.name)
-            cb.setToolTip(a.description)
-            text = a.description
+            cb = QCheckBox(tr(a.name))
+            cb.setToolTip(tr(a.description))
+            text = tr(a.description)
             if a.id == mission_control.APP_ID:
-                text += f" – Open Source, {mission_control.requirement_note(self.mc_req)}"
+                text += " – " + tr("Open Source, {bedarf}", bedarf=mission_control.requirement_note(self.mc_req))
             elif a.id == n8n.APP_ID:
-                text += f". {n8n.LICENSE_NOTE} – {n8n.requirement_note()}"
+                text += f". {tr(n8n.LICENSE_NOTE)} – {n8n.requirement_note()}"
             desc = QLabel(text)
             desc.setObjectName("Muted")
             desc.setWordWrap(True)
@@ -99,11 +101,11 @@ class InstallAppsDialog(QDialog):
         root.addWidget(self.warn)
 
         # Passwort nur, wenn der Gast-Agent nicht antwortet (dann geht es per SSH)
-        self.pw_box = QLabel(f"Passwort des Benutzers „{machine.config.username}“ im Agent-PC")
+        self.pw_box = QLabel(tr("Passwort des Benutzers „{username}“ im Agent-PC", username=machine.config.username))
         self.pw_box.setObjectName("Section")
         self.pw = QLineEdit()
         self.pw.setEchoMode(QLineEdit.Password)
-        self.pw.setPlaceholderText("nur nötig, wenn der Gast-Agent nicht antwortet – wird nicht gespeichert")
+        self.pw.setPlaceholderText(tr("nur nötig, wenn der Gast-Agent nicht antwortet – wird nicht gespeichert"))
         root.addSpacing(6)
         root.addWidget(self.pw_box)
         root.addWidget(self.pw)
@@ -126,8 +128,8 @@ class InstallAppsDialog(QDialog):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.ok_btn = QPushButton("Installieren")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.ok_btn = QPushButton(tr("Installieren"))
         self.ok_btn.setObjectName("Primary")
         row.addWidget(self.close_btn)
         row.addWidget(self.ok_btn)
@@ -155,7 +157,7 @@ class InstallAppsDialog(QDialog):
         ids = self.selected()
         plan = self.machine.install_plan(ids) if ids else []
         deps = [i for i in plan if i not in ids]
-        self.plan_label.setText(f"Wird mitinstalliert: {', '.join(apps.names(deps))}" if deps else "")
+        self.plan_label.setText(tr("Wird mitinstalliert: {wert}", wert=', '.join(apps.names(deps))) if deps else "")
         self.plan_label.setVisible(bool(deps))
         c = self.machine.config
         desktop_ram = desktops.get(c.desktop).min_ram_mb
@@ -164,8 +166,8 @@ class InstallAppsDialog(QDialog):
         mc_ram = self.mc_req.min_ram_mb if mission_control.APP_ID in [*plan, *c.apps] else 0
         warnings += n8n.resource_warnings(plan, c.ram_mb, desktop_ram, mc_ram)
         if warnings:
-            warnings.append("Installieren geht trotzdem – RAM und Festplatte lassen sich im ausgeschalteten "
-                            "Agent-PC anpassen.")
+            warnings.append(tr("Installieren geht trotzdem – RAM und Festplatte lassen sich im ausgeschalteten "
+                               "Agent-PC anpassen."))
         self.warn.setText("\n".join(f"⚠ {w}" for w in warnings))
         self.warn.setVisible(bool(warnings))
         self.ok_btn.setEnabled(not busy and bool(ids) and (not self.need_pw or bool(self.pw.text())))
@@ -194,7 +196,7 @@ class InstallAppsDialog(QDialog):
     def _step(self, n: int, total: int, app_id: str) -> None:
         self.current = self.plan.index(app_id) if app_id in self.plan else n - 1
         self.step_text = ""
-        self.status.setText(f"Installiere {apps.APPS[app_id].name} ({n} von {total}) …")
+        self.status.setText(tr("Installiere {name} ({n} von {total}) …", name=apps.APPS[app_id].name, n=n, total=total))
         self.progress.set_percent(pct.install_percent(self.plan, self.current, ""))
 
     def _log(self, line: str) -> None:
@@ -207,8 +209,8 @@ class InstallAppsDialog(QDialog):
         self.need_pw = True
         self.pw_box.setVisible(True)
         self.pw.setVisible(True)
-        self._finish(False, "Der Gast-Agent antwortet nicht – bitte das Passwort eingeben, dann geht es per SSH "
-                            "weiter.")
+        self._finish(False, tr("Der Gast-Agent antwortet nicht – bitte das Passwort eingeben, dann geht es per SSH "
+                               "weiter."))
 
     def _done(self, ok: bool, msg: str) -> None:
         self._finish(ok, msg)
@@ -225,7 +227,7 @@ class InstallAppsDialog(QDialog):
             cb.setEnabled(not installed)
             if installed:
                 cb.setChecked(False)
-                cb.setText(f"{apps.APPS[app_id].name} – installiert")
+                cb.setText(tr("{name} – installiert", name=apps.APPS[app_id].name))
         self._update()
 
     def reject(self) -> None:

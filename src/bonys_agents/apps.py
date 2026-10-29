@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from bonys_agents import desktops, screen
+from bonys_agents.i18n import n_, tr
 
 PROGRAM = "program"
 AGENT = "agent"
@@ -72,7 +73,7 @@ BRAVE_BASIC_MARKER = desktops.BRAVE_BASIC_MARKER
 BRAVE = AppSpec(
     id="brave",
     name="Brave Browser",
-    description="Datenschutzfreundlicher Browser (offizielles Brave-Repository)",
+    description=n_("Datenschutzfreundlicher Browser (offizielles Brave-Repository)"),
     check="command -v brave-browser",
     launcher="brave-browser.desktop",
     version="dpkg-query -W -f='${Version}' brave-browser",
@@ -101,7 +102,7 @@ cp /usr/local/share/applications/brave-browser.desktop "$DESKTOP_DIR/"
 TELEGRAM = AppSpec(
     id="telegram",
     name="Telegram Desktop",
-    description="Messenger über Flathub (x86_64 und ARM64)",
+    description=n_("Messenger über Flathub (x86_64 und ARM64)"),
     check="flatpak info org.telegram.desktop",
     launcher="org.telegram.desktop.desktop",
     version="flatpak info org.telegram.desktop | sed -n 's/^ *Version: *//p'",
@@ -115,8 +116,8 @@ cp /var/lib/flatpak/exports/share/applications/org.telegram.desktop.desktop "$DE
 
 XRDP = AppSpec(
     id="xrdp",
-    name="Fernzugriff (RDP)",
-    description="Fernsteuerung mit Ton – z. B. mit Remmina oder der Windows-Remotedesktopverbindung",
+    name=n_("Fernzugriff (RDP)"),
+    description=n_("Fernsteuerung mit Ton – z. B. mit Remmina oder der Windows-Remotedesktopverbindung"),
     weight=6.0,
     check="test -x /usr/sbin/xrdp",  # nur installiert – eingeschaltet wird bei Bedarf
     version="dpkg-query -W -f='${Version}' xrdp",
@@ -159,8 +160,8 @@ systemctl disable --now xrdp xrdp-sesman || true
 
 OBSIDIAN = AppSpec(
     id="obsidian",
-    name="Obsidian (Notizen)",
-    description="Markdown-Notizen (offizielles GitHub-Release) – kostenlos, aber kein Open Source",
+    name=n_("Obsidian (Notizen)"),
+    description=n_("Markdown-Notizen (offizielles GitHub-Release) – kostenlos, aber kein Open Source"),
     default=False,
     weight=8.0,
     check="test -x /opt/Obsidian/obsidian",
@@ -248,8 +249,8 @@ sed 's|^Exec=/opt/Obsidian/obsidian |Exec=/opt/Obsidian/obsidian --password-stor
   /usr/share/applications/md.obsidian.Obsidian.desktop > /usr/local/share/applications/md.obsidian.Obsidian.desktop
 grep -q -- '--password-store=basic' /usr/local/share/applications/md.obsidian.Obsidian.desktop
 cp /usr/local/share/applications/md.obsidian.Obsidian.desktop "$DESKTOP_DIR/"
-# Leerer Tresor „Agent-Notizen“, beim ersten Start schon geöffnet (keine Anmeldung, kein Sync)
-VAULT="$AGENT_HOME/Agent-Notizen"
+# Leerer Tresor „Agent-Notizen“ (englisch „Agent Notes“), beim ersten Start schon geöffnet (keine Anmeldung, kein Sync)
+VAULT="$AGENT_HOME/Agent-Notizen"; [ "${AGENT_LANG:-de}" = de ] || VAULT="$AGENT_HOME/Agent Notes"
 mkdir -p "$VAULT/.obsidian" "$AGENT_HOME/.config/obsidian"
 CONF="$AGENT_HOME/.config/obsidian/obsidian.json"
 if [ ! -s "$CONF" ]; then
@@ -344,7 +345,7 @@ done
 VPN = AppSpec(
     id="vpn",
     name="WireGuard VPN (Bony's VPN)",
-    description="Eigene WireGuard-Tunnel mit Kill-Switch und Tray-Symbol – Konfiguration bringst du selbst mit",
+    description=n_("Eigene WireGuard-Tunnel mit Kill-Switch und Tray-Symbol – Konfiguration bringst du selbst mit"),
     default=False,
     weight=3.0,
     check="test -x /usr/bin/bonys-vpn-gui && test -x /usr/sbin/bonys-vpn-helper && id -nG | grep -qw bonys-vpn",
@@ -363,7 +364,7 @@ DOCKER_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx
 DOCKER = AppSpec(
     id="docker",
     name="Docker",
-    description="Container-Laufzeit aus der offiziellen Docker-Paketquelle (für Mission Control)",
+    description=n_("Container-Laufzeit aus der offiziellen Docker-Paketquelle (für Mission Control)"),
     default=False,
     hidden=True,
     weight=8.0,
@@ -436,8 +437,8 @@ def _agenten_apps():
 # Bony's Agents („Agent-PC aktualisieren“), zwei gleichzeitige apt-Läufe würden sich sperren.
 SOFTWARE_CENTER = AppSpec(
     id="software-center",
-    name="Software-Center",
-    description="Programme wie GIMP oder Inkscape per Klick installieren (GNOME Software mit Flathub)",
+    name=n_("Software-Center"),
+    description=n_("Programme wie GIMP oder Inkscape per Klick installieren (GNOME Software mit Flathub)"),
     weight=4.0,
     check="command -v gnome-software && flatpak remotes --columns=name | grep -qx flathub",
     launcher="org.gnome.Software.desktop",
@@ -492,7 +493,7 @@ fi
 TOR_BROWSER = AppSpec(
     id="tor-browser",
     name="Tor Browser",
-    description="Anonymer surfen über das Tor-Netz (offizieller Tor Browser, Signatur geprüft) – nur x86_64",
+    description=n_("Anonymer surfen über das Tor-Netz (offizieller Tor Browser, Signatur geprüft) – nur x86_64"),
     default=False,
     weight=3.0,
     archs=("x86_64",),
@@ -524,9 +525,9 @@ done
 # Wireshark darf der Agent-Benutzer ohne root mitschneiden (wirkt ab der nächsten Anmeldung).
 KALI_TOOLS = AppSpec(
     id="kali-tools",
-    name="Kali-Werkzeuge",
-    description="Die zehn bekanntesten Kali-Werkzeuge (nmap, Metasploit, Burp Suite, Wireshark …) mit Kali-Menü – "
-                "nur unter Kali Linux",
+    name=n_("Kali-Werkzeuge"),
+    description=n_("Die zehn bekanntesten Kali-Werkzeuge (nmap, Metasploit, Burp Suite, Wireshark …) mit Kali-Menü – "
+                   "nur unter Kali Linux"),
     default=False,
     weight=25.0,
     distros=("kali",),
@@ -543,7 +544,7 @@ usermod -a -G wireshark "$AGENT_USER"
 HERMES = AppSpec(
     id="hermes",
     name="Hermes Agent",
-    description="Selbstlernender KI-Agent von Nous Research (offizieller Installer)",
+    description=n_("Selbstlernender KI-Agent von Nous Research (offizieller Installer)"),
     category=AGENT,
     weight=12.0,
     check='PATH="$HOME/.local/bin:$PATH" command -v hermes',
@@ -562,16 +563,17 @@ hermes
 exec bash
 EOF
 chmod 755 /usr/local/bin/bonys-hermes
-# Sprache: Sprachpakete, Erkennung auf Deutsch – Hermes stellt sonst Englisch ein und übersetzt. Modell „base“ ist
-# schnell genug. Stimme lokal mit Piper (Thorsten), als Alternative Edge (Katja, über das Internet). Beides wird vorab
-# geladen. Die Verknüpfung „Hermes Agent (Sprache)“ schaltet Sprachmodus und Vorlesen gleich ein (sonst im Chat
-# „/voice on“); gesprochen wird mit Strg+B.
+# Sprache: Sprachpakete, Erkennung in der Sprache des Agent-PCs – Hermes stellt sonst Englisch ein und übersetzt.
+# Modell „base“ ist schnell genug. Stimme lokal mit Piper (Thorsten bzw. Lessac), als Alternative Edge (Katja bzw. Aria,
+# über das Internet). Beides wird vorab geladen. Die Verknüpfung „Hermes Agent (Sprache)“ schaltet Sprachmodus und
+# Vorlesen gleich ein (sonst im Chat „/voice on“); gesprochen wird mit Strg+B.
 cat > /usr/local/bin/bonys-hermes-sprachmodell <<'EOF'
 #!/bin/bash
-# Sprachmodell und Stimme von Hermes vorab laden (sonst dauert das erste Sprechen bzw. Vorlesen rund 30 s)
+# Sprachmodell und Stimme von Hermes vorab laden (sonst dauert das erste Sprechen bzw. Vorlesen rund 30 s).
+# Argument: Piper-Stimme (Standard de_DE-thorsten-medium)
 H="$HOME/.hermes/hermes-agent/.hermes/bin/hermes"
 [ -x "$H" ] || exit 0
-python3 - "$H" <<'PY'
+python3 - "$H" "${1:-de_DE-thorsten-medium}" <<'PY'
 import json, subprocess, sys
 cmd = json.loads(subprocess.run([sys.argv[1], "--print-runtime-command"], capture_output=True, text=True,
                                 check=True).stdout)
@@ -579,7 +581,7 @@ start = "runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True
 if len(cmd) < 4 or start not in cmd[3]:
     sys.exit("Startbefehl von Hermes unbekannt – Sprachmodell und Stimme laden beim ersten Gebrauch.")
 laden = ("from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8'); "
-         "sys.argv = ['piper', 'de_DE-thorsten-medium', '--download-dir', "
+         "sys.argv = ['piper', " + repr(sys.argv[2]) + ", '--download-dir', "
          "os.path.expanduser('~/.hermes/cache/piper-voices')]; runpy.run_module('piper.download_voices', "
          "run_name='__main__')")
 subprocess.run(cmd[:3] + [cmd[3].replace(start, laden)], check=True)
@@ -611,7 +613,9 @@ exec tmux attach -t "$S"
 EOF
 chmod 755 /usr/local/bin/bonys-hermes-sprache
 apt-get install -y libportaudio2 ffmpeg tmux
-su - "$AGENT_USER" -c 'export PATH="$HOME/.local/bin:$PATH"; hermes pm install --extra voice --extra piper --extra edge-tts && hermes config set stt.language de && hermes config set stt.local.language de && hermes config set stt.local.model base && hermes config set tts.provider piper && hermes config set tts.piper.voice de_DE-thorsten-medium && hermes config set tts.edge.voice de-DE-KatjaNeural && hermes config set voice.auto_tts true && /usr/local/bin/bonys-hermes-sprachmodell' </dev/null \
+if [ "${AGENT_LANG:-de}" = de ]; then HL=de; HP=de_DE-thorsten-medium; HE=de-DE-KatjaNeural
+else HL=en; HP=en_US-lessac-medium; HE=en-US-AriaNeural; fi
+su - "$AGENT_USER" -c "export PATH=\"\$HOME/.local/bin:\$PATH\"; hermes pm install --extra voice --extra piper --extra edge-tts && hermes config set stt.language $HL && hermes config set stt.local.language $HL && hermes config set stt.local.model base && hermes config set tts.provider piper && hermes config set tts.piper.voice $HP && hermes config set tts.edge.voice $HE && hermes config set voice.auto_tts true && /usr/local/bin/bonys-hermes-sprachmodell $HP" </dev/null \
   || echo "WARNUNG: Spracheingabe für Hermes nicht vollständig eingerichtet – im Terminal „hermes pm install --extra voice“."
 # Mission Control schon da (wird vor Hermes installiert): Sprachdienst für „Sprechen“ und Vorlesen einschalten
 if [ -x /opt/bonys-mission-control/scripts/hermes-team.sh ]; then
@@ -622,7 +626,8 @@ cat > /usr/share/applications/hermes-agent.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Hermes Agent
-Comment=Hermes Agent im Terminal starten
+Comment=Start Hermes Agent in a terminal
+Comment[de]=Hermes Agent im Terminal starten
 Exec=/usr/local/bin/bonys-terminal "Hermes Agent" /usr/local/bin/bonys-hermes
 Icon=utilities-terminal
 Terminal=false
@@ -631,9 +636,11 @@ EOF
 cat > /usr/share/applications/hermes-agent-sprache.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Hermes Agent (Sprache)
-Comment=Hermes Agent mit Spracheingabe und gesprochenen Antworten (Strg+B zum Sprechen)
-Exec=/usr/local/bin/bonys-terminal "Hermes Agent (Sprache)" /usr/local/bin/bonys-hermes-sprache
+Name=Hermes Agent (Voice)
+Name[de]=Hermes Agent (Sprache)
+Comment=Hermes Agent with voice input and spoken answers (Ctrl+B to talk)
+Comment[de]=Hermes Agent mit Spracheingabe und gesprochenen Antworten (Strg+B zum Sprechen)
+Exec=/usr/local/bin/bonys-terminal "Hermes Agent 🎤" /usr/local/bin/bonys-hermes-sprache
 Icon=audio-input-microphone
 Terminal=false
 Categories=Utility;
@@ -645,7 +652,7 @@ cp /usr/share/applications/hermes-agent.desktop /usr/share/applications/hermes-a
 OPENCLAW = AppSpec(
     id="openclaw",
     name="OpenClaw",
-    description="Persönlicher KI-Assistent mit Chat-Anbindung (Telegram, WhatsApp u. a.)",
+    description=n_("Persönlicher KI-Assistent mit Chat-Anbindung (Telegram, WhatsApp u. a.)"),
     category=AGENT,
     weight=12.0,
     default=False,
@@ -668,11 +675,14 @@ cat > /usr/local/bin/bonys-openclaw <<'EOF'
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$PATH"
 MARKER="$HOME/.openclaw/.bonys-eingerichtet"
 if ! command -v openclaw >/dev/null; then
-  echo "OpenClaw fehlt – installiere …"
+  case "${LANG:-}" in de*) echo "OpenClaw fehlt – installiere …" ;; *) echo "OpenClaw is missing – installing …" ;; esac
   curl -fsSL --retry 3 --max-time 120 https://openclaw.ai/install-cli.sh | bash -s -- --no-onboard
 fi
 if [ ! -f "$MARKER" ]; then
-  echo "Ersteinrichtung von OpenClaw – Modell wählen und anmelden."
+  case "${LANG:-}" in
+    de*) echo "Ersteinrichtung von OpenClaw – Modell wählen und anmelden." ;;
+    *) echo "Setting up OpenClaw – choose a model and sign in." ;;
+  esac
   openclaw onboard --no-install-daemon && mkdir -p "$HOME/.openclaw" && touch "$MARKER"
 else
   openclaw
@@ -684,7 +694,8 @@ cat > /usr/share/applications/openclaw.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=OpenClaw
-Comment=Persönlicher KI-Assistent im Terminal
+Comment=Personal AI assistant in a terminal
+Comment[de]=Persönlicher KI-Assistent im Terminal
 Exec=/usr/local/bin/bonys-terminal OpenClaw /usr/local/bin/bonys-openclaw
 Icon=utilities-terminal
 Terminal=false
@@ -697,8 +708,8 @@ cp /usr/share/applications/openclaw.desktop "$DESKTOP_DIR/"
 CLAUDE_CODE = AppSpec(
     id="claude-code",
     name="Claude Code",
-    description="KI-Programmierhilfe von Anthropic im Terminal – Anmeldung mit eigenem Claude-Konto; "
-                "kein Open Source, Nutzung braucht ein kostenpflichtiges Claude-Abo oder API-Guthaben",
+    description=n_("KI-Programmierhilfe von Anthropic im Terminal – Anmeldung mit eigenem Claude-Konto; "
+                   "kein Open Source, Nutzung braucht ein kostenpflichtiges Claude-Abo oder API-Guthaben"),
     category=AGENT,
     weight=8.0,
     default=False,
@@ -719,14 +730,20 @@ rm -rf "$AGENT_HOME/.local/bin/claude" "$AGENT_HOME/.local/share/claude" "$AGENT
 su - "$AGENT_USER" -c 'curl -fsSL --retry 3 --max-time 120 https://claude.ai/install.sh | bash' </dev/null \
   || echo "WARNUNG: Claude-Code-Installation fehlgeschlagen – im Terminal erneut ausführen."
 ensure_path .local/bin
-install -d -o "$AGENT_USER" -g "$AGENT_USER" "$AGENT_HOME/Projekte"
+if [ "${AGENT_LANG:-de}" = de ]; then P=Projekte; else P=Projects; fi
+install -d -o "$AGENT_USER" -g "$AGENT_USER" "$AGENT_HOME/$P"
 cat > /usr/local/bin/bonys-claude-code <<'EOF'
 #!/bin/bash
-# Claude Code im Ordner ~/Projekte starten. Beim ersten Start meldest du dich selbst an.
+# Claude Code im Ordner ~/Projekte (englisch ~/Projects) starten. Beim ersten Start meldest du dich selbst an.
 export PATH="$HOME/.local/bin:$PATH"
-mkdir -p "$HOME/Projekte" && cd "$HOME/Projekte" || exit 1
+case "${LANG:-}" in de*) P="$HOME/Projekte" ;; *) P="$HOME/Projects" ;; esac
+[ -d "$HOME/Projekte" ] && [ ! -d "$HOME/Projects" ] && P="$HOME/Projekte"
+mkdir -p "$P" && cd "$P" || exit 1
 if ! command -v claude >/dev/null; then
-  echo "Claude Code fehlt – installiere mit dem offiziellen Installer …"
+  case "${LANG:-}" in
+    de*) echo "Claude Code fehlt – installiere mit dem offiziellen Installer …" ;;
+    *) echo "Claude Code is missing – installing with the official installer …" ;;
+  esac
   curl -fsSL --retry 3 --max-time 120 https://claude.ai/install.sh | bash
 fi
 claude
@@ -737,7 +754,8 @@ cat > /usr/share/applications/claude-code.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Claude Code
-Comment=KI-Programmierhilfe im Terminal (Anmeldung mit eigenem Claude-Konto)
+Comment=AI coding assistant in a terminal (sign in with your own Claude account)
+Comment[de]=KI-Programmierhilfe im Terminal (Anmeldung mit eigenem Claude-Konto)
 Exec=/usr/local/bin/bonys-terminal "Claude Code" /usr/local/bin/bonys-claude-code
 Icon=utilities-terminal
 Terminal=false
@@ -810,10 +828,11 @@ def check_arch(app_ids: list[str] | tuple[str, ...], arch: str, distro: str = "d
     deps = [APPS[i] for i in with_dependencies(list(app_ids)) if i in APPS]
     bad_arch = [a.name for a in deps if not a.available(arch, distro) and a.archs and arch not in a.archs]
     if bad_arch:
-        raise ValueError(f"Nicht verfügbar auf {arch}: {', '.join(bad_arch)}.")
+        raise ValueError(tr("Nicht verfügbar auf {arch}: {wert}.", arch=arch, wert=', '.join(bad_arch)))
     bad_distro = [a.name for a in deps if not a.available(arch, distro)]
     if bad_distro:
-        raise ValueError(f"Nicht verfügbar unter {distros.name(distro)}: {', '.join(bad_distro)}.")
+        raise ValueError(tr("Nicht verfügbar unter {wert}: {wert2}.", wert=distros.name(distro),
+                            wert2=', '.join(bad_distro)))
 
 
 def resolve(app_ids: list[str]) -> list[AppSpec]:
@@ -821,13 +840,14 @@ def resolve(app_ids: list[str]) -> list[AppSpec]:
     app_ids = [i.strip() for i in app_ids if i.strip()]
     unknown = [i for i in app_ids if i not in APPS]
     if unknown:
-        raise ValueError(f"Unbekannte App(s): {', '.join(unknown)}. Verfügbar: {', '.join(visible_ids())}")
+        raise ValueError(tr("Unbekannte App(s): {wert}. Verfügbar: {wert2}", wert=', '.join(unknown),
+                            wert2=', '.join(visible_ids())))
     return [APPS[i] for i in with_dependencies(app_ids)]
 
 
 def names(app_ids: list[str]) -> list[str]:
     """Anzeigenamen; unbekannte IDs (z. B. aus neueren Versionen) bleiben, wie sie sind."""
-    return [APPS[i].name if i in APPS else i for i in app_ids]
+    return [tr(APPS[i].name) if i in APPS else i for i in app_ids]
 
 
 def labels(app_ids: list[str], app_info: dict | None = None) -> list[str]:

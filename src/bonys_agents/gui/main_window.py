@@ -18,11 +18,13 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import (
-    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, deps, desktops, distros,
-    edition, host, kurse, kurspaket, netz, remote,
+    APP_NAME, INTRO_VIDEO_URL, REPO_URL, TAGLINE, YOUTUBE_CHANNEL_URL, __version__, apps, cloudinit, deps, desktops,
+    distros, edition, host, kurse, kurspaket, netz, remote,
     screen, storage, updates, vm, vpnlink,
 )
+from bonys_agents import i18n
 from bonys_agents import progress as pct
+from bonys_agents.i18n import n_, tr
 
 from . import musik_ui, style
 from .about_dialog import AboutDialog
@@ -48,8 +50,15 @@ from .widgets import (
 from .workers import TaskWorker
 
 
+# Englische Fassungen der Handbücher (docs/handbuch/en/)
+HANDBUCH_EN = {"Benutzerhandbuch": "User-Guide", "Kursleiter-Handbuch": "Trainer-Guide"}
+
+
 def handbuch_url(name: str) -> str:
-    """Handbuch als PDF am Release genau dieser Version (docs/handbuch/, die Release-Aktion hängt es an)."""
+    """Handbuch als PDF am Release genau dieser Version (docs/handbuch/, die Release-Aktion hängt es an) – in der
+    Sprache der Oberfläche."""
+    if i18n.sprache() == i18n.ENGLISCH:
+        name = HANDBUCH_EN.get(name, name)
     return f"{REPO_URL}/releases/download/v{__version__}/BonysAgents-{name}-{__version__}.pdf"
 
 
@@ -96,25 +105,26 @@ def _card() -> QFrame:
     return f
 
 
-HINT_SETUP = ("Der Agent-PC richtet sich im Hintergrund ein. "
-              "Das Fenster öffnet sich automatisch, sobald der Desktop bereit ist.")
-HINT_ABORTED = ("Die Einrichtung wurde unterbrochen, bevor der Desktop fertig war. "
-                "Sie kann fortgesetzt werden – erledigte Schritte werden übersprungen.")
-HINT_READY = "Einrichtung fertig – der Agent-PC startet gleich mit Desktop …"
-HINT_TEMPLATE_MISSING = ("Dieser Agent-PC baut auf einer Vorlage auf, die gerade nicht erreichbar ist (Pfad darunter). "
-                         "Steck das Laufwerk mit der Vorlage ein – dann ist der Agent-PC wieder verfügbar.")
-HINT_TEMPLATE_LOCK = ("Aus diesem Agent-PC wird gerade eine Vorlage erstellt. Bis das fertig ist, lässt er sich nicht "
-                      "starten (das Original bleibt dabei unverändert).")
-HINT_STOPPING = ("Der Agent-PC fährt herunter. Reagiert er nicht, kannst du ihn sofort ausschalten – "
-                 f"nach {vm.STOP_TIMEOUT} Sekunden geschieht das automatisch.")
-HINT_SETUP_FAILED = ("Bei der Einrichtung ist etwas schiefgegangen: {steps}. Fehlende Programme über "
-                     "„Programme hinzufügen …“ nachinstallieren – Einzelheiten im Protokoll.")
-MISSING_TEXT = ("Das Laufwerk ist gerade nicht erreichbar. Steck die SSD/Festplatte ein – der Agent-PC taucht dann "
-                "automatisch wieder auf, auch unter einem anderen Laufwerksbuchstaben.")
-BROKEN_TEXT = ("Die Einstellungsdatei vm.json dieses Agent-PCs ist beschädigt oder enthält unzulässige Angaben – die "
-               "Festplatte (disk.qcow2) im Ordner ist davon nicht betroffen. Liegt dort eine vm.json.bak, wird sie "
-               "automatisch genutzt. Sonst den Ordner bitte nicht löschen, sondern Hilfe holen "
-               "(github.com/zappotex/BonysAgents/issues) – die Datei lässt sich meist reparieren.")
+HINT_SETUP = n_("Der Agent-PC richtet sich im Hintergrund ein. "
+                "Das Fenster öffnet sich automatisch, sobald der Desktop bereit ist.")
+HINT_ABORTED = n_("Die Einrichtung wurde unterbrochen, bevor der Desktop fertig war. "
+                  "Sie kann fortgesetzt werden – erledigte Schritte werden übersprungen.")
+HINT_READY = n_("Einrichtung fertig – der Agent-PC startet gleich mit Desktop …")
+HINT_TEMPLATE_MISSING = n_("Dieser Agent-PC baut auf einer Vorlage auf, die gerade nicht erreichbar ist (Pfad "
+                           "darunter). Steck das Laufwerk mit der Vorlage ein – dann ist der Agent-PC wieder "
+                           "verfügbar.")
+HINT_TEMPLATE_LOCK = n_("Aus diesem Agent-PC wird gerade eine Vorlage erstellt. Bis das fertig ist, lässt er sich "
+                        "nicht starten (das Original bleibt dabei unverändert).")
+HINT_STOPPING = n_("Der Agent-PC fährt herunter. Reagiert er nicht, kannst du ihn sofort ausschalten – "
+                   "nach {sekunden} Sekunden geschieht das automatisch.")
+HINT_SETUP_FAILED = n_("Bei der Einrichtung ist etwas schiefgegangen: {steps}. Fehlende Programme über "
+                       "„Programme hinzufügen …“ nachinstallieren – Einzelheiten im Protokoll.")
+MISSING_TEXT = n_("Das Laufwerk ist gerade nicht erreichbar. Steck die SSD/Festplatte ein – der Agent-PC taucht dann "
+                  "automatisch wieder auf, auch unter einem anderen Laufwerksbuchstaben.")
+BROKEN_TEXT = n_("Die Einstellungsdatei vm.json dieses Agent-PCs ist beschädigt oder enthält unzulässige Angaben – die "
+                 "Festplatte (disk.qcow2) im Ordner ist davon nicht betroffen. Liegt dort eine vm.json.bak, wird sie "
+                 "automatisch genutzt. Sonst den Ordner bitte nicht löschen, sondern Hilfe holen "
+                 "(github.com/zappotex/BonysAgents/issues) – die Datei lässt sich meist reparieren.")
 REMOTE_MARK = "  ⇄"  # hinter dem Namen in der Liste: Fernzugriff ist an
 
 
@@ -183,12 +193,12 @@ class MainWindow(QMainWindow):
         title = QLabel(APP_NAME)
         title.setObjectName("Title")
         title.setWordWrap(True)  # bei sehr großer Anzeige lieber zweizeilig als zu breit
-        tagline = QLabel(TAGLINE)
+        tagline = QLabel(tr(TAGLINE))
         tagline.setObjectName("Tagline")
         tagline.setWordWrap(True)  # bei schmalem Fenster zweizeilig statt abgeschnitten
         self.about_btn = QPushButton("ⓘ")
         self.about_btn.setObjectName("Quiet")
-        self.about_btn.setToolTip(f"Über {edition.NAME}, Updates")
+        self.about_btn.setToolTip(tr("Über {name}, Updates", name=edition.NAME))
         self.about_btn.setMenu(self._build_menu())
         title_row = QHBoxLayout()
         title_row.setSpacing(2)
@@ -201,7 +211,7 @@ class MainWindow(QMainWindow):
         if edition.IS_TRAINER:
             # Eigene kleine Zeile statt „Bony's Agents Kursleiter“ im Titel – der lange Titel machte das Fenster
             # bei großer Anzeige zu breit
-            ed = QLabel(edition.LABEL)
+            ed = QLabel(tr(edition.LABEL))
             ed.setObjectName("Tagline")
             tcol.addWidget(ed)
         tcol.addWidget(tagline)
@@ -213,19 +223,22 @@ class MainWindow(QMainWindow):
         top.addLayout(top_buttons)
         self.youtube_btn = QPushButton("▶  YouTube")
         self.youtube_btn.setObjectName("Quiet")
-        self.youtube_btn.setToolTip("Anleitungen und Videos auf meinem YouTube-Kanal")
-        self.doctor_btn = QPushButton("System prüfen")
-        self.import_btn = QPushButton("Hinzufügen …")
-        self.import_btn.setToolTip("Vorhandenen Agent-PC von einer SSD oder aus einem Ordner in die Liste aufnehmen")
-        self.templates_btn = QPushButton("Vorlagen")
-        self.templates_btn.setToolTip("Vorlagen verwalten: umbenennen, löschen, weitergeben, im Netzwerk freigeben, "
-                                      "importieren")
+        self.youtube_btn.setToolTip(tr("Anleitungen und Videos auf meinem YouTube-Kanal"))
+        self.doctor_btn = QPushButton(tr("System prüfen"))
+        self.import_btn = QPushButton(tr("Hinzufügen …"))
+        self.import_btn.setToolTip(tr("Vorhandenen Agent-PC von einer SSD oder aus einem Ordner in die Liste "
+                                      "aufnehmen"))
+        self.templates_btn = QPushButton(tr("Vorlagen"))
+        self.templates_btn.setToolTip(tr("Vorlagen verwalten: umbenennen, löschen, weitergeben, im Netzwerk freigeben, "
+                                         "importieren"))
         # kurzer Text: der breiteste Knopf bestimmt die Mindestbreite des Fensters (150 % Zoom, 800 px)
-        self.join_btn = QPushButton("Kurse")
-        self.join_btn.setToolTip("Kurse über das Bony-Netz: beitreten" + (", anlegen und leiten" if edition.IS_TRAINER
-                                 else "") + " – und Schulung im selben Netz beitreten (Vorlage vom Rechner des "
-                                 "Kursleiters)")
-        self.new_btn = QPushButton("+  Neuer Agent-PC")
+        self.join_btn = QPushButton(tr("Kurse"))
+        self.join_btn.setToolTip(
+            tr("Kurse über das Bony-Netz: beitreten, anlegen und leiten – und Schulung im selben Netz beitreten "
+               "(Vorlage vom Rechner des Kursleiters)") if edition.IS_TRAINER else
+            tr("Kurse über das Bony-Netz: beitreten – und Schulung im selben Netz beitreten (Vorlage vom Rechner des "
+               "Kursleiters)"))
+        self.new_btn = QPushButton(tr("+  Neuer Agent-PC"))
         self.new_btn.setObjectName("Primary")
         # Bony's VPN für diesen Rechner – eigenes Programm (nur Linux; Windows/macOS: ⓘ → Extras)
         self.vpn_btn = QPushButton("VPN")
@@ -294,7 +307,8 @@ class MainWindow(QMainWindow):
         self.vpn_btn.clicked.connect(self.host_vpn)
         self._vpn_button_state()
 
-        sysinfo = QLabel(f"v{__version__}  ·  {self.info.os} / {self.info.arch}  ·  Beschleuniger: {self.info.accel}")
+        sysinfo = QLabel(tr("v{version}  ·  {os} / {arch}  ·  Beschleuniger: {accel}", version=__version__,
+                            os=self.info.os, arch=self.info.arch, accel=self.info.accel))
         sysinfo.setObjectName("Muted")
         sysinfo.setWordWrap(True)
         self.statusBar().addPermanentWidget(sysinfo)
@@ -326,39 +340,49 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> QMenu:
         menu = QMenu(self)
-        menu.addAction(f"Über {edition.NAME}", lambda: AboutDialog(self).exec())
-        menu.addAction("Hilfe (Anleitung)", lambda: open_url(handbuch_url("Benutzerhandbuch")))
+        menu.addAction(tr("Über {name}", name=edition.NAME), lambda: AboutDialog(self).exec())
+        menu.addAction(tr("Hilfe (Anleitung)"), lambda: open_url(handbuch_url("Benutzerhandbuch")))
         if edition.IS_TRAINER:
-            menu.addAction("Kursleiter-Handbuch", lambda: open_url(handbuch_url("Kursleiter-Handbuch")))
+            menu.addAction(tr("Kursleiter-Handbuch"), lambda: open_url(handbuch_url("Kursleiter-Handbuch")))
         if not edition.IS_TRAINER:
-            menu.addAction(f"Du möchtest selbst Schulungen geben? → {edition.NAMES[edition.KURSLEITER]}",
+            menu.addAction(tr("Du möchtest selbst Schulungen geben? → {name}", name=edition.NAMES[edition.KURSLEITER]),
                            lambda: open_url(edition.download_url()))
         menu.addSeparator()
-        menu.addAction("Nach Updates suchen", lambda: self.check_updates(manual=True))
+        menu.addAction(tr("Nach Updates suchen"), lambda: self.check_updates(manual=True))
         st = updates.settings()
-        auto = QAction("Automatisch nach Updates suchen", menu, checkable=True, checked=st["auto"])
+        auto = QAction(tr("Automatisch nach Updates suchen"), menu, checkable=True, checked=st["auto"])
         auto.toggled.connect(lambda on: updates.set_setting("auto", on))
-        pre = QAction("Testversionen anbieten", menu, checkable=True, checked=st["prereleases"])
+        pre = QAction(tr("Testversionen anbieten"), menu, checkable=True, checked=st["prereleases"])
         pre.toggled.connect(lambda on: updates.set_setting("prereleases", on))
         menu.addAction(auto)
         menu.addAction(pre)
         menu.addSeparator()
-        menu.addAction("Alle Agent-PCs aktualisieren …", self.upgrade_all)
+        menu.addAction(tr("Alle Agent-PCs aktualisieren …"), self.upgrade_all)
         if edition.IS_TRAINER:
-            menu.addAction("Kursleitung: Hilfe-Anfragen …", self.show_helpdesk)
-            menu.addAction("Kursportal: Moderation …", self.show_moderation)
+            menu.addAction(tr("Kursleitung: Hilfe-Anfragen …"), self.show_helpdesk)
+            menu.addAction(tr("Kursportal: Moderation …"), self.show_moderation)
         menu.addSeparator()
-        menu.addAction("Bony-Netz …", lambda: NetzDialog(self).exec())
-        extras = menu.addMenu("Extras")
+        menu.addAction(tr("Bony-Netz …"), lambda: NetzDialog(self).exec())
+        extras = menu.addMenu(tr("Extras"))
         if sys.platform.startswith("linux"):
-            extras.addAction("Bony's VPN für diesen Rechner", self.host_vpn)
+            extras.addAction(tr("Bony's VPN für diesen Rechner"), self.host_vpn)
         elif sys.platform == "win32":
-            extras.addAction("WireGuard für diesen Rechner installieren …", lambda: self._keep_worker(
+            extras.addAction(tr("WireGuard für diesen Rechner installieren …"), lambda: self._keep_worker(
                 windows_wireguard(self)))
         elif sys.platform == "darwin":
-            extras.addAction("WireGuard für diesen Rechner (App Store) …", lambda: mac_wireguard(self))
+            extras.addAction(tr("WireGuard für diesen Rechner (App Store) …"), lambda: mac_wireguard(self))
         menu.addSeparator()
-        view = menu.addMenu("Ansicht: Anzeigegröße")
+        # Beschriftung in beiden Sprachen – man findet den Punkt, egal welche Sprache gerade läuft
+        sprache = menu.addMenu("Sprache / Language")
+        gruppe = QActionGroup(sprache)
+        aktuell = i18n.einstellung()
+        for wert, text in ((i18n.AUTO, tr("Automatisch (Sprache des Systems)")), (i18n.DEUTSCH, "Deutsch"),
+                           (i18n.ENGLISCH, "English")):
+            a = QAction(text, sprache, checkable=True, checked=wert == aktuell)
+            a.triggered.connect(lambda _=False, w=wert: self.set_language(w))
+            gruppe.addAction(a)
+            sprache.addAction(a)
+        view = menu.addMenu(tr("Ansicht: Anzeigegröße"))
         self.zoom_group = QActionGroup(view)
         for z in style.ZOOM_STEPS:
             a = QAction(f"{z} %", view, checkable=True, checked=z == style.zoom())
@@ -367,10 +391,23 @@ class MainWindow(QMainWindow):
             self.zoom_group.addAction(a)
             view.addAction(a)
         view.addSeparator()
-        self.zoom_in = view.addAction("Größer", lambda: self.set_zoom(step=1))
-        self.zoom_out = view.addAction("Kleiner", lambda: self.set_zoom(step=-1))
-        self.zoom_reset = view.addAction("Normalgröße (100 %)", lambda: self.set_zoom(step=0))
+        self.zoom_in = view.addAction(tr("Größer"), lambda: self.set_zoom(step=1))
+        self.zoom_out = view.addAction(tr("Kleiner"), lambda: self.set_zoom(step=-1))
+        self.zoom_reset = view.addAction(tr("Normalgröße (100 %)"), lambda: self.set_zoom(step=0))
         return menu
+
+    def set_language(self, wert: str) -> None:
+        """Sprache merken – sie gilt ab dem nächsten Start (alle Fenster werden beim Start aufgebaut)."""
+        if wert == i18n.einstellung():
+            return
+        try:
+            i18n.einstellung_setzen(wert)
+        except OSError as e:
+            QMessageBox.warning(self, APP_NAME, str(e))
+            return
+        # Zweisprachig: Die neue Sprache gilt erst nach dem Neustart
+        QMessageBox.information(self, APP_NAME, "Die Sprache wechselt beim nächsten Start von Bony's Agents.\n\n"
+                                "The language changes the next time Bony's Agents starts.")
 
     # ---------- Anzeigegröße und Fensterzustand ----------
     def _zoom_actions(self) -> None:
@@ -388,7 +425,7 @@ class MainWindow(QMainWindow):
         z = style.step_zoom(app, step) if step is not None else style.set_zoom(app, percent)
         for a in self.zoom_group.actions():
             a.setChecked(a.data() == z)
-        self.statusBar().showMessage(f"Anzeigegröße: {z} %", 3000)
+        self.statusBar().showMessage(tr("Anzeigegröße: {z} %", z=z), 3000)
 
     def _restore_window(self) -> None:
         """Größe und Position vom letzten Mal – liegt sie auf keinem Bildschirm mehr (z. B. zweiter Monitor
@@ -442,13 +479,13 @@ class MainWindow(QMainWindow):
         if self._update_check and self._update_check.isRunning():
             return
         if not manual and updates.needs_consent():  # einmal fragen, bevor zum ersten Mal still gesucht wird
-            yes = QMessageBox.question(self, APP_NAME, updates.CONSENT_QUESTION) == QMessageBox.Yes
+            yes = QMessageBox.question(self, APP_NAME, tr(updates.CONSENT_QUESTION)) == QMessageBox.Yes
             updates.set_setting("auto", yes)
             self.about_btn.setMenu(self._build_menu())  # Häkchen „Automatisch nach Updates suchen“ anpassen
             if not yes:
                 return
         if manual:
-            self.statusBar().showMessage("Suche nach Updates …")
+            self.statusBar().showMessage(tr("Suche nach Updates …"))
         w = CheckWorker(manual)
 
         def found(info) -> None:
@@ -457,7 +494,8 @@ class MainWindow(QMainWindow):
                 self.statusBar().clearMessage()
             elif manual:
                 self.update_banner.hide()
-                self.statusBar().showMessage(f"Keine Updates gefunden – {APP_NAME} {__version__} ist aktuell.", 8000)
+                self.statusBar().showMessage(tr("Keine Updates gefunden – {name} {version} ist aktuell.",
+                                                name=APP_NAME, version=__version__), 8000)
 
         w.found.connect(found)
         self._update_check = w
@@ -466,11 +504,12 @@ class MainWindow(QMainWindow):
     def upgrade_all(self) -> None:
         machines = [m for m in vm.list_vms() if m.is_running() and m.status() == "läuft"]
         if not machines:
-            QMessageBox.information(self, APP_NAME, "Es läuft gerade kein fertig eingerichteter Agent-PC.\n"
-                                    "Agent-PCs werden aktualisiert, während sie laufen.")
+            QMessageBox.information(self, APP_NAME, tr("Es läuft gerade kein fertig eingerichteter Agent-PC.\n"
+                                                       "Agent-PCs werden aktualisiert, während sie laufen."))
             return
         names = ", ".join(m.name for m in machines)
-        if QMessageBox.question(self, APP_NAME, f"Diese Agent-PCs jetzt aktualisieren?\n\n{names}") == QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, tr("Diese Agent-PCs jetzt aktualisieren?\n\n{namen}",
+                                                   namen=names)) == QMessageBox.Yes:
             UpgradeDialog(machines, self).exec()
             self.refresh()
 
@@ -486,15 +525,15 @@ class MainWindow(QMainWindow):
         w = _card()
         lay = QVBoxLayout(w)
         lay.addStretch(1)
-        t = QLabel("Noch kein Agent-PC")
+        t = QLabel(tr("Noch kein Agent-PC"))
         t.setObjectName("Title")
         t.setAlignment(Qt.AlignCenter)
-        m = QLabel("Ein Agent-PC ist ein eigener virtueller Rechner mit Desktop, "
-                   "Brave, Telegram und Hermes Agent – sauber getrennt von deinem System.")
+        m = QLabel(tr("Ein Agent-PC ist ein eigener virtueller Rechner mit Desktop, "
+                      "Brave, Telegram und Hermes Agent – sauber getrennt von deinem System."))
         m.setObjectName("Muted")
         m.setAlignment(Qt.AlignCenter)
         m.setWordWrap(True)
-        b = QPushButton("+  Ersten Agent-PC erstellen")
+        b = QPushButton(tr("+  Ersten Agent-PC erstellen"))
         b.setObjectName("Primary")
         b.clicked.connect(self.create_vm)
         lay.addWidget(t)
@@ -513,9 +552,9 @@ class MainWindow(QMainWindow):
         il = QHBoxLayout(intro)
         il.setContentsMargins(14, 10, 14, 10)
         il.setSpacing(12)
-        it = QLabel("Neu hier? Auf meinem YouTube-Kanal zeige ich dir, wie Bony's Agents funktioniert.")
+        it = QLabel(tr("Neu hier? Auf meinem YouTube-Kanal zeige ich dir, wie Bony's Agents funktioniert."))
         it.setWordWrap(True)
-        ib = QPushButton("▶  Zum Vorstellungsvideo")
+        ib = QPushButton(tr("▶  Zum Vorstellungsvideo"))
         ib.setObjectName("Small")
         ib.clicked.connect(lambda: open_url(INTRO_VIDEO_URL))
         il.addWidget(it, 1)
@@ -530,13 +569,14 @@ class MainWindow(QMainWindow):
         return w
 
     def _vpn_button_state(self) -> None:
-        self.vpn_btn.setToolTip(f"{button_text()} – WireGuard für diesen ganzen Rechner (eigenes Programm)")
+        self.vpn_btn.setToolTip(tr("{knopf} – WireGuard für diesen ganzen Rechner (eigenes Programm)",
+                                   knopf=button_text()))
 
     def host_vpn(self) -> None:
         """Knopf „VPN“: Bony's VPN öffnen bzw. installieren (nur Linux)."""
         w = linux_vpn(self)
         if w is not None:
-            self.statusBar().showMessage("Installiere Bony's VPN …")
+            self.statusBar().showMessage(tr("Installiere Bony's VPN …"))
             w.finished.connect(lambda: (self.statusBar().clearMessage(), self._vpn_button_state()))
             self._keep_worker(w)
 
@@ -563,50 +603,54 @@ class MainWindow(QMainWindow):
         row.addStretch(1)
         hl.addLayout(row)
         row = FlowLayout()
-        self.start_btn = QPushButton("Starten")
+        self.start_btn = QPushButton(tr("Starten"))
         self.start_btn.setObjectName("Primary")
-        self.stop_btn = QPushButton("Herunterfahren")
-        self.remote_btn = QPushButton("Fernzugriff einschalten")
-        self.remote_btn.setToolTip("RDP aus dem Heimnetz – nur bei Bedarf, wirkt sofort")
-        self.fullscreen_btn = QPushButton("Vollbild")
-        self.fullscreen_btn.setToolTip("Fenster des Agent-PCs auf seinem Monitor als Vollbild – zurück mit Strg+Alt+F")
-        self.ssh_btn = QPushButton("SSH-Befehl kopieren")
-        self.ssh_btn.setToolTip("Befehl zum Anmelden per SSH in die Zwischenablage kopieren")
-        self.delete_btn = QPushButton("Löschen")
+        self.stop_btn = QPushButton(tr("Herunterfahren"))
+        self.remote_btn = QPushButton(tr("Fernzugriff einschalten"))
+        self.remote_btn.setToolTip(tr("RDP aus dem Heimnetz – nur bei Bedarf, wirkt sofort"))
+        self.fullscreen_btn = QPushButton(tr("Vollbild"))
+        self.fullscreen_btn.setToolTip(tr("Fenster des Agent-PCs auf seinem Monitor als Vollbild – zurück mit "
+                                          "Strg+Alt+F"))
+        self.ssh_btn = QPushButton(tr("SSH-Befehl kopieren"))
+        self.ssh_btn.setToolTip(tr("Befehl zum Anmelden per SSH in die Zwischenablage kopieren"))
+        self.delete_btn = QPushButton(tr("Löschen"))
         self.delete_btn.setObjectName("Danger")
         # Verschieben/Vergrößern stehen klein direkt bei „Speicherort“ bzw. „Festplatte“.
-        self.move_btn = QPushButton("Verschieben …")
-        self.move_btn.setToolTip("Auf ein anderes Laufwerk oder in einen anderen Ordner verschieben (ausgeschaltet)")
-        self.resize_btn = QPushButton("Festplatte vergrößern …")
-        self.resize_btn.setToolTip("Nur im ausgeschalteten Zustand – vergrößern geht, verkleinern nicht")
-        self.resources_btn = QPushButton("Leistung ändern …")
-        self.resources_btn.setToolTip("CPU-Kerne und Arbeitsspeicher ändern – ein laufender Agent-PC wird dafür neu "
-                                      "gestartet")
-        self.upgrade_btn = QPushButton("Agent-PC aktualisieren")
-        self.upgrade_btn.setToolTip("System, Flatpak-Programme und KI-Werkzeuge im laufenden Agent-PC aktualisieren")
-        self.template_btn = QPushButton("Als Vorlage speichern …")
-        self.template_btn.setToolTip("Aus diesem fertig eingerichteten Agent-PC eine Vorlage machen – neue Agent-PCs "
-                                     "entstehen daraus in Sekunden. Das Original bleibt unverändert.")
-        self.independent_btn = QPushButton("Unabhängig machen …")
-        self.independent_btn.setToolTip("Daten der Vorlage übernehmen – danach braucht der Agent-PC die Vorlage nicht "
-                                        "mehr (braucht mehr Platz, nur ausgeschaltet)")
-        self.add_desktop_btn = QPushButton("Desktop hinzufügen …")
-        self.add_desktop_btn.setToolTip("Weiteren Desktop installieren und als Standard wählen – der Agent-PC muss "
-                                        "laufen; der bisherige bleibt installiert")
-        self.wallpaper_btn = QPushButton("Hintergrundbild aktualisieren")
+        self.move_btn = QPushButton(tr("Verschieben …"))
+        self.move_btn.setToolTip(tr("Auf ein anderes Laufwerk oder in einen anderen Ordner verschieben "
+                                    "(ausgeschaltet)"))
+        self.resize_btn = QPushButton(tr("Festplatte vergrößern …"))
+        self.resize_btn.setToolTip(tr("Nur im ausgeschalteten Zustand – vergrößern geht, verkleinern nicht"))
+        self.resources_btn = QPushButton(tr("Leistung ändern …"))
+        self.resources_btn.setToolTip(tr("CPU-Kerne und Arbeitsspeicher ändern – ein laufender Agent-PC wird dafür neu "
+                                         "gestartet"))
+        self.upgrade_btn = QPushButton(tr("Agent-PC aktualisieren"))
+        self.upgrade_btn.setToolTip(tr("System, Flatpak-Programme und KI-Werkzeuge im laufenden Agent-PC "
+                                       "aktualisieren"))
+        self.template_btn = QPushButton(tr("Als Vorlage speichern …"))
+        self.template_btn.setToolTip(tr("Aus diesem fertig eingerichteten Agent-PC eine Vorlage machen – neue "
+                                        "Agent-PCs entstehen daraus in Sekunden. Das Original bleibt unverändert."))
+        self.independent_btn = QPushButton(tr("Unabhängig machen …"))
+        self.independent_btn.setToolTip(tr("Daten der Vorlage übernehmen – danach braucht der Agent-PC die Vorlage "
+                                           "nicht mehr (braucht mehr Platz, nur ausgeschaltet)"))
+        self.add_desktop_btn = QPushButton(tr("Desktop hinzufügen …"))
+        self.add_desktop_btn.setToolTip(tr("Weiteren Desktop installieren und als Standard wählen – der Agent-PC muss "
+                                           "laufen; der bisherige bleibt installiert"))
+        self.wallpaper_btn = QPushButton(tr("Hintergrundbild aktualisieren"))
         self.wallpaper_btn.setObjectName("Small")
-        self.wallpaper_btn.setToolTip("Neues Standard-Hintergrundbild in den laufenden Agent-PC bringen – nur, wenn "
-                                      "noch das alte aktiv ist (ein selbst gewähltes Bild bleibt, sonst Rückfrage)")
-        self.help_btn = QPushButton("Hilfe anfordern …")
-        self.help_btn.setToolTip("Schulung: den Kursleiter um Hilfe bitten – er sieht diesen Agent-PC nur, wenn du "
-                                 "zustimmst")
+        self.wallpaper_btn.setToolTip(tr("Neues Standard-Hintergrundbild in den laufenden Agent-PC bringen – nur, wenn "
+                                         "noch das alte aktiv ist (ein selbst gewähltes Bild bleibt, sonst Rückfrage)"))
+        self.help_btn = QPushButton(tr("Hilfe anfordern …"))
+        self.help_btn.setToolTip(tr("Schulung: den Kursleiter um Hilfe bitten – er sieht diesen Agent-PC nur, wenn du "
+                                    "zustimmst"))
         self.present_btn: QPushButton | None = None   # nur Kursleiter-Version
         if edition.IS_TRAINER:
-            self.present_btn = QPushButton("Vorführen …")
-            self.present_btn.setToolTip("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur "
-                                        "ansehen)")
-        self.add_apps_btn = QPushButton("Programme hinzufügen …")
-        self.add_apps_btn.setToolTip("Fehlende Programme oder KI-Werkzeuge nachinstallieren – der Agent-PC muss laufen")
+            self.present_btn = QPushButton(tr("Vorführen …"))
+            self.present_btn.setToolTip(tr("Schulung: diesen Agent-PC live im Browser der Teilnehmer zeigen (nur "
+                                           "ansehen)"))
+        self.add_apps_btn = QPushButton(tr("Programme hinzufügen …"))
+        self.add_apps_btn.setToolTip(tr("Fehlende Programme oder KI-Werkzeuge nachinstallieren – der Agent-PC muss "
+                                        "laufen"))
         for b in (self.move_btn, self.resize_btn, self.resources_btn, self.add_apps_btn, self.template_btn,
                   self.independent_btn, self.add_desktop_btn):
             b.setObjectName("Small")
@@ -625,18 +669,18 @@ class MainWindow(QMainWindow):
         hint_row.setSpacing(12)
         self.hint_text = QLabel()
         self.hint_text.setWordWrap(True)
-        self.peek_btn = QPushButton("Trotzdem anzeigen")
+        self.peek_btn = QPushButton(tr("Trotzdem anzeigen"))
         self.peek_btn.setObjectName("Small")
-        self.peek_btn.setToolTip("Das Fenster lässt sich erst nach der Einrichtung öffnen – "
-                                 "hier siehst du stattdessen die Konsole groß.")
-        self.resume_btn = QPushButton("Einrichtung fortsetzen")
+        self.peek_btn.setToolTip(tr("Das Fenster lässt sich erst nach der Einrichtung öffnen – "
+                                    "hier siehst du stattdessen die Konsole groß."))
+        self.resume_btn = QPushButton(tr("Einrichtung fortsetzen"))
         self.resume_btn.setObjectName("Primary")
-        self.kill_btn = QPushButton("Sofort ausschalten")
+        self.kill_btn = QPushButton(tr("Sofort ausschalten"))
         self.kill_btn.setObjectName("Danger")
-        self.kill_btn.setToolTip("Wie Stecker ziehen – nicht gespeicherte Daten im Agent-PC gehen verloren")
+        self.kill_btn.setToolTip(tr("Wie Stecker ziehen – nicht gespeicherte Daten im Agent-PC gehen verloren"))
         hint_buttons = FlowLayout(align_right=True)
         # Pfad separat: lange Pfade werden gekürzt statt das Fenster zu verbreitern
-        self.hint_path = PathLabel(prefix="Vorlage: ")
+        self.hint_path = PathLabel(prefix=tr("Vorlage: "))
         hint_col = QVBoxLayout()
         hint_col.setSpacing(4)
         hint_col.addWidget(self.hint_text)
@@ -653,14 +697,14 @@ class MainWindow(QMainWindow):
         self.peek_tools = QWidget()
         pt = FlowLayout(self.peek_tools)
         pt.setContentsMargins(0, 6, 0, 0)
-        self.terminal_btn = QPushButton("Terminal im Agent-PC öffnen")
-        self.terminal_btn.setToolTip("Terminal dieses Rechners mit SSH-Anmeldung im Agent-PC "
-                                     "(Benutzer und Passwort des Agent-PCs)")
-        self.fetch_logs_btn = QPushButton("Einrichtungsprotokoll holen")
-        self.fetch_logs_btn.setToolTip("Kopiert /var/log/bonys-agents.log und /var/log/cloud-init-output.log "
-                                       "in den Ordner des Agent-PCs und zeigt sie an")
-        self.screen_btn = QPushButton("Bildschirm anzeigen (SPICE)")
-        self.screen_btn.setToolTip("Den echten Bildschirm des Agent-PCs per SPICE öffnen")
+        self.terminal_btn = QPushButton(tr("Terminal im Agent-PC öffnen"))
+        self.terminal_btn.setToolTip(tr("Terminal dieses Rechners mit SSH-Anmeldung im Agent-PC "
+                                        "(Benutzer und Passwort des Agent-PCs)"))
+        self.fetch_logs_btn = QPushButton(tr("Einrichtungsprotokoll holen"))
+        self.fetch_logs_btn.setToolTip(tr("Kopiert /var/log/bonys-agents.log und /var/log/cloud-init-output.log "
+                                          "in den Ordner des Agent-PCs und zeigt sie an"))
+        self.screen_btn = QPushButton(tr("Bildschirm anzeigen (SPICE)"))
+        self.screen_btn.setToolTip(tr("Den echten Bildschirm des Agent-PCs per SPICE öffnen"))
         for b in (self.terminal_btn, self.fetch_logs_btn, self.screen_btn):
             b.setObjectName("Small")
             pt.addWidget(b)
@@ -678,13 +722,13 @@ class MainWindow(QMainWindow):
             cl = QVBoxLayout(cell)
             cl.setContentsMargins(0, 0, 0, 0)
             cl.setSpacing(6)
-            k = QLabel(title.upper())
+            k = QLabel(tr(title).upper())
             k.setObjectName("Section")
             cl.addWidget(k)
             grid.addWidget(cell)
             return cl
 
-        for key in ("CPU", "RAM", "Festplatte", "Desktop", "Benutzer", "Speicherort", "Programme"):
+        for key in ("CPU", "RAM", n_("Festplatte"), n_("Desktop"), n_("Benutzer"), n_("Speicherort"), n_("Programme")):
             cl = field(key)
             v = QLabel()
             v.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -708,21 +752,21 @@ class MainWindow(QMainWindow):
         # Bildschirm: Auflösung folgt dem Fenster (Standard), Zoom oder feste Größe
         self.screen_mode = QComboBox()
         for mode, text in screen.MODES.items():
-            self.screen_mode.addItem(text, mode)
-        self.screen_mode.setToolTip("Wie der Bildschirm des Agent-PCs ins QEMU-Fenster kommt – wirkt ab dem "
-                                    "nächsten Start.\nNur wenn die automatische Anpassung nicht klappt, "
-                                    "„Bild skalieren“ oder „Feste Auflösung“ wählen.")
+            self.screen_mode.addItem(tr(text), mode)
+        self.screen_mode.setToolTip(tr("Wie der Bildschirm des Agent-PCs ins QEMU-Fenster kommt – wirkt ab dem "
+                                       "nächsten Start.\nNur wenn die automatische Anpassung nicht klappt, "
+                                       "„Bild skalieren“ oder „Feste Auflösung“ wählen."))
         self.screen_size = QComboBox()
         self.screen_size.addItems(screen.SIZES)
-        self.screen_size.setToolTip("Auflösung für „Bild skalieren“ und „Feste Auflösung“")
-        self.driver_btn = QPushButton("Anzeige-Treiber aktualisieren")
+        self.screen_size.setToolTip(tr("Auflösung für „Bild skalieren“ und „Feste Auflösung“"))
+        self.driver_btn = QPushButton(tr("Anzeige-Treiber aktualisieren"))
         self.driver_btn.setObjectName("Small")
-        self.driver_btn.setToolTip("Richtet im laufenden Agent-PC ein, dass die Auflösung dem Fenster folgt "
-                                   "(für Agent-PCs von älteren Versionen; passiert auch bei „Agent-PC aktualisieren“)")
+        self.driver_btn.setToolTip(tr("Richtet im laufenden Agent-PC ein, dass die Auflösung dem Fenster folgt (für "
+                                      "Agent-PCs von älteren Versionen; passiert auch bei „Agent-PC aktualisieren“)"))
         self.screen_note = QLabel()
         self.screen_note.setObjectName("Muted")
         self.screen_note.setWordWrap(True)
-        cl = field("Bildschirm", span=2)
+        cl = field(n_("Bildschirm"), span=2)
         sr = FlowLayout()
         sr.addWidget(self.screen_mode)
         sr.addWidget(self.screen_size)
@@ -745,21 +789,21 @@ class MainWindow(QMainWindow):
         # Unten umschaltbar: Konsole oder Fernzugriff
         tabs = QHBoxLayout()
         tabs.setSpacing(6)
-        self.tab_console = QPushButton("Konsole")
-        self.tab_remote = QPushButton("Fernzugriff")
+        self.tab_console = QPushButton(tr("Konsole"))
+        self.tab_remote = QPushButton(tr("Fernzugriff"))
         self.tab_vpn = QPushButton("VPN")
-        self.tab_vpn.setToolTip("Bony's VPN im Agent-PC: Status, verbinden, trennen, Konfiguration importieren")
+        self.tab_vpn.setToolTip(tr("Bony's VPN im Agent-PC: Status, verbinden, trennen, Konfiguration importieren"))
         self.tab_mc = QPushButton("Mission Control")
-        self.tab_mc.setToolTip("Mission Control im Agent-PC: Status, öffnen, aktualisieren, deinstallieren")
+        self.tab_mc.setToolTip(tr("Mission Control im Agent-PC: Status, öffnen, aktualisieren, deinstallieren"))
         for b in (self.tab_console, self.tab_remote, self.tab_vpn, self.tab_mc):
             b.setObjectName("Tab")
             b.setCheckable(True)
             tabs.addWidget(b)
         tabs.addStretch(1)
-        self.logs_btn = QPushButton("Protokolle öffnen")
+        self.logs_btn = QPushButton(tr("Protokolle öffnen"))
         self.logs_btn.setObjectName("Small")
-        self.logs_btn.setToolTip("Ordner des Agent-PCs mit console.log (auch ältere), qemu.log und "
-                                 "geholten Einrichtungsprotokollen im Dateimanager öffnen")
+        self.logs_btn.setToolTip(tr("Ordner des Agent-PCs mit console.log (auch ältere), qemu.log und "
+                                    "geholten Einrichtungsprotokollen im Dateimanager öffnen"))
         tabs.addWidget(self.logs_btn)
         self.tab_console.setChecked(True)
         lay.addLayout(tabs)
@@ -880,13 +924,14 @@ class MainWindow(QMainWindow):
         if not m:
             return
         self.driver_btn.setEnabled(False)
-        self.statusBar().showMessage(f"Anzeige-Treiber in „{m.name}“ wird eingerichtet …")
+        self.statusBar().showMessage(tr("Anzeige-Treiber in „{name}“ wird eingerichtet …", name=m.name))
         w = TaskWorker(lambda: m.update_display_driver(password=password))
 
         def failed(msg: str) -> None:
             self.statusBar().clearMessage()
             if isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{meldung}\n\nPasswort "
+                                                                 "von „{name}“:", meldung=msg, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._update_driver(pw)
@@ -909,13 +954,14 @@ class MainWindow(QMainWindow):
         if not m:
             return
         self.wallpaper_btn.setEnabled(False)
-        self.statusBar().showMessage(f"Hintergrundbild in „{m.name}“ wird aktualisiert …")
+        self.statusBar().showMessage(tr("Hintergrundbild in „{name}“ wird aktualisiert …", name=m.name))
         w = TaskWorker(lambda: wallpaper.update(m, force=force, password=password))
 
         def failed(msg: str) -> None:
             self.statusBar().clearMessage()
             if isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{meldung}\n\nPasswort "
+                                                                 "von „{name}“:", meldung=msg, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._update_wallpaper(pw, force)
@@ -930,8 +976,9 @@ class MainWindow(QMainWindow):
             if s.done == "nachfragen":
                 self.statusBar().clearMessage()
                 ask = QMessageBox.question(
-                    self, APP_NAME, f"{wallpaper.describe(s)}\n\nTrotzdem auf das neue Standard-Hintergrundbild "
-                    "umstellen? Dein Bild wird dann in den Einstellungen ersetzt (die Datei selbst bleibt).",
+                    self, APP_NAME, tr("{stand}\n\nTrotzdem auf das neue Standard-Hintergrundbild umstellen? Dein Bild "
+                                       "wird dann in den Einstellungen ersetzt (die Datei selbst bleibt).",
+                                       stand=wallpaper.describe(s)),
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if ask == QMessageBox.Yes:
                     self._update_wallpaper(password, force=True)
@@ -948,8 +995,8 @@ class MainWindow(QMainWindow):
             return
         try:
             m.open_terminal()
-            self.statusBar().showMessage(f"Terminal geöffnet – Anmeldung als „{m.config.username}“ mit dem "
-                                         "Passwort des Agent-PCs.", 8000)
+            self.statusBar().showMessage(tr("Terminal geöffnet – Anmeldung als „{benutzer}“ mit dem Passwort des "
+                                            "Agent-PCs.", benutzer=m.config.username), 8000)
         except (RuntimeError, OSError) as e:
             QMessageBox.warning(self, APP_NAME, str(e))
 
@@ -963,7 +1010,8 @@ class MainWindow(QMainWindow):
         def failed(msg: str) -> None:
             self.fetch_logs_btn.setEnabled(True)
             if isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{meldung}\n\nPasswort "
+                                                                 "von „{name}“:", meldung=msg, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._fetch_logs(pw)
@@ -983,7 +1031,7 @@ class MainWindow(QMainWindow):
         """„Trotzdem anzeigen“: Konsole groß und ans Ende – ein unsichtbar gestartetes QEMU hat kein Fenster."""
         self._console_big = big
         self.d_info.setVisible(not big and self.lower.currentIndex() == 0)
-        self.peek_btn.setText("Kleiner anzeigen" if big else "Trotzdem anzeigen")
+        self.peek_btn.setText(tr("Kleiner anzeigen") if big else tr("Trotzdem anzeigen"))
         self.peek_tools.setVisible(big)
         m = self.current()
         try:
@@ -1003,16 +1051,17 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(24, 22, 24, 22)
         self.m_name = QLabel()
         self.m_name.setObjectName("Title")
-        self.m_status = status = QLabel("●  nicht verfügbar")
+        self.m_status = status = QLabel(tr("●  nicht verfügbar"))
         status.setStyleSheet(f"color: {style.MUTED};")
-        self.m_path = PathLabel(prefix="Lag zuletzt in: ")
-        self.m_text = QLabel(MISSING_TEXT)
+        self.m_path = PathLabel(prefix=tr("Lag zuletzt in: "))
+        self.m_text = QLabel(tr(MISSING_TEXT))
         self.m_text.setWordWrap(True)
         row = QHBoxLayout()
-        again = QPushButton("Erneut suchen")
+        again = QPushButton(tr("Erneut suchen"))
         again.setObjectName("Primary")
-        forget = QPushButton("Aus Liste entfernen")
-        forget.setToolTip("Löscht nichts – der Agent-PC bleibt auf dem Laufwerk und taucht beim Einstecken wieder auf.")
+        forget = QPushButton(tr("Aus Liste entfernen"))
+        forget.setToolTip(tr("Löscht nichts – der Agent-PC bleibt auf dem Laufwerk und taucht beim Einstecken "
+                             "wieder auf."))
         row.addWidget(again)
         row.addWidget(forget)
         row.addStretch(1)
@@ -1077,8 +1126,8 @@ class MainWindow(QMainWindow):
             desk = "" if missing else f"  ·  {desktops.name(e.config.desktop)}"
             item.setText(e.name + desk + (REMOTE_MARK if remote_on else ""))
             item.setForeground(QColor(style.MUTED if missing else style.TEXT))
-            tip = (f"{e.status().capitalize()} – {e.path}" if missing else str(e.path))
-            item.setToolTip(tip + ("\nFernzugriff ist an" if remote_on else "") + netz_tip)
+            tip = (f"{tr(e.status()).capitalize()} – {e.path}" if missing else str(e.path))
+            item.setToolTip(tip + ("\n" + tr("Fernzugriff ist an") if remote_on else "") + netz_tip)
             # Herunterfahren überwachen: nach STOP_TIMEOUT Sekunden hart ausschalten
             waited = None if missing else e.stopping_for()
             if waited is not None:
@@ -1106,7 +1155,7 @@ class MainWindow(QMainWindow):
         w.finished.connect(lambda: (self._autostarting.discard(m.name), self.refresh()))
         self.workers = [x for x in self.workers if x.isRunning()] + [w]
         w.start()
-        self.statusBar().showMessage(f"„{m.name}“ ist eingerichtet und startet jetzt mit Desktop.", 8000)
+        self.statusBar().showMessage(tr("„{name}“ ist eingerichtet und startet jetzt mit Desktop.", name=m.name), 8000)
 
     def refresh_detail(self) -> None:
         entry = self.current_entry()
@@ -1118,9 +1167,9 @@ class MainWindow(QMainWindow):
             self.m_name.setText(entry.name)
             self.m_path.set_path(entry.path)
             broken = entry.broken()
-            self.m_status.setText(f"●  {entry.status()}")
+            self.m_status.setText(f"●  {tr(entry.status())}")
             self.m_status.setStyleSheet(f"color: {style.DANGER if broken else style.MUTED};")
-            self.m_text.setText(BROKEN_TEXT if broken else MISSING_TEXT)
+            self.m_text.setText(tr(BROKEN_TEXT if broken else MISSING_TEXT))
             return
         m = entry
         self.stack.setCurrentIndex(1)
@@ -1140,18 +1189,19 @@ class MainWindow(QMainWindow):
         elif tpl_lock and not notice:
             notice = HINT_TEMPLATE_LOCK
         elif c.setup_failed and not notice and not (hidden_setup or aborted or about_to_start or stopping):
-            notice = HINT_SETUP_FAILED.format(steps=", ".join(f"„{t}“" for t in c.setup_failed))
+            notice = tr(HINT_SETUP_FAILED, steps=", ".join(f"„{cloudinit.schritt_titel(t)}“" for t in c.setup_failed))
         self.hint.setVisible(hidden_setup or aborted or about_to_start or stopping or bool(notice))
         self.hint.setProperty("tone", "danger" if aborted or notice and not tpl_lock else "")
         self.hint.style().unpolish(self.hint)
         self.hint.style().polish(self.hint)
         if aborted and not notice:
             cause = m.abort_reason()
-            abort_text = f"{HINT_ABORTED}\n\nUrsache: {cause.reason}" + (f"\n{cause.detail}" if cause.detail else "")
+            abort_text = tr("{hinweis}\n\nUrsache: {ursache}", hinweis=tr(HINT_ABORTED), ursache=cause.reason) + (
+                f"\n{cause.detail}" if cause.detail else "")
         else:
-            abort_text = HINT_ABORTED
-        self.hint_text.setText(HINT_STOPPING if stopping else notice if notice else abort_text if aborted
-                               else HINT_READY if about_to_start else HINT_SETUP)
+            abort_text = tr(HINT_ABORTED)
+        self.hint_text.setText(tr(HINT_STOPPING, sekunden=vm.STOP_TIMEOUT) if stopping else tr(notice) if notice
+                               else abort_text if aborted else tr(HINT_READY) if about_to_start else tr(HINT_SETUP))
         self.hint_path.set_path(m.backing_file() if notice == HINT_TEMPLATE_MISSING else "")
         self.hint_path.setVisible(notice == HINT_TEMPLATE_MISSING)
         self.peek_btn.setVisible(hidden_setup)
@@ -1162,34 +1212,37 @@ class MainWindow(QMainWindow):
         if self._console_big and not hidden_setup:
             self._set_console_big(False)
         self.d_name.setText(c.name)
-        shown = status
+        shown = tr(status)
         if stopping:
-            shown = f"{status} … noch {max(0, round(vm.STOP_TIMEOUT - waited))} s"
+            shown = tr("{status} … noch {sekunden} s", status=shown, sekunden=max(0, round(vm.STOP_TIMEOUT - waited)))
             if c.name in self._powering_off:
-                shown = "wird ausgeschaltet …"
+                shown = tr("wird ausgeschaltet …")
         self.d_status.setText(f"●  {shown}")
         self.d_status.setStyleSheet(f"color: {style.STATUS_COLORS.get(status, style.MUTED)};")
-        self.d_fields["CPU"].setText(f"{c.cpus} Kerne")
+        self.d_fields["CPU"].setText(tr("{n} Kerne", n=c.cpus))
         ram_text = f"{c.ram_mb / 1024:.1f} GB"
         recommended = min(m.recommended_ram_mb(), self.info.max_vm_ram_mb)
         if c.ram_mb < recommended:
-            ram_text += f"\n⚠ empfohlen: {desktops.format_ram(recommended)}"
+            ram_text += "\n" + tr("⚠ empfohlen: {ram}", ram=desktops.format_ram(recommended))
         self.d_fields["RAM"].setText(ram_text)
         linked = m.is_linked()
-        disk_text = f"{vm.format_gb(c.disk_gb)} (dynamisch)"
+        disk_text = tr("{groesse} (dynamisch)", groesse=vm.format_gb(c.disk_gb))
         if linked:
-            disk_text += f"\nverknüpft mit Vorlage „{c.template or m.backing_file().parent.name}“"
+            disk_text += "\n" + tr("verknüpft mit Vorlage "
+                                   "„{vorlage}“", vorlage=c.template or m.backing_file().parent.name)
         elif c.template:
-            disk_text += f"\naus Vorlage „{c.template}“"
+            disk_text += "\n" + tr("aus Vorlage „{vorlage}“", vorlage=c.template)
         self.d_fields["Festplatte"].setText(disk_text)
         self.d_fields["Benutzer"].setText(c.username)
         others = [desktops.name(d) for d in c.extra_desktops]
         system = f"{distros.name(c.distro)} · " if c.distro != distros.DEFAULT else ""   # Debian: wie bisher
         self.d_fields["Desktop"].setText(system + desktops.name(c.desktop)
-                                         + (f"\nauch: {', '.join(others)}" if others else ""))
+                                         + ("\n" + tr("auch: "
+                                                      "{desktops}", desktops=", ".join(others)) if others else ""))
         todo = [a for a in c.reinstall if a in apps.APPS and a not in c.apps]
         self.d_fields["Programme"].setText((", ".join(apps.labels(c.apps, c.app_info)) or "–") + (
-            f"\nNoch zu installieren (offizielle Quelle, Lizenz): {', '.join(apps.names(todo))}" if todo else ""))
+            "\n" + tr("Noch zu installieren (offizielle Quelle, Lizenz): {programme}",
+                      programme=", ".join(apps.names(todo))) if todo else ""))
         drive = storage.drive_for(m.path)
         where = drive.label if drive else ""
         self.d_fields["Speicherort"].setText(where)
@@ -1213,12 +1266,12 @@ class MainWindow(QMainWindow):
         self.screen_size.setVisible(mode != screen.AUTO)
         self.driver_btn.setEnabled(status == "läuft" and not busy)
         self.wallpaper_btn.setEnabled(status == "läuft" and not busy and not c.first_boot_pending)
-        self.screen_note.setText("gilt ab dem nächsten Start" if m.screen_pending() else
-                                 "SPICE-Fenster: Remmina/remote-viewer passt die Auflösung an"
+        self.screen_note.setText(tr("gilt ab dem nächsten Start") if m.screen_pending() else
+                                 tr("SPICE-Fenster: Remmina/remote-viewer passt die Auflösung an")
                                  if c.display == "spice" else "")
         self.screen_note.setVisible(bool(self.screen_note.text()))
         remote_on = m.remote_active() or (not running and c.remote_permanent)
-        self.remote_btn.setText("Fernzugriff ausschalten" if remote_on else "Fernzugriff einschalten")
+        self.remote_btn.setText(tr("Fernzugriff ausschalten") if remote_on else tr("Fernzugriff einschalten"))
         self.remote_btn.setVisible("xrdp" in c.apps or remote_on)
         self.remote_btn.setEnabled(not busy and not stopping and (status in ("läuft", "gestoppt") or remote_on))
         self.move_btn.setEnabled(not running and not busy and not blocked)
@@ -1248,19 +1301,21 @@ class MainWindow(QMainWindow):
         if show:
             self.d_prog.set_percent(p.percent)
             if p.ready:
-                what = "Einrichtung fertig – startet gleich mit Desktop"
+                what = tr("Einrichtung fertig – startet gleich mit Desktop")
             elif p.resumed:
-                what = f"Schritt {p.step} von {p.total} – {p.title} (wird nach dem Neustart fortgesetzt …)"
+                what = tr("Schritt {schritt} von {gesamt} – {titel} (wird nach dem Neustart fortgesetzt …)",
+                          schritt=p.step, gesamt=p.total, titel=cloudinit.schritt_titel(p.title))
             elif p.total:
-                what = f"Schritt {p.step} von {p.total} – {p.title}"
+                what = tr("Schritt {schritt} von {gesamt} – {titel}", schritt=p.step, gesamt=p.total,
+                          titel=cloudinit.schritt_titel(p.title))
                 if p.resume_step:
-                    what += f"  ·  fortgesetzt ab Schritt {p.resume_step}"
+                    what += "  ·  " + tr("fortgesetzt ab Schritt {schritt}", schritt=p.resume_step)
             elif c.template and not c.provisioned:
-                what = "Erster Start aus der Vorlage – Rechnername, Passwort und Schlüssel werden gesetzt …"
+                what = tr("Erster Start aus der Vorlage – Rechnername, Passwort und Schlüssel werden gesetzt …")
             else:
-                what = "Agent-PC bootet und bereitet die Einrichtung vor …"
+                what = tr("Agent-PC bootet und bereitet die Einrichtung vor …")
             eta = pct.format_eta(m.eta_seconds(p.percent)) if not p.ready else ""
-            self.d_prog_label.setText(f"Einrichtung: {what}" + (f"  ·  {eta}" if eta else ""))
+            self.d_prog_label.setText(tr("Einrichtung: {was}", was=what) + (f"  ·  {eta}" if eta else ""))
 
         if self.lower.currentIndex() == 1:
             self.remote_panel.update_for(m, status)
@@ -1308,8 +1363,8 @@ class MainWindow(QMainWindow):
         """„Sofort ausschalten“ (QMP quit bzw. kill) – auch automatisch nach Ablauf der Wartezeit."""
         self._powering_off.add(m.name)
         if automatic:
-            text = (f"„{m.name}“ hat nicht innerhalb von {vm.STOP_TIMEOUT} Sekunden reagiert "
-                    "und wurde hart ausgeschaltet.")
+            text = tr("„{name}“ hat nicht innerhalb von {sekunden} Sekunden reagiert und wurde hart ausgeschaltet.",
+                      name=m.name, sekunden=vm.STOP_TIMEOUT)
             self._notices[m.name] = text
             self.statusBar().showMessage(text, 15000)
         w = TaskWorker(m.power_off)
@@ -1339,7 +1394,8 @@ class MainWindow(QMainWindow):
             self.refresh()
 
         self.remote_btn.setEnabled(False)
-        self.statusBar().showMessage(f"Fernzugriff für „{m.name}“ wird {'ein' if on else 'aus'}geschaltet …")
+        self.statusBar().showMessage(tr("Fernzugriff für „{name}“ wird eingeschaltet …", name=m.name) if on else
+                                     tr("Fernzugriff für „{name}“ wird ausgeschaltet …", name=m.name))
         switch_remote(self, m, on, permanent, done)
 
     def _check_remote_resets(self, machines: list[vm.VM]) -> None:
@@ -1355,7 +1411,7 @@ class MainWindow(QMainWindow):
 
         w = TaskWorker(check)
         w.finished.connect(lambda: w.result and self.statusBar().showMessage(
-            "Fernzugriff nach Neustart ausgeschaltet: " + ", ".join(w.result), 10000))
+            tr("Fernzugriff nach Neustart ausgeschaltet: {namen}", namen=", ".join(w.result)), 10000))
         self._remote_check = w
         w.start()
 
@@ -1396,8 +1452,8 @@ class MainWindow(QMainWindow):
         def done() -> None:
             for name, err in w.result or []:
                 self.statusBar().showMessage(
-                    f"Bony's VPN in „{name}“ " + (f"nicht umgestellt: {err}" if err else
-                                                  "auf das Paket bonys-vpn umgestellt (Tunnel unverändert)."),
+                    tr("Bony's VPN in „{name}“ nicht umgestellt: {fehler}", name=name, fehler=err) if err else
+                    tr("Bony's VPN in „{name}“ auf das Paket bonys-vpn umgestellt (Tunnel unverändert).", name=name),
                     20000)
             if w.result:
                 self.refresh_detail()
@@ -1417,12 +1473,14 @@ class MainWindow(QMainWindow):
         if not name:
             return ""
         if not netz_on:
-            return f"\nBony-Netz ({name}): ausgeschaltet"
+            return "\n" + tr("Bony-Netz ({name}): ausgeschaltet", name=name)
         if self._netz_geraete is None:
-            return f"\nBony-Netz ({name}): " + (self._netz_fehler or "wird abgefragt …")
+            return "\n" + tr("Bony-Netz ({name}): {zustand}", name=name,
+                             zustand=self._netz_fehler or tr("wird abgefragt …"))
         state = netz.netz_zustand(name, self._netz_geraete)
         ip = (self._netz_geraete.get(name) or {}).get("ip")
-        return f"\nBony-Netz ({name}): {state}" + (f" – {ip}" if ip and state != netz.NICHT_VERBUNDEN else "")
+        return "\n" + tr("Bony-Netz ({name}): {zustand}", name=name, zustand=tr(state)) + (
+            f" – {ip}" if ip and state != netz.NICHT_VERBUNDEN else "")
 
     def _check_netz(self, netz_on: bool) -> None:
         """Geräteliste im Hintergrund – höchstens alle 30 s und nur, wenn das Fenster zu sehen ist."""
@@ -1483,30 +1541,32 @@ class MainWindow(QMainWindow):
             return   # schon im Netz
         ready = m.is_running() and m.progress().ready and not m.config.first_boot_pending
         menu = QMenu(self)
-        act = menu.addAction("Mit dem Bony-Netz verbinden" if ready else
-                             "Mit dem Bony-Netz verbinden (Agent-PC muss laufen und eingerichtet sein)")
+        act = menu.addAction(tr("Mit dem Bony-Netz verbinden") if ready else
+                             tr("Mit dem Bony-Netz verbinden (Agent-PC muss laufen und eingerichtet sein)"))
         act.setEnabled(ready)
         act.triggered.connect(lambda: self._netz_verbinden(m))
         menu.exec(self.list.viewport().mapToGlobal(pos))
 
     def _netz_verbinden(self, m: vm.VM, password: str | None = None) -> None:
-        self.statusBar().showMessage(f"„{m.name}“ wird mit dem Bony-Netz verbunden (Tailscale wird installiert) …")
+        self.statusBar().showMessage(tr("„{name}“ wird mit dem Bony-Netz verbunden (Tailscale wird installiert) …",
+                                        name=m.name))
         w = TaskWorker(lambda: netz.nachtraeglich_verbinden(m, password))
 
         def failed(msg: str) -> None:
             self.statusBar().clearMessage()
             if isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{msg}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{meldung}\n\nPasswort "
+                                                                 "von „{name}“:", meldung=msg, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._netz_verbinden(m, pw)
                 return
-            QMessageBox.warning(self, APP_NAME, f"„{m.name}“ ließ sich nicht mit dem Bony-Netz verbinden:\n\n"
-                                f"{netz.fehlertext(w.error) if w.error else msg}")
+            QMessageBox.warning(self, APP_NAME, tr("„{name}“ ließ sich nicht mit dem Bony-Netz verbinden:\n\n{fehler}",
+                                                   name=m.name, fehler=netz.fehlertext(w.error) if w.error else msg))
 
         def done() -> None:
             if w.error is None:
-                self.statusBar().showMessage(f"„{m.name}“ ist mit dem Bony-Netz verbunden.", 10000)
+                self.statusBar().showMessage(tr("„{name}“ ist mit dem Bony-Netz verbunden.", name=m.name), 10000)
             self.refresh()
 
         w.failed.connect(failed)
@@ -1547,8 +1607,8 @@ class MainWindow(QMainWindow):
         m = self.current()
         if not m:
             return
-        if confirm_delete(self, APP_NAME, f"„{m.name}“ wirklich löschen?",
-                          "Alle Daten in diesem Agent-PC gehen verloren – das lässt sich nicht rückgängig machen."):
+        if confirm_delete(self, APP_NAME, tr("„{name}“ wirklich löschen?", name=m.name),
+                          tr("Alle Daten in diesem Agent-PC gehen verloren – das lässt sich nicht rückgängig machen.")):
             def remove() -> str:
                 # Erst aus dem Bony-Netz (geht es nicht, trotzdem lokal löschen und Hinweis zeigen)
                 hint = netz.loeschen_hinweis(m) if m.template_lock_pid() is None else ""
@@ -1567,7 +1627,7 @@ class MainWindow(QMainWindow):
             return
         if MoveDialog(m, self).exec():
             self.refresh()
-            self.statusBar().showMessage(f"„{m.name}“ wurde verschoben.", 5000)
+            self.statusBar().showMessage(tr("„{name}“ wurde verschoben.", name=m.name), 5000)
 
     def add_apps(self, preselect: list[str] | None = None) -> None:
         m = self.current()
@@ -1585,8 +1645,10 @@ class MainWindow(QMainWindow):
         dlg = SaveTemplateDialog(m, self)
         if dlg.exec() and dlg.result_template:
             t = dlg.result_template
-            QMessageBox.information(self, APP_NAME, f"Vorlage „{t.name}“ ist fertig ({t.size / storage.GB:.1f} GB).\n\n"
-                                    "Neue Agent-PCs daraus: „+ Neuer Agent-PC“ → Grundlage.")
+            QMessageBox.information(self, APP_NAME, tr("Vorlage „{name}“ ist fertig "
+                                                       "({groesse}).\n\nNeue Agent-PCs daraus: „+ Neuer "
+                                                       "Agent-PC“ → Grundlage.", name=t.name,
+                                                       groesse=f"{t.size / storage.GB:.1f} GB"))
         self.refresh()
 
     def show_templates(self) -> None:
@@ -1645,9 +1707,10 @@ class MainWindow(QMainWindow):
         self.refresh()
         paket, info = d.result_paket, d.info
         if paket is not None and info is not None and QMessageBox.question(
-                self, APP_NAME, f"Zur Schulung gehört das Kurspaket „{paket.name}“. Jetzt neben dem Agent-PC "
-                "durcharbeiten?\n\nDie Kursleitung sieht dabei nur, in welcher Lektion du bist und ob die "
-                "Prüfaufgabe geschafft ist – solange ihre Freigabe läuft.") == QMessageBox.Yes:
+                self, APP_NAME, tr("Zur Schulung gehört das Kurspaket „{name}“. Jetzt neben dem Agent-PC "
+                                   "durcharbeiten?\n\nDie Kursleitung sieht dabei nur, in welcher Lektion du bist "
+                                   "und ob die Prüfaufgabe geschafft ist – solange ihre Freigabe läuft.",
+                                   name=paket.name)) == QMessageBox.Yes:
             from bonys_agents import share
 
             self.kurspaket_durcharbeiten(paket, melden=lambda i, g: share.fortschritt_melden(info, i, g))
@@ -1691,9 +1754,9 @@ class MainWindow(QMainWindow):
             self.refresh()
             self._waehlen(agent_pc)
         elif kurspaket.agent_pc(paket) is None:
-            QMessageBox.information(self, APP_NAME, "Der Agent-PC, mit dem du am Kurs teilnimmst, liegt nicht auf "
-                                    "diesem Rechner. Die Anleitung öffnet sich trotzdem – Prüfaufgaben und "
-                                    "„Zurücksetzen“ gehen nur mit dem Agent-PC.")
+            QMessageBox.information(self, APP_NAME, tr("Der Agent-PC, mit dem du am Kurs teilnimmst, liegt nicht "
+                                                       "auf diesem Rechner. Die Anleitung öffnet sich trotzdem – "
+                                                       "Prüfaufgaben und „Zurücksetzen“ gehen nur mit dem Agent-PC."))
         oeffnen(paket, self.kurspaket_agent_pc_zeigen, self,
                 melden=lambda index, geschafft: kurse.fortschritt_melden(kurs_id, index, geschafft))
 
@@ -1709,7 +1772,7 @@ class MainWindow(QMainWindow):
         self._waehlen(name)
         m = self.current()
         if m is None or m.name != name:
-            QMessageBox.information(self, APP_NAME, f"Den Agent-PC „{name}“ gibt es nicht (mehr).")
+            QMessageBox.information(self, APP_NAME, tr("Den Agent-PC „{name}“ gibt es nicht (mehr).", name=name))
             return
         if self.isMinimized():
             self.showNormal()
@@ -1724,15 +1787,17 @@ class MainWindow(QMainWindow):
         m = self.current()
         if not m or not m.is_linked():
             return
-        if QMessageBox.question(self, APP_NAME, f"„{m.name}“ unabhängig machen?\n\nDie Daten der Vorlage werden in "
-                                "seine Festplatte übernommen – das braucht mehr Platz und kann ein paar Minuten "
-                                "dauern. Danach braucht er die Vorlage nicht mehr.") != QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, tr("„{name}“ unabhängig machen?\n\nDie Daten der Vorlage werden in "
+                                                   "seine Festplatte übernommen – das braucht mehr Platz und kann ein "
+                                                   "paar Minuten dauern. Danach braucht er die Vorlage nicht mehr.",
+                                                   name=m.name)) != QMessageBox.Yes:
             return
         w = FnWorker(lambda progress: m.make_independent(
-            lambda f: progress("detach", f, f"„{m.name}“ wird unabhängig … {f * 100:.0f} %")))
+            lambda f: progress("detach", f, tr("„{name}“ wird unabhängig … {prozent} %", name=m.name,
+                                               prozent=f"{f * 100:.0f}"))))
         w.progress.connect(lambda _p, _f, msg: self.statusBar().showMessage(msg))
         w.failed.connect(lambda msg: QMessageBox.critical(self, APP_NAME, msg))
-        w.done.connect(lambda _r: self.statusBar().showMessage(f"„{m.name}“ ist jetzt unabhängig.", 8000))
+        w.done.connect(lambda _r: self.statusBar().showMessage(tr("„{name}“ ist jetzt unabhängig.", name=m.name), 8000))
         w.finished.connect(self.refresh)
         self.workers = [x for x in self.workers if x.isRunning()] + [w]
         w.start()
@@ -1752,7 +1817,8 @@ class MainWindow(QMainWindow):
         if ResizeDialog(m, self).exec():
             self.refresh()
             self.statusBar().showMessage(
-                f"Festplatte von „{m.name}“ ist jetzt {vm.format_gb(m.config.disk_gb)} groß.", 6000)
+                tr("Festplatte von „{name}“ ist jetzt {groesse} groß.", name=m.name,
+                   groesse=vm.format_gb(m.config.disk_gb)), 6000)
 
     def change_resources(self) -> None:
         """CPU/RAM ändern – läuft der Agent-PC, wird er heruntergefahren, geändert und wieder gestartet."""
@@ -1771,8 +1837,8 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, APP_NAME, str(e))
                 return
             self.refresh()
-            self.statusBar().showMessage(f"„{m.name}“: {cpus} Kerne, {desktops.format_ram(ram_mb)} RAM – "
-                                         "gilt ab dem nächsten Start.", 8000)
+            self.statusBar().showMessage(tr("„{name}“: {cpus} Kerne, {ram} RAM – gilt ab dem nächsten Start.",
+                                            name=m.name, cpus=cpus, ram=desktops.format_ram(ram_mb)), 8000)
             return
         self._clear_notice()
         m.mark_stopping()
@@ -1785,14 +1851,15 @@ class MainWindow(QMainWindow):
         w = TaskWorker(restart)
         w.failed.connect(lambda msg: QMessageBox.critical(self, APP_NAME, msg))
         w.finished.connect(lambda: (self.refresh(), w.error is None and self.statusBar().showMessage(
-            f"„{m.name}“ läuft jetzt mit {cpus} Kernen und {desktops.format_ram(ram_mb)} RAM.", 8000)))
+            tr("„{name}“ läuft jetzt mit {cpus} Kernen und {ram} RAM.", name=m.name, cpus=cpus,
+               ram=desktops.format_ram(ram_mb)), 8000)))
         self._keep(w)
         self.refresh_detail()
 
     def import_vm(self) -> None:
         start = str(storage.preferred_library().parent)
         chosen = QFileDialog.getExistingDirectory(
-            self, "Ordner mit Agent-PC(s) wählen (z. B. BonysAgents auf der SSD)", start
+            self, tr("Ordner mit Agent-PC(s) wählen (z. B. BonysAgents auf der SSD)"), start
         )
         if not chosen:
             return
@@ -1803,7 +1870,7 @@ class MainWindow(QMainWindow):
             return
         self.refresh()
         names = ", ".join(m.name for m in added)
-        self.statusBar().showMessage(f"Hinzugefügt: {names}", 6000)
+        self.statusBar().showMessage(tr("Hinzugefügt: {namen}", namen=names), 6000)
 
     def _rescan(self) -> None:
         storage.invalidate_cache()
@@ -1821,7 +1888,7 @@ class MainWindow(QMainWindow):
             return
         cmd = f"ssh -p {m.runtime().get('ssh_port')} {m.config.username}@127.0.0.1"
         QGuiApplication.clipboard().setText(cmd)
-        self.statusBar().showMessage(f"Kopiert: {cmd}", 4000)
+        self.statusBar().showMessage(tr("Kopiert: {befehl}", befehl=cmd), 4000)
 
     def show_doctor(self) -> None:
         SetupDialog(self.info, self).exec()
@@ -1833,7 +1900,7 @@ class LogDialog(QDialog):
 
     def __init__(self, machine: vm.VM, files: list[Path], parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Einrichtungsprotokoll – {machine.name}")
+        self.setWindowTitle(tr("Einrichtungsprotokoll – {name}", name=machine.name))
         fit_to_screen(self, 900, 600)
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
@@ -1844,11 +1911,11 @@ class LogDialog(QDialog):
             view.verticalScrollBar().setValue(view.verticalScrollBar().maximum())
             tabs.addTab(view, f.name)
         lay.addWidget(tabs, 1)
-        where = PathLabel(machine.path, prefix="Gespeichert in ")
+        where = PathLabel(machine.path, prefix=tr("Gespeichert in "))
         where.setObjectName("Muted")
         lay.addWidget(where)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        folder = buttons.addButton("Ordner öffnen", QDialogButtonBox.ActionRole)
+        folder = buttons.addButton(tr("Ordner öffnen"), QDialogButtonBox.ActionRole)
         folder.clicked.connect(lambda: open_url(str(machine.path)))
         buttons.rejected.connect(self.reject)
         lay.addWidget(buttons)

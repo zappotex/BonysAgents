@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from bonys_agents.i18n import n_, tr
+
 APP_ID = "agenten-apps"
 GUEST_DIR = "/usr/share/bonys-agents/agenten-apps"
 PAGE = f"{GUEST_DIR}/index.html"
@@ -18,7 +20,9 @@ LAUNCHER = "agenten-apps.desktop"
 # Erzeugt die Seite neu (z. B. nachdem n8n dazukam) – als root, ohne Argumente
 REBUILD = "/usr/local/bin/bonys-agenten-apps"
 WORK_DIR = "Agent-Dateien"
-FILES = ("agent-apps.yaml", "build_agent_apps.py", LAUNCHER)
+WORK_DIR_EN = "Agent-Files"   # englischer Agent-PC (agent-apps.en.yaml ersetzt den Ordner in allen Befehlen)
+TRANSLATION = "agent-apps.en.yaml"
+FILES = ("agent-apps.yaml", TRANSLATION, "build_agent_apps.py", LAUNCHER)
 # Einträge unter „vorinstalliert“ → woran man im Gast (als root) erkennt, dass sie wirklich da sind
 INSTALLED_CHECKS = {"n8n": "docker container inspect n8n"}
 
@@ -29,12 +33,12 @@ def source_dir() -> Path:
     for cand in (here / "resources" / "agent-apps", here.parent.parent / "agent-apps"):
         if (cand / "agent-apps.yaml").is_file():
             return cand
-    raise FileNotFoundError("Die Liste „Agenten-Apps“ (agent-apps.yaml) fehlt im Programm.")
+    raise FileNotFoundError(tr("Die Liste „Agenten-Apps“ (agent-apps.yaml) fehlt im Programm."))
 
 
 def _heredoc(path: str, text: str, delim: str) -> str:
     if any(line.strip() == delim for line in text.splitlines()):
-        raise ValueError(f"{path} enthält die Endmarke {delim}")
+        raise ValueError(tr("{path} enthält die Endmarke {delim}", path=path, delim=delim))
     return f"cat > {path} <<'{delim}'\n{text.rstrip(chr(10))}\n{delim}\n"
 
 
@@ -52,12 +56,19 @@ def install_script() -> str:
     parts.append(r"""chmod 644 """ + GUEST_DIR + r"""/*
 cat > """ + REBUILD + r""" <<EOF
 #!/bin/sh
-# Von Bony's Agents: Seite „Agenten-Apps“ neu erzeugen (echte Pfade, unter „Schon dabei“ nur Installiertes)
+# Von Bony's Agents: Seite „Agenten-Apps“ neu erzeugen (echte Pfade, unter „Schon dabei“ nur Installiertes),
+# in der Sprache des Agent-PCs (/etc/default/locale)
 set -e
 DA=""
 """ + checks.replace("$", r"\$") + r"""
+UEB=""
+case "\$(unset LANG; [ -r /etc/default/locale ] && . /etc/default/locale; echo "\${LANG:-}")" in
+  de*|"") ;;
+  *) UEB="--uebersetzung """ + GUEST_DIR + "/" + TRANSLATION + r"""" ;;
+esac
+# shellcheck disable=SC2086
 python3 """ + GUEST_DIR + r"""/build_agent_apps.py """ + GUEST_DIR + r"""/agent-apps.yaml """ + PAGE + r""" \
-  --home '$AGENT_HOME' --installiert "\${DA#,}"
+  --home '$AGENT_HOME' --installiert "\${DA#,}" \$UEB
 chmod 644 """ + PAGE + r"""
 EOF
 chmod 755 """ + REBUILD + r"""
@@ -66,7 +77,8 @@ install -m 0644 """ + GUEST_DIR + "/" + LAUNCHER + " /usr/share/applications/" +
 cp /usr/share/applications/""" + LAUNCHER + r""" "$DESKTOP_DIR/"
 chown "$AGENT_USER:$AGENT_USER" "$DESKTOP_DIR/""" + LAUNCHER + r""""
 chmod 755 "$DESKTOP_DIR/""" + LAUNCHER + r""""
-install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 "$AGENT_HOME/""" + WORK_DIR + r""""
+if [ "${AGENT_LANG:-de}" = de ]; then W=""" + WORK_DIR + r"""; else W=""" + WORK_DIR_EN + r"""; fi
+install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 "$AGENT_HOME/$W"
 """)
     return "\n".join(parts)
 
@@ -89,11 +101,11 @@ def app_spec():
 
     return AppSpec(
         id=APP_ID,
-        name="Agenten-Apps (Liste)",
-        description="Liste auf dem Schreibtisch mit Programmen, die dein Hermes-Agent über MCP selbst bedienen "
-                    "kann – mit Installationsbefehlen von den offiziellen Seiten, offline lesbar",
+        name=n_("Agenten-Apps (Liste)"),
+        description=n_("Liste auf dem Schreibtisch mit Programmen, die dein Hermes-Agent über MCP selbst bedienen "
+                       "kann – mit Installationsbefehlen von den offiziellen Seiten, offline lesbar"),
         weight=1.5,
-        check=f"test -s {PAGE} && test -d \"$HOME/{WORK_DIR}\"",
+        check=f"test -s {PAGE} && {{ test -d \"$HOME/{WORK_DIR}\" || test -d \"$HOME/{WORK_DIR_EN}\"; }}",
         launcher=LAUNCHER,
         install=_install_or_error(),
     )

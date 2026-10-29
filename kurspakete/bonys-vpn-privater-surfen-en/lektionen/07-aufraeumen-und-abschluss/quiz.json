@@ -1,0 +1,34 @@
+{
+  "fragen": [
+    {
+      "frage": "Why do you delete the .conf from Downloads after importing?",
+      "antworten": [
+        "It contains your private key – in Downloads any program can read it",
+        "Otherwise the VPN connects twice",
+        "It takes up too much space"
+      ],
+      "richtig": 0,
+      "erklaerung": "Bony's VPN stored it safely (/etc/wireguard, root only). The copy in Downloads is unnecessary – and a risk."
+    },
+    {
+      "frage": "The tunnel drops, the kill switch is on. What happens?",
+      "antworten": [
+        "The Agent PC carries on browsing without the tunnel",
+        "Nothing gets to the internet any more until the tunnel is up again",
+        "The Agent PC turns itself off"
+      ],
+      "richtig": 1,
+      "erklaerung": "That's exactly what the kill switch is for: no tunnel, no internet – so your real address never becomes visible."
+    },
+    {
+      "frage": "Where is your key after importing?",
+      "antworten": [
+        "On the desktop so you can find it",
+        "Safely in /etc/wireguard, only readable by root – Bony's VPN never shows it",
+        "With the trainer"
+      ],
+      "richtig": 1,
+      "erklaerung": "Bony's VPN's helper stores the configuration with permissions 600. The key never appears in displays or output."
+    }
+  ]
+}

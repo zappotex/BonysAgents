@@ -34,9 +34,10 @@ from bonys_agents.gui.netz_dialog import _card, _muted, _section
 from bonys_agents.gui.share_dialogs import code_style
 from bonys_agents.gui.widgets import make_scrollable
 from bonys_agents.gui.workers import TaskWorker
+from bonys_agents.i18n import n_, tr
 
-FREISCHALTEN_TEXT = ("Kurse anlegen kann eine Instanz erst mit einem Kursleiter-Code. Den Code bekommst du vom "
-                     "Betreiber des Servers – einmal einlösen genügt, auch für Bony's VPN.")
+FREISCHALTEN_TEXT = n_("Kurse anlegen kann eine Instanz erst mit einem Kursleiter-Code. Den Code bekommst du vom "
+                       "Betreiber des Servers – einmal einlösen genügt, auch für Bony's VPN.")
 
 
 class KursleitungSeite(Seite):
@@ -57,14 +58,14 @@ class KursleitungSeite(Seite):
         page = QWidget()
         p = QVBoxLayout(page)
         p.setContentsMargins(0, 0, 0, 0)
-        p.addWidget(_section("Kursleiter-Code einlösen"))
+        p.addWidget(_section(tr("Kursleiter-Code einlösen")))
         card, c = _card()
-        c.addWidget(_muted(FREISCHALTEN_TEXT))
+        c.addWidget(_muted(tr(FREISCHALTEN_TEXT)))
         row = QHBoxLayout()
         self.code = QLineEdit()
-        self.code.setPlaceholderText("Kursleiter-Code")
+        self.code.setPlaceholderText(tr("Kursleiter-Code"))
         self.code.setMaxLength(100)
-        self.redeem_btn = QPushButton("Einlösen")
+        self.redeem_btn = QPushButton(tr("Einlösen"))
         self.redeem_btn.setObjectName("Primary")
         row.addWidget(self.code, 1)
         row.addWidget(self.redeem_btn)
@@ -78,18 +79,18 @@ class KursleitungSeite(Seite):
         p = QVBoxLayout(page)
         p.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
-        self.new_btn = QPushButton("+  Neuer Kurs …")
+        self.new_btn = QPushButton(tr("+  Neuer Kurs …"))
         self.new_btn.setObjectName("Primary")
-        self.open_btn = QPushButton("Öffnen")
-        self.ended = QCheckBox("Beendete anzeigen")
+        self.open_btn = QPushButton(tr("Öffnen"))
+        self.ended = QCheckBox(tr("Beendete anzeigen"))
         row.addWidget(self.new_btn)
         row.addWidget(self.open_btn)
         row.addStretch(1)
         row.addWidget(self.ended)
         p.addLayout(row)
-        self.table = tabelle(["Kurs", "Status", "Teilnehmer", "Code"])
+        self.table = tabelle([tr("Kurs"), tr("Status"), tr("Teilnehmer"), tr("Code")])
         p.addWidget(self.table, 1)
-        self.empty = _muted("Noch keine Kurse – mit „Neuer Kurs …“ anlegen.")
+        self.empty = _muted(tr("Noch keine Kurse – mit „Neuer Kurs …“ anlegen."))
         p.addWidget(self.empty)
         self.stack.addWidget(page)
 
@@ -115,7 +116,7 @@ class KursleitungSeite(Seite):
         self.ended.setEnabled(idle)
         self.open_btn.setEnabled(self.bereit and auswahl(self.table) is not None)
         self.empty.setVisible(self.geladen and not self.kurse)
-        self.status.setText("Frage den Server …" if self.busy else self.status_text)
+        self.status.setText(tr("Frage den Server …") if self.busy else self.status_text)
 
     def laden(self) -> None:
         alle = self.ended.isChecked()
@@ -155,7 +156,7 @@ class KursleitungSeite(Seite):
                 return
             self.code.clear()
             self.kursleiter = True
-            self.status_text = "Freigeschaltet – du kannst jetzt Kurse anlegen."
+            self.status_text = tr("Freigeschaltet – du kannst jetzt Kurse anlegen.")
             self.stack.setCurrentIndex(1)
             self.zuletzt = 0.0
             QTimer.singleShot(0, self.tick)
@@ -165,9 +166,9 @@ class KursleitungSeite(Seite):
     def _new(self) -> None:
         d = NeuerKursDialog(self)
         if d.exec() == QDialog.Accepted and d.kurs is not None:
-            self.status_text = f"Kurs „{d.kurs.name}“ angelegt." + (
-                f" Das Kurspaket wurde nicht hochgeladen ({d.paket_fehler}) – in der Kursansicht erneut wählen."
-                if d.paket_fehler else "")
+            self.status_text = tr("Kurs „{name}“ angelegt.", name=d.kurs.name) + (
+                tr(" Das Kurspaket wurde nicht hochgeladen ({paket_fehler}) – in der Kursansicht erneut wählen.",
+                   paket_fehler=d.paket_fehler) if d.paket_fehler else "")
             self.kurse = [d.kurs, *self.kurse]
             self._zeigen()
             self._update()
@@ -193,11 +194,11 @@ def paket_auswahl(aktuell: str = "") -> QComboBox:
     box = QComboBox()
     box.addItem(OHNE_PAKET, "")
     for p in kurspaket.liste():
-        box.addItem(f"{p.name} {p.version} · {p.stufe_text}" + (" (Entwurf)" if p.entwurf else ""), p.id)
+        box.addItem(f"{p.name} {p.version} · {p.stufe_text}" + (" " + tr("(Entwurf)") if p.entwurf else ""), p.id)
     i = box.findData(aktuell)
     box.setCurrentIndex(max(i, 0))
-    box.setToolTip("Die Teilnehmer bekommen das Kurspaket automatisch und arbeiten es neben ihrem Agent-PC durch. "
-                   "Du siehst je Teilnehmer nur Lektion und „geschafft / noch nicht“.")
+    box.setToolTip(tr("Die Teilnehmer bekommen das Kurspaket automatisch und arbeiten es neben ihrem Agent-PC durch. "
+                      "Du siehst je Teilnehmer nur Lektion und „geschafft / noch nicht“."))
     return box
 
 
@@ -208,39 +209,39 @@ def _paket(paket_id: str) -> kurspaket.Kurspaket | None:
 class NeuerKursDialog(QDialog, Hintergrund):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Neuer Kurs")
+        self.setWindowTitle(tr("Neuer Kurs"))
         self.kurs: kurse.Kurs | None = None
         self.fehler = ""
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Neuer Kurs")
+        title = QLabel(tr("Neuer Kurs"))
         title.setObjectName("Title")
         root.addWidget(title)
-        root.addWidget(_muted("Der Kurs bekommt einen Code, mit dem Teilnehmer beitreten. Er startet erst, wenn du "
-                              "„Kurs starten“ drückst – vorher erreichst du keine Agent-PCs der Teilnehmer."))
+        root.addWidget(_muted(tr("Der Kurs bekommt einen Code, mit dem Teilnehmer beitreten. Er startet erst, wenn du "
+                                 "„Kurs starten“ drückst – vorher erreichst du keine Agent-PCs der Teilnehmer.")))
         form = QFormLayout()
         self.name = QLineEdit()
         self.name.setMaxLength(kurse.NAME_MAX)
-        self.name.setPlaceholderText("z. B. Einführung Hermes")
+        self.name.setPlaceholderText(tr("z. B. Einführung Hermes"))
         self.leader = QLineEdit(kurse.gemerkt(kurse.KURSLEITER_NAME))
         self.leader.setMaxLength(kurse.NAME_MAX)
-        self.leader.setPlaceholderText("So sehen dich die Teilnehmer")
+        self.leader.setPlaceholderText(tr("So sehen dich die Teilnehmer"))
         self.days = QSpinBox()
         self.days.setRange(kurse.TAGE_MIN, kurse.TAGE_MAX)
         self.days.setValue(kurse.TAGE_STANDARD)
-        self.days.setSuffix(" Tage")
-        form.addRow("Kursname", self.name)
-        form.addRow("Dein Anzeigename", self.leader)
-        form.addRow("Code gültig für", self.days)
+        self.days.setSuffix(tr(" Tage"))
+        form.addRow(tr("Kursname"), self.name)
+        form.addRow(tr("Dein Anzeigename"), self.leader)
+        form.addRow(tr("Code gültig für"), self.days)
         self.paket = paket_auswahl()
-        form.addRow("Kurspaket", self.paket)
+        form.addRow(tr("Kurspaket"), self.paket)
         root.addLayout(form)
         self.status = _muted()
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.ok_btn = QPushButton("Kurs anlegen")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.ok_btn = QPushButton(tr("Kurs anlegen"))
         self.ok_btn.setObjectName("Primary")
         self.ok_btn.setDefault(True)
         buttons.addWidget(self.cancel_btn)
@@ -265,7 +266,7 @@ class NeuerKursDialog(QDialog, Hintergrund):
         for w in (self.name, self.leader, self.days, self.paket, self.cancel_btn):
             w.setEnabled(idle)
         self.ok_btn.setEnabled(idle and bool(self.name.text().strip()) and bool(self.leader.text().strip()))
-        self.status.setText("Lege den Kurs an …" if self.busy else self.fehler)
+        self.status.setText(tr("Lege den Kurs an …") if self.busy else self.fehler)
 
     def _go(self) -> None:
         if not self.ok_btn.isEnabled():
@@ -284,7 +285,7 @@ class NeuerKursDialog(QDialog, Hintergrund):
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
-                self.fehler = f"Der Kurs wurde nicht angelegt: {netz.fehlertext(w.error)}"
+                self.fehler = tr("Der Kurs wurde nicht angelegt: {wert}", wert=netz.fehlertext(w.error))
                 return
             self.kurs, self.paket_fehler = w.result
             self.accept()
@@ -307,7 +308,7 @@ class KursAnsicht(QDialog, Hintergrund):
         self.weg = False
         self.status_text = ""
         self.zuletzt = time.monotonic()
-        self.setWindowTitle(f"Kurs – {kurs.name}")
+        self.setWindowTitle(tr("Kurs – {name}", name=kurs.name))
         root = QVBoxLayout(self)
         root.setSpacing(10)
         self.title = QLabel()
@@ -317,13 +318,13 @@ class KursAnsicht(QDialog, Hintergrund):
         self.info = _muted()
         root.addWidget(self.info)
 
-        root.addWidget(_section("Kurscode"))
+        root.addWidget(_section(tr("Kurscode")))
         card, c = _card()
         row = QHBoxLayout()
         self.code = QLabel()
         self.code.setStyleSheet(code_style())
         self.code.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.copy_btn = QPushButton("Kopieren")
+        self.copy_btn = QPushButton(tr("Kopieren"))
         row.addWidget(self.code, 1)
         row.addWidget(self.copy_btn)
         c.addLayout(row)
@@ -332,57 +333,58 @@ class KursAnsicht(QDialog, Hintergrund):
         root.addWidget(card)
 
         row = QHBoxLayout()
-        self.start_btn = QPushButton("Kurs starten")
+        self.start_btn = QPushButton(tr("Kurs starten"))
         self.start_btn.setObjectName("Primary")
-        self.pause_btn = QPushButton("Pausieren")
-        self.end_btn = QPushButton("Beenden …")
+        self.pause_btn = QPushButton(tr("Pausieren"))
+        self.end_btn = QPushButton(tr("Beenden …"))
         self.end_btn.setObjectName("Danger")
-        self.room_btn = QPushButton("Kursraum öffnen")
+        self.room_btn = QPushButton(tr("Kursraum öffnen"))
         for b in (self.start_btn, self.pause_btn, self.end_btn, self.room_btn):
             row.addWidget(b)
         row.addStretch(1)
         root.addLayout(row)
 
-        root.addWidget(_section("Kurspaket"))
+        root.addWidget(_section(tr("Kurspaket")))
         card, c = _card()
         row = QHBoxLayout()
         self.paket_text = QLabel()
         self.paket_text.setWordWrap(True)
         self.paket_text.setTextFormat(Qt.PlainText)
-        self.paket_btn = QPushButton("Wählen …")
-        self.paket_btn.setToolTip("Kurspaket aus der Bibliothek zum Kurs hochladen – die Teilnehmer bekommen es "
-                                  "automatisch")
-        self.paket_weg_btn = QPushButton("Entfernen")
-        self.anleitung_btn = QPushButton("Anleitung")
-        self.anleitung_btn.setToolTip("Kurspaket mit Ablaufplan und Notizen für die Kursleitung öffnen")
+        self.paket_btn = QPushButton(tr("Wählen …"))
+        self.paket_btn.setToolTip(tr("Kurspaket aus der Bibliothek zum Kurs hochladen – die Teilnehmer bekommen es "
+                                     "automatisch"))
+        self.paket_weg_btn = QPushButton(tr("Entfernen"))
+        self.anleitung_btn = QPushButton(tr("Anleitung"))
+        self.anleitung_btn.setToolTip(tr("Kurspaket mit Ablaufplan und Notizen für die Kursleitung öffnen"))
         row.addWidget(self.paket_text, 1)
         for b in (self.anleitung_btn, self.paket_btn, self.paket_weg_btn):
             row.addWidget(b)
         c.addLayout(row)
         root.addWidget(card)
 
-        root.addWidget(_section("Teilnehmer"))
-        self.table = tabelle(["Anzeigename", "Agent-PC", "Netzadresse", "Beigetreten", "Lektion", "Prüfung"])
+        root.addWidget(_section(tr("Teilnehmer")))
+        self.table = tabelle([tr("Anzeigename"), tr("Agent-PC"), tr("Netzadresse"), tr("Beigetreten"), tr("Lektion"),
+                              tr("Prüfung")])
         root.addWidget(self.table, 1)
-        self.empty = _muted("Noch niemand beigetreten.")
+        self.empty = _muted(tr("Noch niemand beigetreten."))
         root.addWidget(self.empty)
         row = QHBoxLayout()
-        self.help_btn = QPushButton("Helfen")
-        self.help_btn.setToolTip("Agent-PC des Teilnehmers ansehen und bedienen – nur wenn er zustimmt "
-                                 "(beide müssen im Kursraum sein)")
-        self.remove_btn = QPushButton("Entfernen …")
+        self.help_btn = QPushButton(tr("Helfen"))
+        self.help_btn.setToolTip(tr("Agent-PC des Teilnehmers ansehen und bedienen – nur wenn er zustimmt "
+                                    "(beide müssen im Kursraum sein)"))
+        self.remove_btn = QPushButton(tr("Entfernen …"))
         self.remove_btn.setObjectName("Danger")
         row.addWidget(self.help_btn)
         row.addWidget(self.remove_btn)
         row.addStretch(1)
         root.addLayout(row)
-        root.addWidget(_muted(kurse.NETZ_HINWEIS))
+        root.addWidget(_muted(tr(kurse.NETZ_HINWEIS)))
         self.status = _muted()
         root.addWidget(self.status)
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        close = QPushButton("Schließen")
+        close = QPushButton(tr("Schließen"))
         close.clicked.connect(self.accept)
         buttons.addWidget(close)
         root.addLayout(buttons)
@@ -410,15 +412,16 @@ class KursAnsicht(QDialog, Hintergrund):
         k = self.kurs
         self.title.setText(k.name)
         teil = len(k.teilnehmer)
-        self.info.setText(f"Status: {k.status_text} · {teil} Teilnehmer" +
-                          (f" · Kursleiter: {k.kursleiter_name}" if k.kursleiter_name else ""))
+        self.info.setText(tr("Status: {status} · {n} Teilnehmer", status=k.status_text, n=teil) +
+                          (" · " + tr("Kursleiter: {name}", name=k.kursleiter_name) if k.kursleiter_name else ""))
         self.code.setText(k.code or "–")
         if k.beendet:
-            self.valid.setText("Der Kurs ist beendet – mit dem Code tritt niemand mehr bei.")
+            self.valid.setText(tr("Der Kurs ist beendet – mit dem Code tritt niemand mehr bei."))
         else:
-            self.valid.setText(f"gültig bis {kurse.datum(k.code_gueltig_bis)}" if k.code_gueltig_bis else "")
+            self.valid.setText(tr("gültig bis "
+                                  "{wert}", wert=kurse.datum(k.code_gueltig_bis)) if k.code_gueltig_bis else "")
         a = k.kurspaket
-        self.paket_text.setText(a.text if a else "Kein Kurspaket – die Teilnehmer arbeiten ohne Anleitung mit.")
+        self.paket_text.setText(a.text if a else tr("Kein Kurspaket – die Teilnehmer arbeiten ohne Anleitung mit."))
         lokal = _paket(a.paket_id) if a else None
         if lokal is not None and lokal.version != a.version:
             lokal = None   # Titel der Lektionen nur aus genau dieser Fassung
@@ -449,12 +452,12 @@ class KursAnsicht(QDialog, Hintergrund):
         self.help_btn.setVisible(k.laeuft)
         self.help_btn.setEnabled(idle and auswahl(self.table) is not None)
         self.paket_btn.setVisible(not k.beendet)
-        self.paket_btn.setText("Ändern …" if k.kurspaket else "Wählen …")
+        self.paket_btn.setText(tr("Ändern …") if k.kurspaket else tr("Wählen …"))
         self.paket_weg_btn.setVisible(not k.beendet and k.kurspaket is not None)
         for b in (self.paket_btn, self.paket_weg_btn):
             b.setEnabled(idle)
         self.anleitung_btn.setVisible(k.kurspaket is not None and _paket(k.kurspaket.paket_id) is not None)
-        self.status.setText("Frage den Server …" if self.busy else self.status_text)
+        self.status.setText(tr("Frage den Server …") if self.busy else self.status_text)
 
     # ---------------------------------------------------------------- Hintergrund
     def _tick(self) -> None:
@@ -473,7 +476,7 @@ class KursAnsicht(QDialog, Hintergrund):
                 return
             if w.result is None:
                 self.weg = True
-                self.status_text = "Den Kurs gibt es auf dem Server nicht mehr."
+                self.status_text = tr("Den Kurs gibt es auf dem Server nicht mehr.")
                 return
             self.kurs = w.result
             self.status_text = ""
@@ -499,8 +502,8 @@ class KursAnsicht(QDialog, Hintergrund):
                 self.kurs.status = neu.status
             else:
                 self.kurs = neu
-            self.status_text = {kurse.LAEUFT: "Der Kurs läuft.", kurse.PAUSIERT: "Der Kurs ist pausiert.",
-                                kurse.BEENDET: "Der Kurs ist beendet."}[status]
+            self.status_text = {kurse.LAEUFT: tr("Der Kurs läuft."), kurse.PAUSIERT: tr("Der Kurs ist pausiert."),
+                                kurse.BEENDET: tr("Der Kurs ist beendet.")}[status]
             self._zeigen()
             self.zuletzt = 0.0   # gleich frisch holen (Netzadressen der Teilnehmer)
             if status == kurse.LAEUFT:
@@ -509,17 +512,18 @@ class KursAnsicht(QDialog, Hintergrund):
         self._run(lambda: kurse.status_setzen(kurs_id, status), done)
 
     def _end(self) -> None:
-        if nachfragen(self, "Kurs beenden", f"Kurs „{self.kurs.name}“ beenden?",
-                      f"{kurse.BEENDEN_HINWEIS} Der Kurscode gilt danach nicht mehr, und das lässt sich nicht "
-                      "rückgängig machen.", "Beenden"):
+        if nachfragen(self, tr("Kurs beenden"), tr("Kurs „{name}“ beenden?", name=self.kurs.name),
+                      tr("{BEENDEN_HINWEIS} Der Kurscode gilt danach nicht mehr, und das lässt sich nicht rückgängig "
+                         "machen.", BEENDEN_HINWEIS=tr(kurse.BEENDEN_HINWEIS)), tr("Beenden")):
             self._status(kurse.BEENDET)
 
     def _remove(self) -> None:
         instanz_id = auswahl(self.table)
         t = next((x for x in self.kurs.teilnehmer if x.instanz_id == instanz_id), None)
-        if t is None or not nachfragen(self, "Teilnehmer entfernen", f"„{t.anzeigename}“ aus dem Kurs entfernen?",
-                                       "Sein Agent-PC ist danach über diesen Kurs nicht mehr erreichbar.",
-                                       "Entfernen"):
+        if t is None or not nachfragen(self, tr("Teilnehmer entfernen"), tr("„{anzeigename}“ aus dem Kurs entfernen?",
+                                                                        anzeigename=t.anzeigename),
+                                       tr("Sein Agent-PC ist danach über diesen Kurs nicht mehr erreichbar."),
+                                       tr("Entfernen")):
             return
         kurs_id = self.kurs.kurs_id
 
@@ -528,24 +532,24 @@ class KursAnsicht(QDialog, Hintergrund):
                 self.status_text = netz.fehlertext(w.error)
                 return
             self.kurs.teilnehmer = [x for x in self.kurs.teilnehmer if x.instanz_id != instanz_id]
-            self.status_text = f"„{t.anzeigename}“ entfernt."
+            self.status_text = tr("„{anzeigename}“ entfernt.", anzeigename=t.anzeigename)
             self._zeigen()
 
         self._run(lambda: kurse.teilnehmer_entfernen(kurs_id, instanz_id), done)
 
     def _paket_waehlen(self) -> None:
         d = QDialog(self)
-        d.setWindowTitle("Kurspaket wählen")
+        d.setWindowTitle(tr("Kurspaket wählen"))
         lay = QVBoxLayout(d)
-        lay.addWidget(_muted("Das Kurspaket wird zum Kurs hochgeladen; die Teilnehmer bekommen es automatisch. Ein "
-                             "anderes Kurspaket ersetzt das bisherige – der Fortschritt der Teilnehmer beginnt dann "
-                             "neu."))
+        lay.addWidget(_muted(tr("Das Kurspaket wird zum Kurs hochgeladen; die Teilnehmer bekommen es automatisch. Ein "
+                                "anderes Kurspaket ersetzt das bisherige – der Fortschritt der Teilnehmer beginnt dann "
+                                "neu.")))
         box = paket_auswahl(self.kurs.kurspaket.paket_id if self.kurs.kurspaket else "")
         box.removeItem(0)   # „Ohne“ heißt hier „Entfernen“
         lay.addWidget(box)
         row = QHBoxLayout()
         row.addStretch(1)
-        nein, ja = QPushButton("Abbrechen"), QPushButton("Hochladen")
+        nein, ja = QPushButton(tr("Abbrechen")), QPushButton(tr("Hochladen"))
         ja.setObjectName("Primary")
         ja.setEnabled(box.count() > 0)
         nein.clicked.connect(d.reject)
@@ -559,22 +563,24 @@ class KursAnsicht(QDialog, Hintergrund):
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
-                self.status_text = f"Kurspaket nicht hochgeladen: {netz.fehlertext(w.error)}"
+                self.status_text = tr("Kurspaket nicht hochgeladen: {wert}", wert=netz.fehlertext(w.error))
                 return
             if w.result.name != "?":
                 self.kurs = w.result
-            self.status_text = f"Kurspaket „{paket.name}“ hochgeladen – die Teilnehmer bekommen es automatisch."
+            self.status_text = tr("Kurspaket „{name}“ hochgeladen – die Teilnehmer bekommen es automatisch.",
+                                  name=paket.name)
             self._zeigen()
 
         self.status_text = ""
         self._run(lambda: kurse.kurspaket_hochladen(kurs_id, paket), done)
-        self.status.setText("Lade das Kurspaket hoch …")
+        self.status.setText(tr("Lade das Kurspaket hoch …"))
 
     def _paket_entfernen(self) -> None:
         a = self.kurs.kurspaket
-        if a is None or not nachfragen(self, "Kurspaket entfernen", f"Kurspaket „{a.name}“ aus dem Kurs entfernen?",
-                                       "Die Teilnehmer behalten ihre Kopie, ihr Fortschritt ist für dich dann nicht "
-                                       "mehr zu sehen.", "Entfernen"):
+        if a is None or not nachfragen(self, tr("Kurspaket entfernen"), tr("Kurspaket „{name}“ aus dem Kurs entfernen?",
+                                                                       name=a.name),
+                                       tr("Die Teilnehmer behalten ihre Kopie, ihr Fortschritt ist für dich dann nicht "
+                                          "mehr zu sehen."), tr("Entfernen")):
             return
         kurs_id = self.kurs.kurs_id
 
@@ -606,14 +612,14 @@ class KursAnsicht(QDialog, Hintergrund):
         self.busy += 1
         self.status_text = ""
         self._update()
-        self.status.setText("Öffne den Kursraum …")
+        self.status.setText(tr("Öffne den Kursraum …"))
 
         def fertig(fehler: str | None) -> None:
             if not isValid(self):
                 return
             self.busy -= 1
-            self.status_text = f"Kursraum: {fehler}" if fehler else ("Anfrage geschickt – der Teilnehmer wird im "
-                                                                    "Kursraum gefragt.")
+            self.status_text = f"Kursraum: {fehler}" if fehler else tr("Anfrage geschickt – der Teilnehmer wird im "
+                                                                       "Kursraum gefragt.")
             self._update()
 
         helfen(self.kurs.kurs_id, self.kurs.name, instanz_id, self, fertig)
@@ -631,8 +637,8 @@ class KursAnsicht(QDialog, Hintergrund):
         """Hinweis ohne zu blockieren – die Kursansicht fragt weiter die Zentrale."""
         if not isValid(self) or not self.isVisible():
             return
-        box = QMessageBox(QMessageBox.Information, "Dieser Rechner ist nicht im Bony-Netz",
-                          "Für „Helfen“ muss dieser Rechner im Bony-Netz sein.", QMessageBox.NoButton, self)
+        box = QMessageBox(QMessageBox.Information, tr("Dieser Rechner ist nicht im Bony-Netz"),
+                          tr("Für „Helfen“ muss dieser Rechner im Bony-Netz sein."), QMessageBox.NoButton, self)
         box.setAttribute(Qt.WA_DeleteOnClose)
         box.setWindowModality(Qt.NonModal)
         box.setInformativeText(f"{rechner.text}\n\n{hilfe.verbinden_hinweis()}")
@@ -641,7 +647,7 @@ class KursAnsicht(QDialog, Hintergrund):
             from bonys_agents.gui import host_vpn
 
             vpn = box.addButton(host_vpn.button_text(), QMessageBox.AcceptRole)
-        box.addButton("Später", QMessageBox.RejectRole)
+        box.addButton(tr("Später"), QMessageBox.RejectRole)
 
         def geklickt(knopf) -> None:
             if vpn is not None and knopf is vpn and isValid(self):

@@ -11,11 +11,12 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, host, rfb, share, vm
+from bonys_agents import APP_NAME, rfb, share, vm
 from bonys_agents.gui import style
 from bonys_agents.gui.share_dialogs import code_style, qr_pixmap
 from bonys_agents.gui.widgets import make_scrollable
 from bonys_agents.trainer import present, share_server
+from bonys_agents.i18n import tr
 
 
 class PresentDialog(QDialog):
@@ -31,15 +32,16 @@ class PresentDialog(QDialog):
         self.restart = restart
         self.help_desk = help_desk
         self.pres: present.Presentation | None = None
-        self.setWindowTitle("Vorführen")
+        self.setWindowTitle(tr("Vorführen"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel(f"„{machine.name}“ vorführen")
+        title = QLabel(tr("„{name}“ vorführen", name=machine.name))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Die Teilnehmer sehen den Bildschirm dieses Agent-PCs live im Browser (Laptop, Tablet, Handy) – "
-                       "nur ansehen: Tippen und Klicken der Zuschauer kommt nie im Agent-PC an. Im selben Netz oder im "
-                       "VPN, nur mit Code, verschlüsselt (HTTPS). " + present.SOUND_HINT)
+        intro = QLabel(tr("Die Teilnehmer sehen den Bildschirm dieses Agent-PCs live im Browser (Laptop, Tablet, "
+                          "Handy) – nur ansehen: Tippen und Klicken der Zuschauer kommt nie im Agent-PC an. Im "
+                          "selben Netz oder im VPN, nur mit Code, verschlüsselt (HTTPS). {SOUND_HINT}",
+                          SOUND_HINT=tr(present.SOUND_HINT)))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
@@ -48,11 +50,11 @@ class PresentDialog(QDialog):
         self.restart_box = QFrame()
         self.restart_box.setObjectName("Hint")
         rb = QHBoxLayout(self.restart_box)
-        self.restart_text = QLabel("Dieser Agent-PC wurde mit einer älteren Version gestartet und zeigt seinen "
-                                   "Bildschirm noch nicht für Schulungen. Einmal neu starten – danach geht "
-                                   "„Vorführen“ immer.")
+        self.restart_text = QLabel(tr("Dieser Agent-PC wurde mit einer älteren Version gestartet und zeigt seinen "
+                                      "Bildschirm noch nicht für Schulungen. Einmal neu starten – danach geht "
+                                      "„Vorführen“ immer."))
         self.restart_text.setWordWrap(True)
-        self.restart_btn = QPushButton("Jetzt neu starten")
+        self.restart_btn = QPushButton(tr("Jetzt neu starten"))
         self.restart_btn.setObjectName("Primary")
         rb.addWidget(self.restart_text, 1)
         rb.addWidget(self.restart_btn)
@@ -63,27 +65,28 @@ class PresentDialog(QDialog):
         self.settings.setContentsMargins(0, 0, 0, 0)
         self.quality = QComboBox()
         for key, label in present.QUALITY_LABELS.items():
-            self.quality.addItem(f"{label} – {rfb.QUALITY[key][2]} Bilder/s", key)
+            self.quality.addItem(tr("{label} – {wert} Bilder/s", label=label, wert=rfb.QUALITY[key][2]), key)
         self.quality.setCurrentIndex(self.quality.findData(present.DEFAULT_QUALITY))
-        self.quality.setToolTip("Bei vielen Zuschauern oder hoher Last senkt Bony's Agents die Bildrate automatisch.")
+        self.quality.setToolTip(tr("Bei vielen Zuschauern oder hoher Last senkt Bony's Agents die Bildrate "
+                                   "automatisch."))
         self.viewers = QSpinBox()
         self.viewers.setRange(1, 200)
         self.viewers.setValue(present.DEFAULT_MAX_VIEWERS)
         self.minutes = QSpinBox()
         self.minutes.setRange(5, 24 * 60)
-        self.minutes.setSuffix(" min")
+        self.minutes.setSuffix(tr(" min"))
         self.minutes.setValue(present.DEFAULT_TIMEOUT_MIN)
         self.port = QSpinBox()
         self.port.setRange(1024, 65535)
         self.port.setValue(present.DEFAULT_PORT)
-        self.settings.addRow("Qualität", self.quality)
-        self.settings.addRow("Höchstens Zuschauer", self.viewers)
-        self.settings.addRow("Endet nach", self.minutes)
-        self.settings.addRow("Port", self.port)
+        self.settings.addRow(tr("Qualität"), self.quality)
+        self.settings.addRow(tr("Höchstens Zuschauer"), self.viewers)
+        self.settings.addRow(tr("Endet nach"), self.minutes)
+        self.settings.addRow(tr("Port"), self.port)
         root.addWidget(self.settings_box)
 
         # Während der Vorführung
-        self.pause_banner = QLabel("PAUSE – die Teilnehmer sehen „Gleich geht's weiter“, kein Bild.")
+        self.pause_banner = QLabel(tr("PAUSE – die Teilnehmer sehen „Gleich geht's weiter“, kein Bild."))
         self.pause_banner.setAlignment(Qt.AlignCenter)
         self.pause_banner.setStyleSheet(f"background: {style.WARN}; color: #111; font-weight: bold; padding: 8px; "
                                         "border-radius: 6px;")
@@ -102,12 +105,12 @@ class PresentDialog(QDialog):
         left.addStretch(1)
         self.live.addLayout(left, 1)
         self.qr = QLabel()
-        self.qr.setToolTip("Mit der Handy-Kamera scannen: öffnet die Vorführung im Browser, der Code ist schon "
-                           "eingetragen.")
+        self.qr.setToolTip(tr("Mit der Handy-Kamera scannen: öffnet die Vorführung im Browser, der Code ist schon "
+                              "eingetragen."))
         self.live.addWidget(self.qr, 0, Qt.AlignTop)
         root.addLayout(self.live)
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Zuschauer", "Adresse", "Status", "Eingaben verworfen"])
+        self.table.setHorizontalHeaderLabels([tr("Zuschauer"), tr("Adresse"), tr("Status"), tr("Eingaben verworfen")])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -116,12 +119,12 @@ class PresentDialog(QDialog):
         root.addWidget(self.table, 1)
         # Knöpfe zur Liste – nicht in der Knopfzeile unten, die sonst unter Windows zu breit wird
         table_buttons = QHBoxLayout()
-        self.help_btn = QPushButton("Hilfe-Anfragen …")
-        self.help_btn.setToolTip("Teilnehmer, die Hilfe angefordert haben – gleicher Code wie die Vorführung")
+        self.help_btn = QPushButton(tr("Hilfe-Anfragen …"))
+        self.help_btn.setToolTip(tr("Teilnehmer, die Hilfe angefordert haben – gleicher Code wie die Vorführung"))
         self.help_btn.setVisible(help_desk is not None)
         table_buttons.addWidget(self.help_btn)
-        self.remove_btn = QPushButton("Zuschauer entfernen")
-        self.remove_btn.setToolTip("Ausgewählten Zuschauer trennen – von seiner Adresse aus 5 Minuten gesperrt")
+        self.remove_btn = QPushButton(tr("Zuschauer entfernen"))
+        self.remove_btn.setToolTip(tr("Ausgewählten Zuschauer trennen – von seiner Adresse aus 5 Minuten gesperrt"))
         table_buttons.addWidget(self.remove_btn)
         table_buttons.addStretch(1)
         root.addLayout(table_buttons)
@@ -129,7 +132,7 @@ class PresentDialog(QDialog):
         self.events.setReadOnly(True)
         self.events.setMaximumHeight(style.px(80))
         root.addWidget(self.events)
-        self.firewall = QLabel(share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=present.DEFAULT_PORT))
+        self.firewall = QLabel(share_server.firewall_hinweis(present.DEFAULT_PORT))
         self.firewall.setWordWrap(True)
         self.firewall.setObjectName("Muted")
         root.addWidget(self.firewall)
@@ -140,12 +143,12 @@ class PresentDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.pause_btn = QPushButton("Pause")
-        self.pause_btn.setToolTip("Vor dem Eingeben von Passwörtern oder Tokens: niemand sieht etwas, bis „Weiter“")
-        self.start_btn = QPushButton("Vorführung starten")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.pause_btn = QPushButton(tr("Pause"))
+        self.pause_btn.setToolTip(tr("Vor dem Eingeben von Passwörtern oder Tokens: niemand sieht etwas, bis „Weiter“"))
+        self.start_btn = QPushButton(tr("Vorführung starten"))
         self.start_btn.setObjectName("Primary")
-        self.stop_btn = QPushButton("Vorführung beenden")
+        self.stop_btn = QPushButton(tr("Vorführung beenden"))
         self.stop_btn.setObjectName("Danger")
         for b in (self.close_btn, self.pause_btn, self.stop_btn, self.start_btn):
             buttons.addWidget(b)
@@ -159,7 +162,7 @@ class PresentDialog(QDialog):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._refresh)
         self.port.valueChanged.connect(lambda v: self.firewall.setText(
-            share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=v)))
+            share_server.firewall_hinweis(v)))
         self.start_btn.clicked.connect(self._start)
         self.stop_btn.clicked.connect(self._stop)
         self.pause_btn.clicked.connect(self._toggle_pause)
@@ -186,20 +189,21 @@ class PresentDialog(QDialog):
         ok = running and not needs_restart and present.novnc_dir() is not None
         self.start_btn.setEnabled(ok)
         if not running:
-            self.status.setText("Der Agent-PC läuft nicht – bitte zuerst starten.")
+            self.status.setText(tr("Der Agent-PC läuft nicht – bitte zuerst starten."))
         elif present.novnc_dir() is None:
-            self.status.setText("noVNC fehlt in dieser Installation – Vorführen geht nicht.")
+            self.status.setText(tr("noVNC fehlt in dieser Installation – Vorführen geht nicht."))
         elif not needs_restart:
             self.status.setText("")
 
     def _restart(self) -> None:
-        if QMessageBox.question(self, APP_NAME, f"„{self.m.name}“ jetzt herunterfahren und wieder starten? Nicht "
-                                "gespeicherte Arbeit im Agent-PC geht verloren.") != QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, tr("„{name}“ jetzt herunterfahren und wieder starten? Nicht "
+                                                   "gespeicherte Arbeit im Agent-PC geht verloren.",
+                                                   name=self.m.name)) != QMessageBox.Yes:
             return
         if self.restart:
             self.restart()
         self.restart_btn.setEnabled(False)
-        self.status.setText("Startet neu … „Vorführung starten“ geht, sobald der Agent-PC wieder läuft.")
+        self.status.setText(tr("Startet neu … „Vorführung starten“ geht, sobald der Agent-PC wieder läuft."))
         QTimer.singleShot(2000, self._wait_restart)
 
     def _wait_restart(self) -> None:
@@ -211,16 +215,17 @@ class PresentDialog(QDialog):
             QTimer.singleShot(2000, self._wait_restart)
 
     def _start(self) -> None:
-        box = QMessageBox(QMessageBox.Warning, "Vorführen", present.WARNING, QMessageBox.Ok | QMessageBox.Cancel, self)
-        box.button(QMessageBox.Ok).setText("Verstanden – starten")
-        box.button(QMessageBox.Cancel).setText("Abbrechen")
+        box = QMessageBox(QMessageBox.Warning, tr("Vorführen"), tr(present.WARNING),
+                          QMessageBox.Ok | QMessageBox.Cancel, self)
+        box.button(QMessageBox.Ok).setText(tr("Verstanden – starten"))
+        box.button(QMessageBox.Cancel).setText(tr("Abbrechen"))
         if box.exec() != QMessageBox.Ok:
             return
         try:
             running = self.hub.running()
             if running is not None:
                 if not self.m.vnc_available():
-                    raise present.NeedsRestart("Der Agent-PC zeigt seinen Bildschirm noch nicht – neu starten.")
+                    raise present.NeedsRestart(tr("Der Agent-PC zeigt seinen Bildschirm noch nicht – neu starten."))
                 running.set_screen(self.m.name, self.m.vnc_connect, is_alive=self.m.is_running,
                                    quality=self.quality.currentData(), max_viewers=self.viewers.value())
                 p = running
@@ -230,7 +235,7 @@ class PresentDialog(QDialog):
                 p.start()
                 self.hub.adopt(p)
         except (OSError, ValueError, present.PresentError) as e:
-            self.status.setText(f"Fehler: {e}")
+            self.status.setText(tr("Fehler: {e}", e=e))
             self.status.setStyleSheet(f"color: {style.DANGER};")
             self._check_ready()
             return
@@ -247,11 +252,12 @@ class PresentDialog(QDialog):
         rows = []
         for a in p.addresses():
             kind = share.address_kind(a)
-            rows.append(f"Im Browser öffnen: <b>https://{a}:{p.port}</b>" + (f" ({kind})" if kind else ""))
-        rows.append(f"Fingerabdruck: <b>{share.short_fingerprint(p.fingerprint)}</b> – der Browser warnt vor dem "
-                    "Zertifikat; Teilnehmer können ihn in den Zertifikatsdetails vergleichen")
+            rows.append(tr("Im Browser öffnen: <b>https://{a}:{port}</b>", a=a,
+                           port=p.port) + (f" ({kind})" if kind else ""))
+        rows.append(tr("Fingerabdruck: <b>{wert}</b> – der Browser warnt vor dem Zertifikat; Teilnehmer können ihn "
+                       "in den Zertifikatsdetails vergleichen", wert=share.short_fingerprint(p.fingerprint)))
         rows.append(f"<span style='font-size:small'>{share.format_fingerprint(p.fingerprint)}</span>")
-        rows.append("In Bony's Agents: „Kurse“ → „Schulung im Netzwerk beitreten“ zeigt die Vorführung auch an.")
+        rows.append(tr("In Bony's Agents: „Kurse“ → „Schulung im Netzwerk beitreten“ zeigt die Vorführung auch an."))
         self.info.setText("<br>".join(rows))
         pix = qr_pixmap(p.url(), style.px(200))
         if pix is not None:
@@ -283,22 +289,23 @@ class PresentDialog(QDialog):
             self.events.setPlainText(text)
             self.events.verticalScrollBar().setValue(self.events.verticalScrollBar().maximum())
         self.pause_banner.setVisible(p.paused and not p.stopped.is_set())
-        self.pause_btn.setText("Weiter" if p.paused else "Pause")
+        self.pause_btn.setText(tr("Weiter") if p.paused else tr("Pause"))
         self.pause_btn.setObjectName("Primary" if p.paused else "")
         self.pause_btn.style().unpolish(self.pause_btn)
         self.pause_btn.style().polish(self.pause_btn)
         if p.stopped.is_set() or not p.has_screen:
             self.timer.stop()
             self.pause_banner.setVisible(False)
-            self.status.setText(p.stop_reason if p.stopped.is_set() else "Vorführung beendet – der Hilfe-Schalter "
-                                "läuft weiter (gleicher Code).")
+            self.status.setText(p.stop_reason if p.stopped.is_set() else tr("Vorführung beendet – der Hilfe-Schalter "
+                                                                            "läuft weiter (gleicher Code)."))
             for w in (self.stop_btn, self.pause_btn, self.remove_btn):
                 w.setVisible(False)
             self.code.setStyleSheet(code_style() + " text-decoration: line-through;")
             return
         left = p.remaining()
-        self.status.setText(f"Vorführung läuft – endet in {int(left // 60)} min {int(left % 60):02d} s · "
-                            f"{len(viewers)} von höchstens {p.max_viewers} Zuschauern · {p.fps():.0f} Bilder/s"
+        self.status.setText(tr("Vorführung läuft – endet in {wert} min {wert2:02d} s · {wert3} von höchstens "
+                               "{max_viewers} Zuschauern · {wert4:.0f} Bilder/s", wert=int(left // 60),
+                               wert2=int(left % 60), wert3=len(viewers), max_viewers=p.max_viewers, wert4=p.fps())
                             + (f" · CPU {p.cpu_percent:.0f} %" if p.cpu_percent else ""))
 
     def _toggle_pause(self) -> None:
@@ -312,9 +319,10 @@ class PresentDialog(QDialog):
         row = self.table.currentRow()
         item = self.table.item(row, 0) if row >= 0 else None
         if item is None:
-            QMessageBox.information(self, APP_NAME, "Bitte zuerst einen Zuschauer in der Liste auswählen.")
+            QMessageBox.information(self, APP_NAME, tr("Bitte zuerst einen Zuschauer in der Liste auswählen."))
             return
-        if QMessageBox.question(self, APP_NAME, f"„{item.text()}“ von der Vorführung entfernen?") == QMessageBox.Yes:
+        if QMessageBox.question(self, APP_NAME, tr("„{wert}“ von der Vorführung entfernen?",
+                                                   wert=item.text())) == QMessageBox.Yes:
             self.pres.remove_viewer(item.data(Qt.UserRole))
             self._refresh()
 
@@ -328,7 +336,7 @@ class PresentDialog(QDialog):
 
     def reject(self) -> None:
         if self._live():
-            if QMessageBox.question(self, APP_NAME, "Vorführung beenden?") != QMessageBox.Yes:
+            if QMessageBox.question(self, APP_NAME, tr("Vorführung beenden?")) != QMessageBox.Yes:
                 return
             self._stop()
         self.timer.stop()

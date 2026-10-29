@@ -44,19 +44,28 @@ from bonys_agents.share import (
     FORTSCHRITT_MAX, LOCK_SECONDS, MAX_FAILS_PER_ADDR, MAX_FAILS_TOTAL, PROTOCOL, PROTOCOL_HEADER, VERSION_HEADER,
     WAITING_STALE, ProtocolMismatch, ShareError, check_protocol, local_addresses, normalize_code, share_link,
 )
+from bonys_agents.i18n import n_, tr
 
 FIREWALL_HINTS = {
-    "windows": "Windows fragt beim ersten Freigeben, ob Bony's Agents Verbindungen annehmen darf: „Zugriff "
-               "zulassen“ – nur für „Private Netzwerke“ (Heim-/Firmennetz), nicht für öffentliche. Ist das Netz als "
-               "„Öffentlich“ eingestuft, in den Windows-Einstellungen auf „Privat“ umstellen.",
-    "macos": "macOS fragt ggf. „Eingehende Netzwerkverbindungen akzeptieren?“ – „Erlauben“. Ist unter "
-             "Systemeinstellungen → Netzwerk → Firewall „Alle eingehenden Verbindungen blockieren“ an, finden "
-             "die Teilnehmer die Freigabe nicht.",
-    "linux": "Linux: Meist ist keine Firewall aktiv. Mit ufw den Port nur für die Schulung öffnen und danach wieder "
-             "schließen: sudo ufw allow {port}/tcp … sudo ufw delete allow {port}/tcp (mDNS: 5353/udp). Mit "
-             "firewalld nur vorübergehend (ohne --permanent): sudo firewall-cmd --add-port={port}/tcp.",
+    "windows": n_("Windows fragt beim ersten Freigeben, ob Bony's Agents Verbindungen annehmen darf: „Zugriff "
+                  "zulassen“ – nur für „Private Netzwerke“ (Heim-/Firmennetz), nicht für öffentliche. Ist das Netz als "
+                  "„Öffentlich“ eingestuft, in den Windows-Einstellungen auf „Privat“ umstellen."),
+    "macos": n_("macOS fragt ggf. „Eingehende Netzwerkverbindungen akzeptieren?“ – „Erlauben“. Ist unter "
+                "Systemeinstellungen → Netzwerk → Firewall „Alle eingehenden Verbindungen blockieren“ an, finden "
+                "die Teilnehmer die Freigabe nicht."),
+    "linux": n_("Linux: Meist ist keine Firewall aktiv. Mit ufw den Port nur für die Schulung öffnen und danach wieder "
+                "schließen: sudo ufw allow {port}/tcp … sudo ufw delete allow {port}/tcp (mDNS: 5353/udp). Mit "
+                "firewalld nur vorübergehend (ohne --permanent): sudo firewall-cmd --add-port={port}/tcp."),
 }
 
+
+
+def firewall_hinweis(port: int) -> str:
+    """Hinweis zur Firewall dieses Rechners (je Betriebssystem) mit eingesetztem Port, in der Sprache der App."""
+    from bonys_agents import host
+
+    text = FIREWALL_HINTS.get(host.detect().os, "")
+    return tr(text, port=port) if text else ""
 
 
 def new_code() -> str:
@@ -256,8 +265,8 @@ class Share(Guarded):
         try:
             httpd = _Server((self.bind, self.port), Handler)
         except OSError as e:
-            raise ShareError(f"Port {self.port} ist belegt oder nicht erlaubt ({e.strerror or e}). Einen anderen "
-                             "Port wählen (z. B. 47111).") from e
+            raise ShareError(tr("Port {port} ist belegt oder nicht erlaubt ({wert}). Einen anderen Port wählen (z. "
+                                "B. 47111).", port=self.port, wert=e.strerror or e)) from e
         httpd.socket = self._ctx.wrap_socket(httpd.socket, server_side=True, do_handshake_on_connect=False)
         self.port = httpd.server_address[1]
         self.httpd = httpd

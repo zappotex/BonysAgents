@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Gestaltung der Handbücher von Bony's Agents (Typst). Pandoc setzt den Text ein (vorlage/pandoc.typ),
-// erstellen.sh übergibt Titel, Version und Datum.
+// erstellen.sh übergibt Titel, Version, Datum und Sprache („de“ oder „en“, Metadatum „sprache“).
+
+// Feste Texte der Vorlage je Sprache – gewählt nach text.lang (gesetzt in conf)
+#let texte = (
+  de: (hinweis: "Hinweis", tipp: "Tipp", warnung: "Achtung", datenschutz: "Datenschutz", bild: "Bild",
+       tabelle: "Tabelle", inhalt: "Inhalt", stand: "Stand", lizenz: "Lizenz", kurspaket: "Kurspaket", von: "von",
+       erstellt: "erstellt mit Bony's Agents"),
+  en: (hinweis: "Note", tipp: "Tip", warnung: "Caution", datenschutz: "Privacy", bild: "Figure", tabelle: "Table",
+       inhalt: "Contents", stand: "Updated", lizenz: "License", kurspaket: "Course package", von: "by",
+       erstellt: "made with Bony's Agents"),
+)
+#let t(schluessel) = context texte.at(if text.lang == "en" { "en" } else { "de" }).at(schluessel)
 
 #let orange = rgb("#f5a623")
 #let nachtblau = rgb("#0d141d")
@@ -14,12 +25,13 @@
 
 // Hinweis-, Tipp- und Warnkästen: ::: hinweis … ::: im Markdown
 #let kasten(art, inhalt) = {
-  let (farbe, flaeche, titel) = (
-    hinweis: (eisblau, rgb("#eaf5fe"), "Hinweis"),
-    tipp: (rgb("#2e9d6a"), rgb("#e9f7f0"), "Tipp"),
-    warnung: (rgb("#d9480f"), rgb("#fff1e6"), "Achtung"),
-    datenschutz: (rgb("#6a4cc4"), rgb("#f1edfc"), "Datenschutz"),
+  let (farbe, flaeche) = (
+    hinweis: (eisblau, rgb("#eaf5fe")),
+    tipp: (rgb("#2e9d6a"), rgb("#e9f7f0")),
+    warnung: (rgb("#d9480f"), rgb("#fff1e6")),
+    datenschutz: (rgb("#6a4cc4"), rgb("#f1edfc")),
   ).at(art)
+  let titel = t(art)
   block(width: 100%, breakable: false, above: 1em, below: 1em, fill: flaeche, radius: 4pt,
     stroke: (left: 4pt + farbe), inset: (left: 14pt, right: 12pt, top: 10pt, bottom: 10pt))[
     #text(weight: "bold", fill: farbe, titel) \
@@ -33,10 +45,11 @@
 
 #let conf(
   titel: none, untertitel: none, dokument: "", version: "", datum: "", inhalt-zeigen: true, kurz: false,
-  kapitel-seite: true, fuss: none, versionszeile: none, kopf: none, doc,
+  kapitel-seite: true, fuss: none, versionszeile: none, kopf: none, sprache: "de", doc,
 ) = {
   set document(title: titel, author: "Bony")
-  set text(font: ("Source Sans 3", "DejaVu Sans", "Noto Color Emoji"), size: 11pt, lang: "de", region: "de",
+  set text(font: ("Source Sans 3", "DejaVu Sans", "Noto Color Emoji"), size: 11pt, lang: sprache,
+    region: if sprache == "de" { "de" } else { "us" },
     hyphenate: true)
   set par(justify: false, leading: 0.68em, spacing: 1.05em)
   show raw: set text(font: ("Source Code Pro", "DejaVu Sans Mono"), size: 0.92em)
@@ -52,8 +65,8 @@
   set figure(gap: 0.6em)
   show figure.caption: it => text(size: 9.5pt, fill: grau, [#it.supplement #context it.counter.display(it.numbering): #it.body])
   set figure.caption(separator: [: ])
-  show figure.where(kind: image): set figure(supplement: "Bild")
-  show figure.where(kind: table): set figure(supplement: "Tabelle")
+  show figure.where(kind: image): set figure(supplement: t("bild"))
+  show figure.where(kind: table): set figure(supplement: t("tabelle"))
   // Große Bilder dürfen an den Seitenanfang oder das Seitenende rutschen – sonst bleiben halbe Seiten leer
   show figure.where(kind: image): set figure(placement: auto)
   set place(clearance: 1.4em)
@@ -86,7 +99,7 @@
     footer: context {
       if here().page() > 1 {
         set text(size: 9pt, fill: grau)
-        grid(columns: (1fr, auto), if fuss != none { fuss } else [Stand: #datum · Lizenz: CC BY-SA 4.0],
+        grid(columns: (1fr, auto), if fuss != none { fuss } else [#t("stand"): #datum · #t("lizenz"): CC BY-SA 4.0],
           counter(page).display("1"))
       }
     })
@@ -111,7 +124,7 @@
         #v(1.2cm)
         #line(length: 6cm, stroke: 2pt + orange)
         #v(0.3cm)
-        #text(size: 12pt, fill: white)[#if versionszeile != none { versionszeile } else [Bony's Agents #version · Stand #datum]]
+        #text(size: 12pt, fill: white)[#if versionszeile != none { versionszeile } else [Bony's Agents #version · #t("stand") #datum]]
       ])
     ]
     counter(page).update(1)
@@ -119,7 +132,7 @@
 
   if inhalt-zeigen {
     show outline.entry.where(level: 1): it => { v(0.5em, weak: true); strong(it) }
-    outline(title: text(size: 20pt, fill: nachtblau)[Inhalt], depth: 2, indent: 1.2em)
+    outline(title: text(size: 20pt, fill: nachtblau, t("inhalt")), depth: 2, indent: 1.2em)
     pagebreak()
   }
 
@@ -127,22 +140,32 @@
 }
 
 // Letzte Seite bzw. Schluss: Lizenz des Handbuchs
-#let lizenz(kurz: false) = {
+#let lizenz(kurz: false) = context {
+  let en = text.lang == "en"
   if not kurz { pagebreak(weak: true) } else { v(1.5em) }
   set text(size: if kurz { 8.5pt } else { 10pt }, fill: grau)
-  if not kurz { heading(numbering: none, outlined: true, "Lizenz dieses Handbuchs") }
-  [Dieses Dokument ist Teil von Bony's Agents (#link("https://github.com/zappotex/BonysAgents")). Text und
+  if not kurz { heading(numbering: none, outlined: true, if en { "License of this guide" } else { "Lizenz dieses Handbuchs" }) }
+  if en [This document is part of Bony's Agents (#link("https://github.com/zappotex/BonysAgents")). Text and
+  screenshots are licensed under *Creative Commons Attribution-ShareAlike 4.0 International* (CC BY-SA 4.0,
+  #link("https://creativecommons.org/licenses/by-sa/4.0/")): you may copy, share and adapt it, also for courses
+  and commercially – with attribution ("Bony's Agents, Bony", link to the project) and under the same license.]
+  else [Dieses Dokument ist Teil von Bony's Agents (#link("https://github.com/zappotex/BonysAgents")). Text und
   Bildschirmfotos stehen unter der Lizenz *Creative Commons Namensnennung – Weitergabe unter gleichen Bedingungen
   4.0 International* (CC BY-SA 4.0, #link("https://creativecommons.org/licenses/by-sa/4.0/deed.de")): Du darfst es
   kopieren, weitergeben, verändern und auch für Kurse und kommerziell nutzen – mit Namensnennung („Bony's Agents,
   Bony“, Link zum Projekt) und unter derselben Lizenz.]
   if not kurz {
     parbreak()
-    [*Ausgenommen* sind der Name „Bony's Agents“ und das Logo: Sie dürfen nicht für veränderte Fassungen verwendet
+    if en [*Excluded* are the name "Bony's Agents" and the logo: they must not be used for modified versions. The
+    program itself is licensed under the GPL-3.0-or-later. The screenshots show made-up sample data; names such as
+    Anna, Ben, Clara and Eva, course codes and addresses are fictional.]
+    else [*Ausgenommen* sind der Name „Bony's Agents“ und das Logo: Sie dürfen nicht für veränderte Fassungen verwendet
     werden. Das Programm selbst steht unter der GPL-3.0-or-later. Die Bildschirmfotos zeigen erfundene
     Beispieldaten; Namen wie Anna, Ben, Clara und Eva, Kurscodes und Adressen sind ausgedacht.]
     parbreak()
-    [Schriften: Source Sans 3 und Source Code Pro (Adobe, SIL Open Font License 1.1). Gesetzt mit Pandoc und
+    if en [Fonts: Source Sans 3 and Source Code Pro (Adobe, SIL Open Font License 1.1). Typeset with Pandoc and
+    Typst.]
+    else [Schriften: Source Sans 3 und Source Code Pro (Adobe, SIL Open Font License 1.1). Gesetzt mit Pandoc und
     Typst.]
   }
 }
@@ -151,6 +174,6 @@
 #let paket-lizenz(autor: [], lizenz: []) = {
   v(1.5em)
   set text(size: 8.5pt, fill: grau)
-  [Kurspaket#if autor != [] [ von #autor] · Lizenz: #lizenz · erstellt mit Bony's Agents
+  [#t("kurspaket")#if autor != [] [ #t("von") #autor] · #t("lizenz"): #lizenz · #t("erstellt")
   (#link("https://github.com/zappotex/BonysAgents")).]
 }

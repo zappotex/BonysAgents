@@ -319,10 +319,12 @@ def test_seite_vollstaendig_und_ohne_fremde_quellen():
     html = (SEITE / "index.html").read_text("utf-8")
     js = (SEITE / "kursraum.js").read_text("utf-8")
     quellen = re.findall(r'(?:src|href)="([^"]+)"', html)
-    assert set(quellen) == {"kursraum.css", "qwebchannel.js", "vendor/livekit-client.umd.js", "kursraum.js"}
+    # texte.js erzeugt die App (Sprache und Übersetzungen, kursraum.texte_js)
+    assert set(quellen) == {"kursraum.css", "texte.js", "qwebchannel.js", "vendor/livekit-client.umd.js",
+                            "kursraum.js"}
     for q in quellen:
         assert "://" not in q
-        if q not in ("qwebchannel.js", "vendor/livekit-client.umd.js"):
+        if q not in ("texte.js", "qwebchannel.js", "vendor/livekit-client.umd.js"):
             assert kursraum.seiten_datei("/" + q, SEITE) is not None, q
     assert "Content-Security-Policy" in html and "script-src 'self'" in html
     # Chat und Namen nur als Text – nie als HTML; Karte nie ins Log

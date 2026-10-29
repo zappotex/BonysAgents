@@ -39,11 +39,34 @@ def test_alle_gueltig_und_ohne_geheimnisse():
         for lek in p.lektionen:
             lek.quiz()
             assert lek.anleitung().strip()
-    assert "einfuehrung-hermes-agent" in ids and len(ids) == 9
-    fertig = {kurspaket.laden(o).id for o in _ordner() if not kurspaket.laden(o).entwurf}
+    deutsch = [i for i in ids if not i.endswith(kurspaket.EN_ENDUNG)]
+    assert "einfuehrung-hermes-agent" in deutsch and len(deutsch) == 9
+    fertig = {kurspaket.laden(o).id for o in _ordner()
+              if not kurspaket.laden(o).entwurf and kurspaket.laden(o).sprache == "de"}
     assert fertig == {"einfuehrung-hermes-agent", "was-ist-ein-mcp-server", "n8n-grundlagen",
                       "bonys-vpn-privater-surfen"}   # dazu fünf Entwürfe
     assert {kurspaket.laden(o).stufe for o in _ordner()} == {"anfaenger", "fortgeschritten", "experte"}
+
+
+def test_englische_fassungen_passen_zur_deutschen():
+    """Englische Fassung (ID „…-en“, Plan Englisch): gleicher Aufbau wie die deutsche, nur übersetzt."""
+    englisch = [o for o in _ordner() if o.name.endswith(kurspaket.EN_ENDUNG)]
+    assert englisch
+    for o in englisch:
+        en, de = kurspaket.laden(o), kurspaket.laden(QUELLE / kurspaket.gegenstueck(o.name))
+        assert de.sprache == "de" and en.sprache == "en" and en.rezept.keyboard == "us"
+        assert (en.stufe, en.version, en.dauer_minuten, en.entwurf, en.lizenz) == \
+            (de.stufe, de.version, de.dauer_minuten, de.entwurf, de.lizenz)
+        assert [le.ordner for le in en.lektionen] == [le.ordner for le in de.lektionen]
+        assert [(le.dauer_minuten, bool(le.pruefung), bool(le.start)) for le in en.lektionen] == \
+            [(le.dauer_minuten, bool(le.pruefung), bool(le.start)) for le in de.lektionen]
+        assert sorted(p.relative_to(o).as_posix() for p in o.rglob("*") if p.is_file()) == \
+            sorted(p.relative_to(QUELLE / de.id).as_posix() for p in (QUELLE / de.id).rglob("*") if p.is_file()), o.name
+        for le in en.lektionen:
+            assert len(le.quiz()) == len(next(d for d in de.lektionen if d.ordner == le.ordner).quiz())
+        for md in ("ablaufplan.md", "handout.md"):
+            if (o / md).is_file():
+                assert "lang: en" in (o / md).read_text(), f"{o.name}/{md}"
 
 
 def test_werden_als_mitgeliefert_gefunden():
@@ -258,7 +281,7 @@ def test_pack_skript_der_release_aktion(tmp_path):
     m = _skript()
     bau = tmp_path / "bau"
     ordner = m.vorbereiten(bau)
-    assert len(ordner) == 9
+    assert len(ordner) == len(_ordner())   # deutsche und englische Fassungen
     # ohne Signatur bricht es ab
     with pytest.raises(SystemExit, match="Signatur"):
         m.packen(bau, tmp_path / "out", public)
@@ -268,9 +291,11 @@ def test_pack_skript_der_release_aktion(tmp_path):
                                            encoding="utf-8")
     index = m.packen(bau, tmp_path / "out", public)
     katalog = json.loads(index.read_text())
-    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == 9
+    assert katalog["format"] == kurspaket.KATALOG_FORMAT and len(katalog["pakete"]) == len(ordner)
     hermes = next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent")
     assert hermes["datei"] == "pakete/einfuehrung-hermes-agent-1.0.1.bonyspaket" and "entwurf" not in hermes
+    assert hermes["sprache"] == "de"
+    assert next(e for e in katalog["pakete"] if e["id"] == "einfuehrung-hermes-agent-en")["sprache"] == "en"
     datei = tmp_path / "out" / "einfuehrung-hermes-agent-1.0.1.bonyspaket"
     assert hermes["groesse"] == datei.stat().st_size
 

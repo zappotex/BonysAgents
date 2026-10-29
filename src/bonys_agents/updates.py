@@ -31,6 +31,7 @@ from pathlib import Path
 
 from bonys_agents import UPDATE_PUBLIC_KEY, UPDATE_REPO, __version__, edition, procutil, signing, storage
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import n_, tr
 
 API_URL = "https://api.github.com"
 TIMEOUT = 10                 # Sekunden für die Versionsabfrage
@@ -193,10 +194,10 @@ def needs_consent() -> bool:
     return "update_auto_check" not in storage.load_settings()
 
 
-CONSENT_QUESTION = ("Soll Bony's Agents einmal am Tag nach Updates suchen?\n\n"
-                    "Dabei fragt es nur bei GitHub die neueste Versionsnummer ab (übertragen werden dabei, wie bei "
-                    "jedem Webseitenaufruf, deine IP-Adresse und die installierte Version). Installiert wird nie "
-                    "ohne deine Zustimmung. Ändern lässt sich das jederzeit im Menü.")
+CONSENT_QUESTION = (n_("Soll Bony's Agents einmal am Tag nach Updates suchen?\n\n"
+                       "Dabei fragt es nur bei GitHub die neueste Versionsnummer ab (übertragen werden dabei, wie bei "
+                       "jedem Webseitenaufruf, deine IP-Adresse und die installierte Version). Installiert wird nie "
+                       "ohne deine Zustimmung. Ändern lässt sich das jederzeit im Menü."))
 
 
 def auto_check_due(now: float | None = None) -> bool:
@@ -224,7 +225,7 @@ def _open_https(url: str, timeout: float, opener: Opener):
     final = r.geturl() if hasattr(r, "geturl") else url
     if not str(final).startswith("https://"):
         r.close()
-        raise UpdateError("Download nicht über HTTPS – abgebrochen.")
+        raise UpdateError(tr("Download nicht über HTTPS – abgebrochen."))
     return r
 
 
@@ -232,7 +233,7 @@ def _fetch_small(url: str, opener: Opener, limit: int = 1024 * 1024) -> bytes:
     with _open_https(url, 30, opener) as r:
         data = r.read(limit + 1)
     if len(data) > limit:
-        raise UpdateError("Unerwartet große Prüfsummen-Datei – abgebrochen.")
+        raise UpdateError(tr("Unerwartet große Prüfsummen-Datei – abgebrochen."))
     return data
 
 
@@ -241,7 +242,7 @@ def parse_sums(text: str, filename: str) -> str:
         parts = line.split()
         if len(parts) == 2 and parts[1].lstrip("*") == filename and re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
             return parts[0].lower()
-    raise UpdateError(f"{filename} steht nicht in der signierten Prüfsummen-Liste – abgebrochen.")
+    raise UpdateError(tr("{filename} steht nicht in der signierten Prüfsummen-Liste – abgebrochen.", filename=filename))
 
 
 def download_verified(info: UpdateInfo, asset_name: str, dest_dir: Path, *, repo: str = UPDATE_REPO,
@@ -250,30 +251,33 @@ def download_verified(info: UpdateInfo, asset_name: str, dest_dir: Path, *, repo
     """Datei aus dem Release laden – nur mit gültiger Signatur und passender Prüfsumme."""
     opener = opener or urllib.request.urlopen
     if not public_key.strip():
-        raise UpdateError("In dieser Version ist kein Signaturschlüssel für Updates hinterlegt – "
-                          f"bitte die neue Version selbst von {release_page(repo)} laden.")
+        raise UpdateError(tr("In dieser Version ist kein Signaturschlüssel für Updates hinterlegt – bitte die neue "
+                             "Version selbst von {wert} laden.", wert=release_page(repo)))
     asset = info.assets.get(asset_name)
     if asset is None:
-        raise UpdateError(f"Das Release {info.tag} enthält keine Datei {asset_name}.")
+        raise UpdateError(tr("Das Release {tag} enthält keine Datei {asset_name}.", tag=info.tag,
+                             asset_name=asset_name))
     sums, sig = info.assets.get(SUMS_NAME), info.assets.get(SIG_NAME)
     if sums is None or sig is None:
-        raise UpdateError(f"Das Release {info.tag} ist nicht signiert ({SUMS_NAME}/{SIG_NAME} fehlen) – "
-                          "aus Sicherheitsgründen wird nichts installiert.")
+        raise UpdateError(tr("Das Release {tag} ist nicht signiert ({SUMS_NAME}/{SIG_NAME} fehlen) – aus "
+                             "Sicherheitsgründen wird nichts installiert.", tag=info.tag, SUMS_NAME=SUMS_NAME,
+                             SIG_NAME=SIG_NAME))
     for a in (asset, sums, sig):
         if not _official(a.url, repo):
-            raise UpdateError(f"{a.name} stammt nicht aus dem offiziellen Release – abgebrochen.")
+            raise UpdateError(tr("{name} stammt nicht aus dem offiziellen Release – abgebrochen.", name=a.name))
     try:
         sums_data = _fetch_small(sums.url, opener)
         sig_text = _fetch_small(sig.url, opener).decode("utf-8", errors="replace")
     except (OSError, urllib.error.URLError) as e:
-        raise UpdateError(f"Download fehlgeschlagen: {e}") from None
+        raise UpdateError(tr("Download fehlgeschlagen: {e}", e=e)) from None
     try:
         trusted = signing.verify(sums_data, sig_text, public_key)
     except signing.SignatureError as e:
-        raise UpdateError(f"Signaturprüfung fehlgeschlagen: {e} Das Update wird nicht installiert.") from None
+        raise UpdateError(tr("Signaturprüfung fehlgeschlagen: {e} Das Update wird nicht installiert.", e=e)) from None
     # Schutz vor echten, aber alten Dateien: die Signatur muss genau diese Version nennen.
     if not {info.tag, info.version, f"v{info.version}"} & set(trusted.split()):
-        raise UpdateError(f"Die Signatur gehört zu einer anderen Version („{trusted}“) – abgebrochen.")
+        raise UpdateError(tr("Die Signatur gehört zu einer anderen Version („{trusted}“) – abgebrochen.",
+                             trusted=trusted))
     want = parse_sums(sums_data.decode("utf-8", errors="replace"), asset_name)
 
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -292,11 +296,11 @@ def download_verified(info: UpdateInfo, asset_name: str, dest_dir: Path, *, repo
                     progress(done, total)
     except (OSError, urllib.error.URLError) as e:
         part.unlink(missing_ok=True)
-        raise UpdateError(f"Download fehlgeschlagen: {e}") from None
+        raise UpdateError(tr("Download fehlgeschlagen: {e}", e=e)) from None
     if h.hexdigest() != want:
         part.unlink(missing_ok=True)
-        raise UpdateError(f"Prüfsumme von {asset_name} stimmt nicht – Datei beschädigt oder verändert. "
-                          "Das Update wird nicht installiert.")
+        raise UpdateError(tr("Prüfsumme von {asset_name} stimmt nicht – Datei beschädigt oder verändert. Das Update "
+                             "wird nicht installiert.", asset_name=asset_name))
     os.replace(part, target)
     target.chmod(0o644)  # apt liest lokale .deb als Benutzer _apt
     return target
@@ -390,29 +394,30 @@ def install_linux(info: UpdateInfo, arch: str, gui: bool, log: Callable[[str], N
     from bonys_agents import deps
 
     if apt_source_configured():
-        log("Aktualisiere über die Paketquelle von Bony's Agents (fragt nach deinem Passwort) …")
+        log(tr("Aktualisiere über die Paketquelle von Bony's Agents (fragt nach deinem Passwort) …"))
         if deps._run(deps._elevate_linux(apt_upgrade_script(), gui), log) == 0:
             now = installed_deb_version()
             if now and not is_newer(info.version, now.split("-")[0]):
                 return
-            log(f"Die Paketquelle bietet {info.version} noch nicht an – lade das Paket direkt aus dem Release.")
+            log(tr("Die Paketquelle bietet {version} noch nicht an – lade das Paket direkt aus dem Release.",
+                   version=info.version))
         else:
-            log("Aktualisierung über die Paketquelle nicht möglich – lade das Paket direkt aus dem Release.")
+            log(tr("Aktualisierung über die Paketquelle nicht möglich – lade das Paket direkt aus dem Release."))
     name = asset_for(info.version, "linux", arch)
-    log(f"Lade {name} und prüfe Signatur und Prüfsumme …")
+    log(tr("Lade {name} und prüfe Signatur und Prüfsumme …", name=name))
     deb = download_verified(info, name, download_dir(), opener=opener)
-    log("Signatur und Prüfsumme in Ordnung. Installiere (fragt nach deinem Passwort) …")
+    log(tr("Signatur und Prüfsumme in Ordnung. Installiere (fragt nach deinem Passwort) …"))
     rc = deps._run(deps._elevate_linux(deb_install_script(deb), gui), log)
     if rc != 0:
-        raise UpdateError(f"Installation abgebrochen oder fehlgeschlagen (Code {rc}).")
+        raise UpdateError(tr("Installation abgebrochen oder fehlgeschlagen (Code {rc}).", rc=rc))
 
 
 def install_windows(info: UpdateInfo, log: Callable[[str], None], opener: Opener | None = None) -> None:
     """Setup.exe laden, prüfen und still starten. Danach muss sich die App sofort beenden."""
     name = asset_for(info.version, "windows", "x86_64")
-    log(f"Lade {name} und prüfe Signatur und Prüfsumme …")
+    log(tr("Lade {name} und prüfe Signatur und Prüfsumme …", name=name))
     setup = download_verified(info, name, Path(tempfile.mkdtemp(prefix="bonys-agents-update-")), opener=opener)
-    log("Signatur und Prüfsumme in Ordnung. Starte die Installation …")
+    log(tr("Signatur und Prüfsumme in Ordnung. Starte die Installation …"))
     # /RELAUNCH=1: der Installer startet die App danach wieder (siehe bonys-agents.iss)
     subprocess.Popen([str(setup), "/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS", "/RELAUNCH=1"],
                      env=clean_env(), creationflags=0x00000008 | no_window_flags())  # DETACHED_PROCESS
@@ -428,13 +433,13 @@ def install_macos(info: UpdateInfo, arch: str, log: Callable[[str], None], opene
     name = asset_for(info.version, "macos", arch)
     downloads = Path.home() / "Downloads"
     dest = dest_dir or (downloads if downloads.is_dir() else Path(tempfile.mkdtemp(prefix="bonys-agents-update-")))
-    log(f"Lade {name} und prüfe Signatur und Prüfsumme …")
+    log(tr("Lade {name} und prüfe Signatur und Prüfsumme …", name=name))
     dmg = download_verified(info, name, dest, opener=opener)
-    log(f"Signatur und Prüfsumme in Ordnung: {dmg}")
+    log(tr("Signatur und Prüfsumme in Ordnung: {dmg}", dmg=dmg))
     if open_dmg:
         subprocess.Popen(["open", str(dmg)], env=clean_env(), stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log("Das Fenster mit der neuen Version öffnet sich im Finder.")
+        log(tr("Das Fenster mit der neuen Version öffnet sich im Finder."))
     return dmg
 
 

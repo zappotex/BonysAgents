@@ -1,0 +1,93 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "lokale-modelle-vpn-mehrere-agenten-en",
+  "name": "Local models, VPN and several agents",
+  "beschreibung": "Run a model on your own computer instead of in the cloud, connect Agent PCs via VPN and let several agents work together on a task.",
+  "stufe": "experte",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 180,
+  "pause_minuten": 15,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People with experience in networking and the terminal",
+  "voraussetzungen": [
+    "Computer with at least 16 GB RAM (better 32 GB) or a graphics card for local models",
+    "Two Agent PCs with Hermes",
+    "Bony's VPN (optional)"
+  ],
+  "kosten": "none – local model or free model",
+  "lernziele": [
+    "name the pros and cons of local models",
+    "enter a local model with an OpenAI-compatible interface in Hermes",
+    "make Agent PCs reachable via the VPN or the Bony Network",
+    "let two agents with separate roles work on one task",
+    "assess privacy and resources with local models"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "Bony's VPN",
+      "url": "https://github.com/zappotex/bonys-vpn"
+    }
+  ],
+  "rezept": {
+    "name": "local-course",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "vpn"
+    ],
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-lokal-oder-cloud",
+      "titel": "Local or cloud?",
+      "dauer_minuten": 25,
+      "art": "Explanation + quiz",
+      "ziel": "Know when a local model fits."
+    },
+    {
+      "ordner": "02-lokales-modell",
+      "titel": "Connecting a local model",
+      "dauer_minuten": 45,
+      "art": "Hands-on",
+      "ziel": "Hermes answers with a local model."
+    },
+    {
+      "ordner": "03-vpn",
+      "titel": "Connecting Agent PCs",
+      "dauer_minuten": 35,
+      "art": "Hands-on",
+      "ziel": "Two Agent PCs reach each other."
+    },
+    {
+      "ordner": "04-mehrere-agenten",
+      "titel": "Several agents",
+      "dauer_minuten": 45,
+      "art": "Exercise",
+      "ziel": "Two agents complete a task together."
+    },
+    {
+      "ordner": "05-abschluss",
+      "titel": "Wrap-up",
+      "dauer_minuten": 15,
+      "art": "Discussion",
+      "ziel": "Record your experiences."
+    }
+  ]
+}

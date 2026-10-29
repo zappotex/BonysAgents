@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Agent Apps – English texts for agent-apps.yaml
+# ------------------------------------------------------------
+# Only texts: commands, links, checksums and MCP entries come from agent-apps.yaml.
+# build_agent_apps.py --uebersetzung agent-apps.en.yaml applies this file:
+# - "ersetzen": replaced in every text and command (work folder, comments in the commands)
+# - "texte": per id the English fields (name, kategorie, beschreibung, agent_kann, lizenz,
+#   pruefsumme, hinweis). Every entry of agent-apps.yaml needs one (tests/test_agenten_apps.py).
+# ------------------------------------------------------------
+
+sprache: en
+
+meta:
+  titel: "Agent Apps"
+  untertitel: "Programs your Hermes agent can operate itself"
+  online_url: "https://zappotex.github.io/BonysAgents/agenten-apps/en/"
+  arbeitsordner: "~/Agent-Files"
+  hermes_tipp: >
+    You don't have to type anything yourself: tell your agent in Telegram,
+    for example, "Install PdfCraft from the agent list and set up the
+    MCP server". It shows you beforehand what it does.
+
+ersetzen:   # in this order – longer paths first
+  "~/Agent-Dateien/bilder": "~/Agent-Files/images"
+  "~/Agent-Dateien": "~/Agent-Files"
+  "# Nur das Kommandozeilen-Werkzeug mit MCP-Server (ohne Oberfläche)": "# Only the command-line tool with MCP server (without the user interface)"
+  "# Browser in genau der Version, die der MCP-Server erwartet (samt Systempaketen)": "# Browser in exactly the version the MCP server expects (including system packages)"
+
+texte:
+  n8n:
+    beschreibung: "Build workflows with a few clicks: mail, RSS, Telegram, files, APIs. Hermes can trigger workflows and n8n can give Hermes tasks."
+    lizenz: "Sustainable Use License (source code open, but not an OSI open-source license)"
+    hinweis: "Runs in the Agent PC in Docker and can only be reached inside the Agent PC itself."
+
+  pdfcraft:
+    kategorie: "Documents"
+    beschreibung: "Read, search, merge, split and annotate PDFs and fill in forms."
+    agent_kann: "Read text from PDFs, rotate/delete/move pages, combine and split PDFs, add comments, fill in forms."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: "The MCP server only starts when the agent calls it and opens no network port. --root restricts the agent to the folder ~/Agent-Files/pdf."
+
+  photocraft:
+    kategorie: "Images"
+    beschreibung: "Image editing with layers, masks, filters and real PSD files – similar to Photoshop."
+    agent_kann: "Open images, apply filters and corrections, batch-edit whole folders, export."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: "Still early alpha: good for experiments, make copies before important work. The agent only reads and saves in the folder ~/Agent-Files/images (give paths relative to it)."
+
+  wordcraft:
+    kategorie: "Documents"
+    beschreibung: "Word processing that opens and saves Word files (.docx)."
+    agent_kann: "Create documents, write and format text, insert tables, save as .docx or PDF."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: "The agent only reads and saves in the folder ~/Agent-Files."
+
+  gridcraft:
+    kategorie: "Documents"
+    beschreibung: "Spreadsheet with more than 500 functions that opens and saves Excel files (.xlsx)."
+    agent_kann: "Create spreadsheets, enter values and formulas, format, create charts, save as .xlsx."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: null
+
+  deckcraft:
+    kategorie: "Documents"
+    beschreibung: "Presentations that open and save PowerPoint files (.pptx)."
+    agent_kann: "Create slides, insert text, images and shapes, save presentations as .pptx or PDF."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: "The agent only reads and saves in the folder ~/Agent-Files."
+
+  cadcraft:
+    kategorie: "Design"
+    beschreibung: "CAD for technical drawings in 2D and 3D in the style of AutoCAD – reads and writes DXF and DWG."
+    agent_kann: "Create drawings, place lines, circles and dimensions, save as DXF, output as PDF or PNG."
+    lizenz: "MIT or Apache-2.0"
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: null
+
+  solidcraft:
+    kategorie: "Design"
+    beschreibung: "3D design (parametric CAD) with ready-made examples to try out."
+    agent_kann: "Build 3D parts from sketches and solids, change dimensions, output as STEP, STL or 3MF."
+    pruefsumme: "SHA256SUMS.txt in the release"
+    hinweis: "The agent may only save in ~/Agent-Files (and in the folder of the opened design)."
+
+  mcp-filesystem:
+    name: "Filesystem (MCP)"
+    kategorie: "Basics"
+    beschreibung: "Official MCP reference server: the agent can read, write and search files in an approved folder."
+    agent_kann: "Create, read, edit, move and search files – only in the approved folder."
+    pruefsumme: "npm checks packages itself"
+    hinweis: "Never share your whole home folder, only the work folder."
+
+  mcp-git:
+    kategorie: "Basics"
+    beschreibung: "Official MCP reference server for Git repositories."
+    agent_kann: "View status, changes and history, stage files and create commits."
+    pruefsumme: "PyPI checks packages itself"
+    hinweis: "Fits the rule well: agents only work on projects through Git."
+
+  mcp-playwright:
+    kategorie: "Browser"
+    beschreibung: "MCP server by Microsoft: the agent controls a real browser, clicks, fills in forms and takes screenshots."
+    agent_kann: "Operate web pages, fill in forms, take screenshots, automate processes on the web."
+    pruefsumme: "npm checks packages itself"
+    hinweis: "With this the agent can click anywhere on the web. Don't use it with signed-in accounts you don't want to hand over. If the server reports “Browser … is not installed” after an update, run the second installation line again."

@@ -21,14 +21,15 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import APP_NAME, musik
+from bonys_agents.i18n import n_, tr
 
-TITEL = "Musik & Radio"
-EINLADUNG = "Lerne auch mit Musik:"   # steht vor dem Player in der Leiste
+TITEL = n_("Musik & Radio")
+EINLADUNG = n_("Lerne auch mit Musik:")   # steht vor dem Player in der Leiste
 SCHRIFT_DATEI = "fonts/Pacifico-Regular.ttf"
 BUCHSTABENABSTAND = 1.5   # Pixel zwischen den Buchstaben
 _SCHRIFT: str | None = None
-DATENSCHUTZ = ("Beim Radiohören sieht der Sender die IP-Adresse dieses Rechners – wie bei jedem Webradio. "
-               "Bony's Agents speichert dazu nichts und spielt nichts von selbst ab.")
+DATENSCHUTZ = n_("Beim Radiohören sieht der Sender die IP-Adresse dieses Rechners – wie bei jedem Webradio. "
+                 "Bony's Agents speichert dazu nichts und spielt nichts von selbst ab.")
 
 
 def schrift_laden() -> str:
@@ -111,8 +112,9 @@ class Abspieler(QObject):
         if self._player is not None:
             self._player.stop()
         self.geaendert.emit()
-        was = "Der Sender ist gerade nicht erreichbar" if self.e.quelle == musik.RADIO else "Die Musik lässt sich " \
-            "nicht abspielen"
+        was = tr("Der Sender ist gerade nicht "
+                 "erreichbar") if self.e.quelle == musik.RADIO else tr("Die Musik lässt sich " \
+                                                                       "nicht abspielen")
         self.fehler.emit(f"{was}.\n\n{text}".strip())
 
     # -------------------------------------------------------------- Bedienung
@@ -186,7 +188,7 @@ class Abspieler(QObject):
             return s.name
         if self.e.quelle == musik.MUSIK and self.e.dateien:
             return Path(self.e.dateien[self.e.titel]).stem
-        return TITEL
+        return tr(TITEL)
 
 
 class MusikLeiste(QWidget):
@@ -200,18 +202,18 @@ class MusikLeiste(QWidget):
         row.setContentsMargins(0, 0, 8, 0)
         row.setSpacing(4)
         schrift_laden()
-        self.einladung = QLabel(EINLADUNG)
+        self.einladung = QLabel(tr(EINLADUNG))
         self.einladung.setObjectName("MusikEinladung")   # gelb, fett, Schreibschrift (style.py)
         schrift = self.einladung.font()
         schrift.setLetterSpacing(QFont.AbsoluteSpacing, BUCHSTABENABSTAND)   # Schreibschrift sonst schwer lesbar
         self.einladung.setFont(schrift)
         self.menue_knopf = QToolButton(text="♪")
-        self.menue_knopf.setToolTip(f"{TITEL} – Sender oder eigene Musik wählen")
+        self.menue_knopf.setToolTip(tr("{titel} – Sender oder eigene Musik wählen", titel=tr(TITEL)))
         self.menue_knopf.clicked.connect(self.dialog_zeigen)
         self.play_knopf = QToolButton()
         self.play_knopf.clicked.connect(self.abspieler.umschalten)
         self.weiter_knopf = QToolButton(text="⏭")
-        self.weiter_knopf.setToolTip("Nächster Titel")
+        self.weiter_knopf.setToolTip(tr("Nächster Titel"))
         self.weiter_knopf.clicked.connect(self.abspieler.weiter)
         self.name = QLabel()
         self.name.setObjectName("Muted")
@@ -220,19 +222,19 @@ class MusikLeiste(QWidget):
         self.lautstaerke.setRange(0, 100)
         self.lautstaerke.setFixedWidth(80)
         self.lautstaerke.setValue(self.abspieler.e.lautstaerke)
-        self.lautstaerke.setToolTip("Lautstärke")
+        self.lautstaerke.setToolTip(tr("Lautstärke"))
         self.lautstaerke.valueChanged.connect(self.abspieler.lautstaerke_setzen)
         self.lautstaerke.sliderReleased.connect(lambda: musik.speichern(self.abspieler.e))
         for w in (self.einladung, self.menue_knopf, self.play_knopf, self.weiter_knopf, self.name, self.lautstaerke):
             row.addWidget(w)
         self.abspieler.geaendert.connect(self.aktualisieren)
-        self.abspieler.fehler.connect(lambda text: QMessageBox.warning(self, TITEL, text))
+        self.abspieler.fehler.connect(lambda text: QMessageBox.warning(self, tr(TITEL), text))
         self.aktualisieren()
 
     def aktualisieren(self) -> None:
         a = self.abspieler
         self.play_knopf.setText("⏸" if a.laeuft else "▶")
-        self.play_knopf.setToolTip("Anhalten" if a.laeuft else "Abspielen")
+        self.play_knopf.setToolTip(tr("Anhalten") if a.laeuft else tr("Abspielen"))
         self.play_knopf.setEnabled(a.laeuft or a.hat_quelle)
         self.weiter_knopf.setVisible(a.e.quelle == musik.MUSIK and len(a.e.dateien) > 1)
         text = a.text()
@@ -254,11 +256,11 @@ class MusikDialog(QDialog):
         super().__init__(parent)
         self.abspieler = abspieler
         self.e = abspieler.e
-        self.setWindowTitle(TITEL)
+        self.setWindowTitle(tr(TITEL))
         self.resize(460, 420)
         tabs = QTabWidget()
-        tabs.addTab(self._radio_seite(), "Radio")
-        tabs.addTab(self._musik_seite(), "Eigene Musik")
+        tabs.addTab(self._radio_seite(), tr("Radio"))
+        tabs.addTab(self._musik_seite(), tr("Eigene Musik"))
         tabs.setCurrentIndex(1 if self.e.quelle == musik.MUSIK else 0)
         lay = QVBoxLayout(self)
         lay.addWidget(tabs)
@@ -272,17 +274,17 @@ class MusikDialog(QDialog):
         self.sender_liste = QListWidget()
         self.sender_liste.itemDoubleClicked.connect(lambda _i: self.sender_abspielen())
         self.sender_liste.currentItemChanged.connect(lambda *_: self._radio_knoepfe())
-        hinweis = QLabel(DATENSCHUTZ)
+        hinweis = QLabel(tr(DATENSCHUTZ))
         hinweis.setObjectName("Muted")
         hinweis.setWordWrap(True)
-        self.sender_play = QPushButton("Abspielen")
+        self.sender_play = QPushButton(tr("Abspielen"))
         self.sender_play.clicked.connect(self.sender_abspielen)
-        neu = QPushButton("Sender hinzufügen …")
+        neu = QPushButton(tr("Sender hinzufügen …"))
         neu.clicked.connect(self.sender_hinzufuegen)
-        liste = QPushButton("Wiedergabeliste öffnen …")
-        liste.setToolTip("Sender aus einer .m3u- oder .pls-Datei übernehmen (nur https-Adressen)")
+        liste = QPushButton(tr("Wiedergabeliste öffnen …"))
+        liste.setToolTip(tr("Sender aus einer .m3u- oder .pls-Datei übernehmen (nur https-Adressen)"))
         liste.clicked.connect(self.wiedergabeliste_oeffnen)
-        self.sender_weg = QPushButton("Entfernen")
+        self.sender_weg = QPushButton(tr("Entfernen"))
         self.sender_weg.clicked.connect(self.sender_entfernen)
         knoepfe = QHBoxLayout()
         for b in (self.sender_play, neu, liste, self.sender_weg):
@@ -295,7 +297,7 @@ class MusikDialog(QDialog):
     def radio_fuellen(self) -> None:
         self.sender_liste.clear()
         for s in self.e.alle_sender():
-            item = QListWidgetItem(f"{s.name}  (eigener Sender)" if s.eigen else s.name)
+            item = QListWidgetItem(tr("{name}  (eigener Sender)", name=s.name) if s.eigen else s.name)
             item.setData(Qt.UserRole, s.url)
             item.setToolTip(s.url)
             self.sender_liste.addItem(item)
@@ -317,30 +319,30 @@ class MusikDialog(QDialog):
             self.abspieler.radio(s)
 
     def sender_hinzufuegen(self) -> None:
-        name, ok = QInputDialog.getText(self, TITEL, "Name des Senders:")
+        name, ok = QInputDialog.getText(self, tr(TITEL), tr("Name des Senders:"))
         if not ok:
             return
-        url, ok = QInputDialog.getText(self, TITEL, "Stream-Adresse (beginnt mit https://):")
+        url, ok = QInputDialog.getText(self, tr(TITEL), tr("Stream-Adresse (beginnt mit https://):"))
         if not ok:
             return
         try:
             self.e.sender_hinzufuegen(musik.Sender(name, url))
         except musik.MusikFehler as err:
-            QMessageBox.warning(self, TITEL, str(err))
+            QMessageBox.warning(self, tr(TITEL), str(err))
             return
         musik.speichern(self.e)
         self.radio_fuellen()
         self.sender_liste.setCurrentRow(self.sender_liste.count() - 1)   # der neue Sender steht unten
 
     def wiedergabeliste_oeffnen(self) -> None:
-        pfad, _ = QFileDialog.getOpenFileName(self, "Wiedergabeliste öffnen", str(Path.home()),
-                                              "Wiedergabelisten (*.m3u *.m3u8 *.pls)")
+        pfad, _ = QFileDialog.getOpenFileName(self, tr("Wiedergabeliste öffnen"), str(Path.home()),
+                                              tr("Wiedergabelisten (*.m3u *.m3u8 *.pls)"))
         if not pfad:
             return
         try:
             gefunden = musik.wiedergabeliste_lesen(Path(pfad))
         except musik.MusikFehler as err:
-            QMessageBox.warning(self, TITEL, str(err))
+            QMessageBox.warning(self, tr(TITEL), str(err))
             return
         neu = 0
         for s in gefunden:
@@ -351,7 +353,10 @@ class MusikDialog(QDialog):
                 continue   # schon vorhanden oder Höchstzahl erreicht
         musik.speichern(self.e)
         self.radio_fuellen()
-        QMessageBox.information(self, TITEL, f"{neu} Sender übernommen." if neu else "Keine neuen Sender gefunden.")
+        QMessageBox.information(self, tr(TITEL), tr("{neu} "
+                                                    "Sender "
+                                                    "übernommen.", neu=neu) if neu else tr("Keine neuen Sender "
+                                                                                           "gefunden."))
 
     def sender_entfernen(self) -> None:
         s = self._gewaehlter_sender()
@@ -370,15 +375,15 @@ class MusikDialog(QDialog):
         lay = QVBoxLayout(w)
         self.titel_liste = QListWidget()
         self.titel_liste.itemDoubleClicked.connect(lambda _i: self.musik_abspielen())
-        self.titel_play = QPushButton("Abspielen")
+        self.titel_play = QPushButton(tr("Abspielen"))
         self.titel_play.clicked.connect(self.musik_abspielen)
-        ordner = QPushButton("Ordner hinzufügen …")
+        ordner = QPushButton(tr("Ordner hinzufügen …"))
         ordner.clicked.connect(self.ordner_hinzufuegen)
-        dateien = QPushButton("Dateien hinzufügen …")
+        dateien = QPushButton(tr("Dateien hinzufügen …"))
         dateien.clicked.connect(self.dateien_hinzufuegen)
-        self.leeren = QPushButton("Liste leeren")
+        self.leeren = QPushButton(tr("Liste leeren"))
         self.leeren.clicked.connect(self.liste_leeren)
-        self.zufall = QCheckBox("Zufällige Reihenfolge")
+        self.zufall = QCheckBox(tr("Zufällige Reihenfolge"))
         self.zufall.setChecked(self.e.zufall)
         self.zufall.toggled.connect(self._zufall)
         knoepfe = QHBoxLayout()
@@ -405,27 +410,28 @@ class MusikDialog(QDialog):
             QStandardPaths.writableLocation(QStandardPaths.MusicLocation) or str(Path.home())
 
     def ordner_hinzufuegen(self) -> None:
-        ordner = QFileDialog.getExistingDirectory(self, "Musikordner wählen", self._start_ordner())
+        ordner = QFileDialog.getExistingDirectory(self, tr("Musikordner wählen"), self._start_ordner())
         if not ordner:
             return
         try:
             gefunden = musik.titel_im_ordner(Path(ordner))
         except musik.MusikFehler as err:
-            QMessageBox.warning(self, TITEL, str(err))
+            QMessageBox.warning(self, tr(TITEL), str(err))
             return
         self.e.ordner = ordner
-        self._hinzu(gefunden, f"Im Ordner „{Path(ordner).name}“ ist keine Musik (MP3, OGG, FLAC, M4A, WAV).")
+        self._hinzu(gefunden, tr("Im Ordner „{name}“ ist keine Musik (MP3, OGG, FLAC, M4A, WAV).",
+                                 name=Path(ordner).name))
 
     def dateien_hinzufuegen(self) -> None:
         endungen = " ".join(f"*{x}" for x in sorted(musik.MUSIK_ENDUNGEN))
-        pfade, _ = QFileDialog.getOpenFileNames(self, "Musik hinzufügen", self._start_ordner(),
-                                                f"Musik ({endungen})")
+        pfade, _ = QFileDialog.getOpenFileNames(self, tr("Musik hinzufügen"), self._start_ordner(),
+                                                tr("Musik ({endungen})", endungen=endungen))
         if pfade:
-            self._hinzu([Path(p) for p in pfade], "Keine Musikdatei gewählt.")
+            self._hinzu([Path(p) for p in pfade], tr("Keine Musikdatei gewählt."))
 
     def _hinzu(self, pfade: list[Path], leer: str) -> None:
         if not self.e.dateien_hinzufuegen(pfade) and not pfade:
-            QMessageBox.information(self, TITEL, leer)
+            QMessageBox.information(self, tr(TITEL), leer)
         musik.speichern(self.e)
         self.musik_fuellen()
         self.abspieler.geaendert.emit()

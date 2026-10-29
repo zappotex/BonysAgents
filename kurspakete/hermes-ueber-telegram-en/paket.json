@@ -1,0 +1,84 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "hermes-ueber-telegram-en",
+  "name": "Controlling Hermes via Telegram",
+  "beschreibung": "Connect Hermes to a Telegram bot of your own and use the agent from your phone – safely, with your own allow list.",
+  "stufe": "anfaenger",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 90,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "Participants of “Introduction to Hermes Agent” or people with their first Agent PC",
+  "voraussetzungen": [
+    "Agent PC with Hermes set up (course package “Introduction to Hermes Agent”)",
+    "Telegram on your phone"
+  ],
+  "kosten": "none – free model (your own account)",
+  "lernziele": [
+    "create a Telegram bot of your own and connect it to Hermes",
+    "decide who may write to the bot",
+    "give Hermes tasks from your phone and check the result in the Agent PC",
+    "treat the bot token like a password"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "Telegram – bots",
+      "url": "https://core.telegram.org/bots"
+    }
+  ],
+  "rezept": {
+    "name": "telegram-course",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "telegram",
+      "hermes"
+    ],
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-bot-anlegen",
+      "titel": "Creating a Telegram bot",
+      "dauer_minuten": 20,
+      "art": "Hands-on",
+      "ziel": "A bot of your own with a token exists."
+    },
+    {
+      "ordner": "02-hermes-verbinden",
+      "titel": "Connecting Hermes to the bot",
+      "dauer_minuten": 25,
+      "art": "Hands-on",
+      "ziel": "Hermes answers in Telegram."
+    },
+    {
+      "ordner": "03-vom-handy",
+      "titel": "Tasks from your phone",
+      "dauer_minuten": 25,
+      "art": "Exercise",
+      "ziel": "Hermes completes a task that came via phone."
+    },
+    {
+      "ordner": "04-sicherheit",
+      "titel": "Safety and wrap-up",
+      "dauer_minuten": 10,
+      "art": "Explanation + quiz",
+      "ziel": "Know the risks of a reachable agent."
+    }
+  ]
+}

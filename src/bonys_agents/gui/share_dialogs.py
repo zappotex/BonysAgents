@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import bonysfile, share
+from bonys_agents.i18n import tr
 
 from . import style
 from .template_dialogs import FnWorker, open_bonys_file
@@ -67,25 +68,25 @@ class JoinDialog(QDialog):
         self.cancel = threading.Event()
         self.result_template: str | None = None
         self.result_paket = None             # Kurspaket der Schulung (bonys_agents.kurspaket.Kurspaket)
-        self.setWindowTitle("Schulung beitreten")
+        self.setWindowTitle(tr("Schulung beitreten"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Schulung beitreten")
+        title = QLabel(tr("Schulung beitreten"))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Lädt die Vorlage direkt vom Rechner des Kursleiters bzw. öffnet seine Live-Vorführung im "
-                       "Browser. Im selben Netz wird beides meist automatisch gefunden. Im VPN (z. B. Bony's VPN) "
-                       "oder wenn nichts erscheint: Adresse und Code "
-                       "eingeben – oder den Link aus dem QR-Code („bonys://…“) einfügen.")
+        intro = QLabel(tr("Lädt die Vorlage direkt vom Rechner des Kursleiters bzw. öffnet seine Live-Vorführung im "
+                          "Browser. Im selben Netz wird beides meist automatisch gefunden. Im VPN (z. B. Bony's VPN) "
+                          "oder wenn nichts erscheint: Adresse und Code "
+                          "eingeben – oder den Link aus dem QR-Code („bonys://…“) einfügen."))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
         found_row = QHBoxLayout()
-        sec = QLabel("GEFUNDEN IM NETZ")
+        sec = QLabel(tr("GEFUNDEN IM NETZ"))
         sec.setObjectName("Section")
         found_row.addWidget(sec)
         found_row.addStretch(1)
-        self.search_btn = QPushButton("Erneut suchen")
+        self.search_btn = QPushButton(tr("Erneut suchen"))
         self.search_btn.setObjectName("Small")
         found_row.addWidget(self.search_btn)
         root.addLayout(found_row)
@@ -94,18 +95,18 @@ class JoinDialog(QDialog):
         root.addWidget(self.found)
         form = QFormLayout()
         self.address = QLineEdit()
-        self.address.setPlaceholderText("z. B. 192.168.1.5:47110 oder bonys://…")
+        self.address.setPlaceholderText(tr("z. B. 192.168.1.5:47110 oder bonys://…"))
         self.code = QLineEdit()
-        self.code.setPlaceholderText("z. B. 4711-BONY")
-        form.addRow("Adresse", self.address)
-        form.addRow("Code", self.code)
+        self.code.setPlaceholderText(tr("z. B. 4711-BONY"))
+        form.addRow(tr("Adresse"), self.address)
+        form.addRow(tr("Code"), self.code)
         root.addLayout(form)
         self.details = QLabel()
         self.details.setWordWrap(True)
         self.details.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.details.setVisible(False)
         root.addWidget(self.details)
-        self.fp_ok = QCheckBox("Der Fingerabdruck stimmt mit dem auf dem Bildschirm des Kursleiters überein")
+        self.fp_ok = QCheckBox(tr("Der Fingerabdruck stimmt mit dem auf dem Bildschirm des Kursleiters überein"))
         self.fp_ok.setVisible(False)
         root.addWidget(self.fp_ok)
         self.progress = PercentBar()
@@ -117,9 +118,9 @@ class JoinDialog(QDialog):
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Schließen")
-        self.connect_btn = QPushButton("Verbinden")
-        self.load_btn = QPushButton("Laden und importieren")
+        self.cancel_btn = QPushButton(tr("Schließen"))
+        self.connect_btn = QPushButton(tr("Verbinden"))
+        self.load_btn = QPushButton(tr("Laden und importieren"))
         self.load_btn.setObjectName("Primary")
         self.load_btn.setVisible(False)
         for b in (self.cancel_btn, self.connect_btn, self.load_btn):
@@ -139,13 +140,13 @@ class JoinDialog(QDialog):
     def _busy(self, busy: bool) -> None:
         for w in (self.search_btn, self.address, self.code, self.connect_btn, self.load_btn, self.found):
             w.setEnabled(not busy)
-        self.cancel_btn.setText("Abbrechen" if busy else "Schließen")
+        self.cancel_btn.setText(tr("Abbrechen") if busy else tr("Schließen"))
 
     def _search(self) -> None:
         if self.worker and self.worker.isRunning():
             return
         self.found.clear()
-        self.status.setText("Suche Freigaben im Netz …")
+        self.status.setText(tr("Suche Freigaben im Netz …"))
         self.worker = FnWorker(lambda progress: share.discover())
         self.worker.done.connect(self._found)
         self.worker.failed.connect(lambda msg: self._error(msg))
@@ -157,15 +158,23 @@ class JoinDialog(QDialog):
         self._busy(False)
         for f in items:
             if f.txt.get("kind") == "present":
-                text = f"▶ Live-Vorführung: {f.txt.get('name', '?')} – von {f.txt.get('creator') or '?'} · {f.address}"
+                text = tr("▶ Live-Vorführung: {wert} – von {wert2} · {address}", wert=f.txt.get('name', '?'),
+                          wert2=f.txt.get('creator') or '?', address=f.address)
             else:
-                text = (f"{f.txt.get('name', '?')} {f.txt.get('version', '')} – von "
-                        f"{f.txt.get('creator') or '?'} · {f.address}")
+                text = (tr("{wert} {wert2} – von {wert3} · {address}", wert=f.txt.get('name', '?'),
+                           wert2=f.txt.get('version', ''), wert3=f.txt.get('creator') or '?', address=f.address))
             it = QListWidgetItem(text)
             it.setData(Qt.UserRole, f.address)
             self.found.addItem(it)
-        self.status.setText(f"{len(items)} gefunden – auswählen und Code eingeben." if items else
-                            "Nichts gefunden. Im VPN geht die Suche nicht – Adresse und Code eingeben.")
+        self.status.setText(tr("{wert} "
+                               "gefunden "
+                               "– "
+                               "auswählen "
+                               "und "
+                               "Code "
+                               "eingeben.", wert=len(items)) if items else tr("Nichts gefunden. Im VPN geht die "
+                                                                              "Suche nicht – Adresse und Code "
+                                                                              "eingeben."))
         if len(items) == 1:
             self.found.setCurrentRow(0)
 
@@ -198,7 +207,7 @@ class JoinDialog(QDialog):
         if target.code and not self.code.text().strip():
             self.code.setText(target.code)
         self.status.setStyleSheet("")
-        self.status.setText(f"Verbinde mit {target.netloc} …")
+        self.status.setText(tr("Verbinde mit {netloc} …", netloc=target.netloc))
         self.worker = FnWorker(lambda progress: share.fetch_info(target))
         self.worker.done.connect(self._connected)
         self.worker.failed.connect(self._connect_failed)
@@ -218,9 +227,12 @@ class JoinDialog(QDialog):
         """Live-Vorführung im Standardbrowser öffnen – Code (und Name) stehen hinter „#“, gehen also nicht ins Netz."""
         self.status.setStyleSheet("")
         self.status.setText(
-            f"„{p.title}“ ist eine Live-Vorführung – sie öffnet sich im Browser. Der Browser warnt vor dem Zertifikat "
-            f"(es gilt nur für diese Vorführung): „Erweitert“ → „Weiter“. Fingerabdruck zum Vergleichen: "
-            f"{share.short_fingerprint(p.fingerprint)}")
+            tr("„{title}“ ist eine Live-Vorführung – "
+               "sie öffnet sich im Browser. Der Browser "
+               "warnt vor dem Zertifikat (es gilt nur "
+               "für diese Vorführung): „Erweitert“ → "
+               "„Weiter“. Fingerabdruck zum "
+               "Vergleichen: {wert}", title=p.title, wert=share.short_fingerprint(p.fingerprint)))
         open_url(p.url(share._client_name()))
 
     def _connected(self, info: share.RemoteInfo) -> None:
@@ -229,27 +241,27 @@ class JoinDialog(QDialog):
         self.info = info
         text = html.escape(bonysfile.describe_manifest(info.manifest, info.size)).replace("\n", "<br>")
         fp = (f"<br><br>Fingerabdruck: <b>{share.short_fingerprint(info.fingerprint)}</b>"
-              + (" ✓ (aus dem Link)" if info.target.fingerprint else ""))
+              + (tr(" ✓ (aus dem Link)") if info.target.fingerprint else ""))
         if not bonysfile.arch_matches(info.manifest):
-            fp += (f"<br><span style='color:{style.DANGER}'>⚠ Andere Architektur ({info.manifest['arch']}) – "
-                   "nach dem Laden wird das Rezept angeboten.</span>")
+            fp += (tr("<br><span style='color:{DANGER}'>⚠ Andere Architektur ({wert}) – nach dem Laden wird das "
+                      "Rezept angeboten.</span>", DANGER=style.DANGER, wert=info.manifest['arch']))
         if info.kurspaket:
-            text += (f"<br>Kurspaket: <b>{html.escape(info.kurspaket['name'])} "
-                     f"{html.escape(info.kurspaket['version'])}</b> – kommt mit (Anleitung zum Durcharbeiten)")
+            text += (tr("<br>Kurspaket: <b>{wert} {wert2}</b> – kommt mit (Anleitung zum Durcharbeiten)",
+                        wert=html.escape(info.kurspaket['name']), wert2=html.escape(info.kurspaket['version'])))
         self.details.setText(text + fp)
         self.details.setVisible(True)
         self.fp_ok.setVisible(not info.target.fingerprint)
         self.fp_ok.setChecked(False)
         self.connect_btn.setVisible(False)
         self.load_btn.setVisible(True)
-        self.status.setText("Verbunden. Inhalt prüfen und laden.")
+        self.status.setText(tr("Verbunden. Inhalt prüfen und laden."))
 
     def _load(self) -> None:
         info = self.info
         if info is None:
             return
         if not info.target.fingerprint and not self.fp_ok.isChecked():
-            self.status.setText("Bitte zuerst den Fingerabdruck mit dem Bildschirm des Kursleiters vergleichen.")
+            self.status.setText(tr("Bitte zuerst den Fingerabdruck mit dem Bildschirm des Kursleiters vergleichen."))
             return
         self.cancel.clear()
         cancel = self.cancel
@@ -280,8 +292,8 @@ class JoinDialog(QDialog):
         self.worker = None
         self._busy(False)
         self.progress.setVisible(False)
-        self.status.setText(f"Geladen und geprüft: {file}" + (
-            f"\nKurspaket nicht übernommen: {paket_fehler}" if paket_fehler else ""))
+        self.status.setText(tr("Geladen und geprüft: {file}", file=file) + (
+            tr("\nKurspaket nicht übernommen: {paket_fehler}", paket_fehler=paket_fehler) if paket_fehler else ""))
         name = open_bonys_file(self, file)
         if name:
             self.result_template = name
@@ -292,14 +304,14 @@ class JoinDialog(QDialog):
         self.worker = None
         self._busy(False)
         if isinstance(err, bonysfile.Cancelled):
-            self.status.setText("Abgebrochen – „Laden“ setzt später an derselben Stelle fort.")
+            self.status.setText(tr("Abgebrochen – „Laden“ setzt später an derselben Stelle fort."))
             return
         self._error(msg)
 
     def _error(self, msg: str) -> None:
         self.worker = None
         self._busy(False)
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def reject(self) -> None:

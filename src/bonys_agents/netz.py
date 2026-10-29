@@ -30,14 +30,15 @@ from bony_netz.agentenpc import erstbeitritt_skript, geraetename
 from bony_netz.konto import server_normalisieren
 
 from bonys_agents.apps import APT_WAIT
+from bonys_agents.i18n import n_, tr
 
 if TYPE_CHECKING:
     from bonys_agents.vm import VM
 
 AKTIV = "aktiv"   # Schlüssel in konto.extra
 
-KEINE_VERBINDUNG = "Keine Verbindung zum Server"
-ANMELDUNG_UNGUELTIG = "Anmeldung ungültig, bitte Instanz neu anlegen"
+KEINE_VERBINDUNG = n_("Keine Verbindung zum Server")
+ANMELDUNG_UNGUELTIG = n_("Anmeldung ungültig, bitte Instanz neu anlegen")
 
 
 class KeinBonyNetz(Exception):
@@ -77,7 +78,7 @@ def fehlertext(e: BaseException) -> str:
     if isinstance(e, ZentraleFehler):
         return e.meldung
     if isinstance(e, OSError):
-        return f"Die Anmeldung ließ sich nicht speichern ({e.strerror or e})."
+        return tr("Die Anmeldung ließ sich nicht speichern ({wert}).", wert=e.strerror or e)
     return str(e)
 
 
@@ -132,9 +133,9 @@ def zustand() -> Zustand:
                     konto = aendern(merken)
                 except OSError:
                     konto.ist_kursleiter = kursleiter
-        return Zustand(f"Verbunden mit {info['server_name']}", konto, info, verbunden=True)
+        return Zustand(tr("Verbunden mit {server}", server=info["server_name"]), konto, info, verbunden=True)
     except NetzFehler as e:
-        return Zustand(KEINE_VERBINDUNG, konto, detail=str(e))
+        return Zustand(tr(KEINE_VERBINDUNG), konto, detail=str(e))
     except ZentraleFehler as e:
         if not e.anmeldung_ungueltig:
             return Zustand(e.meldung, konto, detail=e.meldung)
@@ -143,7 +144,7 @@ def zustand() -> Zustand:
             konto = aendern(lambda k: k.abmelden() if k.instanz_id == alt else None)
         except OSError:
             pass
-        return Zustand(ANMELDUNG_UNGUELTIG, konto, detail=e.meldung)
+        return Zustand(tr(ANMELDUNG_UNGUELTIG), konto, detail=e.meldung)
     except KeinBonyNetz as e:
         return Zustand(str(e), konto, detail=str(e))
 
@@ -166,7 +167,7 @@ def instanz_anlegen(server: str) -> Konto:
     """
     konto = Konto.laden()
     if konto.server != server_normalisieren(server):
-        raise RuntimeError("Der Server wurde inzwischen geändert – bitte das Fenster neu öffnen.")
+        raise RuntimeError(tr("Der Server wurde inzwischen geändert – bitte das Fenster neu öffnen."))
     if konto.angemeldet:
         return konto
     registrierung = _fragen(konto.server, lambda: Zentrale(konto.server).instanz_registrieren())
@@ -202,9 +203,9 @@ SCHRITT_TITEL = "Mit dem Bony-Netz verbinden"
 FEHLER_ZEILE = f"BONYS-FAILED 0/0 {SCHRITT_ID} {SCHRITT_TITEL}"
 ABFRAGE_SEKUNDEN = 30                              # Geräteliste höchstens so oft abfragen
 
-IM_NETZ = "im Netz"
-OFFLINE = "offline"
-NICHT_VERBUNDEN = "nicht verbunden"
+IM_NETZ = n_("im Netz")
+OFFLINE = n_("offline")
+NICHT_VERBUNDEN = n_("nicht verbunden")
 
 
 def bereit(konto: Konto | None = None) -> bool:
@@ -216,8 +217,8 @@ def bereit(konto: Konto | None = None) -> bool:
 def _zentrale() -> tuple[Konto, Zentrale]:
     konto = Konto.laden()
     if not bereit(konto):
-        raise RuntimeError("Das Bony-Netz ist ausgeschaltet oder es ist keine Instanz angemeldet "
-                           "(Menü → „Bony-Netz …“).")
+        raise RuntimeError(tr("Das Bony-Netz ist ausgeschaltet oder es ist keine Instanz angemeldet "
+                              "(Menü → „Bony-Netz …“)."))
     return konto, Zentrale(konto.server, konto.token)
 
 
@@ -318,13 +319,15 @@ def loeschen_hinweis(machine: VM) -> str:
     if not netzname:
         return ""
     if not bereit():
-        return (f"„{machine.name}“ war im Bony-Netz. Das Bony-Netz ist ausgeschaltet oder abgemeldet – das Gerät "
-                f"„{netzname}“ bleibt auf dem Server, bis die Instanz gelöscht wird.")
+        return (tr("„{name}“ war im Bony-Netz. Das Bony-Netz ist ausgeschaltet oder abgemeldet – das Gerät "
+                   "„{netzname}“ bleibt auf dem Server, bis die Instanz gelöscht wird.", name=machine.name,
+                   netzname=netzname))
     try:
         geraet_entfernen(netzname)
     except (NetzFehler, ZentraleFehler, KeinBonyNetz, RuntimeError) as e:
-        return (f"„{machine.name}“ ist gelöscht, aber nicht aus dem Bony-Netz entfernt: {fehlertext(e)} Das Gerät "
-                f"„{netzname}“ bleibt auf dem Server, bis die Instanz gelöscht wird.")
+        return (tr("„{name}“ ist gelöscht, aber nicht aus dem Bony-Netz entfernt: {wert} Das Gerät „{netzname}“ "
+                   "bleibt auf dem Server, bis die Instanz gelöscht wird.", name=machine.name, wert=fehlertext(e),
+                   netzname=netzname))
     return ""
 
 
@@ -399,9 +402,9 @@ def nachtraeglich_verbinden(machine: VM, password: str | None = None) -> str:
     from bonys_agents import vm
 
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
-        raise RuntimeError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
+        raise RuntimeError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=machine.name))
     if not password and not machine.gast_agent_abwarten():
-        raise vm.NeedsPassword(vm.GAST_AGENT_FEHLT)
+        raise vm.NeedsPassword(tr(vm.GAST_AGENT_FEHLT))
     beitritt = beitritt_vorbereiten(machine.name)
     skript = "set -uo pipefail\n" + gast_beitritt(aus_seed=False, skript=beitritt.skript) + 'exit "$NETZ_RC"\n'
     machine.config.netz_name = beitritt.netzname

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import procutil, vm
+from bonys_agents.i18n import tr
 
 from . import style
 
@@ -22,8 +23,8 @@ def confirm_delete(parent: QWidget | None, title: str, text: str, detail: str = 
     box = QMessageBox(QMessageBox.Warning, title, text, QMessageBox.NoButton, parent)
     if detail:
         box.setInformativeText(detail)
-    delete = box.addButton("Löschen", QMessageBox.DestructiveRole)
-    keep = box.addButton("Behalten", QMessageBox.RejectRole)
+    delete = box.addButton(tr("Löschen"), QMessageBox.DestructiveRole)
+    keep = box.addButton(tr("Behalten"), QMessageBox.RejectRole)
     box.setDefaultButton(keep)
     box.setEscapeButton(keep)
     box.exec()
@@ -65,7 +66,7 @@ class DiskSlider(QWidget):
         row.addWidget(self.slider, 1)
         row.addWidget(self.label)
         lay.addLayout(row)
-        hint = QLabel("Wächst dynamisch – belegt nur, was wirklich genutzt wird.")
+        hint = QLabel(tr("Wächst dynamisch – belegt nur, was wirklich genutzt wird."))
         hint.setObjectName("Muted")
         lay.addWidget(hint)
         self.slider.valueChanged.connect(self._changed)
@@ -300,7 +301,7 @@ class PathLabel(QLabel):
         self._path = ""
         self._prefix = prefix
         self.setContextMenuPolicy(Qt.ActionsContextMenu)
-        copy = QAction("Pfad kopieren", self)
+        copy = QAction(tr("Pfad kopieren"), self)
         copy.triggered.connect(lambda: QGuiApplication.clipboard().setText(self._path))
         self.addAction(copy)
         self.set_path(path)

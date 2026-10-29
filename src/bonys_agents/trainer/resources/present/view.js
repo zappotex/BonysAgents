@@ -2,6 +2,8 @@
 // Der Server lässt ohnehin keine Eingaben durch – viewOnly verhindert nur, dass der Browser es versucht.
 import RFB from "/novnc/core/rfb.js";
 
+// Sprache: /assets/texte.js (Sprache des Browsers)
+const tr = window.tr || ((text, kw) => (kw ? text.replace(/\{(\w+)\}/g, (m, k) => (k in kw ? String(kw[k]) : m)) : text));
 const screenEl = document.getElementById("screen");
 const stateEl = document.getElementById("state");
 const infoEl = document.getElementById("info");
@@ -48,7 +50,7 @@ function connect() {
     connecting = false;
     retry = 1000;
     overlay.hidden = true;
-    setState("live", "Verbunden");
+    setState("live", tr("Verbunden"));
   });
   rfb.addEventListener("disconnect", () => {
     rfb = null;
@@ -63,33 +65,33 @@ async function poll(afterDisconnect = false) {
     const r = await fetch("/bonys/v1/present/status", { credentials: "same-origin", cache: "no-store" });
     s = await r.json();
   } catch (e) {
-    setState("lost", "Verbindung verloren");
-    showOverlay("Verbindung verloren", "Versuche es gleich wieder … (WLAN verbunden?)");
+    setState("lost", tr("Verbindung verloren"));
+    showOverlay(tr("Verbindung verloren"), tr("Versuche es gleich wieder … (WLAN verbunden?)"));
     return;
   }
-  infoEl.textContent = s.title ? `${s.title} · ${s.viewers} Zuschauer` : "";
+  infoEl.textContent = s.title ? tr("{titel} · {n} Zuschauer", { titel: s.title, n: s.viewers }) : "";
   if (s.state === "ended") {
     final = true;
     if (rfb) rfb.disconnect();
-    setState("ended", "Beendet");
-    showOverlay("Vorführung beendet", "Danke fürs Zuschauen!");
+    setState("ended", tr("Beendet"));
+    showOverlay(tr("Vorführung beendet"), tr("Danke fürs Zuschauen!"));
   } else if (s.state === "removed" || s.state === "unknown") {
     final = true;
     if (rfb) rfb.disconnect();
-    setState("ended", s.state === "removed" ? "Entfernt" : "Nicht beigetreten");
-    showOverlay(s.state === "removed" ? "Du wurdest vom Kursleiter entfernt" : "Nicht beigetreten", "", true);
+    setState("ended", s.state === "removed" ? tr("Entfernt") : tr("Nicht beigetreten"));
+    showOverlay(s.state === "removed" ? tr("Du wurdest vom Kursleiter entfernt") : tr("Nicht beigetreten"), "", true);
   } else if (s.state === "paused") {
     if (rfb) rfb.disconnect();
-    setState("paused", "Pause");
-    showOverlay(s.message || "Gleich geht's weiter …", "Der Kursleiter hat kurz pausiert.");
+    setState("paused", tr("Pause"));
+    showOverlay(s.message ? tr(s.message) : tr("Gleich geht's weiter …"), tr("Der Kursleiter hat kurz pausiert."));
   } else if (s.state === "idle") {
     if (rfb) rfb.disconnect();
-    setState("paused", "Keine Vorführung");
-    showOverlay("Gerade keine Vorführung", "Sobald der Kursleiter etwas zeigt, erscheint es hier von selbst.");
+    setState("paused", tr("Keine Vorführung"));
+    showOverlay(tr("Gerade keine Vorführung"), tr("Sobald der Kursleiter etwas zeigt, erscheint es hier von selbst."));
   } else if (s.state === "live") {
     if (!rfb) {
       if (afterDisconnect) {
-        setState("lost", "Verbinde neu …");
+        setState("lost", tr("Verbinde neu …"));
         setTimeout(connect, retry);
         retry = Math.min(retry * 2, 10000);
       } else {

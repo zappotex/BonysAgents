@@ -28,7 +28,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from bonys_agents import screen
+from bonys_agents import i18n, screen
+from bonys_agents.i18n import n_, tr
 
 DEFAULT = "cinnamon"
 CONF_DIR = "/etc/bonys-agents"
@@ -145,42 +146,42 @@ chown -R "$AGENT_USER:$AGENT_USER" "$AGENT_HOME/.config"
 
 CINNAMON = DesktopSpec(
     id="cinnamon", name="Cinnamon",
-    description="Klassisch wie Windows, aufgeräumt und vertraut – der Standard",
+    description=n_("Klassisch wie Windows, aufgeräumt und vertraut – der Standard"),
     packages="cinnamon-core gnome-terminal nemo",
     xsession="cinnamon", session_cmd="cinnamon-session", xdg_desktop="X-Cinnamon",
     terminal="gnome-terminal", min_ram_mb=3072, weight=38.0,
 )
 XFCE = DesktopSpec(
     id="xfce", name="Xfce",
-    description="Leicht und schnell, klassische Bedienung – gut für wenig Arbeitsspeicher",
+    description=n_("Leicht und schnell, klassische Bedienung – gut für wenig Arbeitsspeicher"),
     packages="xfce4 xfce4-terminal xfce4-notifyd mousepad ristretto xfce4-screenshooter xfce4-taskmanager",
     xsession="xfce", session_cmd="startxfce4", xdg_desktop="XFCE",
     terminal="xfce4-terminal", min_ram_mb=2048, weight=19.0, extra=_XFCE_EXTRA,
 )
 KDE = DesktopSpec(
     id="kde", name="KDE Plasma",
-    description="Modern und sehr einstellbar, viele Programme – braucht mehr Speicher und Platz",
+    description=n_("Modern und sehr einstellbar, viele Programme – braucht mehr Speicher und Platz"),
     packages="kde-plasma-desktop kwin-x11 konsole sddm-",
     xsession="plasmax11", session_cmd="startplasma-x11", xdg_desktop="KDE",
     terminal="konsole", min_ram_mb=4096, weight=78.0, extra=_KDE_EXTRA,
 )
 GNOME = DesktopSpec(
     id="gnome", name="GNOME",
-    description="Schlicht und modern mit Übersicht statt Taskleiste; Programme im Dash links",
+    description=n_("Schlicht und modern mit Übersicht statt Taskleiste; Programme im Dash links"),
     packages="gnome-core gnome-session-xsession gnome-terminal",
     xsession="gnome-xorg", session_cmd="gnome-session", xdg_desktop="GNOME",
     terminal="gnome-terminal", min_ram_mb=4096, weight=52.0, display_manager="gdm3",
 )
 MATE = DesktopSpec(
     id="mate", name="MATE",
-    description="Klassischer Desktop (Nachfolger von GNOME 2), sparsam und stabil",
+    description=n_("Klassischer Desktop (Nachfolger von GNOME 2), sparsam und stabil"),
     packages="mate-desktop-environment-core mate-terminal",
     xsession="mate", session_cmd="mate-session", xdg_desktop="MATE",
     terminal="mate-terminal", min_ram_mb=2048, weight=31.0,
 )
 LXQT = DesktopSpec(
     id="lxqt", name="LXQt",
-    description="Sehr leicht, schlicht und schnell – für schwache Rechner",
+    description=n_("Sehr leicht, schlicht und schnell – für schwache Rechner"),
     # ohne lxqt-powermanagement: meldet in der VM „Keine Batterie!“; den Ausschaltknopf übernimmt logind
     packages="lxqt-core qterminal lxqt-powermanagement-",
     xsession="lxqt", session_cmd="startlxqt", xdg_desktop="LXQt",
@@ -194,7 +195,8 @@ def get(desktop_id: str) -> DesktopSpec:
     try:
         return DESKTOPS[desktop_id]
     except KeyError:
-        raise ValueError(f"Unbekannter Desktop '{desktop_id}'. Verfügbar: {', '.join(DESKTOPS)}") from None
+        raise ValueError(tr("Unbekannter Desktop '{desktop_id}'. Verfügbar: {wert}", desktop_id=desktop_id,
+                            wert=', '.join(DESKTOPS))) from None
 
 
 def name(desktop_id: str) -> str:
@@ -203,7 +205,8 @@ def name(desktop_id: str) -> str:
 
 def format_ram(mb: int) -> str:
     gb = mb / 1024
-    return f"{gb:.0f} GB" if gb == int(gb) else f"{gb:.1f} GB".replace(".", ",")
+    text = f"{gb:.0f} GB" if gb == int(gb) else f"{gb:.1f} GB"
+    return text.replace(".", ",") if i18n.sprache() == i18n.DEUTSCH else text
 
 
 def ram_warning(desktop_id: str, ram_mb: int) -> str:
@@ -211,8 +214,9 @@ def ram_warning(desktop_id: str, ram_mb: int) -> str:
     d = get(desktop_id)
     if ram_mb >= d.min_ram_mb:
         return ""
-    return (f"{d.name} braucht mindestens etwa {format_ram(d.min_ram_mb)} Arbeitsspeicher – eingestellt sind "
-            f"{format_ram(ram_mb)}. Der Agent-PC wird langsam oder Programme werden beendet.")
+    return tr("{name} braucht mindestens etwa {mindestens} Arbeitsspeicher – eingestellt sind {eingestellt}. Der "
+              "Agent-PC wird langsam oder Programme werden beendet.", name=d.name, mindestens=format_ram(d.min_ram_mb),
+              eingestellt=format_ram(ram_mb))
 
 
 # ---------------------------------------------------------------- Gast-Skripte
@@ -431,7 +435,7 @@ done
 """
 
 
-def install_script(d: DesktopSpec, set_default: bool = True, locale: str = "de_DE.UTF-8") -> str:
+def install_script(d: DesktopSpec, set_default: bool = True) -> str:
     """Bash-Schritt (als root): Desktop installieren; ``set_default`` = automatische Anmeldung dorthin.
 
     Erwartet $AGENT_USER und $AGENT_HOME. Wiederholbar.
@@ -484,8 +488,9 @@ IMG={screen.WALLPAPER_PNG}; [ -f "$IMG" ] || IMG={screen.WALLPAPER_JPG}
 """)
     if d.extra:
         lines.append(d.extra)
-    lines.append(f"""
-# Ordner wie Schreibtisch/Downloads gleich in der richtigen Sprache anlegen
-su - "$AGENT_USER" -c 'LANG={locale} xdg-user-dirs-update --force' || true
+    lines.append("""
+# Ordner wie Schreibtisch/Downloads gleich in der Sprache des Agent-PCs anlegen (steht schon in /etc/default/locale)
+L="$(unset LANG; [ -r /etc/default/locale ] && . /etc/default/locale; echo "${LANG:-C.UTF-8}")"
+su - "$AGENT_USER" -c "LANG=$L xdg-user-dirs-update --force" || true
 """)
     return "".join(lines)

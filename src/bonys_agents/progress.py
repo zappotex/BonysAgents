@@ -12,6 +12,7 @@ import math
 import re
 
 from bonys_agents import apps, cloudinit, desktops
+from bonys_agents.i18n import tr
 
 # Phasen beim Anlegen (auf dem Host), in Prozent
 DOWNLOAD = (0.0, 15.0)
@@ -162,8 +163,8 @@ def format_eta(seconds: float | None) -> str:
         return ""
     minutes = math.ceil(seconds / 60)
     if minutes <= 1:
-        return "noch knapp 1 Min."
+        return tr("noch knapp 1 Min.")
     if minutes < 60:
-        return f"noch ca. {minutes} Min."
+        return tr("noch ca. {minuten} Min.", minuten=minutes)
     h, m = divmod(minutes, 60)
-    return f"noch ca. {h} Std. {m} Min." if m else f"noch ca. {h} Std."
+    return tr("noch ca. {std} Std. {minuten} Min.", std=h, minuten=m) if m else tr("noch ca. {std} Std.", std=h)

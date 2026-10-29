@@ -515,7 +515,7 @@ def test_seiten_haben_die_hilfe_nachrichten():
         hilfe.ANFRAGE, hilfe.ZUSAGE, hilfe.ABSAGE, hilfe.BITTE, hilfe.ENDE}
     html = (BETRACHTER / "index.html").read_text("utf-8")
     quellen = re.findall(r'(?:src|href)="([^"]+)"', html)
-    assert set(quellen) == {"hilfe.css", "/qwebchannel.js", "hilfe.js"}
+    assert set(quellen) == {"hilfe.css", "/texte.js", "/qwebchannel.js", "hilfe.js"}   # texte.js: Sprache der App
     assert "connect-src ws://127.0.0.1:*" in html
     bjs = (BETRACHTER / "hilfe.js").read_text("utf-8")
     assert 'import RFB from "/novnc/core/rfb.js"' in bjs and "innerHTML" not in bjs

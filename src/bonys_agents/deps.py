@@ -22,6 +22,7 @@ from pathlib import Path
 
 from bonys_agents import host, qemu
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import n_, tr
 
 LogFn = Callable[[str], None]
 
@@ -145,7 +146,7 @@ def linux_root_script(info: host.HostInfo, report: Report, user: str, pm: str | 
     lines = ["set -e"]
     if keys & {"qemu", "firmware"}:
         if pm is None:
-            raise RuntimeError("Kein unterstützter Paketmanager gefunden (apt, dnf, pacman, zypper).")
+            raise RuntimeError(tr("Kein unterstützter Paketmanager gefunden (apt, dnf, pacman, zypper)."))
         pkgs = " ".join(LINUX_PACKAGES[pm][info.arch])
         lines.append(_INSTALL_CMD[pm].format(pkgs=pkgs))
     if "kvm-missing" in keys:
@@ -170,7 +171,7 @@ def _elevate_linux(script: str, gui: bool) -> list[str]:
         return ["sudo", "sh", "-c", script]
     if shutil.which("pkexec"):
         return ["pkexec", "sh", "-c", script]
-    raise RuntimeError("Weder sudo noch pkexec gefunden – bitte als Administrator ausführen.")
+    raise RuntimeError(tr("Weder sudo noch pkexec gefunden – bitte als Administrator ausführen."))
 
 
 # ---------------------------------------------------------------- Windows
@@ -208,8 +209,8 @@ def homebrew_explanation(in_terminal: bool = False) -> str:
 
 
 INTEL_QEMU_NOTE = (
-    "Hinweis für Intel-Macs: Homebrew bietet QEMU für Intel oft nur noch als Quellcode an – "
-    "dann baut dein Mac es selbst. Das kann 30–60 Minuten dauern, bitte das Fenster offen lassen."
+    n_("Hinweis für Intel-Macs: Homebrew bietet QEMU für Intel oft nur noch als Quellcode an – "
+       "dann baut dein Mac es selbst. Das kann 30–60 Minuten dauern, bitte das Fenster offen lassen.")
 )
 
 
@@ -233,7 +234,7 @@ def homebrew_install_script(arch: str) -> str:
         f"eval \"$({brew} shellenv)\"",
     ]
     if arch == "x86_64":
-        lines.append(f"echo {shlex.quote(INTEL_QEMU_NOTE)}")
+        lines.append(f"echo {shlex.quote(tr(INTEL_QEMU_NOTE))}")
     lines += [
         "brew install qemu || exit 1",
         "echo",
@@ -299,7 +300,7 @@ def install(
         if info.os == "linux":
             user = os.environ.get("SUDO_USER") or getpass.getuser()
             script = linux_root_script(info, report, user, linux_package_manager())
-            log("Installiere mit Administratorrechten (Passwortabfrage) …")
+            log(tr("Installiere mit Administratorrechten (Passwortabfrage) …"))
             if _run(_elevate_linux(script, gui), log) != 0:
                 return InstallResult(False, message="Installation abgebrochen oder fehlgeschlagen.")
 
@@ -310,12 +311,12 @@ def install(
                         "winget fehlt. Bitte den „App-Installer“ aus dem Microsoft Store installieren "
                         "oder QEMU manuell von https://qemu.weilnetz.de/w64/ installieren."
                     ))
-                log("Installiere QEMU über winget (Windows fragt nach Zustimmung) …")
+                log(tr("Installiere QEMU über winget (Windows fragt nach Zustimmung) …"))
                 code = _run(WINGET_QEMU, log)
                 if code != 0 and not _qemu_present(info):
                     return InstallResult(False, message=f"QEMU-Installation fehlgeschlagen (Code {code}).")
             if "whpx" in keys:
-                log("Schalte die Windows-Hypervisorplattform ein (Windows fragt nach Zustimmung) …")
+                log(tr("Schalte die Windows-Hypervisorplattform ein (Windows fragt nach Zustimmung) …"))
                 if _run(ENABLE_WHPX, log) != 0:
                     return InstallResult(False, message="Hypervisorplattform konnte nicht eingeschaltet werden.")
                 reboot = True
@@ -328,8 +329,8 @@ def install(
                     # nachdem sie erklärt und gefragt haben – siehe HOMEBREW_EXPLANATION.
                     return InstallResult(False, message="Homebrew fehlt – bitte zuerst installieren (https://brew.sh).")
                 if info.arch == "x86_64":
-                    log(INTEL_QEMU_NOTE)
-                log("Installiere QEMU über Homebrew …")
+                    log(tr(INTEL_QEMU_NOTE))
+                log(tr("Installiere QEMU über Homebrew …"))
                 if _run([str(brew), "install", "qemu"], log, env=_brew_env()) != 0:
                     return InstallResult(False, message="QEMU-Installation über Homebrew fehlgeschlagen.")
     except (OSError, RuntimeError) as e:

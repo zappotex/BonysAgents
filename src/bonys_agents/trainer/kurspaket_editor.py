@@ -31,6 +31,7 @@ from pathlib import Path
 
 from bonys_agents import __version__, apps, desktops, kurslauf, kurspaket, qemu, storage, templates, vm
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import tr
 
 ProgressFn = Callable[[float, str], None]
 TEST_SCHNAPPSCHUSS = "bonys-paket-test"
@@ -110,10 +111,10 @@ def neu_anlegen(name: str, stufe: str = "anfaenger", paket_id: str = "", autor: 
     name = name.strip()
     paket_id = paket_id or slug(name, 60)
     if not kurspaket.ID_RE.match(paket_id):
-        raise kurspaket.PaketFehler("Die Kennung muss 3 bis 60 Zeichen lang sein – nur Kleinbuchstaben, Ziffern und "
-                                    "Bindestrich (z. B. „einfuehrung-hermes-agent“).")
+        raise kurspaket.PaketFehler(tr("Die Kennung muss 3 bis 60 Zeichen lang sein – nur Kleinbuchstaben, Ziffern und "
+                                       "Bindestrich (z. B. „einfuehrung-hermes-agent“)."))
     if any(p.id == paket_id for p in kurspaket.liste()):
-        raise kurspaket.PaketFehler(f"Es gibt schon ein Kurspaket mit der Kennung „{paket_id}“.")
+        raise kurspaket.PaketFehler(tr("Es gibt schon ein Kurspaket mit der Kennung „{paket_id}“.", paket_id=paket_id))
     paket = kurspaket.Kurspaket(id=paket_id, name=name, beschreibung="Worum geht es in diesem Kurspaket?",
                                 stufe=stufe, version="0.1.0", autor=autor.strip(), min_version=_min_version(),
                                 entwurf=True)
@@ -147,13 +148,13 @@ def duplizieren(paket: kurspaket.Kurspaket, neue_id: str, neuer_name: str = "") 
     """Kopie in der Bibliothek. Mit derselben ID entsteht eine „eigene Fassung“ eines mitgelieferten Pakets (sie
     verdeckt das mitgelieferte, der Fortschritt bleibt) – mit neuer ID ein neues Kurspaket (Version 0.1.0)."""
     if not kurspaket.ID_RE.match(neue_id):
-        raise kurspaket.PaketFehler("Die Kennung muss 3 bis 60 Zeichen lang sein – nur Kleinbuchstaben, Ziffern und "
-                                    "Bindestrich.")
+        raise kurspaket.PaketFehler(tr("Die Kennung muss 3 bis 60 Zeichen lang sein – nur Kleinbuchstaben, Ziffern und "
+                                       "Bindestrich."))
     bib = kurspaket.bibliothek_dir()
     if (bib / neue_id).exists():
-        raise kurspaket.PaketFehler(f"In der Bibliothek gibt es schon ein Kurspaket „{neue_id}“.")
+        raise kurspaket.PaketFehler(tr("In der Bibliothek gibt es schon ein Kurspaket „{neue_id}“.", neue_id=neue_id))
     if neue_id != paket.id and any(p.id == neue_id for p in kurspaket.liste()):
-        raise kurspaket.PaketFehler(f"Es gibt schon ein Kurspaket mit der Kennung „{neue_id}“.")
+        raise kurspaket.PaketFehler(tr("Es gibt schon ein Kurspaket mit der Kennung „{neue_id}“.", neue_id=neue_id))
     bib.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix=".kopie-", dir=bib))
     try:
@@ -294,7 +295,7 @@ def bauen(entwurf: Entwurf, ziel: Path) -> kurspaket.Kurspaket:
 
 def _skript_schreiben(pfad: Path, inhalt: str) -> None:
     if not inhalt.strip():
-        raise kurspaket.PaketFehler(f"Das Skript „{pfad.parent.name}/{pfad.name}“ ist leer.")
+        raise kurspaket.PaketFehler(tr("Das Skript „{name}/{name2}“ ist leer.", name=pfad.parent.name, name2=pfad.name))
     pfad.parent.mkdir(parents=True, exist_ok=True)
     # Immer Unix-Zeilenenden – im Agent-PC laufen bash und python3
     pfad.write_text(inhalt.replace("\r\n", "\n").rstrip("\n") + "\n", encoding="utf-8", newline="\n")
@@ -334,12 +335,14 @@ def speichern(entwurf: Entwurf, ziel: Path | None = None) -> kurspaket.Kurspaket
         bau = Path(tmp) / "paket"
         paket = bauen(entwurf, bau)
         if paket.id != entwurf.paket.id:
-            raise kurspaket.PaketFehler("Die Kennung eines Kurspakets lässt sich nicht ändern – dafür „Duplizieren“.")
+            raise kurspaket.PaketFehler(tr("Die Kennung eines Kurspakets lässt sich nicht ändern – dafür "
+                                           "„Duplizieren“."))
         ziel.mkdir(parents=True, exist_ok=True)
         if (ziel / kurspaket.PAKET_JSON).is_file():
             alt = kurspaket.laden(ziel)
             if alt.id != paket.id:
-                raise kurspaket.PaketFehler(f"Im Ordner „{ziel.name}“ liegt ein anderes Kurspaket ({alt.id}).")
+                raise kurspaket.PaketFehler(tr("Im Ordner „{name}“ liegt ein anderes Kurspaket ({id}).",
+                                               name=ziel.name, id=alt.id))
         _abgleichen(bau, ziel)
     if basis is not None:
         _herkunft_eigen(ziel)
@@ -354,9 +357,9 @@ def vorlage_datei_existiert(pfad: str, enthaelt: str = "") -> str:
     """Prüfskript „Datei existiert (und enthält …)“. ``pfad`` im Agent-PC, z. B. „~/Kurs/einkaufsliste.txt“."""
     pfad = pfad.strip()
     if not _GAST_PFAD.match(pfad) or ".." in pfad.split("/"):
-        raise ValueError("Der Pfad muss mit „~/“ beginnen (im Persönlichen Ordner), z. B. ~/Kurs/einkaufsliste.txt")
+        raise ValueError(tr("Der Pfad muss mit „~/“ beginnen (im Persönlichen Ordner), z. B. ~/Kurs/einkaufsliste.txt"))
     if "\n" in enthaelt:
-        raise ValueError("Der gesuchte Text muss einzeilig sein.")
+        raise ValueError(tr("Der gesuchte Text muss einzeilig sein."))
     zeilen = ["#!/bin/bash",
               f"# Prüfung: {pfad} existiert" + (f" und enthält „{enthaelt}“" if enthaelt else "")
               + " (Vorlage aus Bony's Agents)",
@@ -371,7 +374,7 @@ def vorlage_dienst_laeuft(dienst: str, benutzer: bool = False) -> str:
     """Prüfskript „Dienst läuft“ (systemd). ``benutzer``: Benutzerdienst (``systemctl --user``)."""
     dienst = dienst.strip()
     if not _DIENST.match(dienst):
-        raise ValueError("Ungültiger Dienstname (z. B. „docker“ oder „hermes-gateway.service“).")
+        raise ValueError(tr("Ungültiger Dienstname (z. B. „docker“ oder „hermes-gateway.service“)."))
     if benutzer:
         return ("#!/bin/bash\n"
                 f"# Prüfung: Benutzerdienst {dienst} läuft (Vorlage aus Bony's Agents) – Prüfung als „benutzer“\n"
@@ -446,12 +449,12 @@ def startskript_aus_agent_pc(machine: vm.VM, ordner: str = "~/Kurs") -> str:
     läuft später als Benutzer des Agent-PCs (``als: benutzer``) und packt die Daten dort wieder aus."""
     ordner = ordner.strip().rstrip("/")
     if not _GAST_PFAD.match(ordner) or ".." in ordner.split("/"):
-        raise ValueError("Der Ordner muss mit „~/“ beginnen, z. B. ~/Kurs")
+        raise ValueError(tr("Der Ordner muss mit „~/“ beginnen, z. B. ~/Kurs"))
     if not kurslauf.bereit(machine):
-        raise kurslauf.NichtBereit("Der Agent-PC muss laufen und fertig eingerichtet sein.")
+        raise kurslauf.NichtBereit(tr("Der Agent-PC muss laufen und fertig eingerichtet sein."))
     user = machine.config.username
     if not vm.USERNAME_RE.match(user):
-        raise ValueError("ungültiger Benutzername")
+        raise ValueError(tr("ungültiger Benutzername"))
     rel = ordner[2:]
     befehl = ('cd "$HOME" && test -d "$1" || exit 3; n=$(du -sk -- "$1" | cut -f1); '
               f'[ "$n" -le {MAX_STARTDATEN // 1024 * 8} ] || exit 4; '
@@ -462,17 +465,19 @@ def startskript_aus_agent_pc(machine: vm.VM, ordner: str = "~/Kurs") -> str:
         with qemu.GuestAgent(machine.qga_endpoint(), timeout=5) as ga:
             rc, out, _err = ga.exec("/usr/bin/timeout", args, timeout=80)
     except qemu.GuestAgentError:
-        raise kurslauf.NichtBereit("Der Agent-PC antwortet noch nicht – bitte warten, bis der Desktop da ist.") \
+        raise kurslauf.NichtBereit(tr("Der Agent-PC antwortet noch nicht – bitte warten, bis der Desktop da ist.")) \
             from None
     if rc == 3:
-        raise ValueError(f"Im Agent-PC gibt es den Ordner {ordner} nicht.")
+        raise ValueError(tr("Im Agent-PC gibt es den Ordner {ordner} nicht.", ordner=ordner))
     if rc == 4:
-        raise ValueError(f"Der Ordner {ordner} ist zu groß für ein Startskript (höchstens etwa 1 MB gepackt).")
+        raise ValueError(tr("Der Ordner {ordner} ist zu groß für ein Startskript (höchstens etwa 1 MB gepackt).",
+                            ordner=ordner))
     if rc != 0 or not out.strip():
-        raise RuntimeError(f"Der Ordner {ordner} ließ sich nicht lesen (Code {rc}).")
+        raise RuntimeError(tr("Der Ordner {ordner} ließ sich nicht lesen (Code {rc}).", ordner=ordner, rc=rc))
     daten = out.strip()
     if len(daten) > MAX_STARTDATEN * 4 // 3 + 4 or not re.fullmatch(r"[A-Za-z0-9+/=]+", daten):
-        raise ValueError(f"Der Ordner {ordner} ist zu groß für ein Startskript (höchstens etwa 1 MB gepackt).")
+        raise ValueError(tr("Der Ordner {ordner} ist zu groß für ein Startskript (höchstens etwa 1 MB gepackt).",
+                            ordner=ordner))
     base64.b64decode(daten, validate=True)
     zeilen = [daten[i:i + 76] for i in range(0, len(daten), 76)]
     return ("#!/bin/bash\n"
@@ -487,7 +492,7 @@ def startskript_aus_agent_pc(machine: vm.VM, ordner: str = "~/Kurs") -> str:
 def bildschirmfoto(machine: vm.VM, ziel: Path) -> Path:
     """Bildschirmfoto des laufenden Agent-PCs als PNG (QEMU ``screendump``)."""
     if not machine.is_running():
-        raise kurslauf.NichtBereit("Der Agent-PC läuft nicht – bitte zuerst starten.")
+        raise kurslauf.NichtBereit(tr("Der Agent-PC läuft nicht – bitte zuerst starten."))
     ziel = Path(ziel)
     ziel.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="bonys-foto-") as tmp:
@@ -496,7 +501,7 @@ def bildschirmfoto(machine: vm.VM, ziel: Path) -> Path:
             if q.text:
                 out = q.hmp(f"screendump {datei} -f png").strip()
                 if out:
-                    raise RuntimeError(f"Bildschirmfoto nicht möglich: {out[-300:]}")
+                    raise RuntimeError(tr("Bildschirmfoto nicht möglich: {wert}", wert=out[-300:]))
             else:
                 q.execute("screendump", filename=str(datei), format="png")
         for _ in range(50):
@@ -504,7 +509,7 @@ def bildschirmfoto(machine: vm.VM, ziel: Path) -> Path:
                 break
             time.sleep(0.1)
         if not datei.is_file() or datei.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
-            raise RuntimeError("Bildschirmfoto nicht möglich (QEMU hat kein Bild geliefert).")
+            raise RuntimeError(tr("Bildschirmfoto nicht möglich (QEMU hat kein Bild geliefert)."))
         shutil.copyfile(datei, ziel)
     ziel.chmod(0o644)
     return ziel
@@ -517,7 +522,7 @@ def bild_name(ordner: Path, basis: str, endung: str = ".png") -> Path:
         p = Path(ordner) / "bilder" / (f"{basis}{endung}" if n == 1 else f"{basis}-{n}{endung}")
         if not p.exists():
             return p
-    raise RuntimeError("zu viele Bilder")
+    raise RuntimeError(tr("zu viele Bilder"))
 
 
 # ---------------------------------------------------------------- PDF (Ablaufplan, Handout)
@@ -530,15 +535,15 @@ def _vorlage_dir() -> Path:
     for k in (hier / "resources" / "handbuch-vorlage", hier.parent.parent.parent / "docs" / "handbuch" / "vorlage"):
         if (k / "pandoc.typ").is_file() and (k / "stil.typ").is_file():
             return k
-    raise WerkzeugFehlt("Die Vorlage für die PDFs fehlt in dieser Installation.")
+    raise WerkzeugFehlt(tr("Die Vorlage für die PDFs fehlt in dieser Installation."))
 
 
 def _werkzeug(name: str, url: str) -> str:
     pfad = shutil.which(name) or next((str(p) for p in (Path.home() / ".local" / "bin" / name,) if p.is_file()), None)
     if not pfad:
-        raise WerkzeugFehlt(f"Für PDFs braucht Bony's Agents die Programme „pandoc“ und „typst“ – „{name}“ fehlt. "
-                            f"Lade es von {url} (eine einzelne Datei, z. B. nach ~/.local/bin) und versuche es dann "
-                            "noch einmal.")
+        raise WerkzeugFehlt(tr("Für PDFs braucht Bony's Agents die Programme „pandoc“ und „typst“ – „{name}“ fehlt. "
+                               "Lade es von {url} (eine einzelne Datei, z. B. nach ~/.local/bin) und versuche es "
+                               "dann noch einmal.", name=name, url=url))
     return pfad
 
 
@@ -553,8 +558,12 @@ def pdf_bauen(paket: kurspaket.Kurspaket, welches: str, ziel: Path, timeout: flo
     (typst ``--root``: andere Dateien des Rechners sind für das Dokument nicht erreichbar)."""
     quelle = paket.ablaufplan_datei if welches == "ablaufplan" else paket.handout_datei
     if not quelle.is_file():
-        raise kurspaket.PaketFehler("Dieses Kurspaket hat kein Handout." if welches != "ablaufplan"
-                                    else "Dieses Kurspaket hat keinen Ablaufplan.")
+        raise kurspaket.PaketFehler(tr("Dieses "
+                                       "Kurspaket "
+                                       "hat "
+                                       "kein "
+                                       "Handout.") if welches != "ablaufplan" else tr("Dieses Kurspaket hat keinen "
+                                                                                      "Ablaufplan."))
     pandoc, typst = pdf_werkzeuge()
     vorlage = _vorlage_dir()
     resources = Path(kurspaket.__file__).resolve().parent / "resources"
@@ -572,12 +581,16 @@ def pdf_bauen(paket: kurspaket.Kurspaket, welches: str, ziel: Path, timeout: flo
                     shutil.copyfile(p, hb / "bilder" / rel)
         text = kurspaket._lesen(quelle)
         (hb / "quelle.md").write_text(text, encoding="utf-8")
-        titel = paket.name + (" – Ablaufplan" if welches == "ablaufplan" else " – Handout")
-        meta = {"title": paket.name, "subtitle": "Ablaufplan für die Kursleitung" if welches == "ablaufplan"
-                else "Handout", "paket-autor": paket.autor, "paket-lizenz": paket.lizenz,
-                "paket-version": paket.version}
+        # Feste Texte in der Sprache des Kurspakets (nicht der App): die Vorlage nimmt „sprache“ (de/en)
+        sprache = kurspaket.sprache_kurz(paket.sprache)
+        ablauf = ("Ablaufplan", "Ablaufplan für die Kursleitung") if sprache == "de" else \
+            ("Schedule", "Schedule for the trainer")
+        titel = paket.name + " – " + (ablauf[0] if welches == "ablaufplan" else "Handout")
+        meta = {"title": paket.name, "subtitle": ablauf[1] if welches == "ablaufplan" else "Handout",
+                "paket-autor": paket.autor, "paket-lizenz": paket.lizenz, "paket-version": paket.version,
+                "sprache": sprache}
         storage.write_json(hb / "meta.json", meta)
-        datum = time.strftime("%d.%m.%Y")
+        datum = time.strftime("%d.%m.%Y" if sprache == "de" else "%Y-%m-%d")
         art = "kompakt" if welches == "ablaufplan" else "kurz"
         befehl = [pandoc, "quelle.md", "-f", "markdown-citations-raw_attribute-raw_html-raw_tex", "-t", "typst",
                   "--template", "vorlage/pandoc.typ", "--lua-filter", "vorlage/filter.lua",
@@ -602,12 +615,12 @@ def _lauf(befehl: list[str], cwd: Path, timeout: float) -> None:
         proc = subprocess.run(befehl, cwd=cwd, capture_output=True, text=True, timeout=timeout,
                               creationflags=no_window_flags(), env=clean_env())
     except subprocess.TimeoutExpired:
-        raise RuntimeError(f"{Path(befehl[0]).name} hat zu lange gebraucht.") from None
+        raise RuntimeError(tr("{name} hat zu lange gebraucht.", name=Path(befehl[0]).name)) from None
     except OSError as e:
-        raise RuntimeError(f"{Path(befehl[0]).name} ließ sich nicht starten: {e}") from None
+        raise RuntimeError(tr("{name} ließ sich nicht starten: {e}", name=Path(befehl[0]).name, e=e)) from None
     if proc.returncode != 0:
         meldung = (proc.stderr or proc.stdout).strip()[-800:]
-        raise RuntimeError(f"{Path(befehl[0]).name} meldet einen Fehler:\n{meldung}")
+        raise RuntimeError(tr("{name} meldet einen Fehler:\n{meldung}", name=Path(befehl[0]).name, meldung=meldung))
 
 
 # ---------------------------------------------------------------- „Kurspaket prüfen“
@@ -761,7 +774,7 @@ def durchspielen(machine: vm.VM, paket: kurspaket.Kurspaket, progress: ProgressF
     Vorher entsteht ein Schnappschuss; mit ``zuruecksetzen`` wird der Agent-PC danach darauf zurückgesetzt
     (herunterfahren, zurückspielen, neu starten). Alle Skripte laufen nur im Agent-PC."""
     if not kurslauf.bereit(machine):
-        raise kurslauf.NichtBereit("Der Test-Agent-PC muss laufen und fertig eingerichtet sein.")
+        raise kurslauf.NichtBereit(tr("Der Test-Agent-PC muss laufen und fertig eingerichtet sein."))
     progress = progress or (lambda _f, _t: None)
     m: list[Meldung] = []
     kurslauf.startzustand_speichern(machine, TEST_SCHNAPPSCHUSS)
@@ -770,14 +783,14 @@ def durchspielen(machine: vm.VM, paket: kurspaket.Kurspaket, progress: ProgressF
         for i, lek in enumerate(paket.lektionen):
             if abbrechen and abbrechen():
                 raise Abgebrochen
-            progress(i / n, f"Lektion {i + 1} von {n}: {lek.titel}")
+            progress(i / n, tr("Lektion {wert} von {n}: {titel}", wert=i + 1, n=n, titel=lek.titel))
             m += _lektion_durchspielen(machine, lek)
-        progress(1.0, "Fertig")
+        progress(1.0, tr("Fertig"))
     except Abgebrochen:
         m.append(Meldung(HINWEIS, "Abgebrochen."))
     finally:
         if zuruecksetzen:
-            progress(1.0, "Setze den Test-Agent-PC zurück …")
+            progress(1.0, tr("Setze den Test-Agent-PC zurück …"))
             try:
                 if machine.is_running():
                     machine.stop()
@@ -795,11 +808,11 @@ def durchspielen(machine: vm.VM, paket: kurspaket.Kurspaket, progress: ProgressF
 
 def _rc_text(rc: int) -> str:
     if rc == kurslauf.ZEITLIMIT_RC:
-        return "Zeitlimit überschritten"
+        return tr("Zeitlimit überschritten")
     if rc == 127:
-        return "ein Befehl fehlt im Agent-PC (Code 127 – veraltet?)"
+        return tr("ein Befehl fehlt im Agent-PC (Code 127 – veraltet?)")
     if rc == 126:
-        return "ein Befehl lässt sich nicht ausführen (Code 126)"
+        return tr("ein Befehl lässt sich nicht ausführen (Code 126)")
     return f"Code {rc}"
 
 

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import storage
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import PathLabel
@@ -40,12 +41,12 @@ class LocationPicker(QWidget):
         self.refresh_btn = QPushButton()
         self.refresh_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.refresh_btn.setMinimumHeight(style.px(34))
-        self.refresh_btn.setToolTip("Laufwerke neu einlesen (z. B. nach dem Einstecken einer SSD)")
+        self.refresh_btn.setToolTip(tr("Laufwerke neu einlesen (z. B. nach dem Einstecken einer SSD)"))
         row.addWidget(self.combo, 1)
         row.addWidget(self.refresh_btn)
         lay.addLayout(row)
 
-        self.path_label = PathLabel(prefix="Ordner: ")
+        self.path_label = PathLabel(prefix=tr("Ordner: "))
         self.path_label.setObjectName("Muted")
         self.msg = QLabel()
         self.msg.setWordWrap(True)
@@ -84,10 +85,10 @@ class LocationPicker(QWidget):
         for loc in storage.load_settings()["locations"]:
             p = Path(loc)
             if p.exists():
-                add(f"Gespeichert: {p}", p)
+                add(tr("Gespeichert: {p}", p=p), p)
         if self._custom:
-            add(f"Ordner: {self._custom}", self._custom)
-        self.combo.addItem("Anderer Ordner …", CUSTOM)
+            add(tr("Ordner: {custom}", custom=self._custom), self._custom)
+        self.combo.addItem(tr("Anderer Ordner …"), CUSTOM)
 
         want = str(current) if current else str(storage.preferred_library())
         idx = self.combo.findData(want)
@@ -99,7 +100,7 @@ class LocationPicker(QWidget):
         if self.combo.currentData() != CUSTOM:
             return
         start = str(self._custom or storage.preferred_library().parent)
-        chosen = QFileDialog.getExistingDirectory(self, "Speicherort wählen", start)
+        chosen = QFileDialog.getExistingDirectory(self, tr("Speicherort wählen"), start)
         if chosen:
             p = Path(chosen)
             # Wer direkt ein Laufwerk wählt, bekommt einen aufgeräumten Unterordner.
@@ -140,6 +141,6 @@ class LocationPicker(QWidget):
             self.msg.setText("⚠  " + " ".join(chk.warnings))
             self.msg.setStyleSheet(f"color: {style.WARN};")
         else:
-            self.msg.setText("✓  Passt.")
+            self.msg.setText(tr("✓  Passt."))
             self.msg.setStyleSheet(f"color: {style.OK};")
         self.changed.emit()

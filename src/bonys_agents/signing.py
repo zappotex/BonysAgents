@@ -20,6 +20,8 @@ import base64
 import hashlib
 from dataclasses import dataclass
 
+from bonys_agents.i18n import tr
+
 
 class SignatureError(ValueError):
     """Signatur fehlt, passt nicht zum Schlüssel oder ist ungültig."""
@@ -105,7 +107,7 @@ def _decompress(s: bytes):
 
 def _expand(secret: bytes) -> tuple[int, bytes]:
     if len(secret) != 32:
-        raise ValueError("Ed25519-Geheimschlüssel muss 32 Bytes lang sein")
+        raise ValueError(tr("Ed25519-Geheimschlüssel muss 32 Bytes lang sein"))
     h = hashlib.sha512(secret).digest()
     a = int.from_bytes(h[:32], "little")
     a &= (1 << 254) - 8
@@ -152,13 +154,13 @@ class PublicKey:
         lines = [line.strip() for line in text.strip().splitlines()
                  if line.strip() and not line.startswith("untrusted comment:")]
         if not lines:
-            raise SignatureError("Kein öffentlicher Schlüssel für Updates hinterlegt.")
+            raise SignatureError(tr("Kein öffentlicher Schlüssel für Updates hinterlegt."))
         try:
             raw = base64.b64decode(lines[-1], validate=True)
         except ValueError:
-            raise SignatureError("Öffentlicher Schlüssel ist kein gültiges base64.") from None
+            raise SignatureError(tr("Öffentlicher Schlüssel ist kein gültiges base64.")) from None
         if len(raw) != 42 or raw[:2] != b"Ed":
-            raise SignatureError("Öffentlicher Schlüssel hat nicht das minisign-Format (Ed25519).")
+            raise SignatureError(tr("Öffentlicher Schlüssel hat nicht das minisign-Format (Ed25519)."))
         return cls(raw[2:10], raw[10:])
 
     def text(self) -> str:
@@ -170,28 +172,28 @@ def verify(data: bytes, signature_file: str, public_key: str | PublicKey) -> str
     pk = public_key if isinstance(public_key, PublicKey) else PublicKey.parse(public_key)
     lines = [line.rstrip("\r") for line in signature_file.strip().splitlines()]
     if len(lines) < 4 or not lines[2].startswith("trusted comment: "):
-        raise SignatureError("Signaturdatei ist unvollständig oder beschädigt.")
+        raise SignatureError(tr("Signaturdatei ist unvollständig oder beschädigt."))
     try:
         sig_raw = base64.b64decode(lines[1], validate=True)
         global_sig = base64.b64decode(lines[3], validate=True)
     except ValueError:
-        raise SignatureError("Signaturdatei ist beschädigt (kein base64).") from None
+        raise SignatureError(tr("Signaturdatei ist beschädigt (kein base64).")) from None
     if len(sig_raw) != 74 or len(global_sig) != 64:
-        raise SignatureError("Signaturdatei hat nicht das minisign-Format.")
+        raise SignatureError(tr("Signaturdatei hat nicht das minisign-Format."))
     algo, key_id, sig = sig_raw[:2], sig_raw[2:10], sig_raw[10:]
     if key_id != pk.key_id:
-        raise SignatureError("Die Signatur stammt nicht vom offiziellen Schlüssel von Bony's Agents.")
+        raise SignatureError(tr("Die Signatur stammt nicht vom offiziellen Schlüssel von Bony's Agents."))
     if algo == b"ED":
         message = hashlib.blake2b(data, digest_size=64).digest()
     elif algo == b"Ed":
         message = data
     else:
-        raise SignatureError("Unbekanntes Signaturverfahren.")
+        raise SignatureError(tr("Unbekanntes Signaturverfahren."))
     if not ed25519_verify(pk.key, message, sig):
-        raise SignatureError("Signatur ungültig – die Datei wurde verändert oder ist beschädigt.")
+        raise SignatureError(tr("Signatur ungültig – die Datei wurde verändert oder ist beschädigt."))
     trusted = lines[2][len("trusted comment: "):]
     if not ed25519_verify(pk.key, sig + trusted.encode("utf-8"), global_sig):
-        raise SignatureError("Signatur ungültig (vertrauenswürdiger Kommentar wurde verändert).")
+        raise SignatureError(tr("Signatur ungültig (vertrauenswürdiger Kommentar wurde verändert)."))
     return trusted
 
 

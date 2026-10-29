@@ -30,13 +30,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from bonys_agents import cloudinit, host, qemu, storage, vm
+from bonys_agents.i18n import n_, tr
 
 TEMPLATES_DIRNAME = "_templates"
 FILE_SUFFIX = ".bonys-template"
 FORMAT = 1
 NAME_RE = vm.NAME_RE
-NEWER_FORMAT = ("Die Vorlage „{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's "
-                "Agents aktualisieren – bis dahin kann diese Version sie nur anzeigen.")
+NEWER_FORMAT = (n_("Die Vorlage „{name}“ wurde mit einer neueren Version von Bony's Agents gespeichert. Bitte Bony's "
+                   "Agents aktualisieren – bis dahin kann diese Version sie nur anzeigen."))
 # template.json kann von einem fremden Laufwerk oder aus einer alten .bonys-template-Datei stammen
 RULES = {
     **vm.COMMON_RULES,
@@ -50,8 +51,8 @@ RULES = {
     "size": lambda n: n >= 0,
     "format": lambda n: n >= 1,
 }
-EXPORT_WARNING = ("Prüfe vor der Weitergabe, dass keine persönlichen Daten enthalten sind – "
-                  "vor allem, wenn die Vorlage mit „Persönliche Daten behalten“ erstellt wurde.")
+EXPORT_WARNING = (n_("Prüfe vor der Weitergabe, dass keine persönlichen Daten enthalten sind – "
+                     "vor allem, wenn die Vorlage mit „Persönliche Daten behalten“ erstellt wurde."))
 
 GUEST_AGENT_WAIT = 300      # Sekunden, bis der Gast-Agent der Arbeitskopie antworten muss
 GENERALIZE_TIMEOUT = 3600   # Nullen des freien Platzes kann bei großen Platten dauern
@@ -110,7 +111,7 @@ class Template:
 
     def check_usable(self) -> None:
         if self.newer_format():
-            raise RuntimeError(NEWER_FORMAT.format(name=self.name))
+            raise RuntimeError(tr(NEWER_FORMAT, name=self.name))
 
     def save(self) -> None:
         self.check_usable()
@@ -144,7 +145,7 @@ class Template:
 
 def check_name(name: str) -> None:
     if not NAME_RE.match(name):
-        raise ValueError("Name der Vorlage: 1–40 Zeichen, nur Buchstaben, Ziffern, - und _")
+        raise ValueError(tr("Name der Vorlage: 1–40 Zeichen, nur Buchstaben, Ziffern, - und _"))
 
 
 def templates_dir(library: Path) -> Path:
@@ -174,7 +175,7 @@ def get(name: str) -> Template:
     for t in list_templates():
         if t.name == name:
             return t
-    raise KeyError(f"Vorlage '{name}' gibt es nicht (oder ihr Laufwerk ist nicht eingesteckt)")
+    raise KeyError(tr("Vorlage '{name}' gibt es nicht (oder ihr Laufwerk ist nicht eingesteckt)", name=name))
 
 
 def same_drive(t: Template, library: Path) -> bool:
@@ -226,7 +227,7 @@ def _wait_guest_agent(copy: _WorkVM, progress: ProgressFn | None, timeout: float
     while time.time() < deadline:
         if not copy.is_running():
             err = copy.qemu_log.read_text("utf-8", errors="replace")[-1500:] if copy.qemu_log.exists() else ""
-            raise RuntimeError("Die Arbeitskopie hat sich beim Starten beendet.\n" + err)
+            raise RuntimeError(tr("Die Arbeitskopie hat sich beim Starten beendet.\n{err}", err=err))
         try:
             with qemu.GuestAgent(copy.qga_endpoint(), timeout=3) as ga:
                 ga.execute("guest-ping")
@@ -245,16 +246,19 @@ def _run_in_copy(copy: _WorkVM, script: str, password: str | None, has_agent: bo
         with qemu.GuestAgent(copy.qga_endpoint(), timeout=10) as ga:
             rc, out = ga.run(script, timeout=timeout, shell="/bin/bash", poll=poll)
         if rc != 0:
-            raise RuntimeError(f"{what} fehlgeschlagen (Code {rc}): {out.strip()[-600:]}")
+            raise RuntimeError(tr("{what} fehlgeschlagen (Code {rc}): {wert}", what=what, rc=rc,
+                                  wert=out.strip()[-600:]))
         return out
     if not password:
-        raise vm.NeedsPassword("Der Gast-Agent antwortet nicht – für SSH wird das Passwort des Agent-PCs gebraucht.")
+        raise vm.NeedsPassword(tr("Der Gast-Agent antwortet nicht – für SSH wird das Passwort des Agent-PCs "
+                                  "gebraucht."))
     lines: list[str] = []
     rc = copy._ssh(vm.SSH_SUDO_SCRIPT, script, password, lines.append)
     if rc == 255:
-        raise RuntimeError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")
+        raise RuntimeError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?"))
     if rc != 0:
-        raise RuntimeError(f"{what} fehlgeschlagen (Code {rc}): {chr(10).join(lines)[-600:]}")
+        raise RuntimeError(tr("{what} fehlgeschlagen (Code {rc}): {wert}", what=what, rc=rc,
+                              wert=chr(10).join(lines)[-600:]))
     return "\n".join(lines)
 
 
@@ -275,13 +279,14 @@ class _SourceLock:
 def _source_vm(vm_name: str) -> vm.VM:
     machine = vm.get(vm_name)
     if machine.template_lock_pid() is not None:
-        raise RuntimeError(f"Aus „{machine.name}“ wird schon eine Vorlage erstellt.")
+        raise RuntimeError(tr("Aus „{name}“ wird schon eine Vorlage erstellt.", name=machine.name))
     if machine.config.first_boot_pending or not machine.progress().ready:
-        raise RuntimeError(f"„{machine.name}“ ist noch nicht fertig eingerichtet – nur fertige Agent-PCs "
-                           "können zur Vorlage werden.")
+        raise RuntimeError(tr("„{name}“ ist noch nicht fertig eingerichtet – nur fertige Agent-PCs können zur "
+                              "Vorlage werden.", name=machine.name))
     if machine.is_running():
-        raise RuntimeError(f"Bitte „{machine.name}“ zuerst herunterfahren – die Vorlage entsteht aus einer Kopie "
-                           "der ausgeschalteten Festplatte, damit am Original nichts verändert wird.")
+        raise RuntimeError(tr("Bitte „{name}“ zuerst herunterfahren – die Vorlage entsteht aus einer Kopie der "
+                              "ausgeschalteten Festplatte, damit am Original nichts verändert wird.",
+                              name=machine.name))
     machine._check_usable()
     return machine
 
@@ -314,18 +319,18 @@ def create(vm_name: str, name: str, description: str = "", remove_personal: bool
     """Vorlage aus einem fertig eingerichteten, ausgeschalteten Agent-PC erstellen."""
     check_name(name)
     if _exists(name):
-        raise FileExistsError(f"Vorlage '{name}' gibt es schon")
+        raise FileExistsError(tr("Vorlage '{name}' gibt es schon", name=name))
     machine = _source_vm(vm_name)
     library = Path(location) if location else machine.location
     base = templates_dir(library)
     target = base / name
     if target.exists():
-        raise FileExistsError(f"Ordner {target} existiert bereits")
+        raise FileExistsError(tr("Ordner {target} existiert bereits", target=target))
     base.mkdir(parents=True, exist_ok=True)
     used = machine.disk.stat().st_size
     if shutil.disk_usage(base).free < used + 2 * storage.GB:
-        raise RuntimeError(f"Zu wenig Platz in {library}: gebraucht werden etwa {used / storage.GB + 2:.0f} GB "
-                           "(Arbeitskopie und Vorlage).")
+        raise RuntimeError(tr("Zu wenig Platz in {library}: gebraucht werden etwa {wert:.0f} GB (Arbeitskopie und "
+                              "Vorlage).", library=library, wert=used / storage.GB + 2))
     qemu_img = qemu.find_binary("qemu-img", host.detect().os)
     work = base / f".{name}.arbeitskopie"
     part = base / f".{name}.teil"
@@ -344,7 +349,7 @@ def create(vm_name: str, name: str, description: str = "", remove_personal: bool
             for line in out.splitlines():
                 emit(line)
             if "BONYS-GENERALIZED" not in out:
-                raise RuntimeError("Verallgemeinern nicht vollständig – siehe Ausgabe.")
+                raise RuntimeError(tr("Verallgemeinern nicht vollständig – siehe Ausgabe."))
             debian = next((ln.split(" ", 1)[1].strip() for ln in out.splitlines()
                            if ln.startswith("BONYS-DEBIAN ")), "")
             _report(progress, "shutdown", 0, "Fahre Arbeitskopie herunter …")
@@ -401,11 +406,12 @@ def rename(name: str, new_name: str) -> Template:
     if new_name == name:
         return t
     if _exists(new_name):
-        raise FileExistsError(f"Vorlage '{new_name}' gibt es schon")
+        raise FileExistsError(tr("Vorlage '{new_name}' gibt es schon", new_name=new_name))
     linked = t.linked_vms()
     running = [m.name for m in linked if m.is_running()]
     if running:
-        raise RuntimeError("Verknüpfte Agent-PCs laufen gerade: " + ", ".join(running) + " – bitte herunterfahren.")
+        raise RuntimeError(tr("Verknüpfte Agent-PCs laufen gerade: {wert} – bitte herunterfahren.",
+                              wert=", ".join(running)))
     dest = t.path.parent / new_name
     os.replace(t.path, dest)
     t.path = dest
@@ -496,7 +502,7 @@ def read_export_info(file: Path) -> Template:
 def _check_members(tar: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
     members = {m.name: m for m in tar.getmembers()}
     if set(members) != {"template.json", "disk.qcow2"} or not all(m.isfile() for m in members.values()):
-        raise ValueError("Keine gültige Vorlagen-Datei (erwartet: template.json und disk.qcow2).")
+        raise ValueError(tr("Keine gültige Vorlagen-Datei (erwartet: template.json und disk.qcow2)."))
     return members
 
 
@@ -508,19 +514,22 @@ def import_file(file: Path, location: Path | None = None, name: str | None = Non
     name = name or info.name
     check_name(name)
     if _exists(name):
-        raise FileExistsError(f"Vorlage '{name}' gibt es schon – beim Importieren einen anderen Namen wählen.")
+        raise FileExistsError(tr("Vorlage '{name}' gibt es schon – beim Importieren einen anderen Namen wählen.",
+                                 name=name))
     if info.arch and info.arch != host.detect().arch:
-        raise ValueError(f"Die Vorlage ist für {info.arch}, dieser Rechner ist {host.detect().arch}.")
+        raise ValueError(tr("Die Vorlage ist für {arch}, dieser Rechner ist {arch2}.", arch=info.arch,
+                            arch2=host.detect().arch))
     library = Path(location) if location else storage.preferred_library()
     base = templates_dir(library)
     target = base / name
     if target.exists():
-        raise FileExistsError(f"Ordner {target} existiert bereits")
+        raise FileExistsError(tr("Ordner {target} existiert bereits", target=target))
     base.mkdir(parents=True, exist_ok=True)
     with tarfile.open(file, "r:") as tar:
         disk = _check_members(tar)["disk.qcow2"]
         if shutil.disk_usage(base).free < disk.size + storage.GB:
-            raise RuntimeError(f"Zu wenig Platz in {library} ({disk.size / storage.GB:.1f} GB nötig).")
+            raise RuntimeError(tr("Zu wenig Platz in {library} ({wert:.1f} GB nötig).", library=library,
+                                  wert=disk.size / storage.GB))
         part = base / f".{name}.import"
         shutil.rmtree(part, ignore_errors=True)
         part.mkdir()
@@ -535,7 +544,7 @@ def import_file(file: Path, location: Path | None = None, name: str | None = Non
                         progress("import", done / max(disk.size, 1),
                                  f"Importiere … {done // host.MB} / {disk.size // host.MB} MB")
             if progress:
-                progress("import", 1.0, "Prüfe die Vorlage (qemu-img check) …")
+                progress("import", 1.0, tr("Prüfe die Vorlage (qemu-img check) …"))
             qemu.check_disk_safe(part / "disk.qcow2")  # vor qemu-img: kein data_file, kein Backing
             qemu.check_disk(qemu.find_binary("qemu-img", host.detect().os), part / "disk.qcow2")
             info.path, info.name = part, name

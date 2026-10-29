@@ -31,6 +31,7 @@ from pathlib import Path
 
 from bonys_agents import UPDATE_PUBLIC_KEY, host, kurspaket, qemu, signing, templates, vm
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import n_, tr
 
 SNAP_PREFIX = "bonys-paket-"
 DISK_DEVICE = "disk0"               # Name der Systemplatte in qemu.build_command
@@ -68,7 +69,8 @@ def _img(*args: str) -> str:
     proc = subprocess.run([str(_qemu_img()), *args], capture_output=True, text=True,
                           creationflags=no_window_flags(), env=clean_env())
     if proc.returncode != 0:
-        raise RuntimeError(f"qemu-img {args[0]} fehlgeschlagen: {proc.stderr.strip()[-300:]}")
+        raise RuntimeError(tr("qemu-img {wert} fehlgeschlagen: {wert2}", wert=args[0],
+                              wert2=proc.stderr.strip()[-300:]))
     return proc.stdout
 
 
@@ -96,13 +98,13 @@ def _hmp(machine: vm.VM, befehl: str) -> None:
     with qemu.QMP(machine.qmp_endpoint(), timeout=30) as q:
         out = q.hmp(befehl).strip()
     if out:
-        raise RuntimeError(f"Schnappschuss nicht möglich: {out[-300:]}")
+        raise RuntimeError(tr("Schnappschuss nicht möglich: {wert}", wert=out[-300:]))
 
 
 def startzustand_speichern(machine: vm.VM, name: str) -> None:
     """Schnappschuss der Festplatte unter ``name`` anlegen (ersetzt einen gleichnamigen)."""
     if not _SNAP_RE.match(name):
-        raise ValueError("ungültiger Name für einen Schnappschuss")
+        raise ValueError(tr("ungültiger Name für einen Schnappschuss"))
     vorhanden = name in schnappschuesse(machine)
     if machine.is_running():
         try:   # Puffer im Gast auf die Platte schreiben – der Schnappschuss ist dann wie nach einem sauberen sync
@@ -154,7 +156,7 @@ def lektion_vorbereiten(machine: vm.VM, paket: kurspaket.Kurspaket, index: int,
     if any(x.start for x in paket.lektionen[:index + 1]):
         frisch = frisch_mit_zustimmung(paket)
         if index >= len(frisch.lektionen) or frisch.lektionen[index].ordner != lek.ordner:
-            raise ZustimmungFehlt(GEAENDERT)
+            raise ZustimmungFehlt(tr(GEAENDERT))
         paket, lek = frisch, frisch.lektionen[index]
     skripte = []
     if uebersprungen:
@@ -164,7 +166,8 @@ def lektion_vorbereiten(machine: vm.VM, paket: kurspaket.Kurspaket, index: int,
     if lek.start:
         skripte.append(lek)
     if skripte and not bereit(machine):
-        raise NichtBereit("Für den Startzustand dieser Lektion muss der Agent-PC laufen und fertig eingerichtet sein.")
+        raise NichtBereit(tr("Für den Startzustand dieser Lektion muss der Agent-PC laufen und fertig eingerichtet "
+                             "sein."))
     for s in skripte:
         rc = im_agent_pc_ausfuehren(machine, s.pfad / s.start.skript, s.start.als, s.start.zeitlimit)
         if rc != 0:
@@ -183,11 +186,11 @@ def lektion_zuruecksetzen(machine: vm.VM, paket: kurspaket.Kurspaket, index: int
     lek = paket.lektionen[index]
     name = snapshot_name(paket, lek)
     if name not in schnappschuesse(machine):
-        raise NichtBereit(f"Für Lektion „{lek.titel}“ gibt es noch keinen Startzustand.")
+        raise NichtBereit(tr("Für Lektion „{titel}“ gibt es noch keinen Startzustand.", titel=lek.titel))
     if machine.is_running():
         machine.stop()
         if machine.is_running():
-            raise RuntimeError("Der Agent-PC ließ sich nicht herunterfahren.")
+            raise RuntimeError(tr("Der Agent-PC ließ sich nicht herunterfahren."))
     _img("snapshot", "-a", name, str(machine.disk))
     for spaeter in paket.lektionen[index + 1:]:
         startzustand_loeschen(machine, snapshot_name(paket, spaeter))
@@ -203,15 +206,15 @@ def befehl_im_gast(skript: Path, als: str, username: str, zeitlimit: int,
     ``nur_syntax`` (nur Bash, für „Kurspaket prüfen“): ``bash -n`` – liest das Skript, führt aber nichts aus."""
     interpreter = INTERPRETER.get(skript.suffix.lower())
     if interpreter is None:
-        raise ValueError(f"Unbekannte Skriptart: {skript.name}")
+        raise ValueError(tr("Unbekannte Skriptart: {name}", name=skript.name))
     if not vm.USERNAME_RE.match(username):
-        raise ValueError("ungültiger Benutzername")
+        raise ValueError(tr("ungültiger Benutzername"))
     home = "/root" if als == "root" else f"/home/{username}"
     user = "root" if als == "root" else username
     umgebung = ["/usr/bin/env", "-i", f"HOME={home}", f"USER={user}", f"LOGNAME={user}", "LANG=de_DE.UTF-8",
                 f"PATH={home}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"]
     if nur_syntax and not interpreter.endswith("bash"):
-        raise ValueError("Syntaxprüfung im Agent-PC gibt es nur für Bash-Skripte")
+        raise ValueError(tr("Syntaxprüfung im Agent-PC gibt es nur für Bash-Skripte"))
     lesen = ([interpreter, "-n"] if nur_syntax else [interpreter, "-s"]) if interpreter.endswith("bash") \
         else [interpreter, "-"]
     wer = [] if als == "root" else ["/usr/sbin/runuser", "-u", username, "--"]
@@ -223,7 +226,7 @@ def im_agent_pc_ausfuehren(machine: vm.VM, skript: Path, als: str, zeitlimit: in
     """Skript aus einem Kurspaket im Agent-PC ausführen – nur über den Gast-Agent. Gibt den Exit-Code zurück,
     nie die Ausgabe. Ohne erreichbaren Gast-Agent: NichtBereit (es gibt bewusst keinen Weg über SSH)."""
     if not machine.is_running():
-        raise NichtBereit("Der Agent-PC läuft nicht – bitte zuerst starten.")
+        raise NichtBereit(tr("Der Agent-PC läuft nicht – bitte zuerst starten."))
     # Unter Windows geschriebene Skripte haben \r\n – daran scheitern bash und python im Gast
     inhalt = skript.read_bytes().replace(b"\r\n", b"\n")
     programm, args = befehl_im_gast(skript, als, machine.config.username, zeitlimit, nur_syntax)
@@ -231,8 +234,8 @@ def im_agent_pc_ausfuehren(machine: vm.VM, skript: Path, als: str, zeitlimit: in
         with qemu.GuestAgent(machine.qga_endpoint(), timeout=5) as ga:
             rc, _out, _err = ga.exec(programm, args, stdin=inhalt, timeout=zeitlimit + 15)
     except qemu.GuestAgentError:
-        raise NichtBereit("Der Agent-PC antwortet noch nicht – warte, bis der Desktop da ist, und versuche es dann "
-                          "noch einmal.") from None
+        raise NichtBereit(tr("Der Agent-PC antwortet noch nicht – warte, bis der Desktop da ist, und versuche es dann "
+                             "noch einmal.")) from None
     return rc
 
 
@@ -240,19 +243,19 @@ def pruefen(machine: vm.VM | None, paket: kurspaket.Kurspaket, lek: kurspaket.Le
     """Prüfaufgabe der Lektion – Ergebnis nur „geschafft / noch nicht“ mit dem Hinweistext aus dem Paket."""
     p = lek.pruefung
     if p is None:
-        raise ValueError("Diese Lektion hat keine Prüfaufgabe.")
+        raise ValueError(tr("Diese Lektion hat keine Prüfaufgabe."))
     if p.typ == "vorlage-vorhanden":
         ok = bool(templates.list_templates())
     elif p.typ == "agent-pc-laeuft":
         ok = machine is not None and bereit(machine)
     else:
         if machine is None:
-            raise NichtBereit("Für dieses Kurspaket ist noch kein Agent-PC eingerichtet.")
+            raise NichtBereit(tr("Für dieses Kurspaket ist noch kein Agent-PC eingerichtet."))
         if not bereit(machine):
-            raise NichtBereit("Der Agent-PC muss laufen und fertig eingerichtet sein, damit geprüft werden kann.")
+            raise NichtBereit(tr("Der Agent-PC muss laufen und fertig eingerichtet sein, damit geprüft werden kann."))
         lek = next((x for x in frisch_mit_zustimmung(paket).lektionen if x.ordner == lek.ordner), None)
         if lek is None or lek.pruefung is None or lek.pruefung.typ != kurspaket.SKRIPT:
-            raise ZustimmungFehlt(GEAENDERT)
+            raise ZustimmungFehlt(tr(GEAENDERT))
         p = lek.pruefung
         rc = im_agent_pc_ausfuehren(machine, lek.pfad / p.skript, p.als, p.zeitlimit)
         if rc == ZEITLIMIT_RC:
@@ -312,9 +315,9 @@ def zustimmung_noetig(paket: kurspaket.Kurspaket) -> bool:
     return kurspaket.Fortschritt.laden(paket.id).skripte_erlaubt != skripte_kennung(paket)
 
 
-GEAENDERT = ("Die Skripte dieses Kurspakets haben sich geändert, seit du zugestimmt hast (zum Beispiel hat ein Kurs "
-             "inzwischen eine neue Fassung geladen). Zur Sicherheit läuft nichts. Schließe die Anleitung und öffne das "
-             "Kurspaket neu – dann fragt Bony's Agents erneut.")
+GEAENDERT = (n_("Die Skripte dieses Kurspakets haben sich geändert, seit du zugestimmt hast (zum Beispiel hat ein "
+                "Kurs inzwischen eine neue Fassung geladen). Zur Sicherheit läuft nichts. Schließe die Anleitung und "
+                "öffne das Kurspaket neu – dann fragt Bony's Agents erneut."))
 
 
 class ZustimmungFehlt(RuntimeError):
@@ -329,13 +332,13 @@ def frisch_mit_zustimmung(paket: kurspaket.Kurspaket) -> kurspaket.Kurspaket:
     if not paket.mitgeliefert:
         quelle = kurspaket._herkunft_lesen(paket.pfad).get("quelle")
         if quelle != herkunft and not (quelle is None and herkunft == kurspaket.DATEI):
-            raise ZustimmungFehlt(GEAENDERT)
+            raise ZustimmungFehlt(tr(GEAENDERT))
     try:
         frisch = kurspaket.laden(paket.pfad, herkunft)
     except (kurspaket.PaketFehler, OSError):
-        raise ZustimmungFehlt(GEAENDERT) from None
+        raise ZustimmungFehlt(tr(GEAENDERT)) from None
     if frisch.id != paket.id or zustimmung_noetig(frisch):
-        raise ZustimmungFehlt(GEAENDERT)
+        raise ZustimmungFehlt(tr(GEAENDERT))
     return frisch
 
 

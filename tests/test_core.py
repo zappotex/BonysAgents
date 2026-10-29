@@ -892,8 +892,8 @@ def test_claude_code_unchanged_installer_path_and_shortcut():
     snippet = apps.APPS["claude-code"].install
     url = "https://claude.ai/install.sh"
     assert f"su - \"$AGENT_USER\" -c 'curl -fsSL --retry 3 --max-time 120 {url} | bash'" in snippet
-    assert "ensure_path .local/bin" in snippet and '"$AGENT_HOME/Projekte"' in snippet
-    assert "Icon=utilities-terminal" in snippet and 'cd "$HOME/Projekte"' in snippet
+    assert "ensure_path .local/bin" in snippet and '"$AGENT_HOME/$P"' in snippet and "P=Projekte" in snippet
+    assert "Icon=utilities-terminal" in snippet and 'cd "$P"' in snippet and 'P="$HOME/Projekte"' in snippet
 
 
 def test_openclaw_no_daemon_and_first_run_marker():

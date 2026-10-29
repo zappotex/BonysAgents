@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "The agent broke something in the Agent PC. What do you do?",
+      "antworten": [
+        "Reinstall your own computer",
+        "Delete the Agent PC and recreate it from the template (or reset it)",
+        "Nothing – it can't be fixed"
+      ],
+      "richtig": 1,
+      "erklaerung": "Your own computer was never affected. You reset the Agent PC or recreate it from a template."
+    },
+    {
+      "frage": "What may you write in the chat with Hermes?",
+      "antworten": [
+        "My password, so Hermes can sign in for me",
+        "My bank account details",
+        "A shopping list for the weekend"
+      ],
+      "richtig": 2,
+      "erklaerung": "Passwords, account details and health data don't belong in the chat – everything goes to the provider."
+    }
+  ]
+}

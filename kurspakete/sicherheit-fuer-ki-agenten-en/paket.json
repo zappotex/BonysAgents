@@ -1,0 +1,87 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "sicherheit-fuer-ki-agenten-en",
+  "name": "Security for AI agents: limiting permissions, recognizing prompt injection",
+  "beschreibung": "What may an agent do? Recognize hidden instructions (prompt injection), limit permissions and tools, protect credentials and react correctly in an emergency.",
+  "stufe": "fortgeschritten",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 120,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People who want to use agents in everyday life or at work",
+  "voraussetzungen": [
+    "Agent PC with Hermes set up",
+    "Basic knowledge from “Introduction to Hermes Agent”"
+  ],
+  "kosten": "none – free model (your own account)",
+  "lernziele": [
+    "explain why an agent has more risks than a chatbot",
+    "recognize prompt injection in examples",
+    "restrict Hermes' tools and permissions",
+    "store credentials so the agent doesn't need or see them",
+    "reset the Agent PC and revoke keys in an emergency"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    }
+  ],
+  "rezept": {
+    "name": "security-course",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes"
+    ],
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-risiken",
+      "titel": "What can go wrong?",
+      "dauer_minuten": 20,
+      "art": "Explanation + quiz",
+      "ziel": "Know the most important risks."
+    },
+    {
+      "ordner": "02-prompt-injection",
+      "titel": "Recognizing prompt injection",
+      "dauer_minuten": 30,
+      "art": "Exercise",
+      "ziel": "Find hidden instructions in texts."
+    },
+    {
+      "ordner": "03-rechte-begrenzen",
+      "titel": "Limiting permissions and tools",
+      "dauer_minuten": 25,
+      "art": "Hands-on",
+      "ziel": "Hermes may only do what's needed."
+    },
+    {
+      "ordner": "04-zugangsdaten",
+      "titel": "Protecting credentials",
+      "dauer_minuten": 20,
+      "art": "Explanation + exercise",
+      "ziel": "Store keys correctly and revoke them."
+    },
+    {
+      "ordner": "05-ernstfall",
+      "titel": "The emergency",
+      "dauer_minuten": 15,
+      "art": "Exercise",
+      "ziel": "Know what to do."
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "aufgaben-automatisieren-en",
+  "name": "Automating tasks: research, summaries, files",
+  "beschreibung": "Have Hermes do recurring tasks: research with sources, summaries of documents, order in files – and check the results reliably.",
+  "stufe": "fortgeschritten",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "0.1.0",
+  "entwurf": true,
+  "dauer_minuten": 120,
+  "pause_minuten": 10,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People who have already used Hermes",
+  "voraussetzungen": [
+    "Agent PC with Hermes set up",
+    "Basic knowledge from “Introduction to Hermes Agent”"
+  ],
+  "kosten": "none – free model (your own account)",
+  "lernziele": [
+    "describe tasks so that result and format are clear",
+    "have Hermes create research with sources and check the sources",
+    "have documents summarized and check the summary against the original",
+    "have files sorted and renamed – with a dry run before the real run",
+    "have recurring tasks run on a schedule"
+  ],
+  "quellen": [
+    {
+      "titel": "Hermes Agent – documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    }
+  ],
+  "rezept": {
+    "name": "automation-course",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "obsidian"
+    ],
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-gute-auftraege",
+      "titel": "Writing good tasks",
+      "dauer_minuten": 20,
+      "art": "Explanation + exercise",
+      "ziel": "Phrase tasks with goal, format and limits."
+    },
+    {
+      "ordner": "02-recherche",
+      "titel": "Research with sources",
+      "dauer_minuten": 25,
+      "art": "Exercise",
+      "ziel": "A piece of research as a file with sources."
+    },
+    {
+      "ordner": "03-zusammenfassen",
+      "titel": "Summarizing",
+      "dauer_minuten": 20,
+      "art": "Exercise",
+      "ziel": "A summary that matches the original."
+    },
+    {
+      "ordner": "04-dateien-ordnen",
+      "titel": "Organizing files",
+      "dauer_minuten": 25,
+      "art": "Exercise",
+      "ziel": "A messy folder gets sorted – first as a dry run."
+    },
+    {
+      "ordner": "05-zeitgesteuert",
+      "titel": "Recurring tasks",
+      "dauer_minuten": 20,
+      "art": "Hands-on",
+      "ziel": "A task runs at a fixed time."
+    }
+  ]
+}

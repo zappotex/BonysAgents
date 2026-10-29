@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import desktops, vm
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import PercentBar, make_scrollable
@@ -31,8 +32,9 @@ class DesktopWorker(QThread):
         except Exception as e:  # noqa: BLE001 – Fehler gehen an die Oberfläche
             self.done.emit(False, str(e))
         else:
-            self.done.emit(True, f"Fertig – ab dem nächsten Start meldet sich der Agent-PC in {name} an."
-                           if self.make_default else f"Fertig – {name} lässt sich am Anmeldebildschirm wählen.")
+            self.done.emit(True, tr("Fertig – ab dem nächsten Start meldet sich der Agent-PC in {name} an.",
+                                    name=name) if self.make_default else tr("Fertig – {name} lässt sich am "
+                                                                            "Anmeldebildschirm wählen.", name=name))
         finally:
             self.password = ""
 
@@ -42,15 +44,17 @@ class AddDesktopDialog(QDialog):
         super().__init__(parent)
         self.machine = machine
         self.worker: DesktopWorker | None = None
-        self.setWindowTitle("Desktop hinzufügen")
+        self.setWindowTitle(tr("Desktop hinzufügen"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Desktop hinzufügen")
+        title = QLabel(tr("Desktop hinzufügen"))
         title.setObjectName("Title")
         root.addWidget(title)
         current = desktops.name(machine.config.desktop)
-        intro = QLabel(f"Installiert einen weiteren Desktop in „{machine.name}“, während er läuft. Der bisherige "
-                       f"Desktop ({current}) bleibt installiert und lässt sich am Anmeldebildschirm weiter wählen.")
+        intro = QLabel(tr("Installiert einen weiteren Desktop in „{name}“, "
+                          "während er läuft. Der bisherige Desktop ({current}) "
+                          "bleibt installiert und lässt sich am "
+                          "Anmeldebildschirm weiter wählen.", name=machine.name, current=current))
         intro.setWordWrap(True)
         root.addWidget(intro)
 
@@ -61,14 +65,14 @@ class AddDesktopDialog(QDialog):
                               + ("  – installiert" if d.id in installed else ""))
             rb.setProperty("desktop", d.id)
             rb.setEnabled(d.id != machine.config.desktop)
-            desc = QLabel(d.description)
+            desc = QLabel(tr(d.description))
             desc.setObjectName("Muted")
             desc.setWordWrap(True)
             desc.setContentsMargins(26, 0, 0, 4)
             self.group.addButton(rb)
             root.addWidget(rb)
             root.addWidget(desc)
-        self.default = QCheckBox("Als Standard: künftig automatisch in diesen Desktop anmelden")
+        self.default = QCheckBox(tr("Als Standard: künftig automatisch in diesen Desktop anmelden"))
         self.default.setChecked(True)
         root.addWidget(self.default)
         self.ram_warn = QLabel()
@@ -76,11 +80,11 @@ class AddDesktopDialog(QDialog):
         self.ram_warn.setStyleSheet(f"color: {style.WARN};")
         root.addWidget(self.ram_warn)
 
-        pw_label = QLabel(f"Passwort des Benutzers „{machine.config.username}“ im Agent-PC")
+        pw_label = QLabel(tr("Passwort des Benutzers „{username}“ im Agent-PC", username=machine.config.username))
         pw_label.setObjectName("Section")
         self.pw = QLineEdit()
         self.pw.setEchoMode(QLineEdit.Password)
-        self.pw.setPlaceholderText("wird nur für diese Installation verwendet und nicht gespeichert")
+        self.pw.setPlaceholderText(tr("wird nur für diese Installation verwendet und nicht gespeichert"))
         root.addWidget(pw_label)
         root.addWidget(self.pw)
         self.progress = PercentBar()
@@ -96,8 +100,8 @@ class AddDesktopDialog(QDialog):
         root.addWidget(self.status)
         row = QHBoxLayout()
         row.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.ok_btn = QPushButton("Installieren")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.ok_btn = QPushButton(tr("Installieren"))
         self.ok_btn.setObjectName("Primary")
         row.addWidget(self.close_btn)
         row.addWidget(self.ok_btn)
@@ -125,7 +129,7 @@ class AddDesktopDialog(QDialog):
         warning = desktops.ram_warning(d, self.machine.config.ram_mb) if d else ""
         self.ram_warn.setText(f"⚠ {warning}" if warning else "")
         self.ram_warn.setVisible(bool(warning))
-        self.ok_btn.setText("Als Standard festlegen" if installed else "Installieren")
+        self.ok_btn.setText(tr("Als Standard festlegen") if installed else tr("Installieren"))
         self.ok_btn.setEnabled(not busy and d is not None and bool(self.pw.text()))
 
     def _install(self) -> None:
@@ -137,7 +141,8 @@ class AddDesktopDialog(QDialog):
         self.progress.setVisible(True)
         self.progress.set_percent(None)
         self.status.setStyleSheet("")
-        self.status.setText(f"Installiere {desktops.name(d)} … (kann je nach Desktop 5–30 Minuten dauern)")
+        self.status.setText(tr("Installiere {wert} … (kann je nach Desktop 5–30 Minuten "
+                               "dauern)", wert=desktops.name(d)))
         for b in self.group.buttons():
             b.setEnabled(False)
         for w in (self.pw, self.close_btn, self.default):

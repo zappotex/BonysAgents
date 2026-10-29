@@ -9,6 +9,16 @@ Release (`.github/workflows/release.yml`, Job `handbuch`) – im Repository lieg
 | [kursleiter.md](kursleiter.md) | `BonysAgents-Kursleiter-Handbuch-<Version>.pdf` |
 | [ablaufplan.md](../../kurspakete/einfuehrung-hermes-agent/ablaufplan.md) (Kurspaket) | `BonysAgents-Beispielkurs-Hermes-Kursleitung-<Version>.pdf` |
 | [handout.md](../../kurspakete/einfuehrung-hermes-agent/handout.md) (Kurspaket) | `BonysAgents-Beispielkurs-Hermes-Handout-<Version>.pdf` |
+| [en/user-guide.md](en/user-guide.md) (englisch) | `BonysAgents-User-Guide-<Version>.pdf` |
+| [en/trainer-guide.md](en/trainer-guide.md) (englisch) | `BonysAgents-Trainer-Guide-<Version>.pdf` |
+| [ablaufplan.md](../../kurspakete/einfuehrung-hermes-agent-en/ablaufplan.md) (Kurspaket, englisch) | `BonysAgents-Sample-Course-Hermes-Trainer-<Version>.pdf` |
+| [handout.md](../../kurspakete/einfuehrung-hermes-agent-en/handout.md) (Kurspaket, englisch) | `BonysAgents-Sample-Course-Hermes-Handout-<Version>.pdf` |
+
+**Englisch:** `en/user-guide.md` und `en/trainer-guide.md` sind Übersetzungen von `benutzer.md` und `kursleiter.md` –
+bei Änderungen beide Fassungen nachziehen. Ihre Bilder: `bilder/en/` (Oberfläche auf Englisch, `erstellen.sh` nimmt
+sie mit `--sprache en` auf); die von Hand gemachten aus `bilder/eigene/` gelten für beide Sprachen (Bony,
+29.10.2026). Die Vorlage setzt feste Texte (Kästen, Inhalt, Lizenz) nach dem Metadatum `sprache`
+(`-M sprache=en`).
 
 Der Beispielkurs hat **eine** Quelle: das mitgelieferte Kurspaket `kurspakete/einfuehrung-hermes-agent/`. Ablaufplan
 und Handout dort ändern – `erstellen.sh` baut die PDFs von dort.
@@ -18,7 +28,7 @@ Lizenz der Handbücher: **CC BY-SA 4.0** (Name und Logo ausgenommen, siehe letzt
 ## Erstellen
 
 ```bash
-docs/handbuch/erstellen.sh               # Bildschirmfotos neu aufnehmen, prüfen, alle vier PDFs
+docs/handbuch/erstellen.sh               # Bildschirmfotos (deutsch und englisch) neu aufnehmen, prüfen, alle PDFs
 docs/handbuch/erstellen.sh --ohne-bilder # nur PDFs (mit den Bildern aus bilder/)
 docs/handbuch/erstellen.sh --nur-bilder  # nur Bildschirmfotos
 ```
@@ -101,6 +111,10 @@ Diese Bilder lassen sich nicht automatisch erzeugen (fremde Programme, echtes Vi
 | `hermes-setup.png`            | Terminal im Agent-PC nach Doppelklick auf „Hermes Agent“: `hermes setup` läuft, die Auswahl des Anbieters ist zu sehen (z. B. OpenRouter markiert), **noch ohne** eingefügten API-Schlüssel                                                               |
 | `browser-zertifikat.png`      | Brave oder Firefox beim Öffnen einer Vorführung (`https://192.168.178.30:47120`): die Warnung „Verbindung nicht privat“ bzw. „Warnung: Mögliches Sicherheitsrisiko“ mit aufgeklapptem „Erweitert“                                                         |
 | `kl-hilfe-fenster.png`        | Kursleiter-Version: das Fenster „Hilfe – Ben (Ansehen und bedienen)“ während „Helfen“, oben die Knöpfe „An Fenster anpassen“, „Strg+Alt+Entf“, „Beenden“, darunter der Desktop des Teilnehmer-Agent-PCs (Testkurs mit zweitem Rechner; Anzeigename „Ben“) |
+
+| `software-center.png`         | Das Software-Center (GNOME Software) im Agent-PC mit der Startseite bzw. einer Suche, z. B. nach GIMP                                                                                                                                                      |
+| `n8n.png`                     | n8n im Browser des Agent-PCs nach dem Anlegen des Kontos, z. B. ein leerer oder einfacher Workflow                                                                                                                                                        |
+| `agenten-apps.png`            | Die Seite „Agenten-Apps“ im Browser des Agent-PCs (Doppelklick auf das Symbol), oben die Liste mit „Schon dabei“                                                                                                                                           |
 
 Optional, falls du statt der Platzhalter echte Kameras zeigen möchtest: ein echter Kursraum mit Video – nur mit
 Einverständnis aller Abgebildeten.

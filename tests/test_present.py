@@ -462,3 +462,17 @@ def test_cli_join_shows_browser_address_of_presentation(pres, capsys):
     assert cli.main(["join", f"127.0.0.1:{pres.port}", pres.code, "--fingerprint", pres.fingerprint]) == 0
     out = capsys.readouterr().out
     assert "Vorführung „kurs-pc“" in out and f"https://127.0.0.1:{pres.port}/#code={pres.code}" in out
+
+
+def test_seiten_in_der_sprache_des_browsers(pres):
+    """texte.js für die Seiten (Sprache wählt der Browser), Fehlermeldungen nach Accept-Language."""
+    c = Client(pres)
+    st, head, js = c.request("GET", "/assets/texte.js")
+    assert st == 200 and head["content-type"].startswith("text/javascript")
+    assert b'"Zuschauen": "Watch"' in js and b"navigator.language" in js
+    st, _, body = c.request("POST", "/bonys/v1/present/join", {"name": "Alex", "code": "0000-AAAA"},
+                            {"Origin": f"https://127.0.0.1:{pres.port}", "Accept-Language": "en-GB,en;q=0.9"})
+    assert st == 403 and json.loads(body)["error"] == "Wrong code."
+    st, _, body = c.request("POST", "/bonys/v1/present/join", {"name": "Alex", "code": "0000-AAAA"},
+                            {"Origin": f"https://127.0.0.1:{pres.port}", "Accept-Language": "de-DE"})
+    assert json.loads(body)["error"] == "Falscher Code."

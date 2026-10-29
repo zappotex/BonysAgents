@@ -1,0 +1,40 @@
+{
+  "fragen": [
+    {
+      "frage": "You're browsing with a VPN. Whose address does the website see?",
+      "antworten": ["Your own", "The VPN server's", "None at all"],
+      "richtig": 1,
+      "erklaerung": "The tunnel ends at the VPN server – from there it goes on to the website. It sees the server's address."
+    },
+    {
+      "frage": "What does your internet provider see when the VPN is connected?",
+      "antworten": [
+        "All the sites you visit",
+        "Only encrypted data to a VPN server",
+        "Your passwords"
+      ],
+      "richtig": 1,
+      "erklaerung": "Everything runs encrypted through the tunnel. The provider only sees that you're talking to a VPN server."
+    },
+    {
+      "frage": "Does a VPN make you anonymous?",
+      "antworten": [
+        "Yes, nobody can recognize you any more",
+        "No – the VPN provider sees your destination; sign-ins, cookies and the browser still give you away",
+        "Only at night"
+      ],
+      "richtig": 1,
+      "erklaerung": "A VPN makes you more private, not anonymous. Anyone who signs in is recognized – no matter via which address."
+    },
+    {
+      "frage": "What is a VPN especially useful for?",
+      "antworten": [
+        "On public Wi-Fi, e.g. in a café or hotel",
+        "Against viruses in e-mail attachments",
+        "To make the computer start faster"
+      ],
+      "richtig": 0,
+      "erklaerung": "On someone else's Wi-Fi without a VPN, the operator reads along where you go. A VPN doesn't help against viruses."
+    }
+  ]
+}

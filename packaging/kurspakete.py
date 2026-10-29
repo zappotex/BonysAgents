@@ -62,7 +62,7 @@ def packen(bau: Path, ausgabe: Path, public_key: str | None = None) -> Path:
         datei = kurspaket.packen(ordner, ausgabe / kurspaket.dateiname(paket))
         eintraege.append({
             "id": paket.id, "name": paket.name, "version": paket.version, "stufe": paket.stufe,
-            "dauer_minuten": paket.dauer_minuten, "beschreibung": paket.beschreibung,
+            "dauer_minuten": paket.dauer_minuten, "beschreibung": paket.beschreibung, "sprache": paket.sprache,
             **({"entwurf": True} if paket.entwurf else {}),
             "datei": f"{UNTERORDNER}/{datei.name}",
             "sha256": hashlib.sha256(datei.read_bytes()).hexdigest(), "groesse": datei.stat().st_size,

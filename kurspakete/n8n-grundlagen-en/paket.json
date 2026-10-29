@@ -1,0 +1,144 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.24.0",
+  "id": "n8n-grundlagen-en",
+  "name": "n8n basics: the first workflow",
+  "beschreibung": "Workflows that run by themselves: everyone opens n8n in their own Agent PC, gets to know triggers, nodes and connections and builds a workflow that sends new items from an RSS feed to their phone via Telegram – tested, published and saved as a file. Course in the series “Agents, MCP apps and n8n”, works without prior knowledge of Hermes; as a 90-minute course or on your own in self-study mode.",
+  "stufe": "anfaenger",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "1.0.0",
+  "dauer_minuten": 90,
+  "pause_minuten": 0,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People who want to automate recurring tasks – no programming knowledge needed",
+  "voraussetzungen": [
+    "Bony's Agents version 0.24.0 or later, a computer with at least 8 GB RAM and 40 GB free disk space",
+    "Internet",
+    "Telegram on your phone or computer (your own account)"
+  ],
+  "kosten": "none – n8n runs in your own Agent PC, Telegram bots are free",
+  "lernziele": [
+    "explain what a workflow is: trigger, nodes, connections, executions",
+    "open n8n in the Agent PC and create your own account",
+    "create a Telegram bot and treat its access token like a password",
+    "build, test and publish an “RSS → Telegram” workflow",
+    "adapt the workflow (another feed, another time, another message)",
+    "save a workflow as a file and know where n8n stores its data"
+  ],
+  "quellen": [
+    {
+      "titel": "n8n – documentation",
+      "url": "https://docs.n8n.io"
+    },
+    {
+      "titel": "n8n – RSS Feed Trigger",
+      "url": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.rssfeedreadtrigger/"
+    },
+    {
+      "titel": "n8n – Telegram",
+      "url": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.telegram/"
+    },
+    {
+      "titel": "Telegram – bots",
+      "url": "https://core.telegram.org/bots/features#botfather"
+    },
+    {
+      "titel": "n8n – Sustainable Use License",
+      "url": "https://docs.n8n.io/sustainable-use-license/"
+    }
+  ],
+  "rezept": {
+    "name": "agent-n8n",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "n8n"
+    ],
+    "ram_mb": 4096,
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-ankommen",
+      "titel": "Getting started",
+      "dauer_minuten": 5,
+      "art": "Welcome",
+      "ziel": "Know how the course works and where to get help."
+    },
+    {
+      "ordner": "02-was-ist-ein-workflow",
+      "titel": "What is a workflow?",
+      "dauer_minuten": 10,
+      "art": "Explanation + quiz",
+      "ziel": "Tell triggers, nodes and connections apart."
+    },
+    {
+      "ordner": "03-n8n-oeffnen",
+      "titel": "Opening n8n",
+      "dauer_minuten": 15,
+      "art": "Hands-on",
+      "ziel": "n8n is running, your own account is created.",
+      "pruefung": {
+        "skript": "pruefung/n8n-konto.py",
+        "als": "root",
+        "aufgabe": "An account is created in n8n (“Set up owner account”).",
+        "geschafft": "n8n is running and your account is created.",
+        "noch_nicht": "No account in n8n yet. Double-click “n8n” on the desktop and fill in the “Set up owner account” form. If no page appears, wait a minute and reload.",
+        "zeitlimit": 30
+      }
+    },
+    {
+      "ordner": "04-telegram-vorbereiten",
+      "titel": "Preparing Telegram",
+      "dauer_minuten": 10,
+      "art": "Hands-on",
+      "ziel": "You have your own Telegram bot – and you know your chat ID."
+    },
+    {
+      "ordner": "05-erster-workflow",
+      "titel": "The first workflow",
+      "dauer_minuten": 25,
+      "art": "Hands-on",
+      "ziel": "A published workflow sends new items via Telegram.",
+      "pruefung": {
+        "skript": "pruefung/workflow-aktiv.py",
+        "loesung": "pruefung/loesung.sh",
+        "als": "root",
+        "aufgabe": "A published workflow starts with “RSS Feed Trigger” and sends via Telegram.",
+        "geschafft": "Your workflow is published and runs by itself.",
+        "noch_nicht": "No published workflow with “RSS Feed Trigger” and Telegram yet. Is the workflow saved and published at the top right (“Publish”)?",
+        "zeitlimit": 30
+      }
+    },
+    {
+      "ordner": "06-eigene-variante",
+      "titel": "Exercise: your own variant",
+      "dauer_minuten": 15,
+      "art": "Exercise",
+      "ziel": "Adapt the workflow on your own."
+    },
+    {
+      "ordner": "07-sichern",
+      "titel": "Saving and wrap-up",
+      "dauer_minuten": 10,
+      "art": "Hands-on + quiz",
+      "ziel": "Save the workflow as a file and know how to continue.",
+      "pruefung": {
+        "skript": "pruefung/export-vorhanden.py",
+        "loesung": "pruefung/loesung.sh",
+        "aufgabe": "An exported workflow with “RSS Feed Trigger” (.json) is in the Downloads folder.",
+        "geschafft": "Your workflow is saved as a file.",
+        "noch_nicht": "No exported workflow file in the Downloads folder yet. In the workflow, top right “…” → “Export JSON”.",
+        "zeitlimit": 20
+      }
+    }
+  ]
+}

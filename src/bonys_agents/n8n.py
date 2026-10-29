@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bonys_agents import agenten_apps, desktops
+from bonys_agents.i18n import n_, tr
 
 if TYPE_CHECKING:
     from bonys_agents.apps import AppSpec
@@ -33,13 +34,13 @@ SCRIPT = "/usr/local/bin/bonys-n8n"
 OPENER = "/usr/local/bin/bonys-n8n-open"
 UNIT = "bonys-n8n.service"
 LAUNCHER = "bonys-n8n.desktop"
-LICENSE_NOTE = ("Sustainable Use License: Quellcode offen und kostenlos für eigene Zwecke, aber keine "
-                "OSI-Open-Source-Lizenz")
+LICENSE_NOTE = n_("Sustainable Use License: Quellcode offen und kostenlos für eigene Zwecke, aber keine "
+                  "OSI-Open-Source-Lizenz")
 # Zusätzlicher Bedarf (laut n8n grob 0,5–1 GB RAM; Image samt Daten etwa 1–2 GB)
 MIN_RAM_MB = 1024
 MIN_FREE_DISK_GB = 2
-FRESH_CLEANUP = ("n8n: Workflows, Zugangsdaten und Konto (Docker-Volume n8n_data) – jeder neue Agent-PC richtet "
-                 "n8n beim ersten Öffnen neu ein; das Image bleibt")
+FRESH_CLEANUP = (n_("n8n: Workflows, Zugangsdaten und Konto (Docker-Volume n8n_data) – jeder neue Agent-PC richtet "
+                    "n8n beim ersten Öffnen neu ein; das Image bleibt"))
 
 
 def _sq(s: str) -> str:
@@ -47,7 +48,8 @@ def _sq(s: str) -> str:
 
 
 def requirement_note() -> str:
-    return f"braucht Docker, ca. {MIN_RAM_MB / 1024:.0f} GB mehr RAM und {MIN_FREE_DISK_GB} GB Festplatte"
+    return tr("braucht Docker, ca. {ram} GB mehr RAM und {platte} GB Festplatte", ram=f"{MIN_RAM_MB / 1024:.0f}",
+              platte=MIN_FREE_DISK_GB)
 
 
 def resource_warnings(app_ids: list[str], ram_mb: int, desktop_min_ram_mb: int,
@@ -63,9 +65,9 @@ def resource_warnings(app_ids: list[str], ram_mb: int, desktop_min_ram_mb: int,
     need = desktop_min_ram_mb + MIN_RAM_MB + other_ram_mb
     if ram_mb >= need:
         return []
-    return [f"{NAME} braucht etwa {MIN_RAM_MB / 1024:.0f} GB RAM zusätzlich – empfohlen sind mindestens "
-            f"{need / 1024:.1f} GB für den Agent-PC (eingestellt: {ram_mb / 1024:.1f} GB). "
-            "Vorschlag: Arbeitsspeicher erhöhen."]
+    return [tr("{name} braucht etwa {zusatz} GB RAM zusätzlich – empfohlen sind mindestens {empfohlen} GB für den "
+               "Agent-PC (eingestellt: {eingestellt} GB). Vorschlag: Arbeitsspeicher erhöhen.", name=NAME,
+               zusatz=f"{MIN_RAM_MB / 1024:.0f}", empfohlen=f"{need / 1024:.1f}", eingestellt=f"{ram_mb / 1024:.1f}")]
 
 
 def container_script() -> str:
@@ -157,7 +159,8 @@ cat > /usr/share/applications/""" + LAUNCHER + r""" <<'EOF'
 Type=Application
 Version=1.0
 Name=n8n
-Comment=Workflows bauen – n8n im Browser öffnen (nur im Agent-PC erreichbar)
+Comment=Build workflows – open n8n in the browser (only reachable inside the Agent PC)
+Comment[de]=Workflows bauen – n8n im Browser öffnen (nur im Agent-PC erreichbar)
 Exec=""" + OPENER + r"""
 Icon=applications-internet
 Terminal=false
@@ -213,8 +216,8 @@ def app_spec() -> AppSpec:
     return AppSpec(
         id=APP_ID,
         name=NAME,
-        description="Workflows per Klick bauen (Mails, RSS, Telegram, Dateien, APIs) – läuft als Docker-Container "
-                    "nur im Agent-PC, Hermes kann Workflows anstoßen",
+        description=n_("Workflows per Klick bauen (Mails, RSS, Telegram, Dateien, APIs) – läuft als Docker-Container "
+                       "nur im Agent-PC, Hermes kann Workflows anstoßen"),
         default=True,
         weight=12.0,   # Image laden und erster Start
         requires=("brave", "docker"),

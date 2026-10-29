@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "What is the user in the Agent PC called (unless you set something else)?",
+      "antworten": [
+        "admin",
+        "agent",
+        "root"
+      ],
+      "richtig": 1,
+      "erklaerung": "Bony's Agents creates the user “agent”. That's why the practice files are in /home/agent/Course."
+    },
+    {
+      "frage": "What does /tools show in Hermes?",
+      "antworten": [
+        "The settings of the Agent PC",
+        "The tools Hermes may use",
+        "The installed apps"
+      ],
+      "richtig": 1,
+      "erklaerung": "With /tools you see which tools (e.g. terminal, files, web search) Hermes may use."
+    }
+  ]
+}

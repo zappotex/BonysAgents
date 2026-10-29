@@ -47,6 +47,7 @@ from bony_netz import Konto
 
 from bonys_agents import kurse, netz
 from bonys_agents.apps import APT_WAIT
+from bonys_agents.i18n import n_, tr
 
 if TYPE_CHECKING:
     from bonys_agents.vm import VM
@@ -72,11 +73,11 @@ NETZ = ipaddress.ip_network("100.64.0.0/10")   # Adressen im Bony-Netz (Tailscal
 # Exit-Codes des Startskripts
 RC_KEIN_NETZ, RC_INSTALLATION, RC_START = 3, 4, 5
 
-KEIN_AGENT_PC = ("Der Agent-PC, mit dem du an diesem Kurs teilnimmst, ist nicht auf diesem Rechner. Hilfe geht nur "
-                 "für einen Agent-PC, der hier läuft.")
-LAEUFT_NICHT = "„{name}“ muss laufen und fertig eingerichtet sein – starte ihn und bitte dann erneut um Hilfe."
-KEIN_GAST_AGENT = ("Der Gast-Agent in „{name}“ antwortet nicht. Ohne ihn kann die App die Bildschirmfreigabe nicht "
-                   "starten – warte einen Moment, bis der Agent-PC ganz hochgefahren ist.")
+KEIN_AGENT_PC = (n_("Der Agent-PC, mit dem du an diesem Kurs teilnimmst, ist nicht auf diesem Rechner. Hilfe geht nur "
+                    "für einen Agent-PC, der hier läuft."))
+LAEUFT_NICHT = n_("„{name}“ muss laufen und fertig eingerichtet sein – starte ihn und bitte dann erneut um Hilfe.")
+KEIN_GAST_AGENT = (n_("Der Gast-Agent in „{name}“ antwortet nicht. Ohne ihn kann die App die Bildschirmfreigabe nicht "
+                      "starten – warte einen Moment, bis der Agent-PC ganz hochgefahren ist."))
 FEHLER_TEXT = {
     RC_KEIN_NETZ: "„{name}“ ist nicht mit dem Bony-Netz verbunden (keine Adresse von Tailscale).",
     RC_INSTALLATION: "x11vnc ließ sich in „{name}“ nicht installieren (Internet im Agent-PC?).",
@@ -124,11 +125,11 @@ def start_skript(modus: str, passwort: str, port: int = PORT, ordner: str = ORDN
     danach löscht (``rm:``). Letzte Zeile der Ausgabe: ``BONYS_HILFE <Adresse>``. ``ordner`` nur für Tests.
     """
     if modus not in MODUS_TEXT:
-        raise ValueError(f"Unbekannter Modus: {modus}")
+        raise ValueError(tr("Unbekannter Modus: {modus}", modus=modus))
     if not re.fullmatch(r"[A-Za-z0-9]{1,8}", passwort):
-        raise ValueError("Das Passwort darf nur 1 bis 8 Buchstaben und Ziffern haben.")
+        raise ValueError(tr("Das Passwort darf nur 1 bis 8 Buchstaben und Ziffern haben."))
     if von and not im_netz(von):
-        raise ValueError("Die Adresse des Kursleiter-Rechners liegt nicht im Bony-Netz.")
+        raise ValueError(tr("Die Adresse des Kursleiter-Rechners liegt nicht im Bony-Netz."))
     q_ordner = shlex.quote(ordner)
     datei = f"{ordner}/passwort"
     # Kein „-auth guess“: Das ruft Hilfsprogramme auf und verträgt sich nicht mit -nocmds (x11vnc bricht dann ab).
@@ -209,14 +210,14 @@ def agent_pc(kurs_id: str) -> VM:
 
     kurs = next((k for k in kurse.teilnahmen() if k.kurs_id == kurs_id), None)
     if kurs is None or not kurs.mein_geraet_id:
-        raise HilfeFehler("Du nimmst an diesem Kurs nicht (mehr) teil.")
+        raise HilfeFehler(tr("Du nimmst an diesem Kurs nicht (mehr) teil."))
     netzname = next((name for name, g in netz.geraete().items() if str(g.get("geraet_id")) == kurs.mein_geraet_id),
                     "")
     if netzname:
         for m in vm.list_vms():
             if getattr(m.config, "netz_name", "") == netzname:
                 return m
-    raise HilfeFehler(KEIN_AGENT_PC)
+    raise HilfeFehler(tr(KEIN_AGENT_PC))
 
 
 def kurs_laeuft(kurs_id: str) -> bool:
@@ -226,7 +227,7 @@ def kurs_laeuft(kurs_id: str) -> bool:
 
 def _bereit(machine: VM) -> None:
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
-        raise HilfeFehler(LAEUFT_NICHT.format(name=machine.name))
+        raise HilfeFehler(tr(LAEUFT_NICHT, name=machine.name))
 
 
 def starten(machine: VM, modus: str, port: int = PORT, von: str = "") -> Freigabe:
@@ -242,7 +243,7 @@ def starten(machine: VM, modus: str, port: int = PORT, von: str = "") -> Freigab
         ausgabe = machine.guest_run(start_skript(modus, pw, port, von=von if im_netz(von) else ""), timeout=600,
                                     via_stdin=True)
     except vm.NeedsPassword:
-        raise HilfeFehler(KEIN_GAST_AGENT.format(name=machine.name)) from None
+        raise HilfeFehler(tr(KEIN_GAST_AGENT, name=machine.name)) from None
     except RuntimeError as e:
         m = re.search(r"\(Code (\d+)\)", str(e))
         rc = int(m.group(1)) if m else 0
@@ -307,18 +308,18 @@ def zusage_pruefen(daten: dict, erwartete_ip: str = "") -> Freigabe:
     der des gewählten Agent-PCs (eine gefälschte Zusage kann den Kursleiter also nicht anderswohin schicken).
     """
     if not isinstance(daten, dict):
-        raise HilfeFehler("Die Zusage ist unvollständig.")
+        raise HilfeFehler(tr("Die Zusage ist unvollständig."))
     ip, port, modus, pw = daten.get("ip"), daten.get("port"), daten.get("modus"), daten.get("passwort")
     if not isinstance(ip, str) or not im_netz(ip):
-        raise HilfeFehler("Die Zusage nennt keine Adresse im Bony-Netz.")
+        raise HilfeFehler(tr("Die Zusage nennt keine Adresse im Bony-Netz."))
     if erwartete_ip and ip != erwartete_ip:
-        raise HilfeFehler("Die Adresse in der Zusage gehört nicht zum Agent-PC des Teilnehmers.")
+        raise HilfeFehler(tr("Die Adresse in der Zusage gehört nicht zum Agent-PC des Teilnehmers."))
     if isinstance(port, bool) or not isinstance(port, int) or not 1024 <= port <= 65535:
-        raise HilfeFehler("Die Zusage nennt keinen gültigen Port.")
+        raise HilfeFehler(tr("Die Zusage nennt keinen gültigen Port."))
     if modus not in MODUS_TEXT:
-        raise HilfeFehler("Die Zusage nennt keinen gültigen Modus.")
+        raise HilfeFehler(tr("Die Zusage nennt keinen gültigen Modus."))
     if not isinstance(pw, str) or not re.fullmatch(r"[A-Za-z0-9]{1,8}", pw):
-        raise HilfeFehler("Die Zusage enthält kein gültiges Passwort.")
+        raise HilfeFehler(tr("Die Zusage enthält kein gültiges Passwort."))
     return Freigabe(ip, port, modus, pw)
 
 
@@ -329,10 +330,10 @@ def teilnehmer_ip(kurs_id: str, instanz_id: str) -> str:
     """
     kurs = kurse.geleiteter_kurs(kurs_id)
     if kurs is None or not kurs.laeuft:
-        raise HilfeFehler("Der Kurs läuft nicht – Hilfe geht nur, solange er läuft.")
+        raise HilfeFehler(tr("Der Kurs läuft nicht – Hilfe geht nur, solange er läuft."))
     t = next((x for x in kurs.teilnehmer if x.instanz_id == instanz_id), None)
     if t is None:
-        raise HilfeFehler("Der Teilnehmer ist nicht (mehr) in diesem Kurs.")
+        raise HilfeFehler(tr("Der Teilnehmer ist nicht (mehr) in diesem Kurs."))
     return t.geraet_ip
 
 

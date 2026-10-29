@@ -19,10 +19,12 @@ from __future__ import annotations
 import importlib.util
 import os
 
+from bonys_agents.i18n import n_, tr
+
 ANWENDER = "anwender"
 KURSLEITER = "kursleiter"
 NAMES = {ANWENDER: "Bony's Agents", KURSLEITER: "Bony's Agents Kursleiter"}
-LABELS = {ANWENDER: "Anwender", KURSLEITER: "Kursleiter"}
+LABELS = {ANWENDER: n_("Anwender"), KURSLEITER: n_("Kursleiter")}
 # Paketnamen bzw. Dateinamen im Release je Edition
 PACKAGES = {ANWENDER: "bonys-agents", KURSLEITER: "bonys-agents-kursleiter"}
 FILE_PREFIX = {ANWENDER: "BonysAgents", KURSLEITER: "BonysAgents-Kursleiter"}
@@ -71,9 +73,9 @@ def require_trainer(what: str) -> str | None:
     """None, wenn es hier Kursleiter-Funktionen gibt – sonst eine verständliche Meldung."""
     if IS_TRAINER:
         return None
-    return (f"{what} gibt es nur in „{NAMES[KURSLEITER]}“. Teilnehmer brauchen sie nicht – sie treten mit "
-            f"„bonys-agents join“ bzw. „Kurse“ → „Schulung im Netzwerk beitreten“ bei. Die Kursleiter-Version gibt "
-            f"es hier: {download_url()}")
+    return (tr("{what} gibt es nur in „{wert}“. Teilnehmer brauchen sie nicht – sie treten mit „bonys-agents join“ "
+               "bzw. „Kurse“ → „Schulung im Netzwerk beitreten“ bei. Die Kursleiter-Version gibt es hier: {wert2}",
+               what=what, wert=NAMES[KURSLEITER], wert2=download_url()))
 
 
 def download_url() -> str:

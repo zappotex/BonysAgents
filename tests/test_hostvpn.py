@@ -198,8 +198,9 @@ def test_mac_opens_app_store(monkeypatch):
     hostvpn.mac_open_store()
     assert calls == [["open", "macappstore://apps.apple.com/app/id1451685025"],
                      ["open", "https://apps.apple.com/app/wireguard/id1451685025"]]
-    assert "nur im App Store" in hostvpn.MAC_INTRO and hostvpn.WHOLE_COMPUTER in hostvpn.MAC_INTRO
-    assert hostvpn.WHOLE_COMPUTER in hostvpn.WINDOWS_INTRO
+    mac = hostvpn.intro(hostvpn.MAC_INTRO)
+    assert "nur im App Store" in mac and hostvpn.WHOLE_COMPUTER in mac
+    assert hostvpn.WHOLE_COMPUTER in hostvpn.intro(hostvpn.WINDOWS_INTRO)
 
 
 # ---------------------------------------------------------------- Oberfläche
@@ -267,7 +268,7 @@ def test_linux_button_opens_or_installs(qapp, monkeypatch):
     assert w.wait(5000)
     qapp.processEvents()  # „finished“ zustellen, solange die Dialog-Attrappe gilt (sonst später echter Dialog)
     assert w.result == "1.0.1" and opened == [1]  # „Jetzt öffnen?“ → Ja
-    assert hostvpn.LINUX_INTRO in FakeBox.shown[0] and hostvpn.OLD_INSTALL_HINT in FakeBox.shown[0]
+    assert hostvpn.intro(hostvpn.LINUX_INTRO) in FakeBox.shown[0] and hostvpn.OLD_INSTALL_HINT in FakeBox.shown[0]
 
 
 def test_main_window_vpn_button(qapp, datadir, monkeypatch):

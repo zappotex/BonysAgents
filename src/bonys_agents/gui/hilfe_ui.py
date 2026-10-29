@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from bonys_agents import helpmode, hilfe, netz
+from bonys_agents.i18n import tr
 
 from . import style
 from .workers import TaskWorker
@@ -73,31 +74,36 @@ class Zustimmung(QDialog):
 
     def __init__(self, kursleiter: str, pc: str, sekunden: int = hilfe.ANTWORT_SEKUNDEN):
         super().__init__(None, Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setWindowTitle("Hilfe-Anfrage des Kursleiters")
+        self.setWindowTitle(tr("Hilfe-Anfrage des Kursleiters"))
         self.setAttribute(Qt.WA_DeleteOnClose)
         festhalten(self)
         self.rest = sekunden
         self.gemeldet = False
         lay = QVBoxLayout(self)
         lay.setSpacing(12)
-        frage = QLabel(f"{kursleiter} möchte deinen Agenten-PC „{pc}“ sehen und bedienen. Erlauben?")
+        frage = QLabel(tr("{kursleiter} möchte deinen Agenten-PC „{pc}“ sehen und "
+                          "bedienen. Erlauben?", kursleiter=kursleiter, pc=pc))
         frage.setObjectName("Title")
         frage.setWordWrap(True)
         lay.addWidget(frage)
-        info = QLabel("„Nur ansehen“: Der Kursleiter sieht den Bildschirm dieses Agent-PCs, kann aber nichts "
-                      "eingeben.\n"
-                      "„Ansehen und bedienen“: Er kann auch Maus und Tastatur benutzen.\n\n"
-                      "Er sieht nur diesen Agent-PC – nie deinen übrigen Bildschirm. Du kannst jederzeit beenden, "
-                      f"nach spätestens {hilfe.HOECHSTENS_MINUTEN} Minuten endet die Hilfe von selbst.")
+        info = QLabel(tr("„Nur ansehen“: Der Kursleiter sieht den "
+                         "Bildschirm dieses Agent-PCs, kann aber "
+                         "nichts eingeben.\n„Ansehen und bedienen“: Er "
+                         "kann auch Maus und Tastatur benutzen.\n\nEr "
+                         "sieht nur diesen Agent-PC – nie deinen "
+                         "übrigen Bildschirm. Du kannst jederzeit "
+                         "beenden, nach spätestens "
+                         "{HOECHSTENS_MINUTEN} Minuten endet die Hilfe "
+                         "von selbst.", HOECHSTENS_MINUTEN=hilfe.HOECHSTENS_MINUTEN))
         info.setWordWrap(True)
         lay.addWidget(info)
         self.uhr_text = QLabel()
         self.uhr_text.setStyleSheet(f"color: {style.MUTED};")
         lay.addWidget(self.uhr_text)
         row = QHBoxLayout()
-        self.nein = QPushButton("Ablehnen")
-        self.ansehen = QPushButton("Nur ansehen")
-        self.bedienen = QPushButton("Ansehen und bedienen")
+        self.nein = QPushButton(tr("Ablehnen"))
+        self.ansehen = QPushButton(tr("Nur ansehen"))
+        self.bedienen = QPushButton(tr("Ansehen und bedienen"))
         self.bedienen.setObjectName("Danger")
         for b in (self.ansehen, self.bedienen):
             b.setAutoDefault(False)
@@ -118,7 +124,7 @@ class Zustimmung(QDialog):
         passend_hoch(self, 520)
 
     def _zeigen(self) -> None:
-        self.uhr_text.setText(f"Ohne Antwort wird die Anfrage in {self.rest} Sekunden abgelehnt.")
+        self.uhr_text.setText(tr("Ohne Antwort wird die Anfrage in {rest} Sekunden abgelehnt.", rest=self.rest))
 
     def _ticken(self) -> None:
         self.rest -= 1
@@ -152,7 +158,7 @@ class Hinweis(QWidget):
 
     def __init__(self, kursleiter: str, pc: str, modus: str):
         super().__init__(None, Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setWindowTitle("Hilfe läuft")
+        self.setWindowTitle(tr("Hilfe läuft"))
         self.setAttribute(Qt.WA_DeleteOnClose)
         festhalten(self)
         self.ende = time.monotonic() + hilfe.HOECHSTENS_MINUTEN * 60
@@ -175,7 +181,7 @@ class Hinweis(QWidget):
         self.zeit = QLabel()
         texte.addWidget(self.zeit)
         lay.addLayout(texte, 1)
-        self.knopf = QPushButton("Beenden")
+        self.knopf = QPushButton(tr("Beenden"))
         self.knopf.setMinimumWidth(110)
         self.knopf.setStyleSheet("QPushButton { background: #111; color: #fff; font-weight: bold; padding: 8px 16px; "
                                  "border-radius: 6px; } QPushButton:hover { background: #333; }")
@@ -195,16 +201,18 @@ class Hinweis(QWidget):
     @staticmethod
     def text_fuer(kursleiter: str, pc: str, modus: str) -> str:
         if modus == hilfe.BEDIENEN:
-            return f"{kursleiter} sieht gerade deinen Agenten-PC „{pc}“ und kann ihn bedienen."
-        return f"{kursleiter} sieht gerade deinen Agenten-PC „{pc}“."
+            return tr("{kursleiter} sieht gerade deinen Agenten-PC „{pc}“ und kann ihn bedienen.",
+                      kursleiter=kursleiter, pc=pc)
+        return tr("{kursleiter} sieht gerade deinen Agenten-PC „{pc}“.", kursleiter=kursleiter, pc=pc)
 
     def _zeit(self) -> None:
         rest = max(0, int(self.ende - time.monotonic()))
-        self.zeit.setText(f"Endet spätestens in {rest // 60}:{rest % 60:02d} min – „Beenden“ trennt sofort.")
+        self.zeit.setText(tr("Endet spätestens in {wert}:{wert2:02d} min – "
+                             "„Beenden“ trennt sofort.", wert=rest // 60, wert2=rest % 60))
 
     def _beenden(self) -> None:
         self.knopf.setEnabled(False)
-        self.knopf.setText("Beende …")
+        self.knopf.setText(tr("Beende …"))
         self.beenden.emit()
 
     def schliessen(self) -> None:
@@ -261,7 +269,7 @@ class TeilnehmerHilfe(QObject):
 
     def _melden(self, text: str) -> None:
         parent = self.fenster if isValid(self.fenster) else None
-        box = QMessageBox(QMessageBox.Warning, "Hilfe", text, QMessageBox.Ok, parent)
+        box = QMessageBox(QMessageBox.Warning, tr("Hilfe"), text, QMessageBox.Ok, parent)
         box.setAttribute(Qt.WA_DeleteOnClose)
         box.setWindowModality(Qt.NonModal)
         box.show()
@@ -276,7 +284,7 @@ class TeilnehmerHilfe(QObject):
         von = d.get("von")
         self.von = von if isinstance(von, str) and hilfe.im_netz(von) else ""
         if self.zustand is not None:
-            self._absage(anfrage_id, leiter_id, "Gerade läuft schon eine Hilfe-Anfrage.")
+            self._absage(anfrage_id, leiter_id, tr("Gerade läuft schon eine Hilfe-Anfrage."))
             return
         self.zustand, self.abbrechen = FRAGE, False
         self.anfrage_id, self.leiter_id = anfrage_id, leiter_id
@@ -298,9 +306,10 @@ class TeilnehmerHilfe(QObject):
                 return
             if w.error is not None:
                 text = _fehlertext(w.error)
-                self._absage(anfrage_id, leiter_id, f"Hilfe geht gerade nicht: {text}")
+                self._absage(anfrage_id, leiter_id, tr("Hilfe geht gerade nicht: {inhalt}", inhalt=text))
                 self.zustand = None
-                self._melden(f"{self.leiter_name} wollte deinen Agent-PC sehen – das geht gerade nicht:\n\n{text}")
+                self._melden(tr("{leiter_name} wollte deinen Agent-PC sehen – das geht gerade nicht:\n\n{inhalt}",
+                                leiter_name=self.leiter_name, inhalt=text))
                 return
             self.machine = w.result
             QApplication.alert(self.fenster, 0)
@@ -319,7 +328,8 @@ class TeilnehmerHilfe(QObject):
         if not modus or self.abbrechen:
             grund = "" if not modus else "Der Kursraum wurde inzwischen verlassen."
             if not modus and not self.abbrechen:
-                helpmode.log_event(self.kursname, self.machine.name, f"Hilfe-Anfrage von {self.leiter_name} abgelehnt")
+                helpmode.log_event(self.kursname, self.machine.name, tr("Hilfe-Anfrage von {leiter_name} abgelehnt",
+                                                                        leiter_name=self.leiter_name))
             self._absage(self.anfrage_id, self.leiter_id, grund)
             self.zustand = None
             return
@@ -333,9 +343,9 @@ class TeilnehmerHilfe(QObject):
                 return
             if w.error is not None:
                 text = _fehlertext(w.error)
-                self._absage(self.anfrage_id, self.leiter_id, f"Hilfe geht gerade nicht: {text}")
+                self._absage(self.anfrage_id, self.leiter_id, tr("Hilfe geht gerade nicht: {inhalt}", inhalt=text))
                 self.zustand = None
-                self._melden(f"Die Bildschirmfreigabe ließ sich nicht starten:\n\n{text}")
+                self._melden(tr("Die Bildschirmfreigabe ließ sich nicht starten:\n\n{inhalt}", inhalt=text))
                 return
             if self.abbrechen:   # inzwischen Kursraum verlassen oder Kurs pausiert
                 _laufen(lambda: hilfe.beenden(machine))
@@ -362,7 +372,7 @@ class TeilnehmerHilfe(QObject):
     def ende(self, d: dict) -> None:
         """Der Kursleiter hat den Betrachter geschlossen."""
         if d.get("identity") == self.leiter_id:
-            self.beenden("Der Kursleiter hat die Hilfe beendet.", melden=False)
+            self.beenden(tr("Der Kursleiter hat die Hilfe beendet."), melden=False)
 
     def raum_getrennt(self) -> None:
         self.beenden("Der Kursraum wurde verlassen.", melden=False)
@@ -419,8 +429,8 @@ class TeilnehmerHilfe(QObject):
                 return
             laeuft, kurs = w.result
             if laeuft is False:
-                self.beenden("Die Bildschirmfreigabe ist zu Ende (getrennt oder Zeit abgelaufen).")
+                self.beenden(tr("Die Bildschirmfreigabe ist zu Ende (getrennt oder Zeit abgelaufen)."))
             elif kurs is False:
-                self.beenden("Der Kurs ist pausiert oder beendet – die Hilfe ist vorbei.")
+                self.beenden(tr("Der Kurs ist pausiert oder beendet – die Hilfe ist vorbei."))
 
         _laufen(run, fertig)

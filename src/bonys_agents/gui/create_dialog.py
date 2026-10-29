@@ -13,21 +13,26 @@ from PySide6.QtWidgets import (
     QPushButton, QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 
-from bonys_agents import apps, desktops, distros, host, mission_control, n8n, netz, storage, templates, vm, vpnlink
+from bonys_agents import (
+    apps, cloudinit, desktops, distros, host, i18n, mission_control, n8n, netz, storage, templates, vm, vpnlink,
+)
 from bonys_agents import progress as pct
+from bonys_agents.i18n import n_, tr
 
 from . import style
 from .location_picker import LocationPicker
 from .widgets import DiskSlider, FlowLayout, PercentBar, fit_to_screen
 from .workers import CreateWorker
 
-TCG_WARNING = ("⚠ Keine Hardware-Beschleunigung (nur Software-Emulation): Die Einrichtung kann mehrere "
-               "Stunden dauern und der Agent-PC läuft sehr langsam.\n"
-               "Läuft Bony's Agents selbst in einer VM? Dann dort verschachtelte Virtualisierung "
-               "aktivieren (z. B. in VirtualBox, VMware, Proxmox oder virt-manager).")
+TCG_WARNING = n_("⚠ Keine Hardware-Beschleunigung (nur Software-Emulation): Die Einrichtung kann mehrere "
+                 "Stunden dauern und der Agent-PC läuft sehr langsam.\n"
+                 "Läuft Bony's Agents selbst in einer VM? Dann dort verschachtelte Virtualisierung "
+                 "aktivieren (z. B. in VirtualBox, VMware, Proxmox oder virt-manager).")
 
-KEYBOARDS = [("Deutsch", "de"), ("Schweiz", "ch"), ("Englisch (US)", "us"), ("Englisch (UK)", "gb"),
-             ("Französisch", "fr"), ("Spanisch", "es"), ("Italienisch", "it")]
+# Bezeichnung in der eigenen Sprache – so findet man sie auch, wenn die App gerade anders eingestellt ist
+SPRACHEN = [("Deutsch", "de"), ("English", "en")]
+KEYBOARDS = [(n_("Deutsch"), "de"), (n_("Schweiz"), "ch"), (n_("Englisch (US)"), "us"), (n_("Englisch (UK)"), "gb"),
+             (n_("Französisch"), "fr"), (n_("Spanisch"), "es"), (n_("Italienisch"), "it")]
 
 
 def _slider_row(slider: QSlider, label: QLabel) -> QWidget:
@@ -53,7 +58,7 @@ class CreateDialog(QDialog):
         self.worker: CreateWorker | None = None
         self.created_name: str | None = None
         self.hints: list[str] = []   # nach dem Erstellen vom Hauptfenster angezeigt
-        self.setWindowTitle("Neuer Agent-PC")
+        self.setWindowTitle(tr("Neuer Agent-PC"))
 
         # Inhalt scrollbar, Knöpfe immer sichtbar – passt so auch auf kleine Laptop-Bildschirme.
         outer = QVBoxLayout(self)
@@ -67,7 +72,7 @@ class CreateDialog(QDialog):
         root = QVBoxLayout(content)
         root.setContentsMargins(0, 0, 8, 0)
         root.setSpacing(14)
-        title = QLabel("Neuer Agent-PC")
+        title = QLabel(tr("Neuer Agent-PC"))
         title.setObjectName("Title")
         root.addWidget(title)
 
@@ -80,11 +85,11 @@ class CreateDialog(QDialog):
         # Neuinstallation: Daten „:<grundsystem>“ – ein Vorlagenname kann keinen Doppelpunkt enthalten
         for d in distros.DISTROS.values():
             if d.available(info.arch):
-                self.base.addItem(f"Neu installieren ({d.name})", f":{d.id}")
+                self.base.addItem(tr("Neu installieren ({system})", system=d.name), f":{d.id}")
         for t in self.templates.values():
-            self.base.addItem(f"Vorlage: {t.name}" + ("" if t.arch == info.arch else " (andere Architektur – emuliert, "
-                                                       "sehr langsam)"), t.name)
-        base_form.addRow("Grundlage", self.base)
+            self.base.addItem(tr("Vorlage: {name}", name=t.name) if t.arch == info.arch else
+                              tr("Vorlage: {name} (andere Architektur – emuliert, sehr langsam)", name=t.name), t.name)
+        base_form.addRow(tr("Grundlage"), self.base)
         root.addLayout(base_form)
         self.base_info = QLabel()
         self.base_info.setObjectName("Muted")
@@ -94,16 +99,16 @@ class CreateDialog(QDialog):
         kl = QVBoxLayout(self.kind_box)
         kl.setContentsMargins(0, 0, 0, 0)
         kl.setSpacing(2)
-        self.linked = QRadioButton("Schnell (verknüpft)")
-        self.full = QRadioButton("Unabhängig (vollständige Kopie)")
+        self.linked = QRadioButton(tr("Schnell (verknüpft)"))
+        self.full = QRadioButton(tr("Unabhängig (vollständige Kopie)"))
         kind = QButtonGroup(self)
         kind.addButton(self.linked)
         kind.addButton(self.full)
         self.linked.setChecked(True)
-        for rb, text in ((self.linked, "Sofort fertig, braucht kaum Platz – die Vorlage muss auf demselben Laufwerk "
-                                       "bleiben."),
-                         (self.full, "Braucht mehr Platz und ein paar Minuten, funktioniert aber auch ohne die "
-                                     "Vorlage.")):
+        for rb, text in ((self.linked, tr("Sofort fertig, braucht kaum Platz – die Vorlage muss auf demselben "
+                                          "Laufwerk bleiben.")),
+                         (self.full, tr("Braucht mehr Platz und ein paar Minuten, funktioniert aber auch ohne die "
+                                        "Vorlage."))):
             desc = QLabel(text)
             desc.setObjectName("Muted")
             desc.setWordWrap(True)
@@ -124,22 +129,22 @@ class CreateDialog(QDialog):
         self.pw1.setEchoMode(QLineEdit.Password)
         self.pw2 = QLineEdit()
         self.pw2.setEchoMode(QLineEdit.Password)
-        form.addRow("Name", self.name)
-        form.addRow("Benutzer", self.user)
-        form.addRow("Passwort", self.pw1)
-        form.addRow("Wiederholen", self.pw2)
+        form.addRow(tr("Name"), self.name)
+        form.addRow(tr("Benutzer"), self.user)
+        form.addRow(tr("Passwort"), self.pw1)
+        form.addRow(tr("Wiederholen"), self.pw2)
 
         self.cpu = QSlider(Qt.Horizontal)
         self.cpu.setRange(1, info.cpus)
         self.cpu.setValue(info.default_vm_cpus)
         self.cpu_label = QLabel()
-        form.addRow("CPU-Kerne", _slider_row(self.cpu, self.cpu_label))
+        form.addRow(tr("CPU-Kerne"), _slider_row(self.cpu, self.cpu_label))
 
         self.ram = QSlider(Qt.Horizontal)
         self.ram.setRange(host.MIN_VM_RAM_MB // 512, max(info.max_vm_ram_mb // 512, host.MIN_VM_RAM_MB // 512))
         self.ram.setValue(info.default_vm_ram_mb // 512)
         self.ram_label = QLabel()
-        form.addRow("Arbeitsspeicher", _slider_row(self.ram, self.ram_label))
+        form.addRow(tr("Arbeitsspeicher"), _slider_row(self.ram, self.ram_label))
         self.ram_warn = QLabel()
         self.ram_warn.setWordWrap(True)
         self.ram_warn.setStyleSheet(f"color: {style.WARN};")
@@ -147,17 +152,27 @@ class CreateDialog(QDialog):
         form.addRow("", self.ram_warn)
 
         self.disk = DiskSlider(vm.DEFAULT_DISK_GB)
-        form.addRow("Festplatte", self.disk)
+        form.addRow(tr("Festplatte"), self.disk)
+
+        # Sprache im Agent-PC (Menüs, Ordner, Starter, Spracheingabe von Hermes) – Standard: die der App
+        self.sprache = QComboBox()
+        for label, code in SPRACHEN:
+            self.sprache.addItem(label, code)
+        self.sprache.setCurrentIndex(max(0, self.sprache.findData(i18n.sprache())))
+        self.sprache.setToolTip(tr("Sprache der Menüs und Ordner im Agent-PC und der Spracheingabe von Hermes. "
+                                   "Die Oberfläche von Bony's Agents stellst du unter ⓘ → „Sprache / Language“ um."))
+        form.addRow(tr("Sprache des Agent-PCs"), self.sprache)
 
         self.keyboard = QComboBox()
         for label, code in KEYBOARDS:
-            self.keyboard.addItem(label, code)
-        form.addRow("Tastatur", self.keyboard)
+            self.keyboard.addItem(tr(label), code)
+        self.keyboard.setCurrentIndex(max(0, self.keyboard.findData(cloudinit.KEYBOARDS[self.sprache.currentData()])))
+        form.addRow(tr("Tastatur"), self.keyboard)
 
         # Desktop-Umgebung (alle aus Debian 13), mit kurzer Beschreibung und RAM-Empfehlung
         self.desktop = QComboBox()
         for d in desktops.DESKTOPS.values():
-            self.desktop.addItem(f"{d.name}  (ab {desktops.format_ram(d.min_ram_mb)} RAM)", d.id)
+            self.desktop.addItem(tr("{name}  (ab {ram} RAM)", name=d.name, ram=desktops.format_ram(d.min_ram_mb)), d.id)
         self.desktop_info = QLabel()
         self.desktop_info.setObjectName("Muted")
         self.desktop_info.setWordWrap(True)
@@ -167,19 +182,19 @@ class CreateDialog(QDialog):
         dl.setSpacing(2)
         dl.addWidget(self.desktop)
         dl.addWidget(self.desktop_info)
-        form.addRow("Desktop", dbox)
+        form.addRow(tr("Desktop"), dbox)
 
         root.addLayout(form)
 
-        sec_loc = QLabel("SPEICHERORT – WO SOLL DER AGENT-PC LIEGEN?")
+        sec_loc = QLabel(tr("SPEICHERORT – WO SOLL DER AGENT-PC LIEGEN?"))
         sec_loc.setObjectName("Section")
         root.addWidget(sec_loc)
         self.location = LocationPicker(self.disk.value())
-        self.remember_loc = QCheckBox("Als Standard-Speicherort merken")
+        self.remember_loc = QCheckBox(tr("Als Standard-Speicherort merken"))
         root.addWidget(self.location)
         root.addWidget(self.remember_loc)
 
-        sec = QLabel("PROGRAMME")
+        sec = QLabel(tr("PROGRAMME"))
         sec.setObjectName("Section")
         root.addWidget(sec)
         self.app_boxes: dict[str, QCheckBox] = {}
@@ -191,9 +206,9 @@ class CreateDialog(QDialog):
                 continue
             if not a.available(info.arch, a.distros[0] if a.distros else distros.DEFAULT):  # Tor Browser nur x86_64
                 continue
-            cb = QCheckBox(a.name)
+            cb = QCheckBox(tr(a.name))
             cb.setChecked(a.default)
-            cb.setToolTip(a.description)
+            cb.setToolTip(tr(a.description))
             self.app_boxes[a.id] = cb
             app_row.addWidget(cb)
         root.addLayout(app_row)
@@ -204,7 +219,7 @@ class CreateDialog(QDialog):
         root.addWidget(self._netz_section())
 
         # KI-Werkzeuge: frei kombinierbar, auch keins – je mit kurzer Erklärung
-        sec_ai = QLabel("KI-WERKZEUGE")
+        sec_ai = QLabel(tr("KI-WERKZEUGE"))
         sec_ai.setObjectName("Section")
         root.addWidget(sec_ai)
         ai_box = QVBoxLayout()
@@ -212,11 +227,11 @@ class CreateDialog(QDialog):
         for a in apps.APPS.values():
             if a.category != apps.AGENT:
                 continue
-            cb = QCheckBox(a.name)
+            cb = QCheckBox(tr(a.name))
             cb.setChecked(a.default)
-            cb.setToolTip(a.description)
+            cb.setToolTip(tr(a.description))
             self.app_boxes[a.id] = cb
-            desc = QLabel(a.description)
+            desc = QLabel(tr(a.description))
             desc.setObjectName("Muted")
             desc.setWordWrap(True)
             desc.setContentsMargins(26, 0, 0, 6)  # unter dem Text des Häkchens
@@ -225,17 +240,16 @@ class CreateDialog(QDialog):
         root.addLayout(ai_box)
 
         reserve = info.ram_mb - info.max_vm_ram_mb
-        hint = QLabel(
-            f"Host: {info.cpus} Kerne, {info.ram_mb // 1024} GB RAM. "
-            f"{reserve / 1024:.1f} GB RAM bleiben für den Host reserviert (mindestens "
-            f"{host.MIN_HOST_RESERVE_MB // 1024} GB), damit er nicht einfriert und QEMU nicht wegen "
-            "Speichermangels beendet wird."
-        )
+        hint = QLabel(tr(
+            "Host: {kerne} Kerne, {ram} GB RAM. {reserve} GB RAM bleiben für den Host reserviert (mindestens "
+            "{mindestens} GB), damit er nicht einfriert und QEMU nicht wegen Speichermangels beendet wird.",
+            kerne=info.cpus, ram=info.ram_mb // 1024, reserve=f"{reserve / 1024:.1f}",
+            mindestens=host.MIN_HOST_RESERVE_MB // 1024))
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         root.addWidget(hint)
         if not info.accel_is_fast:
-            warn = QLabel(TCG_WARNING)
+            warn = QLabel(tr(TCG_WARNING))
             warn.setWordWrap(True)
             warn.setObjectName("Hint")
             warn.setStyleSheet(f"color: {style.WARN}; font-weight: 600; padding: 8px;")
@@ -253,8 +267,8 @@ class CreateDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.ok_btn = QPushButton("Erstellen und starten")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.ok_btn = QPushButton(tr("Erstellen und starten"))
         self.ok_btn.setObjectName("Primary")
         buttons.addWidget(self.cancel_btn)
         buttons.addWidget(self.ok_btn)
@@ -273,6 +287,7 @@ class CreateDialog(QDialog):
         self.cpu.valueChanged.connect(self._update_labels)
         self.ram.valueChanged.connect(self._update_labels)
         self.desktop.currentIndexChanged.connect(self._update_labels)
+        self.sprache.currentIndexChanged.connect(self._sprache_changed)
         self.cancel_btn.clicked.connect(self.reject)
         self.ok_btn.clicked.connect(self._create)
         self._update_labels()
@@ -284,6 +299,13 @@ class CreateDialog(QDialog):
         if preset_name:
             self.name.setText(preset_name)
         self._update_ok()
+
+    def _sprache_changed(self, *_) -> None:
+        """Tastatur mitziehen, solange sie noch auf der Vorgabe einer Sprache steht (de ↔ us)."""
+        if self.keyboard.currentData() in cloudinit.KEYBOARDS.values():
+            idx = self.keyboard.findData(cloudinit.KEYBOARDS[self.sprache.currentData()])
+            if idx >= 0:
+                self.keyboard.setCurrentIndex(idx)
 
     def _apply_recipe(self, r: dict) -> None:
         """Rezept übernehmen: Grundsystem, Desktop, Apps, Benutzer, Tastatur und Empfehlungen – bleibt änderbar."""
@@ -297,6 +319,9 @@ class CreateDialog(QDialog):
             cb.setChecked(a in r.get("app_ids", []) and cb.isEnabled())   # nicht unter diesem Grundsystem: aus
         if r.get("username"):
             self.user.setText(r["username"])
+        idx = self.sprache.findData(r.get("sprache"))
+        if idx >= 0:
+            self.sprache.setCurrentIndex(idx)
         idx = self.keyboard.findData(r.get("keyboard"))
         if idx >= 0:
             self.keyboard.setCurrentIndex(idx)
@@ -316,9 +341,9 @@ class CreateDialog(QDialog):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
         spec = apps.APPS[mission_control.APP_ID]
-        self.mc_box = QCheckBox(spec.name)
+        self.mc_box = QCheckBox(tr(spec.name))
         self.mc_box.setChecked(spec.default)
-        self.mc_box.setToolTip(spec.description)
+        self.mc_box.setToolTip(tr(spec.description))
         self.app_boxes[spec.id] = self.mc_box
         lay.addWidget(self.mc_box)
         self.mc_desc = QLabel()
@@ -330,9 +355,10 @@ class CreateDialog(QDialog):
         self.mc_warn.setWordWrap(True)
         self.mc_warn.setStyleSheet(f"color: {style.WARN};")
         self.mc_warn.setContentsMargins(26, 0, 0, 0)
-        self.mc_fix = QPushButton("Werte anpassen")
+        self.mc_fix = QPushButton(tr("Werte anpassen"))
         self.mc_fix.setObjectName("Small")
-        self.mc_fix.setToolTip("Arbeitsspeicher und Festplatte auf die empfohlenen Werte für Mission Control setzen")
+        self.mc_fix.setToolTip(tr("Arbeitsspeicher und Festplatte auf die empfohlenen Werte für Mission Control "
+                                  "setzen"))
         fix_row = QHBoxLayout()
         fix_row.setContentsMargins(26, 0, 0, 0)
         fix_row.addWidget(self.mc_fix)
@@ -373,12 +399,14 @@ class CreateDialog(QDialog):
         if not hasattr(self, "mc_warn"):
             return
         spec = apps.APPS[mission_control.APP_ID]
-        text = f"{spec.description}. Open Source – {mission_control.requirement_note(self.mc_req)}."
+        text = tr("{beschreibung}. Open Source – {bedarf}.", beschreibung=tr(spec.description),
+                  bedarf=mission_control.requirement_note(self.mc_req))
         if self.mc_box.isChecked():
             # sichtbare Abhängigkeiten (Brave) nur nennen, wenn ihr Häkchen fehlt
             deps = [d for d in apps.dependencies([spec.id])
                     if d not in self.app_boxes or not self.app_boxes[d].isChecked()]
-            text += f"\n✓ Wird mitinstalliert: {', '.join(apps.names(deps))} (offizielle Paketquelle)"
+            text += "\n" + tr("✓ Wird mitinstalliert: {programme} (offizielle Paketquelle)",
+                              programme=", ".join(apps.names(deps)))
         self.mc_desc.setText(text)
         warnings = self._mc_warnings()
         self.mc_warn.setText("\n".join(f"⚠ {w}" for w in warnings))
@@ -398,8 +426,8 @@ class CreateDialog(QDialog):
             self.disk.setValue(next((g for g in vm.DISK_STEPS_GB if g >= need_disk), vm.MAX_DISK_GB))
         self._update_mc()
         if self._mc_warnings() or self._n8n_warnings():
-            self.status.setText("Mehr Arbeitsspeicher gibt dieser Rechner nicht her – Mission Control und n8n laufen "
-                                "trotzdem, es kann aber knapp werden.")
+            self.status.setText(tr("Mehr Arbeitsspeicher gibt dieser Rechner nicht her – Mission Control und n8n "
+                                   "laufen trotzdem, es kann aber knapp werden."))
 
     def _n8n_section(self) -> QWidget:
         """n8n: Häkchen mit ehrlichem Lizenzhinweis und Warnung, wenn der RAM (auch mit Mission Control) knapp ist."""
@@ -408,9 +436,9 @@ class CreateDialog(QDialog):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
         spec = apps.APPS[n8n.APP_ID]
-        self.n8n_box = QCheckBox(spec.name)
+        self.n8n_box = QCheckBox(tr(spec.name))
         self.n8n_box.setChecked(spec.default)
-        self.n8n_box.setToolTip(spec.description)
+        self.n8n_box.setToolTip(tr(spec.description))
         self.app_boxes[spec.id] = self.n8n_box
         lay.addWidget(self.n8n_box)
         self.n8n_desc = QLabel()
@@ -422,9 +450,9 @@ class CreateDialog(QDialog):
         self.n8n_warn.setWordWrap(True)
         self.n8n_warn.setStyleSheet(f"color: {style.WARN};")
         self.n8n_warn.setContentsMargins(26, 0, 0, 0)
-        self.n8n_fix = QPushButton("Werte anpassen")
+        self.n8n_fix = QPushButton(tr("Werte anpassen"))
         self.n8n_fix.setObjectName("Small")
-        self.n8n_fix.setToolTip("Arbeitsspeicher auf den empfohlenen Wert für n8n setzen")
+        self.n8n_fix.setToolTip(tr("Arbeitsspeicher auf den empfohlenen Wert für n8n setzen"))
         fix_row = QHBoxLayout()
         fix_row.setContentsMargins(26, 0, 0, 0)
         fix_row.addWidget(self.n8n_fix)
@@ -446,12 +474,14 @@ class CreateDialog(QDialog):
         if not hasattr(self, "n8n_warn"):
             return
         spec = apps.APPS[n8n.APP_ID]
-        text = f"{spec.description}. {n8n.LICENSE_NOTE} – {n8n.requirement_note()}."
+        text = tr("{beschreibung}. {lizenz} – {bedarf}.", beschreibung=tr(spec.description),
+                  lizenz=tr(n8n.LICENSE_NOTE), bedarf=n8n.requirement_note())
         if self.n8n_box.isChecked():
             deps = [d for d in apps.dependencies([spec.id])
                     if d not in self.app_boxes or not self.app_boxes[d].isChecked()]
             if deps:
-                text += f"\n✓ Wird mitinstalliert: {', '.join(apps.names(deps))} (offizielle Paketquelle)"
+                text += "\n" + tr("✓ Wird mitinstalliert: {programme} (offizielle Paketquelle)",
+                              programme=", ".join(apps.names(deps)))
         self.n8n_desc.setText(text)
         warnings = self._n8n_warnings()
         self.n8n_warn.setText("\n".join(f"⚠ {w}" for w in warnings))
@@ -472,12 +502,12 @@ class CreateDialog(QDialog):
         sec.setObjectName("Section")
         lay.addWidget(sec)
         spec = apps.APPS[vpnlink.APP_ID]
-        self.vpn_box = QCheckBox("WireGuard VPN (Bony's VPN)")
+        self.vpn_box = QCheckBox(tr("WireGuard VPN (Bony's VPN)"))
         self.vpn_box.setChecked(spec.default)
-        self.vpn_box.setToolTip(spec.description)
+        self.vpn_box.setToolTip(tr(spec.description))
         self.app_boxes[vpnlink.APP_ID] = self.vpn_box
         lay.addWidget(self.vpn_box)
-        desc = QLabel(spec.description)
+        desc = QLabel(tr(spec.description))
         desc.setObjectName("Muted")
         desc.setWordWrap(True)
         desc.setContentsMargins(26, 0, 0, 2)
@@ -487,11 +517,12 @@ class CreateDialog(QDialog):
         ol.setContentsMargins(26, 0, 0, 0)
         ol.setSpacing(4)
         row = QHBoxLayout()
-        self.vpn_file_btn = QPushButton("Konfiguration wählen …")
+        self.vpn_file_btn = QPushButton(tr("Konfiguration wählen …"))
         self.vpn_file_btn.setObjectName("Small")
-        self.vpn_file_btn.setToolTip("Optional: WireGuard-Konfiguration (.conf), z. B. aus der FRITZ!Box. Sie wird nur "
-                                     "in diesen Agent-PC übertragen und auf diesem Rechner nirgends gespeichert.")
-        self.vpn_clear_btn = QPushButton("Entfernen")
+        self.vpn_file_btn.setToolTip(tr("Optional: WireGuard-Konfiguration (.conf), z. B. aus der FRITZ!Box. Sie "
+                                        "wird nur in diesen Agent-PC übertragen und auf diesem Rechner nirgends "
+                                        "gespeichert."))
+        self.vpn_clear_btn = QPushButton(tr("Entfernen"))
         self.vpn_clear_btn.setObjectName("Small")
         row.addWidget(self.vpn_file_btn)
         row.addWidget(self.vpn_clear_btn)
@@ -501,10 +532,11 @@ class CreateDialog(QDialog):
         self.vpn_info.setWordWrap(True)
         self.vpn_info.setObjectName("Muted")
         ol.addWidget(self.vpn_info)
-        self.vpn_auto = QCheckBox("Automatisch verbinden (bei jedem Start)")
-        self.vpn_kill = QCheckBox("Kill-Switch: ohne VPN kein Internet")
-        self.vpn_kill.setToolTip("Sperrt jeden Internetverkehr, solange der Tunnel nicht verbunden ist. Die Steuerung "
-                                 "durch Bony's Agents (Herunterfahren, Fortschritt, Fernzugriff) geht weiter.")
+        self.vpn_auto = QCheckBox(tr("Automatisch verbinden (bei jedem Start)"))
+        self.vpn_kill = QCheckBox(tr("Kill-Switch: ohne VPN kein Internet"))
+        self.vpn_kill.setToolTip(tr("Sperrt jeden Internetverkehr, solange der Tunnel nicht verbunden ist. Die "
+                                    "Steuerung durch Bony's Agents (Herunterfahren, Fortschritt, Fernzugriff) geht "
+                                    "weiter."))
         ol.addWidget(self.vpn_auto)
         ol.addWidget(self.vpn_kill)
         lay.addWidget(self.vpn_opts)
@@ -517,8 +549,8 @@ class CreateDialog(QDialog):
         return box
 
     def _choose_vpn_conf(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "WireGuard-Konfiguration wählen", str(Path.home()),
-                                              "WireGuard-Konfiguration (*.conf);;Alle Dateien (*)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("WireGuard-Konfiguration wählen"), str(Path.home()),
+                                              tr("WireGuard-Konfiguration (*.conf);;Alle Dateien (*)"))
         if not path:
             return
         try:
@@ -541,7 +573,7 @@ class CreateDialog(QDialog):
         self.vpn_opts.setVisible(self.vpn_box.isChecked())
         has = self.vpn_setup is not None
         self.vpn_clear_btn.setVisible(has)
-        self.vpn_file_btn.setText("Andere Konfiguration …" if has else "Konfiguration wählen …")
+        self.vpn_file_btn.setText(tr("Andere Konfiguration …") if has else tr("Konfiguration wählen …"))
         self.vpn_auto.setEnabled(has)
         self.vpn_kill.setEnabled(has)
         if not has:
@@ -550,15 +582,17 @@ class CreateDialog(QDialog):
         self.vpn_info.setStyleSheet("")
         if has:
             s = self.vpn_setup
-            text = f"✓ Gültige Konfiguration: Tunnel „{s.name}“" + (f", Server {s.endpoint}" if s.endpoint else "")
-            text += ". Sie geht nur in den Agent-PC und wird dort nach dem Import aus den Einrichtungsdaten entfernt."
+            text = (tr("✓ Gültige Konfiguration: Tunnel „{name}“, Server {server}.", name=s.name, server=s.endpoint)
+                    if s.endpoint else tr("✓ Gültige Konfiguration: Tunnel „{name}“.", name=s.name))
+            text += " " + tr("Sie geht nur in den Agent-PC und wird dort nach dem Import aus den Einrichtungsdaten "
+                             "entfernt.")
             if self.vpn_kill.isChecked() and not self.vpn_auto.isChecked():
-                text += "\n⚠ Kill-Switch ohne automatisches Verbinden: Nach dem Start gibt es kein Internet, bis du " \
-                        "in Bony's VPN verbindest."
+                text += "\n" + tr("⚠ Kill-Switch ohne automatisches Verbinden: Nach dem Start gibt es kein Internet, "
+                                  "bis du in Bony's VPN verbindest.")
             self.vpn_info.setText(text)
         else:
-            self.vpn_info.setText("Optional – ohne Konfiguration importierst du sie später im Agent-PC oder in der "
-                                  "Detailansicht.")
+            self.vpn_info.setText(tr("Optional – ohne Konfiguration importierst du sie später im Agent-PC oder in der "
+                                     "Detailansicht."))
 
     def _netz_section(self) -> QWidget:
         """Bony-Netz: nur sichtbar, wenn es eingeschaltet und eine Instanz angemeldet ist – dann standardmäßig an."""
@@ -566,12 +600,12 @@ class CreateDialog(QDialog):
         lay = QVBoxLayout(box)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        sec = QLabel("BONY-NETZ")
+        sec = QLabel(tr("BONY-NETZ"))
         sec.setObjectName("Section")
         lay.addWidget(sec)
-        self.netz_box = QCheckBox("Mit dem Bony-Netz verbinden")
-        desc = QLabel("Der Agent-PC tritt beim ersten Start dem Bony-Netz dieser Instanz bei (Tailscale aus der "
-                      "offiziellen Paketquelle). Geht das gerade nicht, wird er ohne Netz erstellt.")
+        self.netz_box = QCheckBox(tr("Mit dem Bony-Netz verbinden"))
+        desc = QLabel(tr("Der Agent-PC tritt beim ersten Start dem Bony-Netz dieser Instanz bei (Tailscale aus der "
+                         "offiziellen Paketquelle). Geht das gerade nicht, wird er ohne Netz erstellt."))
         desc.setObjectName("Muted")
         desc.setWordWrap(True)
         desc.setContentsMargins(26, 0, 0, 0)
@@ -599,9 +633,10 @@ class CreateDialog(QDialog):
         self.kind_box.setVisible(t is not None)
         self.base_info.setVisible(t is not None or dist.id != distros.DEFAULT)
         if t is None and dist.id != distros.DEFAULT:
-            self.base_info.setText(dist.description)
+            self.base_info.setText(tr(dist.description))
         self.user.setEnabled(t is None)
         self.keyboard.setEnabled(t is None)
+        self.sprache.setEnabled(t is None)
         # Kali: nur der geprüfte Desktop (Xfce)
         self.desktop.setEnabled(t is None and len(dist.desktops) != 1)
         idx = self.desktop.findData(t.desktop if t else (dist.desktops or (desktops.DEFAULT,))[0])
@@ -621,19 +656,18 @@ class CreateDialog(QDialog):
         if t is None:
             self.user.setText("agent")
             self.disk.setValue(vm.DEFAULT_DISK_GB)
-            self.ok_btn.setText("Erstellen und starten")
+            self.ok_btn.setText(tr("Erstellen und starten"))
             return
         self.user.setText(t.username)
         self.disk.setValue(t.disk_gb)
         idx = self.keyboard.findData(t.keyboard)
         if idx >= 0:
             self.keyboard.setCurrentIndex(idx)
-        warn = "" if t.personal_data_removed else "  ⚠ enthält persönliche Daten"
-        self.base_info.setText(f"{t.description}\n{templates.describe(t)}{warn}\n"
-                               "Programme kommen aus der Vorlage – „Programme hinzufügen …“ geht danach wie gewohnt."
-                               if t.description else f"{templates.describe(t)}{warn}\nProgramme kommen aus der "
-                               "Vorlage – „Programme hinzufügen …“ geht danach wie gewohnt.")
-        self.ok_btn.setText("Erstellen und starten")
+        warn = "" if t.personal_data_removed else "  " + tr("⚠ enthält persönliche Daten")
+        apps_note = tr("Programme kommen aus der Vorlage – „Programme hinzufügen …“ geht danach wie gewohnt.")
+        self.base_info.setText(f"{t.description}\n{templates.describe(t)}{warn}\n{apps_note}" if t.description
+                               else f"{templates.describe(t)}{warn}\n{apps_note}")
+        self.ok_btn.setText(tr("Erstellen und starten"))
         self._kind_auto = True
         self._update_kind()
 
@@ -644,8 +678,8 @@ class CreateDialog(QDialog):
             return
         same = templates.same_drive(t, loc)
         self.linked.setEnabled(same)
-        self.linked.setToolTip("" if same else "Geht nur, wenn der Agent-PC auf demselben Laufwerk liegt wie die "
-                                               f"Vorlage ({t.library}).")
+        self.linked.setToolTip("" if same else tr("Geht nur, wenn der Agent-PC auf demselben Laufwerk liegt wie die "
+                                                  "Vorlage ({ort}).", ort=t.library))
         if not same:
             self.full.setChecked(True)
         elif self._kind_auto:
@@ -656,19 +690,19 @@ class CreateDialog(QDialog):
         self.ok_btn.setEnabled(bool(chk and chk.ok))
 
     def _update_labels(self) -> None:
-        self.cpu_label.setText(f"{self.cpu.value()} von {self.info.cpus}")
+        self.cpu_label.setText(tr("{n} von {gesamt}", n=self.cpu.value(), gesamt=self.info.cpus))
         d = desktops.get(self.desktop.currentData() or desktops.DEFAULT)
-        self.desktop_info.setText(d.description)
+        self.desktop_info.setText(tr(d.description))
         warning = desktops.ram_warning(d.id, self.ram.value() * 512)
         self.ram_warn.setText(f"⚠ {warning}")
         self.ram_warn.setVisible(bool(warning))
-        self.ram_label.setText(f"{self.ram.value() * 512 / 1024:.1f} GB")
+        self.ram_label.setText(tr("{wert:.1f} GB", wert=self.ram.value() * 512 / 1024))
         self._update_mc()
 
     def _set_busy(self, busy: bool) -> None:
         for w in (self.name, self.user, self.pw1, self.pw2, self.cpu, self.ram, self.disk,
-                  self.keyboard, self.desktop, self.ok_btn, self.location, self.remember_loc, *self.app_boxes.values(),
-                  self.base, self.linked, self.full, self.vpn_opts, self.mc_fix):
+                  self.keyboard, self.sprache, self.desktop, self.ok_btn, self.location, self.remember_loc,
+                  *self.app_boxes.values(), self.base, self.linked, self.full, self.vpn_opts, self.mc_fix):
             w.setEnabled(not busy)
         self.netz_box.setEnabled(not busy and self._netz_available)
         self.cancel_btn.setEnabled(not busy)
@@ -678,7 +712,7 @@ class CreateDialog(QDialog):
 
     def _create(self) -> None:
         if self.pw1.text() != self.pw2.text():
-            self.status.setText("Die Passwörter stimmen nicht überein.")
+            self.status.setText(tr("Die Passwörter stimmen nicht überein."))
             return
         params = dict(
             name=self.name.text().strip(),
@@ -689,6 +723,7 @@ class CreateDialog(QDialog):
             username=self.user.text().strip(),
             app_ids=[i for i, cb in self.app_boxes.items() if cb.isChecked()],
             keyboard=self.keyboard.currentData(),
+            sprache=self.sprache.currentData(),
             location=self.location.path(),
             desktop=self.desktop.currentData(),
             distro=self.distro().id,
@@ -702,9 +737,10 @@ class CreateDialog(QDialog):
         t = self.template()
         if t is not None:
             if params["disk_gb"] < t.disk_gb:
-                self.status.setText(f"Festplatte: mindestens {vm.format_gb(t.disk_gb)} (Größe der Vorlage).")
+                self.status.setText(tr("Festplatte: mindestens {groesse} (Größe der Vorlage).",
+                                       groesse=vm.format_gb(t.disk_gb)))
                 return
-            for key in ("username", "app_ids", "keyboard", "desktop", "distro"):
+            for key in ("username", "app_ids", "keyboard", "sprache", "desktop", "distro"):
                 params.pop(key)
             params.update(template=t.name, linked=self.linked.isChecked(), foreign_arch=t.arch != self.info.arch)
         if self.remember_loc.isChecked() and params["location"]:
@@ -712,7 +748,7 @@ class CreateDialog(QDialog):
         self._set_busy(True)
         self.progress.set_percent(0)
         self._eta_start = None
-        self.status.setText("Bereite vor …")
+        self.status.setText(tr("Bereite vor …"))
         self.worker = CreateWorker(params)
         self.worker.progress.connect(self._on_progress)
         self.worker.hint.connect(self.hints.append)
@@ -742,7 +778,7 @@ class CreateDialog(QDialog):
     def _on_failed(self, msg: str) -> None:
         self._set_busy(False)
         self._update_ok()
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {meldung}", meldung=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def reject(self) -> None:

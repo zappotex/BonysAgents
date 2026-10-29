@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "After downloading, the checksum reports “FAILED”. What do you do?",
+      "antworten": [
+        "Carry on anyway – it'll be fine",
+        "Stop, delete the file and download it again; if the error stays, get help",
+        "Change the checksum by hand"
+      ],
+      "richtig": 1,
+      "erklaerung": "A wrong checksum means: the file isn't the one the vendor published."
+    },
+    {
+      "frage": "What does “--root …/Agent-Files/pdf” do for the MCP server?",
+      "antworten": [
+        "PdfCraft runs with administrator rights",
+        "PdfCraft may only read and save in this folder",
+        "PdfCraft saves everything on the internet"
+      ],
+      "richtig": 1,
+      "erklaerung": "The agent only gets the folder it needs for the task – not your whole Agent PC."
+    }
+  ]
+}

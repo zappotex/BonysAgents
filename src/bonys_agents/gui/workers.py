@@ -8,6 +8,7 @@ from collections.abc import Callable
 from PySide6.QtCore import QThread, Signal
 
 from bonys_agents import vm
+from bonys_agents.i18n import tr
 
 
 class CreateWorker(QThread):
@@ -27,7 +28,7 @@ class CreateWorker(QThread):
             for text in machine.hinweise:
                 self.hint.emit(text)
             if self.start_after:
-                self.progress.emit("start", 1.0, "Starte Agent-PC …")
+                self.progress.emit("start", 1.0, tr("Starte Agent-PC …"))
                 machine.start()
             self.finished_ok.emit(machine.name)
         except Exception as e:  # noqa: BLE001 – Fehler gehen an die Oberfläche

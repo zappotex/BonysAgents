@@ -1,0 +1,160 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.23.0",
+  "id": "bonys-vpn-privater-surfen-en",
+  "name": "Bony's VPN: safer and more private online",
+  "beschreibung": "What a VPN is, what it does – and what it doesn't: everyone gets a WireGuard configuration from Proton VPN's free plan (or from their own FRITZ!Box), imports it into Bony's VPN in their own Agent PC, connects and checks the public address. Plus kill switch and connecting automatically, test pages for DNS and trackers, the private window with Tor and the throwaway PC – explained honestly: more private, not anonymous. As a 90-minute course or on your own in self-study mode.",
+  "stufe": "anfaenger",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "1.0.0",
+  "dauer_minuten": 90,
+  "pause_minuten": 0,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People who want to browse more safely on the go and more privately in everyday life – no prior knowledge needed",
+  "voraussetzungen": [
+    "Bony's Agents version 0.23.0 or later, a computer with at least 8 GB RAM and 40 GB free disk space",
+    "Internet",
+    "an e-mail address for a free account at Proton VPN – or access to your own FRITZ!Box"
+  ],
+  "kosten": "none – Proton VPN's free plan or your own FRITZ!Box; Bony's VPN is free software",
+  "lernziele": [
+    "explain what a VPN is and who sees what with and without a VPN",
+    "name the benefits and limits of a VPN – more private doesn't mean anonymous",
+    "get a WireGuard configuration (.conf) from the provider and treat it like a password",
+    "import the configuration into Bony's VPN, connect and check the public address",
+    "turn on and test the kill switch and connecting automatically",
+    "browse more privately with test pages, a private window with Tor and a throwaway PC"
+  ],
+  "quellen": [
+    {
+      "titel": "Bony's VPN – source code and docs",
+      "url": "https://github.com/zappotex/bonys-vpn"
+    },
+    {
+      "titel": "WireGuard",
+      "url": "https://www.wireguard.com"
+    },
+    {
+      "titel": "Proton VPN – free plan",
+      "url": "https://protonvpn.com/free-vpn"
+    },
+    {
+      "titel": "Proton VPN – creating a WireGuard configuration",
+      "url": "https://protonvpn.com/support/wireguard-configurations"
+    },
+    {
+      "titel": "AVM – setting up WireGuard in the FRITZ!Box",
+      "url": "https://en.avm.de/service/knowledge-base/"
+    },
+    {
+      "titel": "DNS Leak Test",
+      "url": "https://www.dnsleaktest.com"
+    },
+    {
+      "titel": "EFF – Cover Your Tracks",
+      "url": "https://coveryourtracks.eff.org"
+    }
+  ],
+  "rezept": {
+    "name": "agent-vpn",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "vpn"
+    ],
+    "ram_mb": 4096,
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-ankommen",
+      "titel": "Getting started",
+      "dauer_minuten": 5,
+      "art": "Welcome",
+      "ziel": "Know how the course works and where to get help."
+    },
+    {
+      "ordner": "02-was-ist-ein-vpn",
+      "titel": "What is a VPN?",
+      "dauer_minuten": 15,
+      "art": "Explanation + quiz",
+      "ziel": "Understand who sees what with and without a VPN – and where the limits are."
+    },
+    {
+      "ordner": "03-konfiguration-holen",
+      "titel": "Getting the configuration",
+      "dauer_minuten": 15,
+      "art": "Hands-on",
+      "ziel": "A WireGuard configuration (.conf) is in the Downloads folder.",
+      "pruefung": {
+        "skript": "pruefung/conf-geladen.py",
+        "loesung": "pruefung/loesung.sh",
+        "aufgabe": "A WireGuard configuration (.conf or .zip) is in the Downloads folder.",
+        "geschafft": "Your configuration is there – treat it like a password.",
+        "noch_nicht": "No .conf in the Downloads folder yet. At Proton: Downloads → WireGuard configuration → platform GNU/Linux → choose a server → “Create” → “Download”.",
+        "zeitlimit": 20
+      }
+    },
+    {
+      "ordner": "04-importieren-und-verbinden",
+      "titel": "Importing and connecting",
+      "dauer_minuten": 15,
+      "art": "Hands-on",
+      "ziel": "The tunnel is up and the website sees the VPN server's address.",
+      "pruefung": {
+        "skript": "pruefung/tunnel-verbunden.py",
+        "als": "root",
+        "aufgabe": "A tunnel is connected in Bony's VPN.",
+        "geschafft": "Your tunnel is up – you're now browsing via the VPN server.",
+        "noch_nicht": "No tunnel connected yet. In Bony's VPN choose “Import …”, select the file from Downloads and click “Connect”. If it says “Server not responding”, get another configuration (another server).",
+        "zeitlimit": 30
+      }
+    },
+    {
+      "ordner": "05-kill-switch",
+      "titel": "Kill switch and connecting automatically",
+      "dauer_minuten": 15,
+      "art": "Hands-on",
+      "ziel": "Without the tunnel nothing gets to the internet any more – not even after a restart.",
+      "pruefung": {
+        "skript": "pruefung/kill-switch-an.py",
+        "als": "root",
+        "aufgabe": "The kill switch is on, a tunnel connects automatically and is connected.",
+        "geschafft": "Kill switch on, tunnel automatic – that way nothing is left unprotected.",
+        "noch_nicht": "Not everything yet: in Bony's VPN turn on the switches “Connect automatically” and “Kill switch” – and after the test “Connect” again.",
+        "zeitlimit": 30
+      }
+    },
+    {
+      "ordner": "06-privater-surfen",
+      "titel": "Exercise: browsing more privately",
+      "dauer_minuten": 15,
+      "art": "Exercise + quiz",
+      "ziel": "Use test pages to see what a VPN protects – and what else is needed."
+    },
+    {
+      "ordner": "07-aufraeumen-und-abschluss",
+      "titel": "Cleaning up and wrap-up",
+      "dauer_minuten": 10,
+      "art": "Hands-on + quiz",
+      "ziel": "The .conf is only in Bony's VPN now – and you know how to continue.",
+      "pruefung": {
+        "skript": "pruefung/conf-aufgeraeumt.py",
+        "loesung": "pruefung/loesung.sh",
+        "als": "root",
+        "aufgabe": "The tunnel is in Bony's VPN – there's no .conf left in the Downloads folder.",
+        "geschafft": "Cleaned up: your key is now only stored safely in Bony's VPN.",
+        "noch_nicht": "There's still a .conf in the Downloads folder (or no tunnel is imported at all). Delete the file in the file manager and empty the trash.",
+        "zeitlimit": 30
+      }
+    }
+  ]
+}

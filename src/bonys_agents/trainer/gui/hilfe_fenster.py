@@ -26,6 +26,7 @@ from bonys_agents.gui.hilfe_ui import festhalten
 from bonys_agents.gui.workers import TaskWorker
 from bonys_agents.trainer import present
 from bonys_agents.trainer.hilfe_betrachter import BetrachterFehler, Bruecke, TigerVNC
+from bonys_agents.i18n import tr
 
 try:
     from PySide6.QtCore import QUrl
@@ -119,7 +120,7 @@ class HilfeFenster(QWidget):
         self.verbunden = False
         self.gemeldet = False
         self.bruecke = Bruecke((freigabe.ip, freigabe.port))
-        self.setWindowTitle(f"Hilfe – {titel} ({hilfe.MODUS_TEXT[freigabe.modus]})")
+        self.setWindowTitle(tr("Hilfe – {titel} ({wert})", titel=titel, wert=hilfe.MODUS_TEXT[freigabe.modus]))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.view = QWebEngineView(self)
@@ -142,7 +143,7 @@ class HilfeFenster(QWidget):
 
     def getrennt(self, text: str) -> None:
         if not self.verbunden and self.bruecke.ende == (4010, "Agent-PC nicht erreichbar"):
-            text = "Der Agent-PC ist von diesem Rechner aus nicht erreichbar."
+            text = tr("Der Agent-PC ist von diesem Rechner aus nicht erreichbar.")
             self._netz_pruefen(text)
             return
         self.betrachter.ende.emit(text)
@@ -234,7 +235,8 @@ class KursleiterHilfe(QObject):
                 return
             if w.error is not None:
                 text = str(w.error) if isinstance(w.error, hilfe.HilfeFehler) else netz.fehlertext(w.error)
-                self._seite({"aktion": "hinweis", "text": f"Hilfe für {name} geht nicht: {text}"})
+                self._seite({"aktion": "hinweis", "text": tr("Hilfe für {name} geht nicht: {inhalt}", name=name,
+                                                             inhalt=text)})
                 self._ende_senden(identitaet)
                 return
             pc = str(daten.get("pc") or "")[:80]
@@ -271,7 +273,7 @@ class KursleiterHilfe(QObject):
         betrachter = self.offen.pop(identitaet, None)
         self._seite({"aktion": "aktiv", "identity": identitaet, "an": False})
         if betrachter is not None and isValid(betrachter):
-            betrachter.ende_zeigen("Der Teilnehmer hat die Hilfe beendet.")
+            betrachter.ende_zeigen(tr("Der Teilnehmer hat die Hilfe beendet."))
 
     def raum_getrennt(self) -> None:
         """Kursraum verlassen: alle Betrachter schließen – bei den Teilnehmern endet x11vnc damit (``-once``)."""

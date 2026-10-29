@@ -34,9 +34,10 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from bonys_agents import __version__, rfb, share, vncbridge, websocket
+from bonys_agents import __version__, i18n, rfb, share, vncbridge, websocket
 from bonys_agents.trainer import announce, share_server
 from bonys_agents.vncbridge import CLOSE_ERROR, MIN_FPS
+from bonys_agents.i18n import n_, tr
 
 DEFAULT_PORT = 47120
 DEFAULT_TIMEOUT_MIN = 90
@@ -51,9 +52,9 @@ FULL_FPS_VIEWERS = 8       # bis zu so vielen Zuschauern volle Bildrate, darübe
 # WebSocket-Schließcodes, die die Seite versteht
 CLOSE_ENDED, CLOSE_PAUSED, CLOSE_IDLE, CLOSE_REMOVED = 4000, 4001, 4002, 4003   # CLOSE_ERROR: vncbridge
 
-WARNING = ("Alle Teilnehmer sehen alles, was im Agent-PC angezeigt wird. Nutze Pause, bevor du Passwörter oder "
-           "Tokens eingibst.")
-SOUND_HINT = "Ton ist nicht dabei – im Raum sprechen oder z. B. Jitsi nutzen."
+WARNING = n_("Alle Teilnehmer sehen alles, was im Agent-PC angezeigt wird. Nutze Pause, bevor du Passwörter oder "
+             "Tokens eingibst.")
+SOUND_HINT = n_("Ton ist nicht dabei – im Raum sprechen oder z. B. Jitsi nutzen.")
 NAME_RE = re.compile(r"[^\w .'()-]")
 HOST_RE = re.compile(r"^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.-]+)(:\d{1,5})?$")
 
@@ -114,10 +115,10 @@ class Presentation(share_server.Guarded):
                  advertise: bool = True, novnc: Path | None = None):
         super().__init__(code, timeout_min)
         if quality not in rfb.QUALITY:
-            raise ValueError(f"Qualität: {', '.join(rfb.QUALITY)}")
+            raise ValueError(tr("Qualität: {wert}", wert=', '.join(rfb.QUALITY)))
         self.novnc = novnc if novnc is not None else novnc_dir()
         if self.novnc is None:
-            raise PresentError("noVNC fehlt in dieser Installation (beim Bauen: python packaging/fetch-novnc.py).")
+            raise PresentError(tr("noVNC fehlt in dieser Installation (beim Bauen: python packaging/fetch-novnc.py)."))
         self.title = title or f"Kurs auf {_hostname() or 'diesem Rechner'}"
         self.connect_vnc = connect_vnc
         self.is_alive = is_alive
@@ -157,7 +158,7 @@ class Presentation(share_server.Guarded):
         """Vorführung (neu) beginnen – Zuschauer, die schon da sind, sehen das neue Bild ohne neuen Code."""
         if quality is not None:
             if quality not in rfb.QUALITY:
-                raise ValueError(f"Qualität: {', '.join(rfb.QUALITY)}")
+                raise ValueError(tr("Qualität: {wert}", wert=', '.join(rfb.QUALITY)))
             self.quality = quality
         if max_viewers is not None:
             self.max_viewers = max(1, int(max_viewers))
@@ -224,8 +225,9 @@ class Presentation(share_server.Guarded):
         try:
             httpd = share_server._Server((self.bind, self.port), Handler)
         except OSError as e:
-            raise PresentError(f"Port {self.port} ist belegt oder nicht erlaubt ({e.strerror or e}). Einen anderen "
-                               f"Port wählen (z. B. {DEFAULT_PORT + 1}).") from e
+            raise PresentError(tr("Port {port} ist belegt oder nicht erlaubt ({wert}). Einen anderen Port wählen (z. "
+                                  "B. {wert2}).", port=self.port, wert=e.strerror or e,
+                                  wert2=DEFAULT_PORT + 1)) from e
         httpd.socket = self._ctx.wrap_socket(httpd.socket, server_side=True, do_handshake_on_connect=False)
         self.port = httpd.server_address[1]
         self.httpd = httpd
@@ -326,16 +328,16 @@ class Presentation(share_server.Guarded):
     def join(self, addr: str, name: str, code: str) -> tuple[str | None, int, dict]:
         """Name + Code prüfen. Gibt (Cookie-Wert, HTTP-Status, Antwort) zurück."""
         if self.stopped.is_set():
-            return None, 410, {"error": "Die Vorführung ist beendet.", "state": "ended"}
+            return None, 410, {"error": n_("Die Vorführung ist beendet."), "state": "ended"}
         with self.lock:
             until = self.blocked.get(addr, 0)
         if until > time.monotonic():
-            return None, 403, {"error": "Du wurdest vom Kursleiter entfernt.", "state": "removed"}
+            return None, 403, {"error": n_("Du wurdest vom Kursleiter entfernt."), "state": "removed"}
         why = self.check_code(addr, code)
         if why == "gesperrt":
-            return None, 429, {"error": "Zu viele falsche Codes – bitte eine Minute warten."}
+            return None, 429, {"error": n_("Zu viele falsche Codes – bitte eine Minute warten.")}
         if why:
-            return None, 403, {"error": "Falscher Code."}
+            return None, 403, {"error": n_("Falscher Code.")}
         if self.viewer_count() >= self.max_viewers:
             return None, 503, {"error": f"Die Vorführung ist voll ({self.max_viewers} Zuschauer)."}
         name = NAME_RE.sub("", name or "").strip()[:40] or addr
@@ -390,7 +392,7 @@ class Presentation(share_server.Guarded):
         connect = self.connect_vnc
         try:
             if connect is None:
-                raise OSError("keine Vorführung")
+                raise OSError(tr("keine Vorführung"))
             up = connect()
         except OSError as e:
             self._event(f"{v.name}: Bildschirm nicht erreichbar ({e}).")
@@ -435,6 +437,7 @@ def _ws_close(tls: ssl.SSLSocket, code: int, reason: str) -> None:
 
 # ---------------------------------------------------------------- HTTP
 _STATIC = {"present.css", "join.js", "view.js", "help.js", "logo.png"}
+TEXTE = "texte.js"   # Übersetzungen der Seiten (i18n.seiten_js), Sprache wählt der Browser
 _TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
           ".png": "image/png", ".html": "text/html; charset=utf-8", ".json": "application/json"}
 
@@ -484,6 +487,9 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _json(self, status: int, data: dict, extra: dict | None = None) -> None:
+        if isinstance(data.get("error"), str):   # Meldungen in der Sprache des Browsers (Accept-Language)
+            data = {**data, "error": i18n.tr_in(i18n.sprache_aus_accept(self.headers.get("Accept-Language")),
+                                                data["error"])}
         self._send(status, json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8",
                    extra)
 
@@ -491,7 +497,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             body = path.read_bytes()
         except OSError:
-            self._json(404, {"error": "Nicht gefunden."})
+            self._json(404, {"error": n_("Nicht gefunden.")})
             return
         ctype = _TYPES.get(path.suffix) or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         self._send(200, body, ctype)
@@ -519,7 +525,7 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             n = -1
         if n < 0 or n > limit:
-            raise ValueError("zu groß")
+            raise ValueError(tr("zu groß"))
         data = b""
         while len(data) < n:
             chunk = self.rfile.read(n - len(data))
@@ -538,6 +544,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self._file(page_dir() / "index.html")
             return
+        if path == f"/assets/{TEXTE}":
+            self._send(200, i18n.seiten_js(i18n.seiten_texte(page_dir())), _TYPES[".js"])
+            return
         if path.startswith("/assets/") and path[8:] in _STATIC:
             name = path[8:]
             self._file(logo_file() if name == "logo.png" else page_dir() / name)
@@ -550,8 +559,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/bonys/v1/info":   # für „Kurs beitreten“ in Bony's Agents – nur mit Code, wie bei der Freigabe
             why = p.check_code(self.client_address[0], self.headers.get(share.CODE_HEADER, ""))
             if why:
-                self._json(429 if why == "gesperrt" else 403, {"error": "Falscher Code." if why == "falsch" else
-                                                               "Zu viele falsche Codes – bitte eine Minute warten."})
+                fehler = (n_("Falscher Code.") if why == "falsch" else
+                          n_("Zu viele falsche Codes – bitte eine Minute warten."))
+                self._json(429 if why == "gesperrt" else 403, {"error": fehler})
                 return
             self._json(200, {"app": "bonys-agents", "api": 1, "protocol": share_server.PROTOCOL, "kind": "present",
                              "title": p.title, "version": __version__, "ends_in": int(p.remaining())})
@@ -569,18 +579,18 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path.startswith("/novnc/"):
             if (v is None or v.removed) and not p.helpdesk.viewer_cookie_ok(self):
-                self._json(403, {"error": "Bitte zuerst beitreten."})
+                self._json(403, {"error": n_("Bitte zuerst beitreten.")})
                 return
             f = _safe_file(p.novnc, path[7:])
             if f is None:
-                self._json(404, {"error": "Nicht gefunden."})
+                self._json(404, {"error": n_("Nicht gefunden.")})
                 return
             self._file(f)
             return
         if path == f"{API}/ws":
             self._websocket(v)
             return
-        self._json(404, {"error": "Nicht gefunden."})
+        self._json(404, {"error": n_("Nicht gefunden.")})
 
     def do_POST(self) -> None:  # noqa: N802
         p = self.pres
@@ -588,17 +598,17 @@ class _Handler(BaseHTTPRequestHandler):
         if p.helpdesk.handle(self, "POST", path):
             return
         if path not in (f"{API}/join", f"{API}/leave"):
-            self._json(404, {"error": "Nicht gefunden."})
+            self._json(404, {"error": n_("Nicht gefunden.")})
             return
         if not self._same_origin():
-            self._json(403, {"error": "Anfrage von einer fremden Seite."})
+            self._json(403, {"error": n_("Anfrage von einer fremden Seite.")})
             return
         try:
             data = json.loads(self._read_body() or b"{}")
             if not isinstance(data, dict):
                 raise ValueError
         except ValueError:
-            self._json(400, {"error": "Anfrage nicht verstanden."})
+            self._json(400, {"error": n_("Anfrage nicht verstanden.")})
             return
         if path == f"{API}/leave":
             v = p.viewer(self._token())
@@ -617,7 +627,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(status, answer, extra)
 
     def _method_not_allowed(self) -> None:
-        self._json(405, {"error": "Nicht erlaubt."}, {"Allow": "GET, HEAD, POST"})
+        self._json(405, {"error": n_("Nicht erlaubt.")}, {"Allow": "GET, HEAD, POST"})
 
     do_PUT = do_DELETE = do_PATCH = _method_not_allowed  # noqa: N815
 
@@ -640,13 +650,13 @@ class _Handler(BaseHTTPRequestHandler):
     def _websocket(self, v: Viewer | None) -> None:
         p = self.pres
         if not self.is_websocket():
-            self._json(400, {"error": "WebSocket erwartet."})
+            self._json(400, {"error": n_("WebSocket erwartet.")})
             return
         if not self._same_origin():
-            self._json(403, {"error": "Anfrage von einer fremden Seite."})
+            self._json(403, {"error": n_("Anfrage von einer fremden Seite.")})
             return
         if v is None:
-            self._json(403, {"error": "Bitte zuerst beitreten."})
+            self._json(403, {"error": n_("Bitte zuerst beitreten.")})
             return
         why = p.close_reason(v)
         if why:  # Pause/entfernt/beendet/keine Vorführung: gar nicht erst verbinden
@@ -691,8 +701,9 @@ class NeedsRestart(PresentError):
 def for_vm(machine, **options) -> Presentation:
     """Vorführung für einen laufenden Agent-PC (``vm.VM``) vorbereiten – ``start()`` macht sie sichtbar."""
     if not machine.is_running():
-        raise PresentError(f"„{machine.name}“ läuft nicht – bitte zuerst starten.")
+        raise PresentError(tr("„{name}“ läuft nicht – bitte zuerst starten.", name=machine.name))
     if not machine.vnc_available():
-        raise NeedsRestart(f"„{machine.name}“ wurde mit einer älteren Version gestartet und zeigt seinen Bildschirm "
-                           "noch nicht für Schulungen. Einmal neu starten – danach geht „Vorführen“ immer.")
+        raise NeedsRestart(tr("„{name}“ wurde mit einer älteren Version gestartet und zeigt seinen Bildschirm noch "
+                              "nicht für Schulungen. Einmal neu starten – danach geht „Vorführen“ immer.",
+                              name=machine.name))
     return Presentation(machine.name, machine.vnc_connect, is_alive=machine.is_running, **options)

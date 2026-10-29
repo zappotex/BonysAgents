@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 
 from bonys_agents import kurspaket, kurspaket_moderation as mod, kurspaket_portal as portal, storage
+from bonys_agents.i18n import tr
 
 PORTAL_URL = "https://kurse.bony23.de"
 PORTAL_ENV = "BONYS_AGENTS_PORTAL_URL"          # andere Adresse (Tests)
@@ -72,9 +73,9 @@ def zugang_speichern(token: str, url: str | None = None) -> None:
     url = (url or portal_url()).rstrip("/")
     token = token.strip()
     if not token or any(c.isspace() for c in token) or len(token) > 200:
-        raise OnlineFehler("Das Token ist leer oder enthält Leerzeichen.")
+        raise OnlineFehler(tr("Das Token ist leer oder enthält Leerzeichen."))
     if not kurspaket._url_ok(url):
-        raise OnlineFehler("Die Adresse des Portals muss mit https:// beginnen.")
+        raise OnlineFehler(tr("Die Adresse des Portals muss mit https:// beginnen."))
     datei = _zugang_datei()
     datei.parent.mkdir(parents=True, exist_ok=True)
     tmp = datei.with_suffix(".tmp")
@@ -117,7 +118,7 @@ class OnlineAblage:
 
     def __init__(self, zugang: Zugang, opener=None, timeout: float = TIMEOUT):
         if not kurspaket._url_ok(zugang.url):
-            raise OnlineFehler("Die Adresse des Portals muss mit https:// beginnen.")
+            raise OnlineFehler(tr("Die Adresse des Portals muss mit https:// beginnen."))
         self.zugang = zugang
         self.timeout = timeout
         self._opener = opener or urllib.request.build_opener(_KeineWeiterleitung()).open
@@ -139,9 +140,9 @@ class OnlineAblage:
         except urllib.error.HTTPError as e:
             raise OnlineFehler(self._fehlertext(e), e.code) from None
         except (OSError, ValueError):
-            raise OnlineFehler("Das Portal ist nicht erreichbar oder antwortet unverständlich.") from None
+            raise OnlineFehler(tr("Das Portal ist nicht erreichbar oder antwortet unverständlich.")) from None
         if not isinstance(antwort, dict):
-            raise OnlineFehler("Das Portal antwortet unverständlich.")
+            raise OnlineFehler(tr("Das Portal antwortet unverständlich."))
         return antwort
 
     @staticmethod
@@ -166,7 +167,7 @@ class OnlineAblage:
         daten = self._anfrage("GET", "/moderation/liste")
         zeilen = daten.get("einreichungen")
         if not isinstance(zeilen, list):
-            raise OnlineFehler("Das Portal antwortet unverständlich.")
+            raise OnlineFehler(tr("Das Portal antwortet unverständlich."))
         self._liste, self._reihenfolge, self._detail = {}, [], {}
         for z in zeilen[:MAX_LISTE]:
             if not isinstance(z, dict) or not isinstance(z.get("id"), str) or not mod._ID.fullmatch(z["id"]):
@@ -180,11 +181,11 @@ class OnlineAblage:
         if sid in self._detail:
             return
         if not mod._ID.fullmatch(sid):
-            raise OnlineFehler("Ungültige Einreichungs-ID.")
+            raise OnlineFehler(tr("Ungültige Einreichungs-ID."))
         d = self._anfrage("GET", f"/moderation/einreichung/{sid}")
         b, verlauf = d.get("bericht"), d.get("verlauf")
         if not isinstance(b, dict) or not isinstance(verlauf, list):
-            raise OnlineFehler("Das Portal antwortet unverständlich.")
+            raise OnlineFehler(tr("Das Portal antwortet unverständlich."))
         ereignisse = []
         for e in verlauf[:200]:
             if isinstance(e, dict):
@@ -225,7 +226,7 @@ class OnlineAblage:
     def entscheiden(self, sid: str, nach: str, _akteur: str, begruendung: str) -> None:
         """Entscheidung senden. ``akteur`` wird ignoriert – der Server nimmt den Moderator des Tokens."""
         if not mod._ID.fullmatch(sid):
-            raise OnlineFehler("Ungültige Einreichungs-ID.")
+            raise OnlineFehler(tr("Ungültige Einreichungs-ID."))
         self._anfrage("POST", f"/moderation/entscheiden/{sid}", {"nach": nach, "begruendung": begruendung})
         self._detail.pop(sid, None)
         self.aktualisieren()
@@ -235,7 +236,7 @@ class OnlineAblage:
         """Lädt die Paketdatei in ein temporäres Verzeichnis (Größe und SHA-256 gegen den Bericht geprüft) und
         löscht sie danach wieder."""
         if not mod._ID.fullmatch(sid):
-            raise OnlineFehler("Ungültige Einreichungs-ID.")
+            raise OnlineFehler(tr("Ungültige Einreichungs-ID."))
         self.detail_laden(sid)
         soll = self._detail[sid]["bericht"]["sha256"]
         req = urllib.request.Request(self.zugang.url + f"/moderation/original/{sid}", method="GET",
@@ -249,15 +250,15 @@ class OnlineAblage:
                     while block := r.read(256 * 1024):
                         menge += len(block)
                         if menge > MAX_ORIGINAL:
-                            raise OnlineFehler("Die Paketdatei ist größer als erlaubt.")
+                            raise OnlineFehler(tr("Die Paketdatei ist größer als erlaubt."))
                         h.update(block)
                         f.write(block)
             except urllib.error.HTTPError as e:
                 raise OnlineFehler(self._fehlertext(e), e.code) from None
             except OSError:
-                raise OnlineFehler("Das Portal ist nicht erreichbar oder die Übertragung brach ab.") from None
+                raise OnlineFehler(tr("Das Portal ist nicht erreichbar oder die Übertragung brach ab.")) from None
             if h.hexdigest() != soll:
-                raise OnlineFehler("Die Paketdatei passt nicht zur Prüfsumme im Bericht – verworfen.")
+                raise OnlineFehler(tr("Die Paketdatei passt nicht zur Prüfsumme im Bericht – verworfen."))
             yield ziel
 
 
@@ -282,7 +283,7 @@ def inhalt_lesen(datei: Path) -> list[InhaltsDatei]:
         try:
             kurspaket.entpacken(Path(datei), ziel)
         except kurspaket.PaketFehler as exc:
-            raise OnlineFehler(f"Das Paket lässt sich nicht sicher öffnen: {_text(exc, 200)}") from None
+            raise OnlineFehler(tr("Das Paket lässt sich nicht sicher öffnen: {wert}", wert=_text(exc, 200))) from None
         for p in sorted(ziel.rglob("*")):
             if not p.is_file() or p.is_symlink():
                 continue

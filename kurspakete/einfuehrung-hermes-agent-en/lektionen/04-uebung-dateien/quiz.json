@@ -1,0 +1,14 @@
+{
+  "fragen": [
+    {
+      "frage": "What is a good task for an agent?",
+      "antworten": [
+        "“Do something”",
+        "A clear goal with an expected result",
+        "As many tasks as possible at once"
+      ],
+      "richtig": 1,
+      "erklaerung": "The clearer the goal and result (“Create the file X with Y”), the better the agent can plan – and the easier it is for you to check."
+    }
+  ]
+}

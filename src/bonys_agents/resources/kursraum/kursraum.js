@@ -23,6 +23,12 @@
   const kodierer = new TextEncoder();
   const dekodierer = new TextDecoder();
 
+  // Sprache: texte.js (von der App aus dem Katalog erzeugt, i18n.seiten_js) stellt tr() bereit und übersetzt die
+  // Elemente mit data-tr. Schlüssel ist der deutsche Text wie bei tr() in der App; Platzhalter {name} danach.
+  const SPRACHE = window.SEITEN_SPRACHE || 'de';
+  const tr = window.tr || ((text, kw) => (kw ? text.replace(/\{(\w+)\}/g, (m, k) => (k in kw ? String(kw[k]) : m))
+    : text));
+
   const $ = (id) => document.getElementById(id);
   const el = {
     kursname: $('kursname'), verbindung: $('verbindung'), rolle: $('rolle'),
@@ -89,17 +95,16 @@
   function dialogZu() { el.schicht.hidden = true; }
 
   function nachfragen(text, ja, aktion) {
-    dialog(text, [{ text: 'Abbrechen' }, { text: ja, aktion, art: 'gefahr' }]);
+    dialog(text, [{ text: tr('Abbrechen') }, { text: ja, aktion, art: 'gefahr' }]);
   }
 
   function fehlerText(e) {
     const name = e && e.name;
     if (name === 'NotAllowedError') {
-      return 'Der Zugriff wurde verweigert. Unter macOS: Systemeinstellungen → Datenschutz & Sicherheit → ' +
-             'Kamera/Mikrofon bzw. Bildschirmaufnahme für Bony\'s Agents erlauben.';
+      return tr('Der Zugriff wurde verweigert. Unter macOS: Systemeinstellungen → Datenschutz & Sicherheit → Kamera/Mikrofon bzw. Bildschirmaufnahme für Bony\'s Agents erlauben.');
     }
-    if (name === 'NotFoundError') return 'Kein passendes Gerät gefunden.';
-    if (name === 'NotReadableError') return 'Das Gerät wird gerade von einem anderen Programm benutzt.';
+    if (name === 'NotFoundError') return tr('Kein passendes Gerät gefunden.');
+    if (name === 'NotReadableError') return tr('Das Gerät wird gerade von einem anderen Programm benutzt.');
     return (e && e.message) || String(e);
   }
 
@@ -110,7 +115,7 @@
     try {
       await room.localParticipant.publishData(kodierer.encode(JSON.stringify(daten)), optionen);
     } catch (e) {
-      hinweis('Nachricht nicht gesendet: ' + fehlerText(e));
+      hinweis(tr('Nachricht nicht gesendet: {fehler}', { fehler: fehlerText(e) }));
     }
   }
 
@@ -119,13 +124,13 @@
     let neu;
     try { neu = JSON.parse(json); } catch (e) { return; }
     if (neu.fehler) {
-      dialog(neu.fehler, [{ text: 'Schließen', aktion: gehen }]);
+      dialog(neu.fehler, [{ text: tr('Schließen'), aktion: gehen }]);
       return;
     }
     karte = neu;
-    el.kursname.textContent = karte.kursname ? 'Kursraum – ' + karte.kursname : 'Kursraum';
+    el.kursname.textContent = karte.kursname ? tr('Kursraum – {kurs}', { kurs: karte.kursname }) : tr('Kursraum');
     document.title = el.kursname.textContent;
-    el.rolle.textContent = ichLeite() ? 'Du leitest den Kurs' : 'Du nimmst teil';
+    el.rolle.textContent = ichLeite() ? tr('Du leitest den Kurs') : tr('Du nimmst teil');
     el.teilen.hidden = !ichLeite();
     el.hilfe.hidden = ichLeite();
     el.freigabeWahl.hidden = !ichLeite();
@@ -142,7 +147,7 @@
     haende.clear();
     meineHand = false;
     gehtGerade = false;
-    dialog('Verbinde mit dem Kursraum …');
+    dialog(tr('Verbinde mit dem Kursraum …'));
     room = new LK.Room({
       adaptiveStream: true,
       dynacast: true,
@@ -163,7 +168,7 @@
     for (const k of [el.mikrofon, el.kamera, el.hand, el.chatText, el.chatSenden]) k.disabled = false;
     el.teilen.disabled = false;
     el.hilfe.disabled = false;
-    systemNachricht('Du bist im Kursraum.');
+    systemNachricht(tr('Du bist im Kursraum.'));
     if (ichLeite()) {
       await mikrofonSetzen(true);   // Kursleiter kommt mit Mikrofon an, Teilnehmer mit allem aus
       freigabeSenden();
@@ -181,9 +186,9 @@
     if (abgelaufen()) {
       erneutStill();
     } else if (e && e.reason === LK.ConnectionErrorReason.NotAllowed) {
-      erneutAnbieten('Der Kursraum hat die Eintrittskarte nicht angenommen. Tritt bitte erneut ein.');
+      erneutAnbieten(tr('Der Kursraum hat die Eintrittskarte nicht angenommen. Tritt bitte erneut ein.'));
     } else {
-      erneutAnbieten('Der Kursraum ist nicht erreichbar.\n\n' + fehlerText(e));
+      erneutAnbieten(tr('Der Kursraum ist nicht erreichbar.') + '\n\n' + fehlerText(e));
     }
   }
 
@@ -191,7 +196,7 @@
   let stillErneuert = 0;
   function erneutStill() {
     if (Date.now() - stillErneuert < 60000) {
-      erneutAnbieten('Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein.');
+      erneutAnbieten(tr('Deine Eintrittskarte ist abgelaufen. Tritt bitte erneut ein.'));
       return;
     }
     stillErneuert = Date.now();
@@ -200,11 +205,11 @@
 
   function erneutAnbieten(text) {
     sperren();
-    dialog(text, [{ text: 'Schließen', aktion: gehen }, { text: 'Erneut eintreten', aktion: erneut }]);
+    dialog(text, [{ text: tr('Schließen'), aktion: gehen }, { text: tr('Erneut eintreten'), aktion: erneut }]);
   }
 
   function erneut() {
-    dialog('Hole eine neue Eintrittskarte …');
+    dialog(tr('Hole eine neue Eintrittskarte …'));
     bruecke.erneut();   // Python antwortet mit karte(json) – bei 409 mit {fehler}
   }
 
@@ -229,7 +234,7 @@
     const E = LK.RoomEvent;
     const neu = () => zeichnenBald();
     r.on(E.ParticipantConnected, (p) => {
-      systemNachricht(nameVon(p) + ' ist da.');
+      systemNachricht(tr('{name} ist da.', { name: nameVon(p) }));
       if (meineHand) senden('hand', { oben: true }, [p.identity]);
       if (ichLeite()) freigabeSenden([p.identity]);
       if (hilfe.meineBitte && istLeiter(p)) senden('hilfe-bitte', { an: true }, [p.identity]);
@@ -247,7 +252,7 @@
       } else if (!ichLeite() && istLeiter(p)) {
         bruecke.hilfeEnde(JSON.stringify({ identity: p.identity }));
       }
-      systemNachricht(nameVon(p) + ' ist gegangen.');
+      systemNachricht(tr('{name} ist gegangen.', { name: nameVon(p) }));
       neu();
     });
     r.on(E.TrackSubscribed, (track) => {
@@ -263,12 +268,12 @@
       r.on(ev, neu);
     }
     r.on(E.LocalTrackUnpublished, (pub) => {
-      if (pub.source === QUELLE.ScreenShare) hinweis('Bildschirm wird nicht mehr geteilt.');
+      if (pub.source === QUELLE.ScreenShare) hinweis(tr('Bildschirm wird nicht mehr geteilt.'));
       neu();
     });
     r.on(E.TrackMuted, (pub, p) => {
       if (p === r.localParticipant && pub.source === QUELLE.Microphone && !ichLeite()) {
-        hinweis('Dein Mikrofon ist jetzt stumm.');
+        hinweis(tr('Dein Mikrofon ist jetzt stumm.'));
       }
     });
     r.on(E.ActiveSpeakersChanged, neu);
@@ -296,15 +301,15 @@
     if (gehtGerade) return;
     const G = LK.DisconnectReason;
     if (grund === G.PARTICIPANT_REMOVED) {
-      erneutAnbieten('Der Kursleiter hat dich aus dem Kursraum genommen.');
+      erneutAnbieten(tr('Der Kursleiter hat dich aus dem Kursraum genommen.'));
     } else if (grund === G.ROOM_DELETED || grund === G.ROOM_CLOSED) {
-      erneutAnbieten('Der Kursraum wurde geschlossen – der Kurs ist beendet oder pausiert.');
+      erneutAnbieten(tr('Der Kursraum wurde geschlossen – der Kurs ist beendet oder pausiert.'));
     } else if (grund === G.DUPLICATE_IDENTITY) {
-      erneutAnbieten('Du hast den Kursraum an einer anderen Stelle betreten (anderes Fenster oder anderer Rechner).');
+      erneutAnbieten(tr('Du hast den Kursraum an einer anderen Stelle betreten (anderes Fenster oder anderer Rechner).'));
     } else if (abgelaufen()) {
       erneutStill();
     } else {
-      erneutAnbieten('Die Verbindung zum Kursraum ist abgebrochen.');
+      erneutAnbieten(tr('Die Verbindung zum Kursraum ist abgebrochen.'));
     }
   }
 
@@ -323,7 +328,7 @@
     } else if (thema === 'hand') {
       const vorher = haende.has(p.identity);
       if (d.oben) haende.set(p.identity, true); else haende.delete(p.identity);
-      if (d.oben && !vorher && ichLeite()) hinweis('✋ ' + nameVon(p) + ' meldet sich.');
+      if (d.oben && !vorher && ichLeite()) hinweis('✋ ' + tr('{name} meldet sich.', { name: nameVon(p) }));
       zeichnenBald();
     } else if (thema === 'freigabe' && istLeiter(p) && !ichLeite()) {
       freigabeEmpfangen(d);
@@ -354,7 +359,7 @@
     if (!room || room.state !== LK.ConnectionState.Connected) { hilfe.wartet.push(identity); return; }
     const p = room.remoteParticipants.get(identity);
     if (!p || istLeiter(p)) {
-      hinweis('Der Teilnehmer ist gerade nicht im Kursraum – Hilfe geht nur, solange er im Kursraum ist.', 10);
+      hinweis(tr('Der Teilnehmer ist gerade nicht im Kursraum – Hilfe geht nur, solange er im Kursraum ist.'), 10);
       return;
     }
     if (hilfe.offen.has(identity) || hilfe.aktiv.has(identity)) return;
@@ -364,12 +369,12 @@
       const o = hilfe.offen.get(identity);
       if (!o || o.id !== id) return;
       hilfe.offen.delete(identity);
-      hinweis(nameVon(p) + ' hat nicht geantwortet.', 8);
+      hinweis(tr('{name} hat nicht geantwortet.', { name: nameVon(p) }), 8);
       zeichnenBald();
     }, ANTWORT_MS);
     hilfe.offen.set(identity, { id, uhr });
     senden('hilfe-anfrage', { id, von: karte.von || '' }, [identity]);
-    hinweis('Frage ' + nameVon(p) + ', ob du den Agent-PC sehen darfst …', 8);
+    hinweis(tr('Frage {name}, ob du den Agent-PC sehen darfst …', { name: nameVon(p) }), 8);
     zeichnenBald();
   }
 
@@ -377,7 +382,7 @@
     if (thema === 'hilfe-bitte') {
       const vorher = hilfe.bitten.has(p.identity);
       if (d.an) hilfe.bitten.add(p.identity); else hilfe.bitten.delete(p.identity);
-      if (d.an && !vorher) hinweis('🆘 ' + nameVon(p) + ' bittet um Hilfe.', 10);
+      if (d.an && !vorher) hinweis('🆘 ' + tr('{name} bittet um Hilfe.', { name: nameVon(p) }), 10);
       zeichnenBald();
       return;
     }
@@ -394,8 +399,8 @@
       hilfe.aktiv.add(p.identity);
       bruecke.hilfeZusage(JSON.stringify({ identity: p.identity, name: nameVon(p), daten: d }));
     } else if (thema === 'hilfe-absage') {
-      const grund = typeof d.grund === 'string' && d.grund ? ': ' + d.grund.slice(0, 300) : ' hat abgelehnt.';
-      hinweis(nameVon(p) + grund, 12);
+      hinweis(typeof d.grund === 'string' && d.grund ? nameVon(p) + ': ' + d.grund.slice(0, 300)
+        : tr('{name} hat abgelehnt.', { name: nameVon(p) }), 12);
     }
     zeichnenBald();
   }
@@ -404,8 +409,8 @@
     hilfe.meineBitte = an;
     const ids = leiterIds();
     if (ids.length) senden('hilfe-bitte', { an }, ids);
-    else if (an) hinweis('Der Kursleiter ist gerade nicht im Kursraum – er sieht deine Bitte, sobald er kommt.');
-    if (an) systemNachricht('Du hast um Hilfe gebeten.');
+    else if (an) hinweis(tr('Der Kursleiter ist gerade nicht im Kursraum – er sieht deine Bitte, sobald er kommt.'));
+    if (an) systemNachricht(tr('Du hast um Hilfe gebeten.'));
     zeichnenBald();
   }
 
@@ -436,12 +441,12 @@
     const darf = darfSprechen();
     if (!darf && room.localParticipant.isMicrophoneEnabled) {
       mikrofonSetzen(false);
-      hinweis('Sprechen nur nach Freigabe – dein Mikrofon ist aus. Heb die Hand, um dich zu melden.');
+      hinweis(tr('Sprechen nur nach Freigabe – dein Mikrofon ist aus. Heb die Hand, um dich zu melden.'));
     } else if (darf && !durfte && freigabe.erlaubt.has(ich)) {
-      hinweis('Du darfst jetzt sprechen – schalte dein Mikrofon ein.');
+      hinweis(tr('Du darfst jetzt sprechen – schalte dein Mikrofon ein.'));
       if (meineHand) handSetzen(false);
     } else if (freigabe.pflicht && !darf && durfte) {
-      hinweis('Sprechen nur nach Freigabe durch den Kursleiter. Heb die Hand, um dich zu melden.');
+      hinweis(tr('Sprechen nur nach Freigabe durch den Kursleiter. Heb die Hand, um dich zu melden.'));
     }
     zeichnenBald();
   }
@@ -456,7 +461,7 @@
 
   // ------------------------------------------------------------ Chat
   function zeit() {
-    return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return new Date().toLocaleTimeString(SPRACHE === 'en' ? 'en-US' : 'de-DE', { hour: '2-digit', minute: '2-digit' });
   }
 
   function chatZeile(div) {
@@ -470,7 +475,7 @@
     const div = document.createElement('p');
     div.className = 'nachricht';
     const b = document.createElement('b');
-    b.textContent = name + (leiter ? ' (Kursleiter)' : '');
+    b.textContent = leiter ? tr('{name} (Kursleiter)', { name }) : name;
     const z = document.createElement('span');
     z.className = 'zeit';
     z.textContent = zeit();
@@ -497,13 +502,13 @@
   // ------------------------------------------------------------ Knöpfe unten
   async function mikrofonSetzen(an) {
     if (an && !darfSprechen()) {
-      hinweis('Sprechen nur nach Freigabe durch den Kursleiter. Heb die Hand, um dich zu melden.');
+      hinweis(tr('Sprechen nur nach Freigabe durch den Kursleiter. Heb die Hand, um dich zu melden.'));
       return;
     }
     try {
       await room.localParticipant.setMicrophoneEnabled(an);
     } catch (e) {
-      hinweis('Mikrofon: ' + fehlerText(e), 10);
+      hinweis(tr('Mikrofon: {fehler}', { fehler: fehlerText(e) }), 10);
     }
     zeichnenBald();
   }
@@ -512,14 +517,14 @@
     try {
       await room.localParticipant.setCameraEnabled(an);
     } catch (e) {
-      hinweis('Kamera: ' + fehlerText(e), 10);
+      hinweis(tr('Kamera: {fehler}', { fehler: fehlerText(e) }), 10);
     }
     zeichnenBald();
   }
 
   async function teilenSetzen(an) {
     if (an && !karte.teilen) {
-      hinweis(karte.teilen_hinweis || 'Bildschirm teilen geht hier nicht.', 12);
+      hinweis(karte.teilen_hinweis || tr('Bildschirm teilen geht hier nicht.'), 12);
       return;
     }
     try {
@@ -530,7 +535,7 @@
       if (e && e.name === 'NotAllowedError' && /cancel|abgebrochen|Permission denied by user/i.test(e.message || '')) {
         return;   // Auswahl abgebrochen
       }
-      hinweis('Bildschirm teilen: ' + fehlerText(e), 12);
+      hinweis(tr('Bildschirm teilen: {fehler}', { fehler: fehlerText(e) }), 12);
     }
     zeichnenBald();
   }
@@ -549,17 +554,17 @@
   el.hand.addEventListener('click', () => handSetzen(!meineHand));
   el.hilfe.addEventListener('click', () => hilfeBitten(!hilfe.meineBitte));
   el.ton.addEventListener('click', async () => {
-    try { await room.startAudio(); } catch (e) { hinweis('Ton: ' + fehlerText(e)); }
+    try { await room.startAudio(); } catch (e) { hinweis(tr('Ton: {fehler}', { fehler: fehlerText(e) })); }
     tonPruefen();
   });
   el.verlassen.addEventListener('click', () => {
     if (!room || room.state !== LK.ConnectionState.Connected) { gehen(); return; }
-    nachfragen('Kursraum verlassen?', 'Verlassen', gehen);
+    nachfragen(tr('Kursraum verlassen?'), tr('Verlassen'), gehen);
   });
   el.freigabePflicht.addEventListener('change', () => {
     freigabe.pflicht = el.freigabePflicht.checked;
     freigabeSenden();
-    systemNachricht(freigabe.pflicht ? 'Teilnehmer sprechen jetzt nur nach Freigabe.' : 'Alle dürfen sprechen.');
+    systemNachricht(freigabe.pflicht ? tr('Teilnehmer sprechen jetzt nur nach Freigabe.') : tr('Alle dürfen sprechen.'));
     zeichnenBald();
   });
 
@@ -576,19 +581,20 @@
     try { d = JSON.parse(json); } catch (e) { return; }
     const text = anfragen.get(d.id);
     anfragen.delete(d.id);
-    hinweis(d.ok ? (text || 'Erledigt.') : d.text || 'Das hat nicht geklappt.', d.ok ? 4 : 10);
+    hinweis(d.ok ? (text || tr('Erledigt.')) : d.text || tr('Das hat nicht geklappt.'), d.ok ? 4 : 10);
   }
 
   function stummSchalten(p) {
     const pub = p.getTrackPublication(QUELLE.Microphone);
     if (!pub || !pub.trackSid) return;
-    bruecke.stumm(anfrage(nameVon(p) + ' ist stumm geschaltet.'), p.identity, pub.trackSid);
+    bruecke.stumm(anfrage(tr('{name} ist stumm geschaltet.', { name: nameVon(p) })), p.identity, pub.trackSid);
   }
 
   function entfernen(p) {
-    nachfragen('„' + nameVon(p) + '“ aus dem Kursraum entfernen?\n\nIm Kurs bleibt der Teilnehmer und kann ' +
-               'wieder eintreten. Ganz aus dem Kurs nimmst du ihn in der Kursansicht („Entfernen …“).',
-    'Entfernen', () => bruecke.entfernen(anfrage(nameVon(p) + ' ist nicht mehr im Kursraum.'), p.identity));
+    nachfragen(tr('„{name}“ aus dem Kursraum entfernen?\n\nIm Kurs bleibt der Teilnehmer und kann wieder eintreten. Ganz aus dem Kurs nimmst du ihn in der Kursansicht („Entfernen …“).',
+                  { name: nameVon(p) }),
+    tr('Entfernen'), () => bruecke.entfernen(anfrage(tr('{name} ist nicht mehr im Kursraum.', { name: nameVon(p) })),
+                                             p.identity));
   }
 
   function freigabeUmschalten(p) {
@@ -596,7 +602,7 @@
       freigabe.erlaubt.delete(p.identity);
       const pub = p.getTrackPublication(QUELLE.Microphone);
       if (pub && !pub.isMuted && pub.trackSid) {
-        bruecke.stumm(anfrage(nameVon(p) + ' darf nicht mehr sprechen.'), p.identity, pub.trackSid);
+        bruecke.stumm(anfrage(tr('{name} darf nicht mehr sprechen.', { name: nameVon(p) })), p.identity, pub.trackSid);
       }
     } else {
       freigabe.erlaubt.add(p.identity);
@@ -667,7 +673,7 @@
         k = { div, video, name, track: t };
         kacheln.set(sid, k);
       }
-      k.name.textContent = nameVon(p) + (p === room.localParticipant ? ' (du)' : '');
+      k.name.textContent = p === room.localParticipant ? tr('{name} (du)', { name: nameVon(p) }) : nameVon(p);
       k.div.classList.toggle('spricht', sprecher.has(p.identity));
       el.kameras.appendChild(k.div);   // hängt in Reihenfolge an
     }
@@ -681,13 +687,13 @@
 
     // Knöpfe unten
     const lp = room.localParticipant;
-    knopf(el.mikrofon, lp.isMicrophoneEnabled, 'Mikrofon aus', 'Mikrofon an');
+    knopf(el.mikrofon, lp.isMicrophoneEnabled, tr('Mikrofon aus'), tr('Mikrofon an'));
     el.mikrofon.disabled = room.state !== LK.ConnectionState.Connected || (!lp.isMicrophoneEnabled && !darfSprechen());
-    el.mikrofon.title = !darfSprechen() ? 'Erst nach Freigabe durch den Kursleiter – heb die Hand.' : '';
-    knopf(el.kamera, lp.isCameraEnabled, 'Kamera aus', 'Kamera an');
-    knopf(el.hand, meineHand, '✋ Hand senken', '✋ Hand heben');
-    knopf(el.teilen, lp.isScreenShareEnabled, 'Teilen beenden', 'Bildschirm teilen');
-    knopf(el.hilfe, hilfe.meineBitte, '🆘 Bitte zurückziehen', '🆘 Hilfe anfordern');
+    el.mikrofon.title = !darfSprechen() ? tr('Erst nach Freigabe durch den Kursleiter – heb die Hand.') : '';
+    knopf(el.kamera, lp.isCameraEnabled, tr('Kamera aus'), tr('Kamera an'));
+    knopf(el.hand, meineHand, tr('✋ Hand senken'), tr('✋ Hand heben'));
+    knopf(el.teilen, lp.isScreenShareEnabled, tr('Teilen beenden'), tr('Bildschirm teilen'));
+    knopf(el.hilfe, hilfe.meineBitte, tr('🆘 Bitte zurückziehen'), tr('🆘 Hilfe anfordern'));
   }
 
   function knopf(b, an, textAn, textAus) {
@@ -715,28 +721,28 @@
     const an = p.isMicrophoneEnabled;
     mik.className = 'mik' + (an ? '' : ' aus');
     mik.textContent = an ? '🎤' : '🔇';
-    mik.title = an ? 'Mikrofon an' : 'Mikrofon aus';
+    mik.title = an ? tr('Mikrofon an') : tr('Mikrofon aus');
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = nameVon(p) + (p === room.localParticipant ? ' (du)' : '');
+    name.textContent = p === room.localParticipant ? tr('{name} (du)', { name: nameVon(p) }) : nameVon(p);
     li.append(mik, name);
     if (istLeiter(p)) {
       const m = document.createElement('span');
       m.className = 'marke';
-      m.textContent = 'Kursleiter';
+      m.textContent = tr('Kursleiter');
       li.appendChild(m);
     }
     if (haende.has(p.identity)) {
       const h = document.createElement('span');
       h.textContent = '✋';
-      h.title = 'meldet sich';
+      h.title = tr('meldet sich');
       li.appendChild(h);
     }
     if (ichLeite() && hilfe.bitten.has(p.identity)) {
       const h = document.createElement('span');
       h.className = 'bitte';
       h.textContent = '🆘';
-      h.title = 'bittet um Hilfe';
+      h.title = tr('bittet um Hilfe');
       li.appendChild(h);
     }
     if (ichLeite() && p !== room.localParticipant && !istLeiter(p)) {
@@ -744,17 +750,17 @@
       steuer.className = 'steuer';
       const laeuft = hilfe.aktiv.has(p.identity);
       const fragt = hilfe.offen.has(p.identity);
-      const hb = kleinerKnopf(laeuft ? 'Hilfe läuft' : fragt ? 'Frage …' : 'Helfen', () => helfen(p.identity));
+      const hb = kleinerKnopf(laeuft ? tr('Hilfe läuft') : fragt ? tr('Frage …') : tr('Helfen'), () => helfen(p.identity));
       hb.disabled = laeuft || fragt;
-      hb.title = 'Agent-PC ansehen und bedienen – nur wenn der Teilnehmer zustimmt';
+      hb.title = tr('Agent-PC ansehen und bedienen – nur wenn der Teilnehmer zustimmt');
       steuer.appendChild(hb);
       if (freigabe.pflicht) {
         const erlaubt = freigabe.erlaubt.has(p.identity);
-        steuer.appendChild(kleinerKnopf(erlaubt ? 'Freigabe entziehen' : 'Sprechen erlauben',
+        steuer.appendChild(kleinerKnopf(erlaubt ? tr('Freigabe entziehen') : tr('Sprechen erlauben'),
           () => freigabeUmschalten(p)));
       }
-      if (an) steuer.appendChild(kleinerKnopf('Stumm', () => stummSchalten(p)));
-      steuer.appendChild(kleinerKnopf('Entfernen …', () => entfernen(p), 'gefahr'));
+      if (an) steuer.appendChild(kleinerKnopf(tr('Stumm'), () => stummSchalten(p)));
+      steuer.appendChild(kleinerKnopf(tr('Entfernen …'), () => entfernen(p), 'gefahr'));
       li.appendChild(steuer);
     }
     return li;
@@ -771,11 +777,11 @@
 
   // ------------------------------------------------------------ Verbindung zu Python
   if (!LK) {
-    dialog('Die Bibliothek für den Kursraum fehlt (livekit-client).');
+    dialog(tr('Die Bibliothek für den Kursraum fehlt (livekit-client).'));
     return;
   }
   if (typeof QWebChannel === 'undefined' || !window.qt) {
-    dialog('Diese Seite läuft nur im Fenster „Kursraum“ von Bony\'s Agents.');
+    dialog(tr('Diese Seite läuft nur im Fenster „Kursraum“ von Bony\'s Agents.'));
     return;
   }
   new QWebChannel(qt.webChannelTransport, (kanal) => {

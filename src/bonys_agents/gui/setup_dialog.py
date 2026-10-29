@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import deps, host, remote, selftest
+from bonys_agents.i18n import tr
 
 from . import style
 from .remote_panel import install_remmina
@@ -49,17 +50,22 @@ class SetupDialog(QDialog):
         super().__init__(parent)
         self.info = info
         self.worker: InstallWorker | None = None
-        self.setWindowTitle("Einrichtung")
+        self.setWindowTitle(tr("Einrichtung"))
 
         root = QVBoxLayout(self)
         root.setSpacing(12)
-        title = QLabel("Rechner vorbereiten")
+        title = QLabel(tr("Rechner vorbereiten"))
         title.setObjectName("Title")
         root.addWidget(title)
 
         sysinfo = QLabel(
-            f"{info.os} / {info.arch}  ·  {info.cpus} Kerne  ·  {info.ram_mb // 1024} GB RAM  ·  "
-            f"Beschleuniger: {info.accel}"
+            tr("{os} / "
+               "{arch}  ·  "
+               "{cpus} Kerne "
+               " ·  {wert} "
+               "GB RAM  ·  "
+               "Beschleuniger: "
+               "{accel}", os=info.os, arch=info.arch, cpus=info.cpus, wert=info.ram_mb // 1024, accel=info.accel)
         )
         sysinfo.setObjectName("Muted")
         root.addWidget(sysinfo)
@@ -85,10 +91,10 @@ class SetupDialog(QDialog):
 
         # Empfehlung für den Fernzugriff (Linux): Remmina mit RDP- und SPICE-Erweiterung
         self.remmina_row = QHBoxLayout()
-        self.remmina_label = QLabel("Empfohlen für den Fernzugriff auf Agent-PCs (RDP und SPICE): Remmina")
+        self.remmina_label = QLabel(tr("Empfohlen für den Fernzugriff auf Agent-PCs (RDP und SPICE): Remmina"))
         self.remmina_label.setObjectName("Muted")
         self.remmina_label.setWordWrap(True)
-        self.remmina_btn = QPushButton("Remmina installieren")
+        self.remmina_btn = QPushButton(tr("Remmina installieren"))
         self.remmina_btn.setObjectName("Small")
         self.remmina_row.addWidget(self.remmina_label, 1)
         self.remmina_row.addWidget(self.remmina_btn)
@@ -99,10 +105,10 @@ class SetupDialog(QDialog):
 
         # Selbsttest: startet QEMU genauso wie beim Agent-PC (findet z. B. Bibliotheks-Konflikte)
         test_row = QHBoxLayout()
-        self.test_label = QLabel("Selbsttest: prüft, ob QEMU auf diesem Rechner startet.")
+        self.test_label = QLabel(tr("Selbsttest: prüft, ob QEMU auf diesem Rechner startet."))
         self.test_label.setObjectName("Muted")
         self.test_label.setWordWrap(True)
-        self.test_btn = QPushButton("Selbsttest ausführen")
+        self.test_btn = QPushButton(tr("Selbsttest ausführen"))
         self.test_btn.setObjectName("Small")
         test_row.addWidget(self.test_label, 1)
         test_row.addWidget(self.test_btn)
@@ -116,8 +122,8 @@ class SetupDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.fix_btn = QPushButton("Automatisch einrichten")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.fix_btn = QPushButton(tr("Automatisch einrichten"))
         self.fix_btn.setObjectName("Primary")
         buttons.addWidget(self.close_btn)
         buttons.addWidget(self.fix_btn)
@@ -134,7 +140,7 @@ class SetupDialog(QDialog):
         if self._test_worker and self._test_worker.isRunning():
             return
         self.test_btn.setEnabled(False)
-        self.test_label.setText("Selbsttest läuft …")
+        self.test_label.setText(tr("Selbsttest läuft …"))
         self.test_label.setStyleSheet("")
         self._test_worker = SelftestWorker()
         self._test_worker.result.connect(self._selftest_done)
@@ -143,8 +149,10 @@ class SetupDialog(QDialog):
     def _selftest_done(self, checks: list) -> None:
         self.test_btn.setEnabled(True)
         ok = selftest.passed(checks)
-        self.test_label.setText("✓  Selbsttest OK – QEMU startet auf diesem Rechner." if ok
-                                else "✕  Selbsttest fehlgeschlagen – Details unten.")
+        self.test_label.setText(tr("✓  Selbsttest OK "
+                                   "– QEMU startet "
+                                   "auf diesem "
+                                   "Rechner.") if ok else tr("✕  Selbsttest fehlgeschlagen – Details unten."))
         self.test_label.setStyleSheet(f"color: {style.OK if ok else style.DANGER};")
         lines = []
         for c in checks:
@@ -158,28 +166,29 @@ class SetupDialog(QDialog):
     def _refresh(self) -> None:
         self.report = deps.check(self.info)
         if self.report.ok:
-            self.issues_label.setText("✓  Alles ist installiert. Du kannst Agent-PCs erstellen.")
+            self.issues_label.setText(tr("✓  Alles ist installiert. Du kannst Agent-PCs erstellen."))
             self.issues_label.setStyleSheet(f"color: {style.OK};")
             self.fix_btn.setVisible(False)
-            self.close_btn.setText("Weiter")
+            self.close_btn.setText(tr("Weiter"))
             return
         lines = []
         for i in self.report.issues:
             mark = "•" if i.fixable else "⚠"
-            extra = "" if i.fixable else "  (muss von Hand behoben werden)"
+            extra = "" if i.fixable else tr("  (muss von Hand behoben werden)")
             lines.append(f"{mark}  {i.text}{extra}")
-        intro = "Es fehlt noch etwas. Bony's Agents kann das selbst installieren:" if self.report.fixable \
-            else "Folgendes muss von Hand behoben werden:"
+        intro = tr("Es fehlt noch etwas. "
+                   "Bony's Agents kann das "
+                   "selbst installieren:") if self.report.fixable else tr("Folgendes muss von Hand behoben werden:")
         self.issues_label.setText(intro + "\n\n" + "\n".join(lines))
         self.issues_label.setStyleSheet("")
         self.fix_btn.setVisible(bool(self.report.fixable))
         if self.info.os == "linux":
-            self.fix_btn.setToolTip("Fragt einmal nach deinem Passwort (Administratorrechte).")
+            self.fix_btn.setToolTip(tr("Fragt einmal nach deinem Passwort (Administratorrechte)."))
         elif self.info.os == "windows":
-            self.fix_btn.setToolTip("Windows fragt einmal nach Zustimmung (Administratorrechte).")
+            self.fix_btn.setToolTip(tr("Windows fragt einmal nach Zustimmung (Administratorrechte)."))
         elif self.info.os == "macos":
-            self.fix_btn.setToolTip("Installiert QEMU über Homebrew – fehlt Homebrew, öffnet sich dessen "
-                                    "offizieller Installer im Terminal.")
+            self.fix_btn.setToolTip(tr("Installiert QEMU über Homebrew – fehlt Homebrew, öffnet sich dessen "
+                                       "offizieller Installer im Terminal."))
 
     def _update_remmina(self) -> None:
         show = self.info.os == "linux" and remote.remmina_command() is None
@@ -210,25 +219,26 @@ class SetupDialog(QDialog):
     def _install_homebrew(self) -> None:
         """macOS ohne Homebrew: erklären, dann den offiziellen Installer im Terminal öffnen."""
         box = QMessageBox(self)
-        box.setWindowTitle("Homebrew installieren")
+        box.setWindowTitle(tr("Homebrew installieren"))
         box.setIcon(QMessageBox.Information)
         box.setText(deps.homebrew_explanation())
-        go = box.addButton("Terminal öffnen", QMessageBox.AcceptRole)
-        box.addButton("Abbrechen", QMessageBox.RejectRole)
+        go = box.addButton(tr("Terminal öffnen"), QMessageBox.AcceptRole)
+        box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
         box.exec()
         if box.clickedButton() is not go:
             return
         try:
             deps.open_homebrew_installer(self.info.arch)
         except (OSError, RuntimeError) as e:
-            self.result_label.setText(f"Terminal ließ sich nicht öffnen: {e}\nBitte Homebrew selbst installieren "
-                                      "(https://brew.sh) und danach im Terminal: brew install qemu")
+            self.result_label.setText(tr("Terminal ließ sich nicht öffnen: {e}\nBitte Homebrew selbst "
+                                         "installieren (https://brew.sh) und danach im Terminal: brew install "
+                                         "qemu", e=e))
             self.result_label.setStyleSheet(f"color: {style.DANGER};")
             return
-        self.result_label.setText("Das Terminal-Fenster ist offen – bitte dort weitermachen. "
-                                  "Wenn dort „Fertig!“ steht, hier auf „Erneut prüfen“ klicken.")
+        self.result_label.setText(tr("Das Terminal-Fenster ist offen – bitte dort weitermachen. "
+                                     "Wenn dort „Fertig!“ steht, hier auf „Erneut prüfen“ klicken."))
         self.result_label.setStyleSheet(f"color: {style.WARN};")
-        self.fix_btn.setText("Erneut prüfen")
+        self.fix_btn.setText(tr("Erneut prüfen"))
 
     def _done(self, result: deps.InstallResult) -> None:
         self.progress.setVisible(False)

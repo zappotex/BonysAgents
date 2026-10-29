@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from bonys_agents.i18n import n_, tr
+
 if TYPE_CHECKING:
     from bonys_agents.vm import VM
 
@@ -50,12 +52,12 @@ DONE_FILE = "/var/lib/bonys-agents/vpn-config.done"
 IP_SERVICE = "https://api.ipify.org"
 IP_SERVICE_NAME = "api.ipify.org"
 
-CLONE_WARNING = ("Bony's VPN: Der Klon behält alle WireGuard-Tunnel samt Schlüssel. Zwei Agent-PCs mit demselben "
-                 "Schlüssel können bei den meisten Anbietern (auch bei der FRITZ!Box) nicht gleichzeitig "
-                 "verbunden sein – sie werfen sich gegenseitig aus dem Tunnel. Für jeden Agent-PC am besten "
-                 "eine eigene Konfiguration verwenden.")
-FRESH_CLEANUP = ("Bony's VPN: alle WireGuard-Tunnel und Schlüssel in /etc/wireguard, automatisches Verbinden "
-                 "und Kill-Switch aus")
+CLONE_WARNING = (n_("Bony's VPN: Der Klon behält alle WireGuard-Tunnel samt Schlüssel. Zwei Agent-PCs mit demselben "
+                    "Schlüssel können bei den meisten Anbietern (auch bei der FRITZ!Box) nicht gleichzeitig "
+                    "verbunden sein – sie werfen sich gegenseitig aus dem Tunnel. Für jeden Agent-PC am besten "
+                    "eine eigene Konfiguration verwenden."))
+FRESH_CLEANUP = (n_("Bony's VPN: alle WireGuard-Tunnel und Schlüssel in /etc/wireguard, automatisches Verbinden "
+                    "und Kill-Switch aus"))
 
 # ---------------------------------------------------------------- .conf grob prüfen
 MAX_SIZE = 64 * 1024
@@ -64,7 +66,7 @@ HOOK_KEYS = ("PreUp", "PostUp", "PreDown", "PostDown")
 _NAME_RE = re.compile(r"^[a-zA-Z0-9_=+.-]{1,15}$")
 _ENDPOINT_RE = re.compile(r"^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9_.-]{1,253}):(\d{1,5})$")
 _KEY_RE = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")  # 32 Byte in Base64
-NAME_RULE = "Tunnelname: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -"
+NAME_RULE = n_("Tunnelname: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -")
 
 
 class VpnError(RuntimeError):
@@ -74,7 +76,7 @@ class VpnError(RuntimeError):
 def check_name(name: str) -> str:
     """Gültiger Tunnelname (wie in Bony's VPN) – sonst ValueError."""
     if not isinstance(name, str) or not _NAME_RE.match(name) or name in (".", ".."):
-        raise ValueError(NAME_RULE)
+        raise ValueError(tr(NAME_RULE))
     return name
 
 
@@ -97,13 +99,13 @@ def inspect_conf(data: bytes) -> ConfInfo:
     offensichtlich falsche Dateien gleich beim Auswählen abzulehnen und Hook-Zeilen zu erkennen.
     """
     if len(data) > MAX_SIZE:
-        raise ValueError("Die Datei ist zu groß für eine WireGuard-Konfiguration (höchstens 64 KiB).")
+        raise ValueError(tr("Die Datei ist zu groß für eine WireGuard-Konfiguration (höchstens 64 KiB)."))
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError:
-        raise ValueError("Die Datei ist keine Textdatei (UTF-8).") from None
+        raise ValueError(tr("Die Datei ist keine Textdatei (UTF-8).")) from None
     if not text.strip():
-        raise ValueError("Die Datei ist leer.")
+        raise ValueError(tr("Die Datei ist leer."))
     section, interfaces, peers, private_key = "", 0, 0, False
     peer_keys: list[bool] = []
     hooks: list[str] = []
@@ -120,34 +122,34 @@ def inspect_conf(data: bytes) -> ConfInfo:
                 peers += 1
                 peer_keys.append(False)
             else:
-                raise ValueError(f"Zeile {no}: unbekannter Abschnitt (erlaubt: [Interface], [Peer]).")
+                raise ValueError(tr("Zeile {no}: unbekannter Abschnitt (erlaubt: [Interface], [Peer]).", no=no))
             continue
         key, sep, value = line.partition("=")
         key, value = key.strip(), value.strip()
         if not sep or not key:
-            raise ValueError(f"Zeile {no}: erwartet „Name = Wert“.")
+            raise ValueError(tr("Zeile {no}: erwartet „Name = Wert“.", no=no))
         if not section:
-            raise ValueError(f"Zeile {no}: steht vor [Interface].")
+            raise ValueError(tr("Zeile {no}: steht vor [Interface].", no=no))
         lkey = key.lower()
         if section == "interface" and lkey == "privatekey":
             if not _KEY_RE.match(value):
-                raise ValueError(f"Zeile {no}: PrivateKey ist kein gültiger WireGuard-Schlüssel.")
+                raise ValueError(tr("Zeile {no}: PrivateKey ist kein gültiger WireGuard-Schlüssel.", no=no))
             private_key = True
         elif section == "interface" and lkey in (h.lower() for h in HOOK_KEYS):
             hooks.append(next(h for h in HOOK_KEYS if h.lower() == lkey))
         elif section == "peer" and lkey == "publickey":
             if not _KEY_RE.match(value):
-                raise ValueError(f"Zeile {no}: PublicKey ist kein gültiger WireGuard-Schlüssel.")
+                raise ValueError(tr("Zeile {no}: PublicKey ist kein gültiger WireGuard-Schlüssel.", no=no))
             peer_keys[-1] = True
         elif section == "peer" and lkey == "endpoint":
             m = _ENDPOINT_RE.match(value)
             if not m or not 1 <= int(m.group(2)) <= 65535:
-                raise ValueError(f"Zeile {no}: Endpoint muss „Server:Port“ sein (Port 1–65535).")
+                raise ValueError(tr("Zeile {no}: Endpoint muss „Server:Port“ sein (Port 1–65535).", no=no))
             endpoint = endpoint or value
     if interfaces != 1 or not private_key:
-        raise ValueError("Es fehlt genau ein Abschnitt [Interface] mit PrivateKey.")
+        raise ValueError(tr("Es fehlt genau ein Abschnitt [Interface] mit PrivateKey."))
     if not peers or not all(peer_keys):
-        raise ValueError("Es fehlt ein Abschnitt [Peer] mit PublicKey.")
+        raise ValueError(tr("Es fehlt ein Abschnitt [Peer] mit PublicKey."))
     return ConfInfo(hooks=tuple(dict.fromkeys(hooks)), endpoint=endpoint)
 
 
@@ -168,23 +170,24 @@ def load_conf(path: Path | str, name: str | None = None, autoconnect: bool = Fal
     path = Path(path).expanduser()
     try:
         if path.stat().st_size > MAX_SIZE:
-            raise ValueError(f"{path.name} ist zu groß für eine WireGuard-Konfiguration (höchstens 64 KiB).")
+            raise ValueError(tr("{name} ist zu groß für eine WireGuard-Konfiguration (höchstens 64 KiB).",
+                                name=path.name))
         data = path.read_bytes()
     except OSError as e:
-        raise ValueError(f"{path} lässt sich nicht lesen: {e.strerror}") from None
+        raise ValueError(tr("{path} lässt sich nicht lesen: {strerror}", path=path, strerror=e.strerror)) from None
     try:
         info = inspect_conf(data)
     except ValueError as e:
-        raise ValueError(f"{path.name} ist keine gültige WireGuard-Konfiguration: {e}") from None
+        raise ValueError(tr("{name} ist keine gültige WireGuard-Konfiguration: {e}", name=path.name, e=e)) from None
     if info.hooks:
-        raise ValueError(f"{path.name} enthält Befehle, die beim Verbinden als root laufen "
-                         f"({', '.join(info.hooks)}). Solche Konfigurationen nur im Agent-PC über Bony's VPN "
-                         "importieren – dort mit ausdrücklicher Warnung.")
+        raise ValueError(tr("{name} enthält Befehle, die beim Verbinden als root laufen ({wert}). Solche "
+                            "Konfigurationen nur im Agent-PC über Bony's VPN importieren – dort mit ausdrücklicher "
+                            "Warnung.", name=path.name, wert=', '.join(info.hooks)))
     name = name or suggest_name(path.stem)
     try:
         check_name(name)
     except ValueError:
-        raise ValueError(f"Tunnelname „{name}“: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -") from None
+        raise ValueError(tr("Tunnelname „{name}“: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -", name=name)) from None
     return VpnSetup(name=name, data=data, autoconnect=autoconnect, killswitch=killswitch, endpoint=info.endpoint)
 
 
@@ -288,7 +291,7 @@ def _guest(machine: VM, argv: list[str], stdin: bytes | None = None, password: s
     from bonys_agents import qemu, vm
 
     if not machine.is_running():
-        raise VpnError(f"„{machine.name}“ läuft nicht.")
+        raise VpnError(tr("„{name}“ läuft nicht.", name=machine.name))
     def ueber_gast_agent() -> tuple[int, str, str]:
         with qemu.GuestAgent(qemu.runtime_target(machine.runtime(), "qga"), timeout=5) as ga:
             return ga.exec(argv[0], argv[1:], stdin=stdin if stdin is not None else b"", timeout=timeout)
@@ -303,14 +306,14 @@ def _guest(machine: VM, argv: list[str], stdin: bytes | None = None, password: s
             rc, out, err = ueber_gast_agent()
     except qemu.GuestAgentError:
         if not password and not ssh_prompt:
-            raise vm.NeedsPassword(vm.GAST_AGENT_FEHLT) from None
+            raise vm.NeedsPassword(tr(vm.GAST_AGENT_FEHLT)) from None
         lines: list[str] = []
         rc = machine._ssh("sudo " + shlex.join(argv), (stdin or b"").decode("utf-8"), password, lines.append)
         if rc == 255:
-            raise VpnError("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?") from None
+            raise VpnError(tr("SSH-Verbindung oder Anmeldung fehlgeschlagen – stimmt das Passwort?")) from None
         out, err = "\n".join(lines), "\n".join(lines)
     except RuntimeError as e:  # z. B. Programm fehlt im Gast
-        raise VpnError(f"Befehl im Agent-PC fehlgeschlagen: {e}") from None
+        raise VpnError(tr("Befehl im Agent-PC fehlgeschlagen: {e}", e=e)) from None
     if rc != 0:
         msg = scrub(err.strip() or out.strip())
         raise VpnError(_error_text(msg) or f"Befehl im Agent-PC mit Code {rc} beendet.")
@@ -342,9 +345,9 @@ def _json(out: str) -> dict:
     try:
         data = json.loads(out[out.find("{"):])
     except ValueError:
-        raise VpnError("Unerwartete Antwort von Bony's VPN im Agent-PC.") from None
+        raise VpnError(tr("Unerwartete Antwort von Bony's VPN im Agent-PC.")) from None
     if not isinstance(data, dict):
-        raise VpnError("Unerwartete Antwort von Bony's VPN im Agent-PC.")
+        raise VpnError(tr("Unerwartete Antwort von Bony's VPN im Agent-PC."))
     return data
 
 
@@ -433,11 +436,12 @@ def public_ip(machine: VM, **kw) -> str:
     try:
         out = _guest(machine, ["/bin/sh", "-c", script], timeout=30, **kw)
     except VpnError:
-        raise VpnError(f"Kein Internet im Agent-PC ({IP_SERVICE_NAME} nicht erreichbar).") from None
+        raise VpnError(tr("Kein Internet im Agent-PC ({IP_SERVICE_NAME} nicht erreichbar).",
+                          IP_SERVICE_NAME=IP_SERVICE_NAME)) from None
     try:
         return str(ipaddress.ip_address(out.strip()))
     except ValueError:
-        raise VpnError(f"Unerwartete Antwort von {IP_SERVICE_NAME}.") from None
+        raise VpnError(tr("Unerwartete Antwort von {IP_SERVICE_NAME}.", IP_SERVICE_NAME=IP_SERVICE_NAME)) from None
 
 
 # ---------------------------------------------------------------- VPN-App installieren / umstellen
@@ -453,15 +457,15 @@ def update_app(machine: VM, password: str | None = None, ssh_prompt: bool = Fals
     from bonys_agents import apps, cloudinit
 
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
-        raise VpnError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
+        raise VpnError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=machine.name))
     # Ausgabe geht auch auf die serielle Konsole – so zeigt die App sie live (wie beim Aktualisieren)
     script = cloudinit.app_install_script(apps.VPN, machine.config.username, force=True)
     rc, out = machine.run_logged(script, password=password, ssh_prompt=ssh_prompt, log=log, timeout=20 * 60)
     if apps.VPN_BLOCKED_HINT in out:
-        raise VpnError("Der Kill-Switch ist an, aber kein Tunnel verbunden – ohne VPN kann der Agent-PC das Paket "
-                       "nicht laden. Erst den Tunnel verbinden, dann aktualisieren.")
+        raise VpnError(tr("Der Kill-Switch ist an, aber kein Tunnel verbunden – ohne VPN kann der Agent-PC das Paket "
+                          "nicht laden. Erst den Tunnel verbinden, dann aktualisieren."))
     if rc != 0:
-        raise VpnError(f"Bony's VPN ließ sich nicht installieren (Code {rc}) – siehe Ausgabe.")
+        raise VpnError(tr("Bony's VPN ließ sich nicht installieren (Code {rc}) – siehe Ausgabe.", rc=rc))
     if APP_ID not in machine.config.apps:
         machine.config.apps = [a for a in apps.APPS if a in machine.config.apps or a == APP_ID] \
             + [a for a in machine.config.apps if a not in apps.APPS]
@@ -491,7 +495,7 @@ def human_bytes(n: int | None) -> str:
 
 def human_age(ts: int | None, now: float | None = None) -> str:
     if not ts:
-        return "noch keiner"
+        return tr("noch keiner")
     s = int((now or time.time()) - ts)
     if s < 60:
         return f"vor {s} s"
@@ -503,7 +507,7 @@ def human_age(ts: int | None, now: float | None = None) -> str:
 def summary(st: dict) -> str:
     """Eine Zeile für Anzeige und Kommandozeile."""
     if not st.get("installed", True):
-        return "Bony's VPN ist nicht installiert."
+        return tr("Bony's VPN ist nicht installiert.")
     ks = st.get("killswitch") or {}
     active = st.get("active")
     parts = [f"verbunden – Tunnel „{active}“" if active else "getrennt"]

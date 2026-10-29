@@ -22,6 +22,7 @@ import psutil
 
 from bonys_agents import host
 from bonys_agents.procutil import clean_env, no_window_flags, spawn_detached
+from bonys_agents.i18n import tr
 
 GROUP = "Bony's Agents"
 PROFILE_PREFIX = "bonys-agents-"
@@ -119,13 +120,13 @@ def _one_line(*values: object) -> None:
     bei Remmina z. B. ein Befehl vor dem Verbinden) – ValueError."""
     for v in values:
         if any(ord(ch) < 32 or ord(ch) == 127 for ch in str(v)):
-            raise ValueError(f"Unzulässiges Zeichen in {str(v)[:40]!r}")
+            raise ValueError(tr("Unzulässiges Zeichen in {wert!r}", wert=str(v)[:40]))
 
 
 def _file_part(vm_name: str) -> str:
     _one_line(vm_name)
     if any(ch in vm_name for ch in '/\\:*?"<>|') or vm_name in ("", ".", ".."):
-        raise ValueError(f"Unzulässiger Name für eine Datei: {vm_name!r}")
+        raise ValueError(tr("Unzulässiger Name für eine Datei: {vm_name!r}", vm_name=vm_name))
     return vm_name
 
 
@@ -266,7 +267,7 @@ def connect_command(protocol: str, vm_name: str, username: str, port: int, work_
         if host_os == "linux":
             cmd = remmina_command()
             if not cmd:
-                raise RuntimeError("Für RDP bitte Remmina installieren (Knopf „Remmina installieren“).")
+                raise RuntimeError(tr("Für RDP bitte Remmina installieren (Knopf „Remmina installieren“)."))
             profiles = [d / profile_name(vm_name, "RDP") for d in remmina_dirs()]
             target = next((str(p) for p in profiles if p.exists()), f"rdp://{username}@127.0.0.1:{port}")
             return cmd + ["-c", target]
@@ -292,7 +293,7 @@ def connect_command(protocol: str, vm_name: str, username: str, port: int, work_
     if host_os == "linux" and remmina_command():
         target = f"unix://{spice_socket}" if spice_socket else f"spice://127.0.0.1:{port}"
         return remmina_command() + ["-c", target]
-    raise RuntimeError("Für SPICE wird remote-viewer (Paket virt-viewer) oder Remmina benötigt.")
+    raise RuntimeError(tr("Für SPICE wird remote-viewer (Paket virt-viewer) oder Remmina benötigt."))
 
 
 def connect(protocol: str, vm_name: str, username: str, port: int, work_dir: Path,

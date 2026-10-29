@@ -16,10 +16,17 @@ $endif$
   inhalt-zeigen: $if(kurz)$false$else$true$endif$,
   kurz: $if(kurz)$true$else$false$endif$,
   kapitel-seite: $if(kompakt)$false$else$true$endif$,
+  sprache: "$if(sprache)$$sprache$$else$de$endif$",
 $if(kurspaket)$
+$if(sprache-en)$
+  fuss: [Updated: $datum$ · License: $paket-lizenz$],
+  versionszeile: [Version $paket-version$ · Updated $datum$],
+  kopf: [Course package $paket-version$],
+$else$
   fuss: [Stand: $datum$ · Lizenz: $paket-lizenz$],
   versionszeile: [Version $paket-version$ · Stand $datum$],
   kopf: [Kurspaket $paket-version$],
+$endif$
 $endif$
   doc,
 )

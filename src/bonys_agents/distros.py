@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from bonys_agents import desktops
+from bonys_agents.i18n import n_, tr
 
 DEBIAN = "debian"
 KALI = "kali"
@@ -37,14 +38,14 @@ DISTROS: dict[str, DistroSpec] = {d.id: d for d in (
     DistroSpec(
         id=DEBIAN,
         name="Debian 13",
-        description="Debian 13 „Trixie“ – das stabile Standard-System für Agent-PCs",
+        description=n_("Debian 13 „Trixie“ – das stabile Standard-System für Agent-PCs"),
     ),
     # Nur x86_64 und Xfce: so geprüft. Kali ist eine Rolling-Distribution (Paketstand „kali-last-snapshot“).
     DistroSpec(
         id=KALI,
         name="Kali Linux",
-        description="Kali Linux mit den bekanntesten Werkzeugen für Sicherheitstests (nmap, Metasploit, Burp, "
-                    "Wireshark …) – für Kurse und Übungen, nur an eigenen oder freigegebenen Systemen",
+        description=n_("Kali Linux mit den bekanntesten Werkzeugen für Sicherheitstests (nmap, Metasploit, Burp, "
+                       "Wireshark …) – für Kurse und Übungen, nur an eigenen oder freigegebenen Systemen"),
         archs=("x86_64",),
         desktops=("xfce",),
         default_apps=("kali-tools",),
@@ -56,7 +57,8 @@ def get(distro_id: str) -> DistroSpec:
     try:
         return DISTROS[distro_id]
     except KeyError:
-        raise ValueError(f"Unbekanntes Grundsystem „{distro_id}“. Verfügbar: {', '.join(DISTROS)}") from None
+        raise ValueError(tr("Unbekanntes Grundsystem „{distro_id}“. Verfügbar: {wert}",
+                            distro_id=distro_id, wert=', '.join(DISTROS))) from None
 
 
 def name(distro_id: str) -> str:
@@ -68,6 +70,8 @@ def check(distro_id: str, arch: str, desktop: str) -> None:
     """Fehler, wenn das Grundsystem auf diesem Rechner oder mit diesem Desktop nicht geht."""
     d = get(distro_id)
     if not d.available(arch):
-        raise ValueError(f"{d.name} gibt es als Agent-PC nur auf {', '.join(d.archs)} (dieser Rechner: {arch}).")
+        raise ValueError(tr("{name} gibt es als Agent-PC nur auf {wert} (dieser Rechner: {arch}).", name=d.name,
+                            wert=', '.join(d.archs), arch=arch))
     if d.desktops and desktop not in d.desktops:
-        raise ValueError(f"{d.name} gibt es als Agent-PC nur mit {', '.join(desktops.name(i) for i in d.desktops)}.")
+        raise ValueError(tr("{name} gibt es als Agent-PC nur mit {wert}.", name=d.name,
+                            wert=', '.join(desktops.name(i) for i in d.desktops)))

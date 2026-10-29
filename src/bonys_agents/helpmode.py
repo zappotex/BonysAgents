@@ -37,6 +37,7 @@ from datetime import datetime
 from pathlib import Path
 
 from bonys_agents import __version__, rfb, share, storage, vncbridge, websocket
+from bonys_agents.i18n import tr
 
 API = "/bonys/v1/help"
 VM_HEADER = "X-Bonys-VM"
@@ -69,18 +70,20 @@ def _open_ws(target: share.Target, path: str, headers: dict, timeout: float = 15
     try:
         raw = socket.create_connection((target.host, target.port), timeout=timeout)
     except OSError as e:
-        raise HelpError(f"Keine Verbindung zu {target.netloc}: {e}. Läuft der Kurs noch? Gleiches Netz bzw. VPN?") \
+        raise HelpError(tr("Keine Verbindung zu {netloc}: {e}. Läuft der Kurs noch? Gleiches Netz bzw. VPN?",
+                           netloc=target.netloc, e=e)) \
             from e
     try:
         tls = share.client_context().wrap_socket(raw)
     except (OSError, ssl.SSLError) as e:
         raw.close()
-        raise HelpError(f"Verschlüsselte Verbindung zu {target.netloc} nicht möglich: {e}") from e
+        raise HelpError(tr("Verschlüsselte Verbindung zu {netloc} nicht möglich: {e}", netloc=target.netloc,
+                           e=e)) from e
     fp = hashlib.sha256(tls.getpeercert(binary_form=True) or b"").hexdigest()
     if target.fingerprint and not hmac.compare_digest(fp, target.fingerprint):
         tls.close()
-        raise share.FingerprintMismatch("Der Fingerabdruck passt nicht zum Kurs – Verbindung abgebrochen. Falsche "
-                                        "Adresse, oder jemand im Netz gibt sich als Kursleiter aus.")
+        raise share.FingerprintMismatch(tr("Der Fingerabdruck passt nicht zum Kurs – Verbindung abgebrochen. Falsche "
+                                           "Adresse, oder jemand im Netz gibt sich als Kursleiter aus."))
     key = websocket.new_key()
     head = {"Host": target.netloc, "Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Key": key,
             "Sec-WebSocket-Version": "13", share.CODE_HEADER: target.code,
@@ -92,7 +95,7 @@ def _open_ws(target: share.Target, path: str, headers: dict, timeout: float = 15
         ch = tls.recv(1)
         if not ch or len(data) > 16384:
             tls.close()
-            raise HelpError("Der Kurs-Server hat die Verbindung geschlossen.")
+            raise HelpError(tr("Der Kurs-Server hat die Verbindung geschlossen."))
         data += ch
     lines = data.decode("latin-1").split("\r\n")
     status = int(lines[0].split()[1]) if len(lines[0].split()) > 1 else 0
@@ -102,17 +105,17 @@ def _open_ws(target: share.Target, path: str, headers: dict, timeout: float = 15
             got = {k.strip().lower(): v.strip() for k, v in (ln.split(":", 1) for ln in lines[1:] if ":" in ln)}
             share.check_protocol(got.get(share.PROTOCOL_HEADER.lower(), "0"),
                                  got.get(share.VERSION_HEADER.lower(), "")[:20])
-            raise HelpError("Kurs-Protokoll passt nicht – bitte beide Bony's Agents aktualisieren.")
+            raise HelpError(tr("Kurs-Protokoll passt nicht – bitte beide Bony's Agents aktualisieren."))
         if status == 403:
-            raise share.WrongCode("Falscher Code (oder diese Verbindung ist nicht mehr gültig).")
+            raise share.WrongCode(tr("Falscher Code (oder diese Verbindung ist nicht mehr gültig)."))
         if status == 429:
-            raise HelpError("Zu viele falsche Codes – bitte eine Minute warten.")
-        raise HelpError(f"Der Kurs-Server lehnt ab (Antwort {status}).")
+            raise HelpError(tr("Zu viele falsche Codes – bitte eine Minute warten."))
+        raise HelpError(tr("Der Kurs-Server lehnt ab (Antwort {status}).", status=status))
     accept = next((ln.split(":", 1)[1].strip() for ln in lines[1:] if ln.lower().startswith("sec-websocket-accept:")),
                   "")
     if accept != websocket.accept_key(key):
         tls.close()
-        raise HelpError("Unerwartete Antwort des Kurs-Servers.")
+        raise HelpError(tr("Unerwartete Antwort des Kurs-Servers."))
     tls.settimeout(None)
     return tls, fp
 

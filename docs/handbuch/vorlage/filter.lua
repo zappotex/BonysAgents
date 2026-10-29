@@ -12,6 +12,14 @@ local MARKEN = { ["①"] = 1, ["②"] = 2, ["③"] = 3, ["④"] = 4, ["⑤"] = 5
 
 local function typst(text) return pandoc.RawBlock("typst", text) end
 
+-- Sprache aus dem Metadatum „sprache“ (erstellen.sh: -M sprache=en); Standard Deutsch
+local englisch = false
+local function Meta(meta)
+  englisch = meta.sprache ~= nil and pandoc.utils.stringify(meta.sprache) == "en"
+  if englisch then meta["sprache-en"] = true end
+  return meta
+end
+
 function Div(el)
   for _, klasse in ipairs(el.classes) do
     if KAESTEN[klasse] then
@@ -60,9 +68,16 @@ function Image(el)
     if not vorhanden(el.src) then
       io.stderr:write("  Bild fehlt noch: " .. el.src .. "\n")
       return pandoc.RawInline("typst", '#block(width: 100%, height: 4cm, fill: luma(240), radius: 4pt, inset: 12pt, '
-        .. 'align(center + horizon, text(fill: luma(110))[Bild folgt: ' .. el.src .. ']))')
+        .. 'align(center + horizon, text(fill: luma(110))[' .. (englisch and 'Image to follow: ' or 'Bild folgt: ') .. el.src
+        .. ']))')
     end
     el.src = "/docs/handbuch/" .. el.src
   end
   return el
 end
+
+-- Erst die Metadaten (Sprache), dann der Text
+return {
+  { Meta = Meta },
+  { Div = Div, Str = Str, Image = Image },
+}

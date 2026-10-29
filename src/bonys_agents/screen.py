@@ -14,13 +14,15 @@ from __future__ import annotations
 
 import re
 
+from bonys_agents.i18n import n_, tr
+
 AUTO = "auto"      # Auflösung folgt dem Fenster (Standard)
 SCALE = "scale"    # feste Auflösung im Gast, QEMU skaliert das Bild aufs Fenster (Zoom to Fit)
 FIXED = "fixed"    # feste Auflösung, Fenster so groß wie der Gast
 MODES = {
-    AUTO: "Auflösung folgt dem Fenster",
-    SCALE: "Bild skalieren (Zoom to Fit)",
-    FIXED: "Feste Auflösung",
+    AUTO: n_("Auflösung folgt dem Fenster"),
+    SCALE: n_("Bild skalieren (Zoom to Fit)"),
+    FIXED: n_("Feste Auflösung"),
 }
 # Startgröße des Fensters bei „folgt dem Fenster“
 START_SIZE = (800, 600)
@@ -55,16 +57,16 @@ def parse_size(size: str) -> tuple[int, int]:
     """„1280x800“ → (1280, 800). ValueError bei ungültiger oder unsinniger Größe."""
     m = _SIZE_RE.match(size.strip().lower().replace("×", "x"))
     if not m:
-        raise ValueError(f"Auflösung „{size}“ ungültig – Beispiel: 1280x800")
+        raise ValueError(tr("Auflösung „{size}“ ungültig – Beispiel: 1280x800", size=size))
     w, h = int(m.group(1)), int(m.group(2))
     if not (640 <= w <= 7680 and 480 <= h <= 4320):
-        raise ValueError(f"Auflösung „{size}“ außerhalb von 640x480 bis 7680x4320")
+        raise ValueError(tr("Auflösung „{size}“ außerhalb von 640x480 bis 7680x4320", size=size))
     return w, h
 
 
 def check_mode(mode: str) -> None:
     if mode not in MODES:
-        raise ValueError(f"Anzeige: {', '.join(MODES)} (angegeben: {mode})")
+        raise ValueError(tr("Anzeige: {wert} (angegeben: {mode})", wert=', '.join(MODES), mode=mode))
 
 
 def start_size(mode: str, size: str) -> tuple[int, int]:

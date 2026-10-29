@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 HANDBUCH = Path(__file__).resolve().parents[1] / "docs" / "handbuch"
-QUELLEN = sorted(HANDBUCH.glob("*.md"))
+QUELLEN = sorted(HANDBUCH.glob("*.md")) + sorted(HANDBUCH.glob("en/*.md"))
 
 
 def _bilder(text: str) -> list[str]:
@@ -43,3 +43,21 @@ def test_menue_verweist_auf_die_pdfs_der_release_aktion():
         url = handbuch_url(name)
         assert url.endswith(f"/releases/download/v{__version__}/BonysAgents-{name}-{__version__}.pdf")
     assert '/BonysAgents-$name-$VERSION.pdf"' in skript
+
+
+def test_englische_handbuecher(monkeypatch):
+    """Englische Oberfläche → englische PDFs; erstellen.sh baut sie aus docs/handbuch/en/."""
+    pytest.importorskip("PySide6.QtWidgets")
+    from bonys_agents import __version__, i18n
+    from bonys_agents.gui.main_window import HANDBUCH_EN, handbuch_url
+
+    skript = (HANDBUCH / "erstellen.sh").read_text("utf-8")
+    for deutsch, englisch in HANDBUCH_EN.items():
+        assert re.search(rf"^\s*SPRACHE=en bauen en/\S+\.md {englisch} ", skript, re.M), englisch
+        monkeypatch.setattr(i18n, "_aktiv", "en")
+        assert handbuch_url(deutsch).endswith(f"/BonysAgents-{englisch}-{__version__}.pdf")
+    for quelle in ("en/user-guide.md", "en/trainer-guide.md"):
+        text = (HANDBUCH / quelle).read_text("utf-8")
+        assert "lang: en" in text
+        # Englische Anleitung zeigt die englische Oberfläche; die von Hand gemachten Bilder gelten für beide Sprachen
+        assert all(b.startswith(("bilder/en/", "bilder/eigene/")) for b in _bilder(text)), quelle

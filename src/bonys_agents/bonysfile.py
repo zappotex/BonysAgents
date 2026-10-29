@@ -36,6 +36,7 @@ from pathlib import Path
 from bonys_agents import (
     __version__, apps, cloudinit, desktops, distros, host, mission_control, qemu, storage, templates, vm,
 )
+from bonys_agents.i18n import n_, tr
 
 SUFFIX = ".bonys"
 FORMAT_ID = "bonys-agents-template"
@@ -48,10 +49,11 @@ MAX_PREVIEW = 5 * 1024 * 1024
 MAX_MANIFEST = 1024 * 1024
 ARCH_NAMES = {"x86_64": "amd64", "aarch64": "arm64"}
 ARCH_FROM_NAME = {v: k for k, v in ARCH_NAMES.items()}
-REINSTALL_NOTE = "nicht frei weitergebbar – beim Empfänger aus der offiziellen Quelle neu installieren"
-SLOW_ARCH_WARNING = ("Die Vorlage ist für {tpl}, dieser Rechner hat {host}. Ein Agent-PC daraus liefe nur emuliert – "
-                     "sehr, sehr langsam (Minuten statt Sekunden für jeden Schritt). Besser: das Rezept nutzen – "
-                     "derselbe Desktop mit denselben Apps wird hier neu eingerichtet, mit dem passenden Debian-Image.")
+REINSTALL_NOTE = n_("nicht frei weitergebbar – beim Empfänger aus der offiziellen Quelle neu installieren")
+SLOW_ARCH_WARNING = (n_("Die Vorlage ist für {tpl}, dieser Rechner hat {host}. Ein Agent-PC daraus liefe nur "
+                        "emuliert – sehr, sehr langsam (Minuten statt Sekunden für jeden Schritt). Besser: das "
+                        "Rezept nutzen – derselbe Desktop mit denselben Apps wird hier neu eingerichtet, mit dem "
+                        "passenden Debian-Image."))
 
 FUND_MARKER = "BONYS-FUND"
 VERSION_MARKER = "BONYS-APPVERSION"
@@ -384,56 +386,56 @@ _SAFE_TEXT = re.compile(r"^[A-Za-z0-9_./+:@ -]{0,64}$")
 def validate_manifest(m: object) -> dict:
     """Manifest prüfen (aus einer fremden Datei!) – ValueError mit verständlicher Meldung."""
     if not isinstance(m, dict) or m.get("format") != FORMAT_ID:
-        raise ValueError("Keine Vorlagen-Datei von Bony's Agents (manifest.json fehlt oder ist fremd).")
+        raise ValueError(tr("Keine Vorlagen-Datei von Bony's Agents (manifest.json fehlt oder ist fremd)."))
     fv = m.get("format_version")
     if not isinstance(fv, int) or fv < 1:
-        raise ValueError("Manifest: ungültige Formatversion.")
+        raise ValueError(tr("Manifest: ungültige Formatversion."))
     min_v = str(m.get("min_version") or "0")
     if fv > FORMAT_VERSION or _version_tuple(min_v) > _version_tuple(__version__):
-        raise ValueError(f"Diese Datei braucht Bony's Agents {min_v} oder neuer (installiert: {__version__}). "
-                         "Bitte zuerst aktualisieren.")
+        raise ValueError(tr("Diese Datei braucht Bony's Agents {min_v} oder neuer (installiert: {version__}). Bitte "
+                            "zuerst aktualisieren.", min_v=min_v, version__=__version__))
     for key in ("name", "version", "description", "creator", "exported", "template_created", "debian", "desktop",
                 "username", "keyboard", "timezone", "distro"):
         if not isinstance(m.get(key, ""), str):
-            raise ValueError(f"Manifest: „{key}“ ist kein Text.")
+            raise ValueError(tr("Manifest: „{key}“ ist kein Text.", key=key))
     templates.check_name(m.get("name", ""))
     if m.get("arch") not in ARCH_FROM_NAME:
-        raise ValueError(f"Manifest: unbekannte Architektur „{m.get('arch')}“.")
+        raise ValueError(tr("Manifest: unbekannte Architektur „{wert}“.", wert=m.get('arch')))
     if m.get("desktop", desktops.DEFAULT) not in desktops.DESKTOPS:
-        raise ValueError(f"Manifest: unbekannter Desktop „{m.get('desktop')}“ – vielleicht braucht die Datei eine "
-                         "neuere Version von Bony's Agents.")
+        raise ValueError(tr("Manifest: unbekannter Desktop „{wert}“ – vielleicht braucht die Datei eine neuere "
+                            "Version von Bony's Agents.", wert=m.get('desktop')))
     if m.get("distro", distros.DEFAULT) not in distros.DISTROS:
-        raise ValueError(f"Manifest: unbekanntes Grundsystem „{m.get('distro')}“ – vielleicht braucht die Datei eine "
-                         "neuere Version von Bony's Agents.")
+        raise ValueError(tr("Manifest: unbekanntes Grundsystem „{wert}“ – vielleicht braucht die Datei eine neuere "
+                            "Version von Bony's Agents.", wert=m.get('distro')))
     if not vm.USERNAME_RE.match(m.get("username", "")):
-        raise ValueError("Manifest: ungültiger Benutzername.")
+        raise ValueError(tr("Manifest: ungültiger Benutzername."))
     for key, regex in (("keyboard", vm.KEYBOARD_RE), ("timezone", vm.TIMEZONE_RE)):
         if key in m and not regex.match(m[key]):
-            raise ValueError(f"Manifest: ungültige Angabe bei „{key}“.")
+            raise ValueError(tr("Manifest: ungültige Angabe bei „{key}“.", key=key))
     for key in ("keyboard", "timezone", "debian", "version"):
         if not _SAFE_TEXT.match(m.get(key, "")):
-            raise ValueError(f"Manifest: ungültige Angabe bei „{key}“.")
+            raise ValueError(tr("Manifest: ungültige Angabe bei „{key}“.", key=key))
     for key in ("apps", "reinstall"):
         items = m.get(key, [])
         if not isinstance(items, list) or not all(isinstance(a, dict) and isinstance(a.get("id"), str)
                                                   and re.match(r"^[a-z0-9-]{1,40}$", a["id"]) for a in items):
-            raise ValueError(f"Manifest: ungültige App-Liste „{key}“.")
+            raise ValueError(tr("Manifest: ungültige App-Liste „{key}“.", key=key))
     extra = m.get("extra_desktops", [])
     if not isinstance(extra, list) or not all(isinstance(d, str) and d in desktops.DESKTOPS for d in extra):
-        raise ValueError("Manifest: ungültige zusätzliche Desktops.")
+        raise ValueError(tr("Manifest: ungültige zusätzliche Desktops."))
     files = m.get("files")
     if not isinstance(files, dict) or DISK not in files:
-        raise ValueError("Manifest: Dateiliste fehlt.")
+        raise ValueError(tr("Manifest: Dateiliste fehlt."))
     for fname, meta in files.items():
         if fname not in (DISK, *PREVIEWS) or not isinstance(meta, dict) or not isinstance(meta.get("size"), int) \
                 or meta["size"] < 0 or not _HEX64.match(str(meta.get("sha256", ""))):
-            raise ValueError(f"Manifest: ungültiger Eintrag für „{fname}“.")
+            raise ValueError(tr("Manifest: ungültiger Eintrag für „{fname}“.", fname=fname))
     if m.get("preview") not in (None, *PREVIEWS) or (m.get("preview") and m["preview"] not in files):
-        raise ValueError("Manifest: ungültiges Vorschaubild.")
+        raise ValueError(tr("Manifest: ungültiges Vorschaubild."))
     rec = m.get("recommended", {})
     if not isinstance(rec, dict) or not all(isinstance(rec.get(k, 1), int) and rec.get(k, 1) > 0
                                             for k in ("ram_mb", "cpus", "disk_gb")):
-        raise ValueError("Manifest: ungültige Empfehlung für die Ausstattung.")
+        raise ValueError(tr("Manifest: ungültige Empfehlung für die Ausstattung."))
     return m
 
 
@@ -452,23 +454,25 @@ def arch_matches(m: dict) -> bool:
 def describe_manifest(m: dict, size: int | None = None) -> str:
     """Mehrzeilige Beschreibung für Dialog und Kommandozeile."""
     rec = m.get("recommended", {})
-    lines = [f"{m['name']}" + (f" (Version {m['version']})" if m.get("version") else "")]
+    lines = [tr("{name} (Version {version})", name=m["name"], version=m["version"]) if m.get("version") else m["name"]]
     if m.get("description"):
         lines.append(m["description"])
-    lines.append(f"Ersteller: {m.get('creator') or 'unbekannt'} · exportiert {_local(m.get('exported', ''))}")
-    lines.append(f"Architektur: {m['arch']} · {desktops.name(m.get('desktop', desktops.DEFAULT))}"
+    lines.append(tr("Ersteller: {ersteller} · exportiert {wann}", ersteller=m.get("creator") or tr("unbekannt"),
+                    wann=_local(m.get("exported", ""))))
+    lines.append(tr("Architektur: {arch} · {desktop}", arch=m["arch"],
+                    desktop=desktops.name(m.get("desktop", desktops.DEFAULT)))
                  + (f" · Debian {m['debian']}" if m.get("debian") else ""))
     apps_txt = ", ".join(f"{a.get('name') or a['id']}" + (f" {a['version']}" if a.get("version") else "")
                          for a in m.get("apps", []))
-    lines.append(f"Programme: {apps_txt or '–'}")
+    lines.append(tr("Programme: {programme}", programme=apps_txt or "–"))
     if m.get("reinstall"):
-        lines.append("Beim Empfänger neu installieren (offizielle Quelle): "
-                     + ", ".join(a.get("name") or a["id"] for a in m["reinstall"]))
-    lines.append(f"Empfohlen: {rec.get('ram_mb', '?')} MB RAM, {rec.get('cpus', '?')} CPUs, "
-                 f"Festplatte {rec.get('disk_gb', '?')} GB")
+        lines.append(tr("Beim Empfänger neu installieren (offizielle Quelle): {programme}",
+                        programme=", ".join(a.get("name") or a["id"] for a in m["reinstall"])))
+    lines.append(tr("Empfohlen: {ram} MB RAM, {cpus} CPUs, Festplatte {platte} GB", ram=rec.get("ram_mb", "?"),
+                    cpus=rec.get("cpus", "?"), platte=rec.get("disk_gb", "?")))
     disk = m.get("files", {}).get(DISK, {})
     total = size if size is not None else disk.get("size", 0)
-    lines.append(f"Größe: {total / storage.GB:.2f} GB (Festplatte komprimiert)")
+    lines.append(tr("Größe: {groesse:.2f} GB (Festplatte komprimiert)", groesse=total / storage.GB))
     return "\n".join(lines)
 
 
@@ -501,14 +505,14 @@ def read_manifest(file: Path) -> dict:
         with tarfile.open(file, "r:") as tar:
             first = tar.next()
             if first is None or first.name != MANIFEST or not first.isfile() or first.size > MAX_MANIFEST:
-                raise ValueError("Keine .bonys-Datei: manifest.json muss am Anfang stehen.")
+                raise ValueError(tr("Keine .bonys-Datei: manifest.json muss am Anfang stehen."))
             data = tar.extractfile(first).read()
     except tarfile.TarError as e:
-        raise ValueError(f"Datei ist beschädigt oder keine .bonys-Datei ({e}).") from e
+        raise ValueError(tr("Datei ist beschädigt oder keine .bonys-Datei ({e}).", e=e)) from e
     try:
         return validate_manifest(json.loads(data.decode("utf-8")))
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
-        raise ValueError("manifest.json ist kein gültiges JSON.") from e
+        raise ValueError(tr("manifest.json ist kein gültiges JSON.")) from e
 
 
 def _members(tar: tarfile.TarFile, m: dict) -> dict[str, tarfile.TarInfo]:
@@ -516,14 +520,15 @@ def _members(tar: tarfile.TarFile, m: dict) -> dict[str, tarfile.TarInfo]:
     members = {}
     for info in tar.getmembers():
         if info.name in members or not info.isfile() or info.name not in (MANIFEST, DISK, *PREVIEWS):
-            raise ValueError(f"Unerwarteter Eintrag in der Datei: {info.name!r}")
+            raise ValueError(tr("Unerwarteter Eintrag in der Datei: {name!r}", name=info.name))
         members[info.name] = info
     expected = set(m["files"]) | {MANIFEST}
     if set(members) != expected:
-        raise ValueError("Die Datei ist unvollständig oder enthält mehr als angegeben.")
+        raise ValueError(tr("Die Datei ist unvollständig oder enthält mehr als angegeben."))
     for name, meta in m["files"].items():
         if members[name].size != meta["size"]:
-            raise ValueError(f"{name}: Größe stimmt nicht mit dem Manifest überein (Datei unvollständig?).")
+            raise ValueError(tr("{name}: Größe stimmt nicht mit dem Manifest überein (Datei unvollständig?).",
+                                name=name))
     return members
 
 
@@ -633,9 +638,9 @@ def _check_preview(preview: Path) -> str:
     elif head.startswith(b"\xff\xd8"):
         name = "preview.jpg"
     else:
-        raise ValueError("Vorschaubild: nur PNG oder JPEG.")
+        raise ValueError(tr("Vorschaubild: nur PNG oder JPEG."))
     if preview.stat().st_size > MAX_PREVIEW:
-        raise ValueError(f"Vorschaubild: höchstens {MAX_PREVIEW // (1024 * 1024)} MB.")
+        raise ValueError(tr("Vorschaubild: höchstens {wert} MB.", wert=MAX_PREVIEW // (1024 * 1024)))
     return name
 
 
@@ -652,7 +657,7 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
     t.check_usable()
     version = (version or t.version or "1").strip()
     if not _SAFE_TEXT.match(version) or not version:
-        raise ValueError("Version: nur Buchstaben, Ziffern und . _ - (z. B. 1.0)")
+        raise ValueError(tr("Version: nur Buchstaben, Ziffern und . _ - (z. B. 1.0)"))
     creator = creator.strip()[:80]
     if not t.personal_data_removed and not clean:
         raise NotFreshError([], not_fresh_template=True)
@@ -663,20 +668,21 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
     if target.suffix != SUFFIX:
         target = target.with_name(target.name + SUFFIX)
     if target.exists():
-        raise FileExistsError(f"{target} gibt es schon.")
+        raise FileExistsError(tr("{target} gibt es schon.", target=target))
     target.parent.mkdir(parents=True, exist_ok=True)
     base = templates.templates_dir(t.library)
     if shutil.disk_usage(base).free < t.size + 2 * storage.GB:
-        raise RuntimeError(f"Zu wenig Platz in {t.library}: gebraucht werden etwa {t.size / storage.GB + 2:.0f} GB "
-                           "für die Export-Kopie.")
+        raise RuntimeError(tr("Zu wenig Platz in {library}: gebraucht werden etwa {wert:.0f} GB für die Export-Kopie.",
+                              library=t.library, wert=t.size / storage.GB + 2))
     if shutil.disk_usage(target.parent).free < t.size * 1.2 + 256 * 1024 * 1024:
-        raise RuntimeError(f"Zu wenig Platz in {target.parent} für die Datei (etwa {t.size / storage.GB:.1f} GB).")
+        raise RuntimeError(tr("Zu wenig Platz in {parent} für die Datei (etwa {wert:.1f} GB).", parent=target.parent,
+                              wert=t.size / storage.GB))
 
     emit = log or (lambda line: None)
 
     def check_cancel() -> None:
         if cancel is not None and cancel.is_set():
-            raise Cancelled("Export abgebrochen.")
+            raise Cancelled(tr("Export abgebrochen."))
 
     def report(phase: str, frac: float, msg: str) -> None:
         check_cancel()
@@ -689,7 +695,7 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
     removed = apps.not_redistributable(t.apps)
     copy = None
     try:
-        report("overlay", 0, "Lege Export-Kopie an (die Vorlage bleibt unverändert) …")
+        report("overlay", 0, tr("Lege Export-Kopie an (die Vorlage bleibt unverändert) …"))
         copy = _start_export_copy(t, work, qemu_img)
         lo, hi = templates._PHASES["boot"]
         has_agent = templates._wait_guest_agent(copy, lambda _p, f, msg: report("boot", (f - lo) / (hi - lo), msg))
@@ -700,30 +706,32 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
             check_cancel()
             return out
 
-        report("check", 0, "Frisch-Prüfung: suche nach Anmeldungen, Schlüsseln, Verläufen …")
+        report("check", 0, tr("Frisch-Prüfung: suche nach Anmeldungen, Schlüsseln, Verläufen …"))
         findings = parse_findings(run(check_script(t.username), "Frisch-Prüfung", 300))
         if findings and not clean:
             raise NotFreshError(findings)
         if findings:
-            emit(f"Frisch-Prüfung: {len(findings)} Fund(e) – werden in der Export-Kopie bereinigt.")
-        report("prepare", 0, ("Entferne nicht frei weitergebbare Programme: " + ", ".join(apps.names(removed)) + " …")
-               if removed else "Lese Versionen der Programme, sperre Passwörter …")
+            emit(tr("Frisch-Prüfung: {wert} Fund(e) – werden in der Export-Kopie bereinigt.", wert=len(findings)))
+        report("prepare", 0, tr("Entferne nicht frei weitergebbare Programme: {wert} …",
+                                wert=", ".join(apps.names(removed))) if removed else tr("Lese Versionen der "
+                                                                                        "Programme, sperre "
+                                                                                        "Passwörter …"))
         out = run(prepare_script(t.username, list(t.apps), removed), "Vorbereiten", 900)
         for line in out.splitlines():
             if not line.startswith(VERSION_MARKER):
                 emit(line)
         if PREP_DONE not in out:
-            raise RuntimeError("Vorbereiten nicht vollständig – siehe Ausgabe.")
+            raise RuntimeError(tr("Vorbereiten nicht vollständig – siehe Ausgabe."))
         versions = parse_versions(out)
-        report("generalize", 0, "Verallgemeinere: persönliche Daten, Schlüssel, Protokolle, freien Platz nullen …")
+        report("generalize", 0, tr("Verallgemeinere: persönliche Daten, Schlüssel, Protokolle, freien Platz nullen …"))
         out = run(cloudinit.generalize_script(t.username, remove_personal=True), "Verallgemeinern",
                   templates.GENERALIZE_TIMEOUT)
         for line in out.splitlines():
             emit(line)
         if "BONYS-GENERALIZED" not in out:
-            raise RuntimeError("Verallgemeinern nicht vollständig – siehe Ausgabe.")
+            raise RuntimeError(tr("Verallgemeinern nicht vollständig – siehe Ausgabe."))
         debian = next((ln.split(" ", 1)[1].strip() for ln in out.splitlines() if ln.startswith("BONYS-DEBIAN ")), "")
-        report("recheck", 0, "Zweite Frisch-Prüfung (streng) …")
+        report("recheck", 0, tr("Zweite Frisch-Prüfung (streng) …"))
         rest = parse_findings(run(check_script(t.username, strict=True, removed_apps=removed), "Frisch-Prüfung", 300))
         if rest:
             raise NotFreshError(rest, strict=True)
@@ -738,10 +746,11 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
                           progress=lambda f: report("convert", f, f"Komprimiere Festplatte … {f * 100:.0f} %"))
         qemu.check_disk(qemu_img, part)
         if qemu.backing_file(part) is not None:
-            raise RuntimeError("Die exportierte Festplatte ist nicht eigenständig.")
+            raise RuntimeError(tr("Die exportierte Festplatte ist nicht eigenständig."))
         (work / "disk.qcow2").unlink()
-        report("hash", 0, "Berechne Prüfsumme (SHA-256) …")
-        sha = _hash_file(part, lambda f: report("hash", f, f"Berechne Prüfsumme … {f * 100:.0f} %"), check_cancel)
+        report("hash", 0, tr("Berechne Prüfsumme (SHA-256) …"))
+        sha = _hash_file(part, lambda f: report("hash", f, tr("Berechne Prüfsumme … {wert:.0f} %",
+                                                              wert=f * 100)), check_cancel)
         pv = None
         if preview:
             pv = (preview_name, Path(preview).stat().st_size, _hash_file(Path(preview)))
@@ -749,7 +758,7 @@ def export(name: str, file: Path | None = None, *, creator: str = "", version: s
                                   disk_sha256=sha, virtual_size=qemu.virtual_size(qemu_img, part), debian=debian,
                                   versions=versions, removed=removed, preview=pv, checked=checked)
         validate_manifest(manifest)
-        report("pack", 0, "Schreibe .bonys-Datei …")
+        report("pack", 0, tr("Schreibe .bonys-Datei …"))
         write_bundle(target, manifest, part, Path(preview) if preview else None,
                      progress=lambda f: report("pack", f, f"Schreibe {target.name} … {f * 100:.0f} %"),
                      cancel=check_cancel)
@@ -771,20 +780,22 @@ def import_bundle(file: Path, location: Path | None = None, name: str | None = N
     name = name or m["name"]
     templates.check_name(name)
     if templates._exists(name):
-        raise FileExistsError(f"Vorlage '{name}' gibt es schon – beim Importieren einen anderen Namen wählen.")
+        raise FileExistsError(tr("Vorlage '{name}' gibt es schon – beim Importieren einen anderen Namen wählen.",
+                                 name=name))
     library = Path(location) if location else storage.preferred_library()
     base = templates.templates_dir(library)
     target = base / name
     if target.exists():
-        raise FileExistsError(f"Ordner {target} existiert bereits")
+        raise FileExistsError(tr("Ordner {target} existiert bereits", target=target))
     base.mkdir(parents=True, exist_ok=True)
     disk_size = m["files"][DISK]["size"]
     if shutil.disk_usage(base).free < disk_size + storage.GB:
-        raise RuntimeError(f"Zu wenig Platz in {library} ({disk_size / storage.GB:.1f} GB nötig).")
+        raise RuntimeError(tr("Zu wenig Platz in {library} ({wert:.1f} GB nötig).", library=library,
+                              wert=disk_size / storage.GB))
 
     def check_cancel() -> None:
         if cancel is not None and cancel.is_set():
-            raise Cancelled("Import abgebrochen.")
+            raise Cancelled(tr("Import abgebrochen."))
 
     part = base / f".{name}.import"
     shutil.rmtree(part, ignore_errors=True)
@@ -805,12 +816,13 @@ def import_bundle(file: Path, location: Path | None = None, name: str | None = N
                         check_cancel()
                         if progress:
                             progress("import", 0.95 * done / total,
-                                     f"Entpacke und prüfe … {done // host.MB} / {total // host.MB} MB")
+                                     tr("Entpacke und prüfe … {wert} / {wert2} MB", wert=done // host.MB,
+                                        wert2=total // host.MB))
                 if h.hexdigest() != meta["sha256"]:
-                    raise ValueError(f"Prüfsumme von {fname} stimmt nicht – die Datei ist beschädigt oder verändert. "
-                                     "Bitte neu herunterladen bzw. kopieren.")
+                    raise ValueError(tr("Prüfsumme von {fname} stimmt nicht – die Datei ist beschädigt oder "
+                                        "verändert. Bitte neu herunterladen bzw. kopieren.", fname=fname))
         if progress:
-            progress("import", 0.96, "Prüfe die Festplatte (qemu-img check) …")
+            progress("import", 0.96, tr("Prüfe die Festplatte (qemu-img check) …"))
         qemu_img = qemu.find_binary("qemu-img", host.detect().os)
         qemu.check_disk_safe(part / DISK)  # vor qemu-img: kein data_file, kein Backing
         qemu.check_disk(qemu_img, part / DISK)
@@ -840,7 +852,7 @@ def import_bundle(file: Path, location: Path | None = None, name: str | None = N
         raise
     storage.add_location(library)
     if progress:
-        progress("import", 1.0, f"Vorlage „{name}“ importiert.")
+        progress("import", 1.0, tr("Vorlage „{name}“ importiert.", name=name))
     return tpl
 
 

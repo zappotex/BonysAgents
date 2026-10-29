@@ -20,6 +20,8 @@ import struct
 import time
 from dataclasses import dataclass, field
 
+from bonys_agents.i18n import tr
+
 GROUP = "224.0.0.251"
 PORT = 5353
 SERVICE = "_bonys-agents._tcp.local"
@@ -44,7 +46,7 @@ def _read_name(data: bytes, pos: int, depth: int = 0) -> tuple[str, int]:
     end = None
     while True:
         if pos >= len(data) or depth > 20:
-            raise ValueError("kaputter Name")
+            raise ValueError(tr("kaputter Name"))
         n = data[pos]
         if n == 0:
             pos += 1
@@ -89,7 +91,7 @@ class Record:
 def parse(packet: bytes) -> tuple[int, list[tuple[str, int, int]], list[Record]]:
     """→ (flags, Fragen [(Name, Typ, Klasse)], Einträge aus Antwort/Zusatz)."""
     if len(packet) < 12:
-        raise ValueError("zu kurz")
+        raise ValueError(tr("zu kurz"))
     _id, flags, qd, an, ns, ar = struct.unpack("!HHHHHH", packet[:12])
     pos = 12
     questions = []

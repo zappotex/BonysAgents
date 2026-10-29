@@ -33,6 +33,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from bonys_agents import __version__, bonysfile, mdns, storage
+from bonys_agents.i18n import tr
 
 DEFAULT_PORT = 47110
 DEFAULT_TIMEOUT_MIN = 120
@@ -82,8 +83,9 @@ def check_protocol(value, remote_version: str = "", *, we_are: str = "Teilnehmer
     other = "Kursleiter" if we_are == "Teilnehmer" else "Teilnehmer"
     who = f"{other} (Bony's Agents {remote_version})" if remote_version else other
     newer = "Der " + (we_are if theirs > ours else other) + " sollte Bony's Agents aktualisieren."
-    raise ProtocolMismatch(f"Kurs-Protokoll passt nicht: {who} nutzt Version {theirs or '?'}, dieses Programm "
-                           f"(Bony's Agents {__version__}) Version {ours}. {newer} Danach erneut verbinden.")
+    raise ProtocolMismatch(tr("Kurs-Protokoll passt nicht: {who} nutzt Version {wert}, dieses Programm (Bony's "
+                              "Agents {version__}) Version {ours}. {newer} Danach erneut verbinden.", who=who,
+                              wert=theirs or '?', version__=__version__, ours=ours, newer=newer))
 
 
 def protocol_headers() -> dict:
@@ -150,20 +152,20 @@ def parse_target(text: str, code: str = "", fingerprint: str = "") -> Target:
     """„192.168.1.5“, „pc.local:47110“, „[fd00::1]:47110“ oder ein Link bonys://ADRESSE:PORT?code=…&fp=…"""
     text = (text or "").strip()
     if not text:
-        raise ValueError("Bitte die Adresse des Kursleiter-Rechners angeben.")
+        raise ValueError(tr("Bitte die Adresse des Kursleiter-Rechners angeben."))
     if "://" not in text:
         text = "bonys://" + text
     u = urlsplit(text)
     if u.scheme not in ("bonys", "https") or not u.hostname:
-        raise ValueError("Adresse nicht verstanden – z. B. 192.168.1.5:47110 oder bonys://…")
+        raise ValueError(tr("Adresse nicht verstanden – z. B. 192.168.1.5:47110 oder bonys://…"))
     q = parse_qs(u.query)
     try:
         port = u.port or DEFAULT_PORT
     except ValueError as e:
-        raise ValueError("Ungültiger Port.") from e
+        raise ValueError(tr("Ungültiger Port.")) from e
     fp = re.sub(r"[^0-9A-Fa-f]", "", fingerprint or (q.get("fp") or [""])[0]).lower()
     if fp and len(fp) != 64:
-        raise ValueError("Der Fingerabdruck muss 64 Hex-Zeichen haben (SHA-256).")
+        raise ValueError(tr("Der Fingerabdruck muss 64 Hex-Zeichen haben (SHA-256)."))
     return Target(host=u.hostname, port=port, code=normalize_code(code or (q.get("code") or [""])[0]),
                   fingerprint=fp)
 
@@ -223,7 +225,7 @@ def address_kind(addr: str) -> str:
         return ""
     if addr in _vpn_addresses or ip in ipaddress.ip_network("100.64.0.0/10"):
         return "VPN"
-    return "LAN" if ip.is_private else "öffentlich"
+    return "LAN" if ip.is_private else tr("öffentlich")
 
 
 def client_context() -> ssl.SSLContext:
@@ -266,14 +268,15 @@ def _connect(target: Target, timeout: float = 15) -> tuple[http.client.HTTPSConn
         conn.connect()
     except (OSError, ssl.SSLError) as e:
         conn.close()
-        raise ShareError(f"Keine Verbindung zu {target.netloc}: {e}. Läuft die Freigabe noch? Gleiches Netz bzw. "
-                         "VPN verbunden? Lässt die Firewall des Kursleiter-Rechners den Port zu?") from e
+        raise ShareError(tr("Keine Verbindung zu {netloc}: {e}. Läuft die Freigabe noch? Gleiches Netz bzw. VPN "
+                            "verbunden? Lässt die Firewall des Kursleiter-Rechners den Port zu?",
+                            netloc=target.netloc, e=e)) from e
     der = conn.sock.getpeercert(binary_form=True) or b""
     fp = hashlib.sha256(der).hexdigest()
     if target.fingerprint and not hmac.compare_digest(fp, target.fingerprint):
         conn.close()
-        raise FingerprintMismatch("Der Fingerabdruck des Zertifikats passt nicht zur Freigabe – Verbindung "
-                                  "abgebrochen. Falsche Adresse, oder jemand im Netz gibt sich als Kursleiter aus.")
+        raise FingerprintMismatch(tr("Der Fingerabdruck des Zertifikats passt nicht zur Freigabe – Verbindung "
+                                     "abgebrochen. Falsche Adresse, oder jemand im Netz gibt sich als Kursleiter aus."))
     return conn, fp
 
 
@@ -304,7 +307,7 @@ def _error(resp: http.client.HTTPResponse) -> ShareError:
 def fetch_info(target: Target) -> RemoteInfo:
     """Fingerabdruck prüfen (bzw. ermitteln) und Inhalt der Freigabe holen – vor dem Download anzeigen."""
     if not target.code:
-        raise WrongCode("Bitte den Freigabe-Code eingeben (z. B. 4711-BONY).")
+        raise WrongCode(tr("Bitte den Freigabe-Code eingeben (z. B. 4711-BONY)."))
     conn, fp = _connect(target)
     try:
         conn.request("GET", f"{API}/info", headers=_headers(target))
@@ -313,18 +316,18 @@ def fetch_info(target: Target) -> RemoteInfo:
             raise _error(resp)
         data = json.loads(resp.read(4 * 1024 * 1024).decode("utf-8"))
     except (OSError, ValueError, http.client.HTTPException) as e:
-        raise ShareError(f"Antwort des Kursleiter-Rechners nicht verstanden: {e}") from e
+        raise ShareError(tr("Antwort des Kursleiter-Rechners nicht verstanden: {e}", e=e)) from e
     finally:
         conn.close()
     if not isinstance(data, dict):
-        raise ShareError("Antwort des Kursleiter-Rechners nicht verstanden.")
+        raise ShareError(tr("Antwort des Kursleiter-Rechners nicht verstanden."))
     check_protocol(data.get("protocol"), str(data.get("version", ""))[:20])
     if data.get("kind") == "present":
         raise IsPresentation(target, str(data.get("title", ""))[:60], fp)
     m = bonysfile.validate_manifest(data.get("manifest"))
     f = data.get("file") or {}
     if not isinstance(f.get("size"), int) or not re.fullmatch(r"[0-9a-f]{64}", str(f.get("sha256", ""))):
-        raise ShareError("Antwort des Kursleiter-Rechners unvollständig.")
+        raise ShareError(tr("Antwort des Kursleiter-Rechners unvollständig."))
     name = bonysfile.default_filename(m["name"], m.get("version") or "1")
     return RemoteInfo(target=target, fingerprint=fp, manifest=m, file_name=name, size=f["size"],
                       sha256=f["sha256"], ends_in=int(data.get("ends_in") or 0),
@@ -353,7 +356,7 @@ def kurspaket_holen(info: RemoteInfo) -> bytes:
     """Kurspaket der Schulung laden (gleicher Fingerabdruck wie beim Verbinden). Prüfsumme prüft der Aufrufer."""
     a = info.kurspaket
     if a is None:
-        raise ShareError("Diese Schulung hat kein Kurspaket.")
+        raise ShareError(tr("Diese Schulung hat kein Kurspaket."))
     conn, _fp = _connect(info.pinned)
     try:
         conn.request("GET", f"{API}/kurspaket", headers=_headers(info.target))
@@ -362,11 +365,11 @@ def kurspaket_holen(info: RemoteInfo) -> bytes:
             raise _error(resp)
         daten = resp.read(a["groesse"] + 1)
     except (OSError, http.client.HTTPException) as e:
-        raise ShareError(f"Kurspaket nicht geladen: {e}") from e
+        raise ShareError(tr("Kurspaket nicht geladen: {e}", e=e)) from e
     finally:
         conn.close()
     if len(daten) != a["groesse"]:
-        raise ShareError("Das Kurspaket kam nicht vollständig an.")
+        raise ShareError(tr("Das Kurspaket kam nicht vollständig an."))
     return daten
 
 
@@ -382,7 +385,7 @@ def fortschritt_melden(info: RemoteInfo, lektion_index: int, geschafft: bool | N
             raise _error(resp)
         resp.read()
     except (OSError, http.client.HTTPException) as e:
-        raise ShareError(f"Fortschritt nicht gemeldet: {e}") from e
+        raise ShareError(tr("Fortschritt nicht gemeldet: {e}", e=e)) from e
     finally:
         conn.close()
 
@@ -407,11 +410,12 @@ def download(info: RemoteInfo, dest_dir: Path, progress: Callable[[str, float, s
         part.unlink(missing_ok=True)
     meta.write_text(json.dumps(want), "utf-8")
     if shutil.disk_usage(dest_dir).free < info.size - (part.stat().st_size if part.exists() else 0) + 256 * 2**20:
-        raise ShareError(f"Zu wenig Platz in {dest_dir} ({info.size / storage.GB:.1f} GB nötig).")
+        raise ShareError(tr("Zu wenig Platz in {dest_dir} ({wert:.1f} GB nötig).", dest_dir=dest_dir,
+                            wert=info.size / storage.GB))
 
     def report(phase: str, frac: float, msg: str) -> None:
         if cancel is not None and cancel.is_set():
-            raise bonysfile.Cancelled("Download abgebrochen – „Beitreten“ setzt später fort.")
+            raise bonysfile.Cancelled(tr("Download abgebrochen – „Beitreten“ setzt später fort."))
         if progress:
             progress(phase, frac, msg)
 
@@ -446,7 +450,7 @@ def download(info: RemoteInfo, dest_dir: Path, progress: Callable[[str, float, s
             if resp.status == 200 and have:
                 have = 0  # Server kann nicht fortsetzen → von vorn
             if (resp.getheader("X-Bonys-Sha256") or info.sha256) != info.sha256:
-                raise ShareError("Die Freigabe hat sich geändert – bitte neu beitreten.")
+                raise ShareError(tr("Die Freigabe hat sich geändert – bitte neu beitreten."))
             t0, d0 = time.monotonic(), have
             with part.open("r+b" if have else "wb") as out:
                 out.seek(have)
@@ -464,20 +468,21 @@ def download(info: RemoteInfo, dest_dir: Path, progress: Callable[[str, float, s
         except (OSError, http.client.HTTPException, ssl.SSLError) as e:
             errors += 1
             if errors > 5:
-                raise ShareError(f"Download immer wieder unterbrochen: {e}") from e
+                raise ShareError(tr("Download immer wieder unterbrochen: {e}", e=e)) from e
             _sleep(retry_wait, report, "download", have / info.size, "Verbindung unterbrochen – setze fort …")
         finally:
             conn.close()
-    report("verify", 0, "Prüfe die Prüfsumme (SHA-256) …")
-    sha = bonysfile._hash_file(part, lambda f: report("verify", f, f"Prüfe die Prüfsumme … {f * 100:.0f} %"))
+    report("verify", 0, tr("Prüfe die Prüfsumme (SHA-256) …"))
+    sha = bonysfile._hash_file(part, lambda f: report("verify", f, tr("Prüfe die Prüfsumme … {wert:.0f} %",
+                                                                      wert=f * 100)))
     if sha != info.sha256:
         part.unlink(missing_ok=True)
         meta.unlink(missing_ok=True)
-        raise ShareError("Prüfsumme stimmt nicht – die Datei wurde beschädigt. Bitte erneut beitreten.")
+        raise ShareError(tr("Prüfsumme stimmt nicht – die Datei wurde beschädigt. Bitte erneut beitreten."))
     final.unlink(missing_ok=True)
     os.replace(part, final)
     meta.unlink(missing_ok=True)
-    report("verify", 1, f"Geladen und geprüft: {final.name}")
+    report("verify", 1, tr("Geladen und geprüft: {name}", name=final.name))
     return final
 
 

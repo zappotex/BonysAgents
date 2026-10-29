@@ -110,6 +110,8 @@ jobs:
           # Ohne --home: ~ bleibt stehen (die Shell löst es auf); bricht ab, wenn in der Liste Pflichtfelder fehlen
           sudo apt-get install -y --no-install-recommends python3-yaml
           python3 agent-apps/build_agent_apps.py agent-apps/agent-apps.yaml site/agenten-apps/index.html
+          python3 agent-apps/build_agent_apps.py agent-apps/agent-apps.yaml site/agenten-apps/en/index.html \
+            --uebersetzung agent-apps/agent-apps.en.yaml
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

@@ -26,19 +26,20 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from bonys_agents import edition, kurse, kurspaket, netz, share, vm
+from bonys_agents.i18n import n_, tr
 
 from .netz_dialog import _card, _muted, _section
 from .widgets import make_scrollable
 from .workers import TaskWorker
 
-INTRO = ("Kurse über das Internet laufen über das Bony-Netz: Der Kursleiter gibt dir einen Kurscode, du wählst den "
-         "Agent-PC, mit dem du teilnimmst. Nur solange der Kurs läuft, erreicht der Kursleiter genau diesen Agent-PC "
-         "– nie deinen Rechner und nie andere Teilnehmer. Für eine Schulung im selben Netz (LAN oder VPN) gibt es "
-         "weiter „Schulung im Netzwerk beitreten“.")
-AUS_TEXT = ("Das Bony-Netz ist ausgeschaltet oder es ist noch keine Instanz angelegt. Kurse über das Internet "
-            "brauchen beides.")
-KEIN_GERAET = ("Noch kein Agent-PC im Bony-Netz. Beim Erstellen das Häkchen „Bony-Netz“ setzen oder in der Liste "
-               "per Rechtsklick „Mit dem Bony-Netz verbinden“.")
+INTRO = n_("Kurse über das Internet laufen über das Bony-Netz: Der Kursleiter gibt dir einen Kurscode, du wählst den "
+           "Agent-PC, mit dem du teilnimmst. Nur solange der Kurs läuft, erreicht der Kursleiter genau diesen Agent-PC "
+           "– nie deinen Rechner und nie andere Teilnehmer. Für eine Schulung im selben Netz (LAN oder VPN) gibt es "
+           "weiter „Schulung im Netzwerk beitreten“.")
+AUS_TEXT = n_("Das Bony-Netz ist ausgeschaltet oder es ist noch keine Instanz angelegt. Kurse über das Internet "
+              "brauchen beides.")
+KEIN_GERAET = n_("Noch kein Agent-PC im Bony-Netz. Beim Erstellen das Häkchen „Bony-Netz“ setzen oder in der Liste "
+                 "per Rechtsklick „Mit dem Bony-Netz verbinden“.")
 
 # Laufende Aufrufe auch nach dem Schließen des Fensters festhalten (sonst bräche Qt beim Aufräumen ab)
 _RUNNING: set[TaskWorker] = set()
@@ -97,7 +98,7 @@ def kursraum_oeffnen(seite, kurs_id: str, name: str) -> None:
     seite.busy += 1
     seite.status_text = ""
     seite._update()
-    seite.status.setText("Hole die Eintrittskarte …")
+    seite.status.setText(tr("Hole die Eintrittskarte …"))
 
     def fertig(fehler: str | None) -> None:
         if not isValid(seite):
@@ -194,44 +195,44 @@ class TeilnahmeSeite(Seite):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 10, 10, 10)
         lay.setSpacing(8)
-        lay.addWidget(_section("Kurs beitreten"))
+        lay.addWidget(_section(tr("Kurs beitreten")))
         card, c = _card()
         form = QFormLayout()
         self.code = QLineEdit()
-        self.code.setPlaceholderText("z. B. K7QX-M3PA")
+        self.code.setPlaceholderText(tr("z. B. K7QX-M3PA"))
         self.code.setMaxLength(20)
         self.geraet = QComboBox()
         self.geraet.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.geraet.setMinimumContentsLength(16)
         self.name = QLineEdit(kurse.gemerkt(kurse.ANZEIGENAME) or share._client_name())
         self.name.setMaxLength(kurse.NAME_MAX)
-        self.name.setPlaceholderText("So sieht dich der Kursleiter")
-        form.addRow("Kurscode", self.code)
-        form.addRow("Agent-PC", self.geraet)
-        form.addRow("Dein Name", self.name)
+        self.name.setPlaceholderText(tr("So sieht dich der Kursleiter"))
+        form.addRow(tr("Kurscode"), self.code)
+        form.addRow(tr("Agent-PC"), self.geraet)
+        form.addRow(tr("Dein Name"), self.name)
         c.addLayout(form)
         self.geraet_hint = _muted()
         c.addWidget(self.geraet_hint)
         row = QHBoxLayout()
         row.addStretch(1)
-        self.join_btn = QPushButton("Beitreten")
+        self.join_btn = QPushButton(tr("Beitreten"))
         self.join_btn.setObjectName("Primary")
         row.addWidget(self.join_btn)
         c.addLayout(row)
         lay.addWidget(card)
 
-        lay.addWidget(_section("Meine Kurse"))
-        self.table = tabelle(["Kurs", "Kursleiter", "Status", "Agent-PC", "Kurspaket"])
+        lay.addWidget(_section(tr("Meine Kurse")))
+        self.table = tabelle([tr("Kurs"), tr("Kursleiter"), tr("Status"), tr("Agent-PC"), tr("Kurspaket")])
         lay.addWidget(self.table)
-        self.empty = _muted("Du nimmst an keinem Kurs teil.")
+        self.empty = _muted(tr("Du nimmst an keinem Kurs teil."))
         lay.addWidget(self.empty)
         row = QHBoxLayout()
-        self.room_btn = QPushButton("Kursraum betreten")
-        self.room_btn.setToolTip("Nur, solange der Kurs läuft")
-        self.anleitung_btn = QPushButton("Anleitung")
-        self.anleitung_btn.setToolTip("Das Kurspaket des Kurses neben deinem Agent-PC öffnen – der Kursleiter sieht "
-                                      "nur deine Lektion und ob die Prüfaufgabe geschafft ist")
-        self.leave_btn = QPushButton("Kurs verlassen …")
+        self.room_btn = QPushButton(tr("Kursraum betreten"))
+        self.room_btn.setToolTip(tr("Nur, solange der Kurs läuft"))
+        self.anleitung_btn = QPushButton(tr("Anleitung"))
+        self.anleitung_btn.setToolTip(tr("Das Kurspaket des Kurses neben deinem Agent-PC öffnen – der Kursleiter sieht "
+                                         "nur deine Lektion und ob die Prüfaufgabe geschafft ist"))
+        self.leave_btn = QPushButton(tr("Kurs verlassen …"))
         self.leave_btn.setObjectName("Danger")
         row.addWidget(self.room_btn)
         row.addWidget(self.anleitung_btn)
@@ -264,7 +265,7 @@ class TeilnahmeSeite(Seite):
         self.anleitung_btn.setEnabled(idle and k is not None and k.kurspaket is not None)
         self.leave_btn.setEnabled(idle and k is not None)
         self.empty.setVisible(self.geladen and not self.kurse)
-        self.status.setText("Frage den Server …" if self.busy else self.status_text)
+        self.status.setText(tr("Frage den Server …") if self.busy else self.status_text)
 
     def laden(self) -> None:
         def run():
@@ -284,7 +285,8 @@ class TeilnahmeSeite(Seite):
                 return
             self.geraete, self.kurse, self.lokal, self.paket_fehler = w.result
             self.geladen = True
-            self.status_text = next((f"Kurspaket von „{k.name}“ nicht geholt: {self.paket_fehler[k.kurs_id]}"
+            self.status_text = next((tr("Kurspaket von „{name}“ nicht geholt: {wert}", name=k.name,
+                                        wert=self.paket_fehler[k.kurs_id])
                                      for k in self.kurse if k.kurs_id in self.paket_fehler), "")
             self._zeigen()
 
@@ -297,7 +299,7 @@ class TeilnahmeSeite(Seite):
             self.geraet.addItem(geraet_text(g, self.lokal), str(g["geraet_id"]))
         i = self.geraet.findData(gewaehlt) if gewaehlt is not None else -1
         self.geraet.setCurrentIndex(max(i, 0) if self.geraete else -1)
-        self.geraet_hint.setText("" if self.geraete else KEIN_GERAET)
+        self.geraet_hint.setText("" if self.geraete else tr(KEIN_GERAET))
         self.geraet_hint.setVisible(not self.geraete)
 
         namen = {str(g["geraet_id"]): str(g.get("name") or "") for g in self.geraete}
@@ -322,7 +324,8 @@ class TeilnahmeSeite(Seite):
                 self.status_text = f"Nicht beigetreten: {netz.fehlertext(w.error)}"
                 return
             self.code.clear()
-            self.status_text = f"Beigetreten: „{w.result.name}“." if w.result.kurs_id else "Beigetreten."
+            self.status_text = tr("Beigetreten: „{name}“.",
+                                  name=w.result.name) if w.result.kurs_id else tr("Beigetreten.")
             self.zuletzt = 0.0
             QTimer.singleShot(0, self.tick)
 
@@ -347,7 +350,7 @@ class TeilnahmeSeite(Seite):
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
-                self.status_text = f"Kurspaket nicht geholt: {netz.fehlertext(w.error)}"
+                self.status_text = tr("Kurspaket nicht geholt: {wert}", wert=netz.fehlertext(w.error))
                 return
             self.status_text = ""
             if self.anleitung_oeffnen is not None:
@@ -355,20 +358,20 @@ class TeilnahmeSeite(Seite):
 
         self.status_text = ""
         self._run(lambda: kurse.kurspaket_fuer_kurs(k), done)
-        self.status.setText("Hole das Kurspaket …")
+        self.status.setText(tr("Hole das Kurspaket …"))
 
     def _leave(self) -> None:
         k = self._kurs()
         if k is None or not nachfragen(
-                self, "Kurs verlassen", f"Kurs „{k.name}“ verlassen?",
-                "Der Kursleiter erreicht deinen Agent-PC danach nicht mehr über diesen Kurs.", "Verlassen"):
+                self, tr("Kurs verlassen"), tr("Kurs „{name}“ verlassen?", name=k.name),
+                tr("Der Kursleiter erreicht deinen Agent-PC danach nicht mehr über diesen Kurs."), tr("Verlassen")):
             return
 
         def done(w: TaskWorker) -> None:
             if w.error is not None:
                 self.status_text = f"Nicht verlassen: {netz.fehlertext(w.error)}"
                 return
-            self.status_text = f"„{k.name}“ verlassen."
+            self.status_text = tr("„{name}“ verlassen.", name=k.name)
             self.kurse = [x for x in self.kurse if x.kurs_id != k.kurs_id]
             self._zeigen()
 
@@ -383,22 +386,22 @@ class KurseDialog(QDialog):
         self.durcharbeiten = durcharbeiten
         self.im_kurs = im_kurs
         self.setWindowModality(Qt.WindowModal)   # sperrt nur das Hauptfenster, nicht den Kursraum
-        self.setWindowTitle("Kurse")
+        self.setWindowTitle(tr("Kurse"))
         self.join_local = join_local
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Kurse")
+        title = QLabel(tr("Kurse"))
         title.setObjectName("Title")
         root.addWidget(title)
-        self.intro = _muted(INTRO)
+        self.intro = _muted(tr(INTRO))
         root.addWidget(self.intro)
 
         self.off = QFrame()
         self.off.setObjectName("Hint")
         row = QHBoxLayout(self.off)
-        text = QLabel(AUS_TEXT)
+        text = QLabel(tr(AUS_TEXT))
         text.setWordWrap(True)
-        self.netz_btn = QPushButton("Bony-Netz …")
+        self.netz_btn = QPushButton(tr("Bony-Netz …"))
         row.addWidget(text, 1)
         row.addWidget(self.netz_btn)
         root.addWidget(self.off)
@@ -408,26 +411,26 @@ class KurseDialog(QDialog):
         from .kurspaket_bibliothek import BibliothekSeite
 
         self.pakete = BibliothekSeite(self, durcharbeiten=self._durcharbeiten if durcharbeiten else None)
-        self.tabs.addTab(self.pakete, "Kurspakete")
+        self.tabs.addTab(self.pakete, tr("Kurspakete"))
         if edition.IS_TRAINER:
             from bonys_agents.trainer.gui.kurse_leiten import KursleitungSeite
 
             self.leitung = KursleitungSeite(self)
-            self.tabs.addTab(self.leitung, "Kursleitung")
+            self.tabs.addTab(self.leitung, tr("Kursleitung"))
             self.seiten.append(self.leitung)
         self.teilnahme = TeilnahmeSeite(self)
         self.teilnahme.anleitung_oeffnen = self._im_kurs
-        self.tabs.addTab(self.teilnahme, "Teilnahme")
+        self.tabs.addTab(self.teilnahme, tr("Teilnahme"))
         self.seiten.append(self.teilnahme)
         root.addWidget(self.tabs, 1)
 
         buttons = QHBoxLayout()
-        self.local_btn = QPushButton("Schulung im Netzwerk beitreten …")
-        self.local_btn.setToolTip("Vorlage vom Rechner des Kursleiters laden bzw. seine Vorführung öffnen – im "
-                                  "selben Netz oder per VPN, ohne Bony-Netz")
+        self.local_btn = QPushButton(tr("Schulung im Netzwerk beitreten …"))
+        self.local_btn.setToolTip(tr("Vorlage vom Rechner des Kursleiters laden bzw. seine Vorführung öffnen – im "
+                                     "selben Netz oder per VPN, ohne Bony-Netz"))
         buttons.addWidget(self.local_btn)
         buttons.addStretch(1)
-        close = QPushButton("Schließen")
+        close = QPushButton(tr("Schließen"))
         close.clicked.connect(self.accept)
         buttons.addWidget(close)
         root.addLayout(buttons)

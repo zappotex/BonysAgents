@@ -20,6 +20,7 @@ from pathlib import Path
 
 from bonys_agents import __version__
 from bonys_agents.procutil import clean_env, no_window_flags
+from bonys_agents.i18n import tr
 
 ProgressFn = Callable[[int, int], None]  # (geladene Bytes, Gesamtbytes oder 0)
 
@@ -68,7 +69,7 @@ def kali_image(arch: str, sums_text: str | None = None) -> BaseImage:
     found = sorted((_version_key(m.group(1)), m.group(1), name) for name in _sum_names(sums_text)
                     if (m := pattern.match(name)))
     if not found:
-        raise RuntimeError(f"Kein Kali-Cloud-Abbild für {kali_arch} auf kali.download gefunden")
+        raise RuntimeError(tr("Kein Kali-Cloud-Abbild für {kali_arch} auf kali.download gefunden", kali_arch=kali_arch))
     _, version, filename = found[-1]
     return BaseImage(
         name=f"Kali Linux {version} ({kali_arch})",
@@ -107,7 +108,7 @@ def parse_sums(text: str, filename: str) -> str:
         parts = line.split()
         if len(parts) == 2 and parts[1].lstrip("*") == filename:
             return parts[0].lower()
-    raise RuntimeError(f"Keine Prüfsumme für {filename} gefunden")
+    raise RuntimeError(tr("Keine Prüfsumme für {filename} gefunden", filename=filename))
 
 
 def expected_hash(image: BaseImage) -> str:
@@ -170,13 +171,13 @@ def ensure_image(
 
     if h.hexdigest() != want:
         tmp.unlink(missing_ok=True)
-        raise RuntimeError("Prüfsumme des Images stimmt nicht – Download beschädigt, bitte erneut versuchen")
+        raise RuntimeError(tr("Prüfsumme des Images stimmt nicht – Download beschädigt, bitte erneut versuchen"))
     if not image.member:
         shutil.move(str(tmp), str(target))
         return target
     if qemu_img is None:
         tmp.unlink(missing_ok=True)
-        raise RuntimeError("qemu-img fehlt – das Abbild kann nicht umgewandelt werden")
+        raise RuntimeError(tr("qemu-img fehlt – das Abbild kann nicht umgewandelt werden"))
     raw = cache_dir / (image.cache_name + ".raw")
     try:
         extract_member(tmp, image.member, raw)
@@ -186,7 +187,8 @@ def ensure_image(
                        env=clean_env())
         shutil.move(str(part), str(target))
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Abbild konnte nicht umgewandelt werden: {e.stderr.decode(errors='replace')[-300:]}") \
+        raise RuntimeError(tr("Abbild konnte nicht umgewandelt werden: {wert}",
+                              wert=e.stderr.decode(errors='replace')[-300:])) \
             from None
     finally:
         tmp.unlink(missing_ok=True)
@@ -220,7 +222,7 @@ def extract_member(archive: Path, member: str, dest: Path) -> None:
             if info.name.lstrip("./") != member:
                 continue
             if not info.isfile():
-                raise RuntimeError(f"{member} im Archiv ist keine normale Datei")
+                raise RuntimeError(tr("{member} im Archiv ist keine normale Datei", member=member))
             src = tar.extractfile(info)
             assert src is not None
             zero = bytes(1024 * 1024)
@@ -232,4 +234,4 @@ def extract_member(archive: Path, member: str, dest: Path) -> None:
                         out.write(chunk)
                 out.truncate(info.size)
             return
-    raise RuntimeError(f"{member} fehlt im Archiv {archive.name}")
+    raise RuntimeError(tr("{member} fehlt im Archiv {name}", member=member, name=archive.name))

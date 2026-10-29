@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from bonys_agents import APP_NAME, vm, vpnlink
+from bonys_agents.i18n import tr
 
 from . import style
 from .widgets import FlowLayout
@@ -47,7 +48,7 @@ def tunnel_details(t: dict) -> str:
         lines.append(f"Letzter Handshake: {vpnlink.human_age(t.get('handshake'))} · "
                      f"empfangen {vpnlink.human_bytes(t.get('rx'))}, gesendet {vpnlink.human_bytes(t.get('tx'))}")
     if t.get("autostart"):
-        lines.append("Verbindet sich bei jedem Start automatisch.")
+        lines.append(tr("Verbindet sich bei jedem Start automatisch."))
     return "\n".join(lines)
 
 
@@ -76,16 +77,16 @@ class VpnPanel(QWidget):
         lay.addWidget(self.note)
 
         # Ohne Bony's VPN
-        self.install_btn = QPushButton("VPN-App installieren")
+        self.install_btn = QPushButton(tr("VPN-App installieren"))
         self.install_btn.setObjectName("Primary")
-        self.install_btn.setToolTip("Installiert Bony's VPN (WireGuard, Kill-Switch, Tray-Symbol) im laufenden "
-                                    "Agent-PC – wie „Programme hinzufügen“")
+        self.install_btn.setToolTip(tr("Installiert Bony's VPN (WireGuard, Kill-Switch, Tray-Symbol) im laufenden "
+                                       "Agent-PC – wie „Programme hinzufügen“"))
         lay.addWidget(self.install_btn)
         # Alte, eingebaute Fassung (bis 0.14) oder zu altes Paket
-        self.update_btn = QPushButton("VPN-App aktualisieren")
+        self.update_btn = QPushButton(tr("VPN-App aktualisieren"))
         self.update_btn.setObjectName("Primary")
-        self.update_btn.setToolTip("Installiert das neueste Bony's VPN aus dem offiziellen Release (Signatur und "
-                                   "Prüfsumme geprüft). Tunnel, Schlüssel und Kill-Switch bleiben, wie sie sind.")
+        self.update_btn.setToolTip(tr("Installiert das neueste Bony's VPN aus dem offiziellen Release (Signatur und "
+                                      "Prüfsumme geprüft). Tunnel, Schlüssel und Kill-Switch bleiben, wie sie sind."))
         lay.addWidget(self.update_btn)
 
         # Mit Bony's VPN
@@ -94,7 +95,7 @@ class VpnPanel(QWidget):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(8)
         trow = QHBoxLayout()
-        self.tunnel_label = QLabel("Tunnel")
+        self.tunnel_label = QLabel(tr("Tunnel"))
         self.tunnel = QComboBox()
         self.tunnel.setMinimumContentsLength(15)
         trow.addWidget(self.tunnel_label)
@@ -105,27 +106,27 @@ class VpnPanel(QWidget):
         self.details.setWordWrap(True)
         bl.addWidget(self.details)
         buttons = FlowLayout()
-        self.up_btn = QPushButton("Verbinden")
+        self.up_btn = QPushButton(tr("Verbinden"))
         self.up_btn.setObjectName("Primary")
-        self.down_btn = QPushButton("Trennen")
-        self.ip_btn = _small("Öffentliche IP prüfen",
-                             f"Fragt im Agent-PC {vpnlink.IP_SERVICE_NAME} nach der Adresse, mit der er im Internet "
-                             "auftritt")
-        self.import_btn = _small("Konfiguration importieren …",
-                                 "WireGuard-Konfiguration (.conf) in diesen Agent-PC übertragen – auf diesem Rechner "
-                                 "wird nichts gespeichert")
-        self.refresh_btn = _small("Aktualisieren")
+        self.down_btn = QPushButton(tr("Trennen"))
+        self.ip_btn = _small(tr("Öffentliche IP prüfen"),
+                             tr("Fragt im Agent-PC {dienst} nach der Adresse, mit der er im Internet auftritt",
+                                dienst=vpnlink.IP_SERVICE_NAME))
+        self.import_btn = _small(tr("Konfiguration importieren …"),
+                                 tr("WireGuard-Konfiguration (.conf) in diesen Agent-PC übertragen – auf diesem "
+                                    "Rechner wird nichts gespeichert"))
+        self.refresh_btn = _small(tr("Aktualisieren"))
         for b in (self.up_btn, self.down_btn, self.ip_btn, self.import_btn, self.refresh_btn):
             buttons.addWidget(b)
         bl.addLayout(buttons)
         self.ip_label = QLabel()
         self.ip_label.setWordWrap(True)
         bl.addWidget(self.ip_label)
-        self.autostart = QCheckBox("Diesen Tunnel bei jedem Start automatisch verbinden")
-        self.killswitch = QCheckBox("Kill-Switch: ohne VPN kein Internet")
-        self.killswitch.setToolTip("Sperrt jeden Internetverkehr des Agent-PCs, solange kein Tunnel verbunden ist. "
-                                   "Steuerung, Herunterfahren, Fortschritt und Fernzugriff gehen weiter "
-                                   "(QEMU-Netz 10.0.2.0/24 ist ausgenommen).")
+        self.autostart = QCheckBox(tr("Diesen Tunnel bei jedem Start automatisch verbinden"))
+        self.killswitch = QCheckBox(tr("Kill-Switch: ohne VPN kein Internet"))
+        self.killswitch.setToolTip(tr("Sperrt jeden Internetverkehr des Agent-PCs, solange kein Tunnel verbunden ist. "
+                                      "Steuerung, Herunterfahren, Fortschritt und Fernzugriff gehen weiter "
+                                      "(QEMU-Netz 10.0.2.0/24 ist ausgenommen)."))
         bl.addWidget(self.autostart)
         bl.addWidget(self.killswitch)
         lay.addWidget(self.body)
@@ -191,33 +192,33 @@ class VpnPanel(QWidget):
         self.update_btn.setEnabled(running and not self.busy())
         self.body.setVisible(has_app)
         if not has_app:
-            self.headline.setText("Bony's VPN ist nicht installiert")
-            self.note.setText("Mit Bony's VPN geht der Internetverkehr des Agent-PCs durch deinen eigenen "
-                              "WireGuard-Tunnel, auf Wunsch mit Kill-Switch. "
-                              + ("" if running else "Zum Installieren muss der Agent-PC laufen."))
+            self.headline.setText(tr("Bony's VPN ist nicht installiert"))
+            self.note.setText(tr("Mit Bony's VPN geht der Internetverkehr des Agent-PCs durch deinen eigenen "
+                                 "WireGuard-Tunnel, auf Wunsch mit Kill-Switch. ")
+                              + ("" if running else tr("Zum Installieren muss der Agent-PC laufen.")))
             self.note.setVisible(True)
             return
         if not running:
             self.headline.setText("VPN")
-            self.note.setText("Status und Steuerung gibt es, solange der Agent-PC läuft.")
+            self.note.setText(tr("Status und Steuerung gibt es, solange der Agent-PC läuft."))
         elif st is None:
             self.headline.setText("VPN")
-            self.note.setText(self.error or "Frage den Status im Agent-PC ab …")
+            self.note.setText(self.error or tr("Frage den Status im Agent-PC ab …"))
         elif not st.get("installed", True):
-            self.headline.setText("Bony's VPN fehlt im Agent-PC")
-            self.note.setText("Laut Einstellungen installiert, im Agent-PC aber nicht gefunden. "
-                              "„VPN-App aktualisieren“ installiert es neu.")
+            self.headline.setText(tr("Bony's VPN fehlt im Agent-PC"))
+            self.note.setText(tr("Laut Einstellungen installiert, im Agent-PC aber nicht gefunden. "
+                                 "„VPN-App aktualisieren“ installiert es neu."))
             self.update_btn.setVisible(True)
         else:
             active = st.get("active")
-            self.headline.setText(f"●  verbunden – „{active}“" if active else "●  getrennt")
+            self.headline.setText(tr("●  verbunden – „{active}“", active=active) if active else tr("●  getrennt"))
             self.headline.setStyleSheet(f"color: {style.OK if active else style.MUTED};")
             ks = st.get("killswitch") or {}
             notes = []
             if ks.get("enabled") and not active:
-                notes.append("Kill-Switch an: Ohne Tunnel hat der Agent-PC kein Internet.")
+                notes.append(tr("Kill-Switch an: Ohne Tunnel hat der Agent-PC kein Internet."))
             if not st.get("tunnels"):
-                notes.append("Noch kein Tunnel – „Konfiguration importieren …“ oder im Agent-PC über Bony's VPN.")
+                notes.append(tr("Noch kein Tunnel – „Konfiguration importieren …“ oder im Agent-PC über Bony's VPN."))
             if st.get("compat") in vpnlink.COMPAT_TEXT:
                 notes.append(f"⚠ {vpnlink.COMPAT_TEXT[st['compat']]}")
             if self.error:
@@ -271,14 +272,15 @@ class VpnPanel(QWidget):
                 if done:
                     done(w.result)
             elif isinstance(w.error, vm.NeedsPassword):
-                pw, ok = QInputDialog.getText(self, APP_NAME, f"{w.error}\n\nPasswort von „{m.name}“:",
+                pw, ok = QInputDialog.getText(self, APP_NAME, tr("{error}\n\nPasswort "
+                                                                 "von „{name}“:", error=w.error, name=m.name),
                                               QLineEdit.Password)
                 if ok and pw:
                     self._start(lambda _pw: fn(pw), done, message)
                     return
                 self.status.setText("")
             else:
-                self.status.setText(f"Fehler: {w.error}")
+                self.status.setText(tr("Fehler: {error}", error=w.error))
                 self.status.setStyleSheet(f"color: {style.DANGER};")
             self._show()
 
@@ -299,7 +301,7 @@ class VpnPanel(QWidget):
                 return vpnlink.status(m, password=pw)
             except vm.NeedsPassword:
                 if quiet:  # regelmäßige Abfrage: nicht jedes Mal nach dem Passwort fragen
-                    return {"_error": "Der Gast-Agent antwortet nicht – „Aktualisieren“ fragt nach dem Passwort."}
+                    return {"_error": tr("Der Gast-Agent antwortet nicht – „Aktualisieren“ fragt nach dem Passwort.")}
                 raise
 
         def done(result) -> None:
@@ -309,7 +311,7 @@ class VpnPanel(QWidget):
                 return
             self.state, self.error = result, ""
 
-        self._start(fetch, done, "" if quiet else "Frage den Status ab …")
+        self._start(fetch, done, "" if quiet else tr("Frage den Status ab …"))
 
     def _act(self, fn, message: str) -> None:
         m = self.machine
@@ -329,23 +331,25 @@ class VpnPanel(QWidget):
         name = self.tunnel.currentText()
         if name:
             self.ip_text = ""
-            self._act(lambda m, **kw: vpnlink.up(m, name, **kw), f"Verbinde „{name}“ …")
+            self._act(lambda m, **kw: vpnlink.up(m, name, **kw), tr("Verbinde „{name}“ …", name=name))
 
     def _toggle_autostart(self, on: bool) -> None:
         name = self.tunnel.currentText()
         if name:
             self._act(lambda m, **kw: vpnlink.set_autostart(m, name, on, **kw),
-                      "Schalte automatisches Verbinden " + ("ein …" if on else "aus …"))
+                      tr("Schalte automatisches Verbinden ein "
+                         "…") if on else tr("Schalte automatisches Verbinden aus …"))
 
     def _toggle_killswitch(self, on: bool) -> None:
         if on and not (self.state or {}).get("active") and QMessageBox.question(
-                self, APP_NAME, "Kill-Switch einschalten?\n\nGerade ist kein Tunnel verbunden – der Agent-PC hat dann "
-                "sofort kein Internet mehr, bis du verbindest. Die Steuerung durch Bony's Agents geht weiter.") \
+                self, APP_NAME, tr("Kill-Switch einschalten?\n\nGerade ist kein Tunnel verbunden – der Agent-PC "
+                                   "hat dann sofort kein Internet mehr, bis du verbindest. Die Steuerung durch "
+                                   "Bony's Agents geht weiter.")) \
                 != QMessageBox.Yes:
             self._show()
             return
         self._act(lambda m, **kw: vpnlink.set_killswitch(m, on, **kw),
-                  "Schalte den Kill-Switch " + ("ein …" if on else "aus …"))
+                  tr("Schalte den Kill-Switch ein …") if on else tr("Schalte den Kill-Switch aus …"))
 
     def _ip(self) -> None:
         m = self.machine
@@ -364,21 +368,25 @@ class VpnPanel(QWidget):
             active = (self.state or {}).get("active")
             if ip is None:
                 ks = ((self.state or {}).get("killswitch") or {}).get("enabled")
-                self.ip_text = f"Öffentliche IP: keine – der Agent-PC erreicht {vpnlink.IP_SERVICE_NAME} nicht" + (
-                    " (Kill-Switch sperrt ohne Tunnel)." if ks and not active else ".")
+                self.ip_text = (tr("Öffentliche IP: keine – der Agent-PC erreicht {dienst} nicht (Kill-Switch sperrt "
+                                   "ohne Tunnel).", dienst=vpnlink.IP_SERVICE_NAME) if ks and not active else
+                                tr("Öffentliche IP: keine – der Agent-PC erreicht {dienst} nicht.",
+                                   dienst=vpnlink.IP_SERVICE_NAME))
                 return
-            self.ip_text = f"Öffentliche IP: {ip}" + (f" (über „{active}“)" if active else " (ohne VPN)") \
-                + f" – ermittelt über {vpnlink.IP_SERVICE_NAME}"
+            self.ip_text = (tr("Öffentliche IP: {ip} (über „{tunnel}“) – ermittelt über {dienst}", ip=ip, tunnel=active,
+                               dienst=vpnlink.IP_SERVICE_NAME) if active else
+                            tr("Öffentliche IP: {ip} (ohne VPN) – ermittelt über {dienst}", ip=ip,
+                               dienst=vpnlink.IP_SERVICE_NAME))
 
         self.ip_text = ""
-        self._start(fetch, done, "Frage die öffentliche IP ab …")
+        self._start(fetch, done, tr("Frage die öffentliche IP ab …"))
 
     def _import(self) -> None:
         m = self.machine
         if m is None:
             return
-        path, _ = QFileDialog.getOpenFileName(self, "WireGuard-Konfiguration importieren", str(Path.home()),
-                                              "WireGuard-Konfiguration (*.conf);;Alle Dateien (*)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("WireGuard-Konfiguration importieren"), str(Path.home()),
+                                              tr("WireGuard-Konfiguration (*.conf);;Alle Dateien (*)"))
         if not path:
             return
         try:
@@ -387,7 +395,7 @@ class VpnPanel(QWidget):
             QMessageBox.warning(self, APP_NAME, str(e))
             return
         names = [t["name"] for t in (self.state or {}).get("tunnels") or []]
-        name, ok = QInputDialog.getText(self, APP_NAME, "Name des Tunnels im Agent-PC (1–15 Zeichen):",
+        name, ok = QInputDialog.getText(self, APP_NAME, tr("Name des Tunnels im Agent-PC (1–15 Zeichen):"),
                                         QLineEdit.Normal, setup.name)
         if not ok or not name.strip():
             return
@@ -395,11 +403,11 @@ class VpnPanel(QWidget):
             setup = vpnlink.VpnSetup(name=vpnlink.check_name(name.strip()), data=setup.data,
                                      endpoint=setup.endpoint)
         except ValueError:
-            QMessageBox.warning(self, APP_NAME, "Tunnelname: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -")
+            QMessageBox.warning(self, APP_NAME, tr("Tunnelname: 1–15 Zeichen, nur A–Z, a–z, 0–9 und _ = + . -"))
             return
         replace = setup.name in names
         if replace and QMessageBox.question(
-                self, APP_NAME, f"Den Tunnel „{setup.name}“ gibt es schon. Ersetzen?") != QMessageBox.Yes:
+                self, APP_NAME, tr("Den Tunnel „{name}“ gibt es schon. Ersetzen?", name=setup.name)) != QMessageBox.Yes:
             return
 
         def run(pw):
@@ -409,18 +417,40 @@ class VpnPanel(QWidget):
         def done(st: dict) -> None:
             self._set_state(st)
             self.tunnel.setCurrentText(setup.name)
-            self.status.setText(f"„{setup.name}“ importiert – jetzt „Verbinden“.")
+            self.status.setText(tr("„{name}“ importiert – jetzt „Verbinden“.", name=setup.name))
 
-        self._start(run, done, f"Übertrage „{setup.name}“ in den Agent-PC …")
+        self._start(run, done, tr("Übertrage „{name}“ in den Agent-PC …", name=setup.name))
 
     def _update_app(self) -> None:
         m = self.machine
         if m is None:
             return
         if QMessageBox.question(
-                self, APP_NAME, f"Bony's VPN in „{m.name}“ jetzt aktualisieren?\n\nDas neueste Bony's VPN kommt "
-                f"aus dem offiziellen Release ({vpnlink.VPN_REPO_URL}), Signatur und Prüfsumme werden geprüft. Tunnel, "
-                "Schlüssel und Kill-Switch bleiben, wie sie sind. Dauert etwa eine Minute.") != QMessageBox.Yes:
+                self, APP_NAME, tr("Bony's VPN "
+                                   "in „{name}“ "
+                                   "jetzt "
+                                   "aktualisieren?\n\nDas "
+                                   "neueste "
+                                   "Bony's VPN "
+                                   "kommt aus "
+                                   "dem "
+                                   "offiziellen "
+                                   "Release "
+                                   "({VPN_REPO_URL}), "
+                                   "Signatur "
+                                   "und "
+                                   "Prüfsumme "
+                                   "werden "
+                                   "geprüft. "
+                                   "Tunnel, "
+                                   "Schlüssel "
+                                   "und "
+                                   "Kill-Switch "
+                                   "bleiben, "
+                                   "wie sie "
+                                   "sind. "
+                                   "Dauert etwa "
+                                   "eine Minute.", name=m.name, VPN_REPO_URL=vpnlink.VPN_REPO_URL)) != QMessageBox.Yes:
             return
 
         def run(pw):
@@ -429,6 +459,7 @@ class VpnPanel(QWidget):
 
         def done(st: dict) -> None:
             self._set_state(st)
-            self.status.setText(f"Bony's VPN {st.get('version', '')} ist installiert.".replace("  ", " "))
+            self.status.setText(tr("Bony's VPN {version} ist installiert.",
+                                   version=st.get("version", "")).replace("  ", " "))
 
-        self._start(run, done, "Aktualisiere Bony's VPN im Agent-PC … (Ausgabe im Reiter „Konsole“)")
+        self._start(run, done, tr("Aktualisiere Bony's VPN im Agent-PC … (Ausgabe im Reiter „Konsole“)"))

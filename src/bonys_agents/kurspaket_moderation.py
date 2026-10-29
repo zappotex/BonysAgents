@@ -22,6 +22,7 @@ import shutil
 import threading
 
 from bonys_agents import kurspaket_portal as portal
+from bonys_agents.i18n import tr
 
 try:
     import fcntl
@@ -95,13 +96,13 @@ class Moderation:
 
     def _ordner(self, submission_id: str) -> Path:
         if not _ID.fullmatch(submission_id):
-            raise ModerationsFehler("Ungültige Submission-ID.")
+            raise ModerationsFehler(tr("Ungültige Submission-ID."))
         return self.wurzel / submission_id
 
     def _lesen(self, submission_id: str) -> list[Ereignis]:
         verlauf = self._ordner(submission_id) / "verlauf.jsonl"
         if not verlauf.is_file():
-            raise ModerationsFehler("Unbekannte Einreichung.")
+            raise ModerationsFehler(tr("Unbekannte Einreichung."))
         return [_ereignis(z) for z in verlauf.read_text(encoding="utf-8").splitlines() if z.strip()]
 
     @contextmanager
@@ -148,7 +149,7 @@ class Moderation:
         """Pfad der eingereichten Paketdatei zum Ansehen (nur lesen, nie ausführen)."""
         datei = self._ordner(submission_id) / "original.bonyspaket"
         if not datei.is_file():
-            raise ModerationsFehler("Die Paketdatei dieser Einreichung fehlt.")
+            raise ModerationsFehler(tr("Die Paketdatei dieser Einreichung fehlt."))
         yield datei
 
     def ids(self) -> list[str]:
@@ -175,7 +176,7 @@ class Moderation:
         for i, e in enumerate(self._lesen(submission_id), 1):
             kern = {k: v for k, v in e.__dict__.items() if k != "pruefsumme"}
             if e.nr != i or e.vorher != vorher or e.von != status or _hash(kern) != e.pruefsumme:
-                raise ModerationsFehler(f"Verlauf ist an Eintrag {i} verändert worden.")
+                raise ModerationsFehler(tr("Verlauf ist an Eintrag {i} verändert worden.", i=i))
             vorher, status = e.pruefsumme, e.nach
 
     def _bekannt(self) -> dict[str, set[str]]:
@@ -197,7 +198,7 @@ class Moderation:
         """
         autor = (autor or "").strip()
         if not autor:
-            raise ModerationsFehler("Eine Autorreferenz ist nötig.")
+            raise ModerationsFehler(tr("Eine Autorreferenz ist nötig."))
         pruefung = portal.einreichen(Path(datei), self._bekannt(), self.reserviert)
         sid = pruefung.submission_id
         ordner = self._ordner(sid)
@@ -219,19 +220,20 @@ class Moderation:
         """Menschliche Moderationsentscheidung; prüft Übergang, Akteur und Begründung."""
         akteur, begruendung = (akteur or "").strip(), (begruendung or "").strip()
         if not akteur or akteur == AKTEUR_SYSTEM:
-            raise ModerationsFehler("Eine Entscheidung braucht einen menschlichen Akteur.")
+            raise ModerationsFehler(tr("Eine Entscheidung braucht einen menschlichen Akteur."))
         if not begruendung:
-            raise ModerationsFehler("Eine Entscheidung braucht eine Begründung.")
+            raise ModerationsFehler(tr("Eine Entscheidung braucht eine Begründung."))
         if len(begruendung) > MAX_TEXT:
-            raise ModerationsFehler(f"Die Begründung ist länger als {MAX_TEXT} Zeichen.")
+            raise ModerationsFehler(tr("Die Begründung ist länger als {MAX_TEXT} Zeichen.", MAX_TEXT=MAX_TEXT))
         with self._sperre(submission_id):
             self.verlauf_pruefen(submission_id)
             aktuell = self.status(submission_id)
             if nach not in ERLAUBT_MENSCH.get(aktuell, set()):
-                raise ModerationsFehler(f"Übergang {aktuell} -> {nach} ist nicht erlaubt.")
+                raise ModerationsFehler(tr("Übergang {aktuell} -> {nach} ist nicht erlaubt.", aktuell=aktuell,
+                                           nach=nach))
             if nach == PUBLISHED and (self.bericht(submission_id) or {}).get("paket_id") in self.reserviert:
-                raise ModerationsFehler("Die Paket-ID gehört zu einem mitgelieferten Kurspaket und wird nicht "
-                                        "veröffentlicht.")
+                raise ModerationsFehler(tr("Die Paket-ID gehört zu einem mitgelieferten Kurspaket und wird nicht "
+                                           "veröffentlicht."))
             return self._anhaengen_roh(submission_id, nach, akteur, begruendung)
 
     # --- Löschen (Recht auf Löschung, Fristen) ---------------------------
@@ -244,12 +246,12 @@ class Moderation:
         """
         akteur = (akteur or "").strip()
         if not akteur or akteur == AKTEUR_SYSTEM:
-            raise ModerationsFehler("Löschen braucht einen menschlichen Akteur.")
+            raise ModerationsFehler(tr("Löschen braucht einen menschlichen Akteur."))
         if grund not in LOESCH_GRUENDE:
-            raise ModerationsFehler(f"Grund muss einer von {', '.join(LOESCH_GRUENDE)} sein.")
+            raise ModerationsFehler(tr("Grund muss einer von {wert} sein.", wert=', '.join(LOESCH_GRUENDE)))
         with self._sperre(submission_id):
             if self.status(submission_id) == PUBLISHED:
-                raise ModerationsFehler("Die Einreichung ist veröffentlicht – erst zurückziehen (withdrawn).")
+                raise ModerationsFehler(tr("Die Einreichung ist veröffentlicht – erst zurückziehen (withdrawn)."))
             eintrag = json.dumps({"zeit": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                                   "id": submission_id, "grund": grund, "akteur": akteur}, ensure_ascii=False)
             with (self.wurzel / LOESCHPROTOKOLL).open("a", encoding="utf-8") as f:

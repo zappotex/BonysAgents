@@ -35,6 +35,8 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "kursleiter: nur in der Kursleiter-Version (braucht bonys_agents.trainer)")
     edition = config.getoption("--edition")
     os.environ[EDITION_ENV] = edition
+    # Die Tests prüfen deutsche Meldungstexte – unabhängig von der Sprache des Rechners (siehe i18n.UMGEBUNG)
+    os.environ["BONYS_AGENTS_SPRACHE"] = "de"
     if edition == "anwender":
         if any(m == "bonys_agents.edition" or m.startswith("bonys_agents.trainer") for m in sys.modules):
             raise pytest.UsageError("bonys_agents.edition wurde vor der Wahl der Edition importiert.")

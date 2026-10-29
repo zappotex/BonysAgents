@@ -18,18 +18,19 @@ from PySide6.QtWidgets import (
 from pathlib import Path
 
 from bonys_agents import kurspaket, kurspaket_moderation as mod, kurspaket_moderation_client as online, storage
+from bonys_agents.i18n import n_, tr
 
 STATUS_TEXT = {
-    mod.UPLOADED: "Eingereicht", mod.SCANNING: "Wird geprüft", mod.NEEDS_REVIEW: "Braucht Prüfung",
-    mod.APPROVED: "Freigegeben (nicht veröffentlicht)", mod.PUBLISHED: "Veröffentlicht",
-    mod.REJECTED: "Abgelehnt", mod.WITHDRAWN: "Zurückgezogen",
+    mod.UPLOADED: n_("Eingereicht"), mod.SCANNING: n_("Wird geprüft"), mod.NEEDS_REVIEW: n_("Braucht Prüfung"),
+    mod.APPROVED: n_("Freigegeben (nicht veröffentlicht)"), mod.PUBLISHED: n_("Veröffentlicht"),
+    mod.REJECTED: n_("Abgelehnt"), mod.WITHDRAWN: n_("Zurückgezogen"),
 }
 # Aktion -> (Beschriftung, Zielstatus)
 AKTIONEN = {
-    "freigeben": ("Freigeben", mod.APPROVED),
-    "ablehnen": ("Ablehnen", mod.REJECTED),
-    "veroeffentlichen": ("Veröffentlichen", mod.PUBLISHED),
-    "zurueckziehen": ("Zurückziehen", mod.WITHDRAWN),
+    "freigeben": (n_("Freigeben"), mod.APPROVED),
+    "ablehnen": (n_("Ablehnen"), mod.REJECTED),
+    "veroeffentlichen": (n_("Veröffentlichen"), mod.PUBLISHED),
+    "zurueckziehen": (n_("Zurückziehen"), mod.WITHDRAWN),
 }
 
 
@@ -41,19 +42,19 @@ def bericht_text(m, sid: str) -> str:
               f"Paket-ID: {b.get('paket_id') or '–'} · {b.get('groesse', 0)} Bytes",
               f"SHA-256: {b.get('sha256') or '–'}", ""]
     if not getattr(m, "kette_ok", lambda _sid: True)(sid):
-        zeilen += ["ACHTUNG: Der Verlauf dieser Einreichung ist verändert worden. Nicht entscheiden.", ""]
+        zeilen += [tr("ACHTUNG: Der Verlauf dieser Einreichung ist verändert worden. Nicht entscheiden."), ""]
     for titel, schluessel in (("Befunde", "findings"), ("Skripte", "skripte"),
                               ("Externe Links", "externe_links"), ("Fundstellen (ohne Werte)", "fundstellen")):
         if b.get(schluessel):
             zeilen += [f"{titel}:"] + [f"  - {x}" for x in b[schluessel]] + [""]
     zeilen += ["Verlauf:"]
     for e in m.verlauf(sid):
-        zeilen.append(f"  {e.nr}. {e.zeit} · {STATUS_TEXT.get(e.nach, e.nach)} · {e.akteur}: {e.begruendung}")
+        zeilen.append(f"  {e.nr}. {e.zeit} · {tr(STATUS_TEXT.get(e.nach, e.nach))} · {e.akteur}: {e.begruendung}")
     return "\n".join(zeilen)
 
 
-ART_TEXT = {"text": "Text", "skript": "Skript – wird nie ausgeführt", "bild": "Bild – wird nicht angezeigt",
-            "sonstig": "keine Vorschau"}
+ART_TEXT = {"text": n_("Text"), "skript": n_("Skript – wird nie ausgeführt"), "bild": n_("Bild – wird nicht angezeigt"),
+            "sonstig": n_("keine Vorschau")}
 
 
 class InhaltDialog(QDialog):
@@ -62,15 +63,15 @@ class InhaltDialog(QDialog):
 
     def __init__(self, dateien: list[online.InhaltsDatei], parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Kursportal – Paketinhalt (nur Ansicht)")
+        self.setWindowTitle(tr("Kursportal – Paketinhalt (nur Ansicht)"))
         self.dateien = dateien
         lay = QVBoxLayout(self)
-        hinweis = QLabel("Nur Ansicht: Skripte laufen hier nie, Bilder und Links werden nicht geöffnet.")
+        hinweis = QLabel(tr("Nur Ansicht: Skripte laufen hier nie, Bilder und Links werden nicht geöffnet."))
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
         zeile = QHBoxLayout()
         self.liste = QListWidget()
-        self.liste.addItems([f"{d.pfad}  ({ART_TEXT.get(d.art, '')}, {d.groesse} Bytes)" for d in dateien])
+        self.liste.addItems([f"{d.pfad}  ({tr(ART_TEXT.get(d.art, ''))}, {d.groesse} Bytes)" for d in dateien])
         self.text = QPlainTextEdit()
         self.text.setReadOnly(True)
         zeile.addWidget(self.liste, 1)
@@ -83,7 +84,7 @@ class InhaltDialog(QDialog):
 
     def _zeigen(self, zeile: int) -> None:
         d = self.dateien[zeile] if 0 <= zeile < len(self.dateien) else None
-        self.text.setPlainText("" if d is None else d.text or f"({ART_TEXT.get(d.art, '')})")
+        self.text.setPlainText("" if d is None else d.text or f"({tr(ART_TEXT.get(d.art, ''))})")
 
 
 def lokale_ablage() -> mod.Moderation:
@@ -95,29 +96,29 @@ def lokale_ablage() -> mod.Moderation:
 class ModerationDialog(QDialog):
     def __init__(self, ablage: mod.Moderation, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Kursportal – Moderation")
+        self.setWindowTitle(tr("Kursportal – Moderation"))
         self.lokal = self.ablage = ablage
         self.online: online.OnlineAblage | None = None
         lay = QVBoxLayout(self)
-        intro = QLabel("Lokale Moderation auf diesem Rechner: Nichts wird hier veröffentlicht oder hochgeladen und der "
-                       "Online-Katalog bleibt unverändert. Jede Entscheidung wird mit Akteur und Begründung "
-                       "unveränderlich im Verlauf festgehalten.")
+        intro = QLabel(tr("Lokale Moderation auf diesem Rechner: Nichts wird hier veröffentlicht oder hochgeladen "
+                          "und der Online-Katalog bleibt unverändert. Jede Entscheidung wird mit Akteur und "
+                          "Begründung unveränderlich im Verlauf festgehalten."))
         intro.setWordWrap(True)
         lay.addWidget(intro)
         quelle = QHBoxLayout()
         self.quelle = QComboBox()
-        self.quelle.addItems(["Lokal (dieser Rechner)", "Online (Kursportal)"])
-        self.aktualisieren_knopf = QPushButton("Aktualisieren")
-        self.abmelden_knopf = QPushButton("Abmelden")
+        self.quelle.addItems([tr("Lokal (dieser Rechner)"), tr("Online (Kursportal)")])
+        self.aktualisieren_knopf = QPushButton(tr("Aktualisieren"))
+        self.abmelden_knopf = QPushButton(tr("Abmelden"))
         quelle.addWidget(self.quelle, 1)
         quelle.addWidget(self.aktualisieren_knopf)
         quelle.addWidget(self.abmelden_knopf)
         lay.addLayout(quelle)
         self.akteur = QLineEdit()
-        self.akteur.setPlaceholderText("Dein Name als Moderator")
+        self.akteur.setPlaceholderText(tr("Dein Name als Moderator"))
         lay.addWidget(self.akteur)
         self.tabelle = QTableWidget(0, 4)
-        self.tabelle.setHorizontalHeaderLabels(["Einreichung", "Paket", "Version", "Status"])
+        self.tabelle.setHorizontalHeaderLabels([tr("Einreichung"), tr("Paket"), tr("Version"), tr("Status")])
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabelle.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabelle.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -131,19 +132,19 @@ class ModerationDialog(QDialog):
         knoepfe = QHBoxLayout()
         self.knoepfe: dict[str, QPushButton] = {}
         for text, ziel in AKTIONEN.values():
-            b = QPushButton(text)
+            b = QPushButton(tr(text))
             b.setProperty("ziel", ziel)
             b.clicked.connect(self._knopf)      # kein Lambda mit self: sonst wird der Dialog erst beim Beenden frei
             knoepfe.addWidget(b)
             self.knoepfe[ziel] = b
         knoepfe.addStretch(1)
-        self.inhalt_knopf = QPushButton("Inhalt ansehen …")
-        self.inhalt_knopf.setToolTip("Dateien des Pakets als Klartext lesen – nichts wird ausgeführt")
+        self.inhalt_knopf = QPushButton(tr("Inhalt ansehen …"))
+        self.inhalt_knopf.setToolTip(tr("Dateien des Pakets als Klartext lesen – nichts wird ausgeführt"))
         self.inhalt_knopf.clicked.connect(self._inhalt_ansehen)
         knoepfe.addWidget(self.inhalt_knopf)
-        self.datei_knopf = QPushButton("Paketdatei prüfen …")
-        self.datei_knopf.setToolTip("Eine .bonyspaket-Datei als Daten prüfen und in die lokale Ablage aufnehmen – "
-                                    "nichts daraus wird ausgeführt")
+        self.datei_knopf = QPushButton(tr("Paketdatei prüfen …"))
+        self.datei_knopf.setToolTip(tr("Eine .bonyspaket-Datei als Daten prüfen und in die lokale Ablage aufnehmen – "
+                                       "nichts daraus wird ausgeführt"))
         self.datei_knopf.clicked.connect(self._datei_waehlen)
         knoepfe.addWidget(self.datei_knopf)
         lay.addLayout(knoepfe)
@@ -161,7 +162,8 @@ class ModerationDialog(QDialog):
     def _modus_anzeigen(self) -> None:
         on = self._ist_online()
         self.akteur.setEnabled(not on)
-        self.akteur.setPlaceholderText("Der Akteur ist dein Moderator-Zugang" if on else "Dein Name als Moderator")
+        self.akteur.setPlaceholderText(tr("Der Akteur ist dein "
+                                          "Moderator-Zugang") if on else tr("Dein Name als Moderator"))
         self.datei_knopf.setEnabled(not on)
         self.aktualisieren_knopf.setEnabled(on)
         self.abmelden_knopf.setEnabled(on and online.zugang_laden() is not None)
@@ -183,7 +185,7 @@ class ModerationDialog(QDialog):
         zugang = online.zugang_laden()
         neu_eingegeben = zugang is None
         if zugang is None:
-            token, ok = QInputDialog.getText(self, "Moderator-Zugang", "Moderator-Token des Kursportals:",
+            token, ok = QInputDialog.getText(self, tr("Moderator-Zugang"), tr("Moderator-Token des Kursportals:"),
                                              QLineEdit.EchoMode.Password)
             if not ok or not token.strip():
                 return False
@@ -196,7 +198,7 @@ class ModerationDialog(QDialog):
         except online.OnlineFehler as exc:
             if exc.code in (401, 403):
                 online.zugang_loeschen()
-            QMessageBox.warning(self, "Kursportal", str(exc))
+            QMessageBox.warning(self, tr("Kursportal"), str(exc))
             return False
         self.online = self.ablage = neu
         return True
@@ -207,7 +209,7 @@ class ModerationDialog(QDialog):
         try:
             self.online.aktualisieren()
         except online.OnlineFehler as exc:
-            QMessageBox.warning(self, "Kursportal", str(exc))
+            QMessageBox.warning(self, tr("Kursportal"), str(exc))
         self.neu_laden()
 
     def _abmelden(self) -> None:
@@ -223,7 +225,7 @@ class ModerationDialog(QDialog):
             with self.ablage.original_bereit(sid) as datei:
                 dateien = online.inhalt_lesen(datei)
         except mod.ModerationsFehler as exc:             # auch OnlineFehler
-            QMessageBox.warning(self, "Inhalt nicht ansehbar", str(exc))
+            QMessageBox.warning(self, tr("Inhalt nicht ansehbar"), str(exc))
             return
         InhaltDialog(dateien, self).exec()
 
@@ -231,8 +233,8 @@ class ModerationDialog(QDialog):
         self.entscheiden(self.sender().property("ziel"))
 
     def _datei_waehlen(self) -> None:
-        datei, _ = QFileDialog.getOpenFileName(self, "Paketdatei prüfen", str(Path.home()),
-                                               f"Kurspakete (*{kurspaket.SUFFIX});;Alle Dateien (*)")
+        datei, _ = QFileDialog.getOpenFileName(self, tr("Paketdatei prüfen"), str(Path.home()),
+                                               tr("Kurspakete (*{SUFFIX});;Alle Dateien (*)", SUFFIX=kurspaket.SUFFIX))
         if datei:
             self.einreichen(Path(datei))
 
@@ -240,7 +242,7 @@ class ModerationDialog(QDialog):
         try:
             self.ablage.einreichen(datei, "lokal")
         except (mod.ModerationsFehler, kurspaket.PaketFehler, OSError) as exc:
-            QMessageBox.warning(self, "Prüfung nicht möglich", str(exc))
+            QMessageBox.warning(self, tr("Prüfung nicht möglich"), str(exc))
             return False
         self.neu_laden()
         return True
@@ -258,7 +260,7 @@ class ModerationDialog(QDialog):
             zeile = self.tabelle.rowCount()
             self.tabelle.insertRow(zeile)
             for spalte, text in enumerate((sid[:8], b.get("name") or b.get("paket_id") or "–",
-                                           b.get("version") or "–", STATUS_TEXT.get(self.ablage.status(sid), "?"))):
+                                           b.get("version") or "–", tr(STATUS_TEXT.get(self.ablage.status(sid), "?")))):
                 item = QTableWidgetItem(text)
                 item.setData(Qt.ItemDataRole.UserRole, sid)
                 self.tabelle.setItem(zeile, spalte, item)
@@ -278,7 +280,7 @@ class ModerationDialog(QDialog):
                 return
         status = self.ablage.status(sid) if sid else ""
         self.inhalt_knopf.setEnabled(bool(sid))
-        self.details.setPlainText(bericht_text(self.ablage, sid) if sid else "Keine Einreichung ausgewählt.")
+        self.details.setPlainText(bericht_text(self.ablage, sid) if sid else tr("Keine Einreichung ausgewählt."))
         for ziel, knopf in self.knoepfe.items():
             knopf.setEnabled(ziel in mod.ERLAUBT_MENSCH.get(status, set()))
 
@@ -287,13 +289,13 @@ class ModerationDialog(QDialog):
         if not sid:
             return False
         if begruendung is None:
-            begruendung, ok = QInputDialog.getMultiLineText(self, "Begründung", "Warum diese Entscheidung?")
+            begruendung, ok = QInputDialog.getMultiLineText(self, tr("Begründung"), tr("Warum diese Entscheidung?"))
             if not ok:
                 return False
         try:
             self.ablage.entscheiden(sid, ziel, self.akteur.text(), begruendung)
         except mod.ModerationsFehler as exc:         # auch OnlineFehler
-            QMessageBox.warning(self, "Entscheidung nicht möglich", str(exc))
+            QMessageBox.warning(self, tr("Entscheidung nicht möglich"), str(exc))
             return False
         self.neu_laden()
         return True

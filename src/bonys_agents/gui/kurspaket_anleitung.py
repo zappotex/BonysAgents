@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from bonys_agents import edition, kurslauf, kurspaket, storage, vm
+from bonys_agents.i18n import n_, tr
 
 from . import style
 from .widgets import open_url
@@ -45,9 +46,9 @@ _FENSTER: dict[str, AnleitungFenster] = {}
 _MELDUNGEN: set[TaskWorker] = set()      # laufende Meldungen an die Zentrale (überleben das Schließen)
 MELDEN_PAUSE = 30                        # nach einem Fehler so lange nicht erneut melden (Sekunden)
 Melden = Callable[[int, "bool | None"], None]   # (Lektion ab 0, geschafft) – z. B. kurse.fortschritt_melden
-RESET_TEXT = ("Alles, was seit dem Beginn dieser Lektion im Agent-PC geändert wurde – auch eigene Dateien –, geht "
-              "verloren. Der Agent-PC wird dafür heruntergefahren und wieder gestartet. Hast du etwas Wichtiges im "
-              "Agent-PC, sichere es vorher.")
+RESET_TEXT = n_("Alles, was seit dem Beginn dieser Lektion im Agent-PC geändert wurde – auch eigene Dateien –, geht "
+                "verloren. Der Agent-PC wird dafür heruntergefahren und wieder gestartet. Hast du etwas Wichtiges im "
+                "Agent-PC, sichere es vorher.")
 
 
 class MarkdownAnsicht(QTextBrowser):
@@ -97,7 +98,7 @@ class QuizDialog(QDialog):
 
     def __init__(self, titel: str, fragen: list[kurspaket.Frage], parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Quiz – {titel}")
+        self.setWindowTitle(tr("Quiz – {titel}", titel=titel))
         self.fragen = fragen
         self.nr = 0
         self.richtig = 0
@@ -122,8 +123,8 @@ class QuizDialog(QDialog):
         root.addWidget(self.rueckmeldung)
         root.addStretch(1)
         knoepfe = QHBoxLayout()
-        self.spaeter = QPushButton("Später")
-        self.knopf = QPushButton("Antworten")
+        self.spaeter = QPushButton(tr("Später"))
+        self.knopf = QPushButton(tr("Antworten"))
         self.knopf.setObjectName("Primary")
         knoepfe.addWidget(self.spaeter)
         knoepfe.addStretch(1)
@@ -140,7 +141,7 @@ class QuizDialog(QDialog):
 
     def _zeigen(self) -> None:
         f = self.fragen[self.nr]
-        self.kopf.setText(f"Frage {self.nr + 1} von {len(self.fragen)}")
+        self.kopf.setText(tr("Frage {wert} von {wert2}", wert=self.nr + 1, wert2=len(self.fragen)))
         self.frage.setText(f.frage)
         for b in self.gruppe.buttons():
             self.gruppe.removeButton(b)
@@ -151,25 +152,25 @@ class QuizDialog(QDialog):
             self.antworten_box.addWidget(rb)
         self.rueckmeldung.setText("")
         self.rueckmeldung.setStyleSheet("")
-        self.knopf.setText("Antworten")
+        self.knopf.setText(tr("Antworten"))
         self.beantwortet = False
 
     def _weiter(self) -> None:
         if not self.beantwortet:
             wahl = self.gruppe.checkedId()
             if wahl < 0:
-                self.rueckmeldung.setText("Bitte eine Antwort wählen.")
+                self.rueckmeldung.setText(tr("Bitte eine Antwort wählen."))
                 return
             f = self.fragen[self.nr]
             ok = wahl == f.richtig
             self.richtig += ok
-            text = "Richtig!" if ok else f"Leider nicht. Richtig ist: {f.antworten[f.richtig]}"
+            text = "Richtig!" if ok else tr("Leider nicht. Richtig ist: {wert}", wert=f.antworten[f.richtig])
             self.rueckmeldung.setText(text + (f"\n{f.erklaerung}" if f.erklaerung else ""))
             self.rueckmeldung.setStyleSheet(f"color: {style.OK if ok else style.WARN};")
             for b in self.gruppe.buttons():
                 b.setEnabled(False)
             self.beantwortet = True
-            self.knopf.setText("Fertig" if self.nr == len(self.fragen) - 1 else "Nächste Frage")
+            self.knopf.setText(tr("Fertig") if self.nr == len(self.fragen) - 1 else tr("Nächste Frage"))
             return
         if self.nr == len(self.fragen) - 1:
             self.accept()
@@ -205,7 +206,7 @@ class AnleitungFenster(QWidget):
         self.paket = paket
         self.agent_pc_zeigen = agent_pc_zeigen
         self.fortschritt = kurspaket.Fortschritt.laden(paket.id)
-        self.setWindowTitle(f"{paket.name} – Anleitung")
+        self.setWindowTitle(tr("{name} – Anleitung", name=paket.name))
         self.zusatz = ""                      # "handout" / "ablaufplan": statt der Lektion anzeigen
         self.arbeit: TaskWorker | None = None  # Prüfung, Zurücksetzen oder Startzustand im Hintergrund
         self.arbeit_text = ""
@@ -230,11 +231,11 @@ class AnleitungFenster(QWidget):
         self.auswahl = QComboBox()
         for i, lek in enumerate(paket.lektionen, 1):
             self.auswahl.addItem(f"{i}. {lek.titel}", i - 1)
-        self.auswahl.setToolTip("Zu Lektion springen")
+        self.auswahl.setToolTip(tr("Zu Lektion springen"))
         kopf.addWidget(self.auswahl, 1)
         self.mehr = QPushButton("⋯")
         self.mehr.setObjectName("Quiet")
-        self.mehr.setToolTip("Handout, Ablaufplan, Startzustände, Fortschritt zurücksetzen")
+        self.mehr.setToolTip(tr("Handout, Ablaufplan, Startzustände, Fortschritt zurücksetzen"))
         self.mehr.setMenu(self._menue())
         kopf.addWidget(self.mehr)
         root.addLayout(kopf)
@@ -268,11 +269,11 @@ class AnleitungFenster(QWidget):
         self.ergebnis_text.setTextFormat(Qt.PlainText)
         al.addWidget(self.ergebnis_text)
         zeile = QHBoxLayout()
-        self.pruefen_knopf = QPushButton("Prüfen")
-        self.pruefen_knopf.setToolTip("Prüft im Agent-PC, ob die Aufgabe geschafft ist")
-        self.quiz_knopf = QPushButton("Quiz")
-        self.reset_knopf = QPushButton("↺  Zurücksetzen")
-        self.reset_knopf.setToolTip("Lektion zurücksetzen: Agent-PC auf den Stand vom Beginn dieser Lektion")
+        self.pruefen_knopf = QPushButton(tr("Prüfen"))
+        self.pruefen_knopf.setToolTip(tr("Prüft im Agent-PC, ob die Aufgabe geschafft ist"))
+        self.quiz_knopf = QPushButton(tr("Quiz"))
+        self.reset_knopf = QPushButton(tr("↺  Zurücksetzen"))
+        self.reset_knopf.setToolTip(tr("Lektion zurücksetzen: Agent-PC auf den Stand vom Beginn dieser Lektion"))
         zeile.addWidget(self.pruefen_knopf)
         zeile.addWidget(self.quiz_knopf)
         zeile.addStretch(1)
@@ -281,7 +282,7 @@ class AnleitungFenster(QWidget):
         root.addWidget(self.aufgabe)
 
         # Kursleiter-Edition: Notizen zur Lektion (aufklappbar)
-        self.notiz_knopf = QPushButton("Notizen für die Kursleitung ▸")
+        self.notiz_knopf = QPushButton(tr("Notizen für die Kursleitung ▸"))
         self.notiz_knopf.setObjectName("Quiet")
         self.notiz_knopf.setCheckable(True)
         self.notiz = MarkdownAnsicht()
@@ -295,18 +296,18 @@ class AnleitungFenster(QWidget):
         self.pc_text = QLabel()
         self.pc_text.setObjectName("Muted")
         self.pc_text.setWordWrap(True)
-        self.pc_knopf = QPushButton("Agent-PC zeigen")
-        self.pc_knopf.setToolTip("Den Agent-PC dieses Kurspakets im Hauptfenster wählen und starten bzw. zeigen")
+        self.pc_knopf = QPushButton(tr("Agent-PC zeigen"))
+        self.pc_knopf.setToolTip(tr("Den Agent-PC dieses Kurspakets im Hauptfenster wählen und starten bzw. zeigen"))
         pc.addWidget(self.pc_text, 1)
         pc.addWidget(self.pc_knopf)
         root.addLayout(pc)
 
         unten = QHBoxLayout()
-        self.zurueck = QPushButton("◀  Zurück")
-        self.weiter = QPushButton("Weiter  ▶")
+        self.zurueck = QPushButton(tr("◀  Zurück"))
+        self.weiter = QPushButton(tr("Weiter  ▶"))
         self.weiter.setObjectName("Primary")
-        self.oben = QCheckBox("Immer im Vordergrund")
-        self.oben.setToolTip("Das Fenster bleibt über dem Agent-PC sichtbar")
+        self.oben = QCheckBox(tr("Immer im Vordergrund"))
+        self.oben.setToolTip(tr("Das Fenster bleibt über dem Agent-PC sichtbar"))
         unten.addWidget(self.zurueck)
         unten.addWidget(self.oben, 1, Qt.AlignCenter)
         unten.addWidget(self.weiter)
@@ -334,14 +335,14 @@ class AnleitungFenster(QWidget):
     def _menue(self) -> QMenu:
         m = QMenu(self)
         if self.paket.lektionen:
-            m.addAction("Lektion anzeigen", lambda: self._zusatz(""))
+            m.addAction(tr("Lektion anzeigen"), lambda: self._zusatz(""))
         if self.paket.handout_datei.is_file():
-            m.addAction("Handout anzeigen", lambda: self._zusatz("handout"))
+            m.addAction(tr("Handout anzeigen"), lambda: self._zusatz("handout"))
         if edition.IS_TRAINER:
-            m.addAction("Ablaufplan (Kursleitung) anzeigen", lambda: self._zusatz("ablaufplan"))
+            m.addAction(tr("Ablaufplan (Kursleitung) anzeigen"), lambda: self._zusatz("ablaufplan"))
         m.addSeparator()
-        m.addAction("Startzustände löschen …", self._startzustaende_loeschen)
-        m.addAction("Fortschritt zurücksetzen …", self._fortschritt_zuruecksetzen)
+        m.addAction(tr("Startzustände löschen …"), self._startzustaende_loeschen)
+        m.addAction(tr("Fortschritt zurücksetzen …"), self._fortschritt_zuruecksetzen)
         return m
 
     def _platzieren(self, geometrie) -> None:
@@ -423,18 +424,18 @@ class AnleitungFenster(QWidget):
                 else:
                     self.ansicht.zeigen(p.handout() or p.beschreibung, p.pfad, p.pfad)
                 self._angezeigt = ("", self.zusatz)
-            self.info.setText({"ablaufplan": "Ablaufplan für die Kursleitung"}.get(
-                self.zusatz, "Handout" if p.handout_datei.is_file() else ""))
+            self.info.setText(tr("Ablaufplan für die Kursleitung") if self.zusatz == "ablaufplan" else
+                              tr("Handout") if p.handout_datei.is_file() else "")
             if self.zusatz:
                 self.zurueck.setEnabled(bool(n))
-                self.zurueck.setText("◀  Zur Lektion")
+                self.zurueck.setText(tr("◀  Zur Lektion"))
             return
-        self.zurueck.setText("◀  Zurück")
+        self.zurueck.setText(tr("◀  Zurück"))
         i = self._index()
         lek = p.lektionen[i]
         if self.auswahl.currentIndex() != i:
             self.auswahl.setCurrentIndex(i)
-        teile = [f"Lektion {i + 1} von {n}", f"{f.fertig(p)} erledigt"]
+        teile = [tr("Lektion {wert} von {n}", wert=i + 1, n=n), f"{f.fertig(p)} erledigt"]
         if lek.dauer_minuten:
             teile.append(f"{lek.dauer_minuten} min")
         if lek.art:
@@ -458,7 +459,7 @@ class AnleitungFenster(QWidget):
         self.pruefen_knopf.setVisible(pr is not None)
         if pr is not None:
             was = pr.aufgabe or kurspaket.EINGEBAUTE_PRUEFUNGEN.get(pr.typ, "")
-            self.aufgabe_text.setText(f"Prüfaufgabe: {was}" if was else "Prüfaufgabe zu dieser Lektion")
+            self.aufgabe_text.setText(tr("Prüfaufgabe: {was}", was=was) if was else tr("Prüfaufgabe zu dieser Lektion"))
         e = self.ergebnis.get(lek.ordner)
         if beschaeftigt:
             text, farbe = self.arbeit_text or "Bitte warten …", style.MUTED
@@ -466,7 +467,7 @@ class AnleitungFenster(QWidget):
             text, farbe = ("✓ " if e.geschafft else "✗ ") + e.text, style.OK if e.geschafft else style.WARN
         elif pr is not None and lek.ordner in f.pruefungen:
             ok = f.pruefungen[lek.ordner]
-            text, farbe = ("✓ Schon geschafft." if ok else "Beim letzten Prüfen noch nicht geschafft."), \
+            text, farbe = ("✓ Schon geschafft." if ok else tr("Beim letzten Prüfen noch nicht geschafft.")), \
                 (style.OK if ok else style.MUTED)
         else:
             text, farbe = "", style.MUTED
@@ -475,7 +476,7 @@ class AnleitungFenster(QWidget):
         self.ergebnis_text.setVisible(bool(text))
         self.quiz_knopf.setVisible(lek.hat_quiz)
         q = f.quiz.get(lek.ordner)
-        self.quiz_knopf.setText(f"Quiz ({q[0]}/{q[1]})" if q else "Quiz")
+        self.quiz_knopf.setText(tr("Quiz ({wert}/{wert2})", wert=q[0], wert2=q[1]) if q else tr("Quiz"))
         self.reset_knopf.setVisible(hat_start)
         for b in (self.reset_knopf, self.pruefen_knopf, self.quiz_knopf):
             b.setEnabled(not beschaeftigt)
@@ -487,7 +488,7 @@ class AnleitungFenster(QWidget):
             self._notiz_ordner = lek.ordner
         self.notiz.setVisible(bool(notiz) and self.notiz_knopf.isChecked())
         self.zurueck.setEnabled(i > 0 and not beschaeftigt)
-        self.weiter.setText("Abschließen  ✓" if i == n - 1 else "Weiter  ▶")
+        self.weiter.setText(tr("Abschließen  ✓") if i == n - 1 else tr("Weiter  ▶"))
         self._melden()
 
     def _melden(self) -> None:
@@ -524,13 +525,13 @@ class AnleitungFenster(QWidget):
         if self.maschine() is None or self.startzustaende is None:
             return ""
         if lek.ordner in self.startzustaende:
-            return "Startzustand gesichert – die Lektion lässt sich zurücksetzen."
+            return tr("Startzustand gesichert – die Lektion lässt sich zurücksetzen.")
         if self.vorbereiten_fehler:
             return f"Startzustand: {self.vorbereiten_fehler}"
-        return "Der Startzustand wird gesichert, sobald der Agent-PC fertig ist."
+        return tr("Der Startzustand wird gesichert, sobald der Agent-PC fertig ist.")
 
     def _notiz_umschalten(self, an: bool) -> None:
-        self.notiz_knopf.setText("Notizen für die Kursleitung " + ("▾" if an else "▸"))
+        self.notiz_knopf.setText(tr("Notizen für die Kursleitung ") + ("▾" if an else "▸"))
         self.notiz.setVisible(an)
 
     def _zusatz(self, was: str) -> None:
@@ -540,17 +541,17 @@ class AnleitungFenster(QWidget):
     def _pc_status(self) -> None:
         name = self.fortschritt.agent_pc
         if not name:
-            self.pc_text.setText("Noch kein Agent-PC für dieses Kurspaket.")
+            self.pc_text.setText(tr("Noch kein Agent-PC für dieses Kurspaket."))
             self.pc_knopf.setEnabled(False)
             return
         m = self.maschine()
         if m is None:
-            self.pc_text.setText(f"Agent-PC „{name}“ ist nicht verfügbar.")
+            self.pc_text.setText(tr("Agent-PC „{name}“ ist nicht verfügbar.", name=name))
             self.pc_text.setStyleSheet("")
             self.pc_knopf.setEnabled(False)
             return
         status = m.status()
-        self.pc_text.setText(f"Agent-PC „{name}“: {status}")
+        self.pc_text.setText(tr("Agent-PC „{name}“: {status}", name=name, status=status))
         self.pc_text.setStyleSheet(f"color: {style.STATUS_COLORS.get(status, style.MUTED)};")
         self.pc_knopf.setEnabled(self.agent_pc_zeigen is not None)
 
@@ -586,7 +587,7 @@ class AnleitungFenster(QWidget):
             self.vorbereiten_fehler = str(w.error) if w.error is not None else ""
             self.startzustaende = kurslauf.startzustaende(m, self.paket)
 
-        self._im_hintergrund("Startzustand der Lektion wird gesichert …",
+        self._im_hintergrund(tr("Startzustand der Lektion wird gesichert …"),
                              lambda: kurslauf.lektion_vorbereiten(m, self.paket, index), fertig_cb)
 
     # ---------------------------------------------------------------- Bedienung
@@ -606,15 +607,16 @@ class AnleitungFenster(QWidget):
         i = self._index()
         lek = p.lektionen[i]
         if lek.hat_quiz and lek.ordner not in f.quiz:
-            if QMessageBox.question(self, p.name, "Zu dieser Lektion gibt es ein kurzes Quiz. Jetzt machen?",
+            if QMessageBox.question(self, p.name, tr("Zu dieser Lektion gibt es ein kurzes Quiz. Jetzt machen?"),
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) == QMessageBox.Yes:
                 self._quiz()
         f.erledigen(lek)
         if i == len(p.lektionen) - 1:
             f.speichern()
             self._zeigen()
-            QMessageBox.information(self, p.name, f"Geschafft! Du hast „{p.name}“ durchgearbeitet.\n\n"
-                                    f"{f.fertig(p)} von {len(p.lektionen)} Lektionen erledigt.")
+            QMessageBox.information(self, p.name, tr("Geschafft! Du hast „{name}“ durchgearbeitet.\n\n{wert} von "
+                                                     "{wert2} Lektionen erledigt.", name=p.name, wert=f.fertig(p),
+                                                     wert2=len(p.lektionen)))
             return
         self._gehe(i + 1)
 
@@ -625,13 +627,14 @@ class AnleitungFenster(QWidget):
             return
         lek = self.paket.lektionen[ziel]
         if self.startzustaende and lek.ordner in self.startzustaende and self.maschine() is not None:
-            box = QMessageBox(QMessageBox.Question, self.paket.name, f"Zu Lektion {ziel + 1} „{lek.titel}“",
+            box = QMessageBox(QMessageBox.Question, self.paket.name, tr("Zu Lektion {wert} „{titel}“", wert=ziel + 1,
+                                                                        titel=lek.titel),
                               QMessageBox.NoButton, self)
-            box.setInformativeText("Nur die Anleitung ansehen – oder auch den Agent-PC auf den Stand vom Beginn "
-                                   "dieser Lektion zurücksetzen?\n\n" + RESET_TEXT)
-            ansehen = box.addButton("Nur ansehen", QMessageBox.AcceptRole)
-            reset = box.addButton("Zurücksetzen", QMessageBox.DestructiveRole)
-            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.setInformativeText(tr("Nur die Anleitung ansehen – oder auch den Agent-PC auf den Stand vom Beginn "
+                                      "dieser Lektion zurücksetzen?\n\n{RESET_TEXT}", RESET_TEXT=tr(RESET_TEXT)))
+            ansehen = box.addButton(tr("Nur ansehen"), QMessageBox.AcceptRole)
+            reset = box.addButton(tr("Zurücksetzen"), QMessageBox.DestructiveRole)
+            box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
             box.setDefaultButton(ansehen)
             box.exec()
             if box.clickedButton() is reset:
@@ -646,11 +649,13 @@ class AnleitungFenster(QWidget):
 
     def _zuruecksetzen_fragen(self, index: int) -> None:
         lek = self.paket.lektionen[index]
-        box = QMessageBox(QMessageBox.Warning, self.paket.name, f"Lektion {index + 1} „{lek.titel}“ zurücksetzen?",
+        box = QMessageBox(QMessageBox.Warning, self.paket.name, tr("Lektion {wert} "
+                                                                   "„{titel}“ "
+                                                                   "zurücksetzen?", wert=index + 1, titel=lek.titel),
                           QMessageBox.NoButton, self)
         box.setInformativeText(RESET_TEXT)
-        ja = box.addButton("Zurücksetzen", QMessageBox.DestructiveRole)
-        nein = box.addButton("Abbrechen", QMessageBox.RejectRole)
+        ja = box.addButton(tr("Zurücksetzen"), QMessageBox.DestructiveRole)
+        nein = box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
         box.setDefaultButton(nein)
         box.exec()
         if box.clickedButton() is ja:
@@ -664,7 +669,7 @@ class AnleitungFenster(QWidget):
         def fertig(w: TaskWorker) -> None:
             self.startzustaende = kurslauf.startzustaende(m, self.paket)
             if w.error is not None:
-                QMessageBox.warning(self, self.paket.name, f"Zurücksetzen nicht möglich:\n\n{w.error}")
+                QMessageBox.warning(self, self.paket.name, tr("Zurücksetzen nicht möglich:\n\n{error}", error=w.error))
                 return
             for spaeter in self.paket.lektionen[index:]:
                 self.ergebnis.pop(spaeter.ordner, None)
@@ -673,7 +678,7 @@ class AnleitungFenster(QWidget):
                 self.fortschritt.pruefungen.pop(spaeter.ordner, None)
             self.fortschritt.gehe_zu(self.paket, index)
 
-        self._im_hintergrund("Agent-PC wird zurückgesetzt und neu gestartet …",
+        self._im_hintergrund(tr("Agent-PC wird zurückgesetzt und neu gestartet …"),
                              lambda: kurslauf.lektion_zuruecksetzen(m, self.paket, index), fertig)
 
     def _pruefen(self) -> None:
@@ -685,14 +690,14 @@ class AnleitungFenster(QWidget):
                 self.ergebnis[lek.ordner] = kurslauf.Ergebnis(False, str(w.error))
                 return
             if w.error is not None:
-                self.ergebnis[lek.ordner] = kurslauf.Ergebnis(False, f"Prüfen ging nicht: {w.error}")
+                self.ergebnis[lek.ordner] = kurslauf.Ergebnis(False, tr("Prüfen ging nicht: {error}", error=w.error))
                 return
             e: kurslauf.Ergebnis = w.result
             self.ergebnis[lek.ordner] = e
             self.fortschritt.pruefungen[lek.ordner] = e.geschafft
             self.fortschritt.speichern()
 
-        self._im_hintergrund("Wird im Agent-PC geprüft …", lambda: kurslauf.pruefen(m, self.paket, lek), fertig)
+        self._im_hintergrund(tr("Wird im Agent-PC geprüft …"), lambda: kurslauf.pruefen(m, self.paket, lek), fertig)
 
     def _quiz(self) -> None:
         lek = self.paket.lektionen[self._index()]
@@ -713,9 +718,10 @@ class AnleitungFenster(QWidget):
         m = self.maschine()
         if m is None or self.beschaeftigt():
             return
-        if QMessageBox.question(self, self.paket.name, "Alle gesicherten Startzustände dieses Kurspakets löschen?\n\n"
-                                "Das gibt Speicherplatz frei. Zurücksetzen geht danach erst wieder für Lektionen, "
-                                "die neu betreten werden. Der Agent-PC selbst bleibt unverändert.") \
+        if QMessageBox.question(self, self.paket.name, tr("Alle gesicherten Startzustände dieses Kurspakets "
+                                                          "löschen?\n\nDas gibt Speicherplatz frei. Zurücksetzen "
+                                                          "geht danach erst wieder für Lektionen, die neu betreten "
+                                                          "werden. Der Agent-PC selbst bleibt unverändert.")) \
                 != QMessageBox.Yes:
             return
 
@@ -724,13 +730,16 @@ class AnleitungFenster(QWidget):
             if w.error is not None:
                 QMessageBox.warning(self, self.paket.name, str(w.error))
 
-        self._im_hintergrund("Startzustände werden gelöscht …", lambda: kurslauf.alle_loeschen(m, self.paket),
+        self._im_hintergrund(tr("Startzustände werden gelöscht …"), lambda: kurslauf.alle_loeschen(m, self.paket),
                              fertig)
 
     def _fortschritt_zuruecksetzen(self) -> None:
-        if QMessageBox.question(self, self.paket.name, "Fortschritt in diesem Kurspaket zurücksetzen?\n\nDer Agent-PC "
-                                "und seine Dateien bleiben unverändert – nur die Häkchen, Prüf- und Quiz-Ergebnisse "
-                                "und die aktuelle Lektion werden gelöscht.") != QMessageBox.Yes:
+        if QMessageBox.question(self, self.paket.name, tr("Fortschritt in diesem Kurspaket "
+                                                          "zurücksetzen?\n\nDer Agent-PC und "
+                                                          "seine Dateien bleiben unverändert – "
+                                                          "nur die Häkchen, Prüf- und "
+                                                          "Quiz-Ergebnisse und die aktuelle "
+                                                          "Lektion werden gelöscht.")) != QMessageBox.Yes:
             return
         alt = self.fortschritt
         self.fortschritt = kurspaket.Fortschritt(self.paket.id, agent_pc=alt.agent_pc,
@@ -763,7 +772,7 @@ class AnleitungFenster(QWidget):
 
     def closeEvent(self, e) -> None:  # noqa: N802
         if self.beschaeftigt():
-            QMessageBox.information(self, self.paket.name, "Bitte warten, bis der Agent-PC fertig ist.")
+            QMessageBox.information(self, self.paket.name, tr("Bitte warten, bis der Agent-PC fertig ist."))
             e.ignore()
             return
         self.timer.stop()

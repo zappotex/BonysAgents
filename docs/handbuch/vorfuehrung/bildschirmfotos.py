@@ -40,7 +40,7 @@ RECHNERNAME_KURSLEITER = "kursleitung-pc"
 ANZEIGE_HOME = "/home/anna"           # so sehen die Pfade aus (Kursleiter-Version: /home/eva)
 
 
-def umgebung(edition: str) -> Path:
+def umgebung(edition: str, sprache: str = "de") -> Path:
     """Vor dem ersten Import von bonys_agents: eigener, leerer Ordner für alles, Qt ohne Bildschirm."""
     wurzel = Path(tempfile.mkdtemp(prefix="bonys-handbuch-"))
     home = wurzel / "home"
@@ -54,7 +54,9 @@ def umgebung(edition: str) -> Path:
         "BONY_NETZ_ORDNER": str(wurzel / "bony-netz"), "BONYS_AGENTS_EDITION": edition,
         "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software", "QT_SCALE_FACTOR": "1",
         "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --disable-gpu-compositing --no-sandbox",
-        "XDG_SESSION_TYPE": "x11", "LANG": "de_DE.UTF-8", "TZ": "Europe/Berlin",
+        "XDG_SESSION_TYPE": "x11", "LANG": "de_DE.UTF-8" if sprache == "de" else "en_US.UTF-8", "TZ": "Europe/Berlin",
+        # Sprache der Oberfläche (englisches Handbuch: docs/handbuch/en/, Bilder in bilder/en/)
+        "BONYS_AGENTS_SPRACHE": sprache,
         # Login-Name (z. B. „Ersteller“ beim Weitergeben einer Vorlage) – nie der echte
         "USER": "eva" if edition == "kursleiter" else "anna", "LOGNAME": "eva" if edition == "kursleiter" else "anna",
     })
@@ -66,6 +68,11 @@ def umgebung(edition: str) -> Path:
 
 
 # ====================================================================== Beispieldaten
+def _t(de: str, en: str) -> str:
+    """Beispieltext in der Sprache der Bildschirmfotos (--sprache)."""
+    return en if os.environ.get("BONYS_AGENTS_SPRACHE") == "en" else de
+
+
 # Agent-PCs: Name → (läuft, Einstellungen, Konsole)
 def _konsole(schritte: list[str], bis: int, fertig: bool) -> str:
     gesamt = len(schritte)
@@ -82,10 +89,11 @@ def _konsole(schritte: list[str], bis: int, fertig: bool) -> str:
     return "\n".join(zeilen) + "\n"
 
 
-SCHRITTE = ["Sprache und Tastatur", "Mit dem Bony-Netz verbinden", "Desktop Cinnamon installieren",
-            "Anmeldung und Bildschirm einrichten", "Brave Browser installieren", "Telegram Desktop installieren",
-            "Hermes Agent installieren", "Fernzugriff (RDP) vorbereiten", "Bony's VPN installieren",
-            "Aufräumen"]
+# Wie die echten Schritte (cloudinit.provision_script) – die App übersetzt sie beim Anzeigen (schritt_titel)
+SCHRITTE = ["Sprache, Tastatur und Zeitzone", "Mit dem Bony-Netz verbinden",
+            "Cinnamon-Desktop mit automatischer Anmeldung", "Brave Browser installieren",
+            "Telegram Desktop installieren", "Fernzugriff (RDP) installieren", "Bony's VPN installieren",
+            "Mission Control installieren", "Hermes Agent installieren", "Agenten-Apps (Liste) installieren"]
 
 
 def agent_pcs(bibliothek: Path, mit_netz: bool) -> None:
@@ -121,10 +129,11 @@ def vorlagen(bibliothek: Path) -> None:
     from bonys_agents import storage
 
     for name, text, apps, desktop, groesse in (
-            ("kurs-basis", "Für den Kurs „Einführung in Hermes Agent“: Brave, Telegram, Hermes",
+            ("kurs-basis", _t("Für den Kurs „Einführung in Hermes Agent“: Brave, Telegram, Hermes",
+                              "For the course “Introduction to Hermes Agent”: Brave, Telegram, Hermes"),
              ["brave", "telegram", "hermes", "xrdp"], "xfce", 3.4),
-            ("buero-basis", "Mein fertig eingerichteter Büro-PC", ["brave", "telegram", "hermes", "xrdp"], "cinnamon",
-             4.1)):
+            ("buero-basis", _t("Mein fertig eingerichteter Büro-PC", "My fully set-up office PC"),
+             ["brave", "telegram", "hermes", "xrdp"], "cinnamon", 4.1)):
         d = bibliothek / "_templates" / name
         d.mkdir(parents=True, exist_ok=True)
         (d / "template.json").write_text(json.dumps({
@@ -223,8 +232,10 @@ def vorfuehrmodus(wurzel: Path, kursleiter: bool) -> None:
     vm.VM.sync_remmina = lambda self: None
     vm.VM.template_lock_pid = lambda self: None
     vm.VM.abort_reason = lambda self: diagnose.AbortInfo(
-        "Der Rechner wurde während der Einrichtung neu gestartet.",
-        "Die Einrichtung macht beim unterbrochenen Schritt weiter.")
+        _t("Der Rechner wurde während der Einrichtung neu gestartet.",
+           "The computer was restarted during the setup."),
+        _t("Die Einrichtung macht beim unterbrochenen Schritt weiter.",
+           "The setup continues at the interrupted step."))
     vm.reap_children = lambda: None
     remote.remmina_command = lambda: None
     remote.port_free = lambda port: True
@@ -691,9 +702,12 @@ def kursraum_bilder(kamera: Kamera, rolle: str) -> None:
         kamera.warten(sekunden)
 
     if rolle == "teilnehmer":
-        ausfuehren("Vorfuehrung.chat('eva', 'Willkommen! Öffnet bitte euren Agent-PC und das Symbol Hermes Agent.')")
-        ausfuehren("Vorfuehrung.chat('ben', 'Bei mir steht „hermes: command not found“.')")
-        ausfuehren("Vorfuehrung.chat('eva', 'Ben, ich schaue gleich bei dir vorbei.')")
+        for wer, text in (
+                ("eva", _t("Willkommen! Öffnet bitte euren Agent-PC und das Symbol Hermes Agent.",
+                           "Welcome! Please open your Agent PC and the Hermes Agent icon.")),
+                ("ben", _t("Bei mir steht „hermes: command not found“.", "Mine says “hermes: command not found”.")),
+                ("eva", _t("Ben, ich schaue gleich bei dir vorbei.", "Ben, I will drop by in a moment."))):
+            ausfuehren(f"Vorfuehrung.chat('{wer}', '{text}')")
         ausfuehren("Vorfuehrung.hand('clara', true)")
         ausfuehren("Vorfuehrung.klicken('hand')", 2.5)
         if kamera.gewuenscht(namen[0]):
@@ -704,7 +718,7 @@ def kursraum_bilder(kamera: Kamera, rolle: str) -> None:
             kamera.speichern(f.grab(), namen[1])
     else:
         ausfuehren("Vorfuehrung.bildschirmTeilen(true)")
-        ausfuehren("Vorfuehrung.chat('anna', 'Bei mir hat es geklappt!')")
+        ausfuehren(f"Vorfuehrung.chat('anna', '{_t('Bei mir hat es geklappt!', 'It worked for me!')}')")
         ausfuehren("Vorfuehrung.hand('ben', true)")
         ausfuehren("Vorfuehrung.daten('clara', 'hilfe-bitte', {an: true})", 2.5)
         if kamera.gewuenscht(namen[0]):
@@ -731,8 +745,9 @@ def _bildschirm_waehlen(kamera: Kamera, fenster, name: str) -> None:
     class Anfrage:
         def __init__(self):
             self.b = modell(["DP-1"])
-            self.f = modell(["Agent-PC „agent-kursleitung“ – QEMU", "Kursraum – Einführung in Hermes Agent",
-                             "Präsentation.pdf – Dokumentenbetrachter"])
+            self.f = modell([_t("Agent-PC „agent-kursleitung“ – QEMU", "Agent PC “agent-kursleitung” – QEMU"),
+                             _t("Kursraum – Einführung in Hermes Agent", "Course room – Einführung in Hermes Agent"),
+                             _t("Präsentation.pdf – Dokumentenbetrachter", "Presentation.pdf – Document Viewer")])
 
         def screensModel(self):  # noqa: N802
             return self.b
@@ -986,8 +1001,9 @@ def main() -> int:
     ap.add_argument("--edition", choices=["anwender", "kursleiter"], required=True)
     ap.add_argument("--ziel", type=Path, default=REPO / "docs" / "handbuch" / "bilder")
     ap.add_argument("--nur", nargs="*", default=[], help="nur diese Bilder (Namen ohne .png)")
+    ap.add_argument("--sprache", choices=["de", "en"], default="de", help="Sprache der Oberfläche")
     args = ap.parse_args()
-    wurzel = umgebung(args.edition)
+    wurzel = umgebung(args.edition, args.sprache)
     try:
         args.ziel.mkdir(parents=True, exist_ok=True)
         from bonys_agents.gui import kursraum_fenster
@@ -1000,6 +1016,7 @@ def main() -> int:
         app.setApplicationName("Bony's Agents")
         from bonys_agents import edition
         from bonys_agents.gui import style
+        from bonys_agents import i18n
         from bonys_agents.gui.app import install_german
 
         if edition.EDITION != args.edition:
@@ -1010,7 +1027,8 @@ def main() -> int:
         for f in sorted(schriften.glob("SourceSans3-*.ttf")):
             QFontDatabase.addApplicationFont(str(f))
         app.setFont(QFont("Source Sans 3", 10))
-        install_german(app)
+        if i18n.starten() == i18n.DEUTSCH:
+            install_german(app)
         style.apply(app)
         vorfuehrmodus(wurzel, args.edition == "kursleiter")
         kamera = Kamera(app, args.ziel, set(args.nur))

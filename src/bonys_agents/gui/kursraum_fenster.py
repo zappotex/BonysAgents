@@ -31,6 +31,7 @@ from shiboken6 import isValid
 from collections.abc import Callable
 
 from bonys_agents import kursraum, netz
+from bonys_agents.i18n import tr
 
 from .workers import TaskWorker
 
@@ -100,7 +101,7 @@ def oeffnen(kurs_id: str, kursname: str, parent: QWidget | None = None, fertig=N
         if fertig is not None:
             fertig(text)
         elif text:
-            QMessageBox.warning(parent if parent is not None and isValid(parent) else None, "Kursraum", text)
+            QMessageBox.warning(parent if parent is not None and isValid(parent) else None, tr("Kursraum"), text)
 
     offen = _FENSTER.get(kurs_id)
     if offen is not None and isValid(offen):
@@ -170,6 +171,8 @@ if verfuegbar():
                     job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                     return
                 inhalt, mime = bytes(datei.readAll()), "text/javascript"
+            elif url.path() == kursraum.TEXTE_PFAD:
+                inhalt, mime = kursraum.texte_js(), "text/javascript"
             else:
                 ordner, _, rest = url.path().lstrip("/").partition("/")
                 if ordner in ZUSATZ:
@@ -243,9 +246,9 @@ if verfuegbar():
 
         def __init__(self, anfrage, parent=None):
             super().__init__(parent)
-            self.setWindowTitle("Bildschirm teilen")
+            self.setWindowTitle(tr("Bildschirm teilen"))
             lay = QVBoxLayout(self)
-            lay.addWidget(QLabel("Was sollen die Teilnehmer sehen?"))
+            lay.addWidget(QLabel(tr("Was sollen die Teilnehmer sehen?")))
             self.liste = QListWidget()
             for art, modell, wort in (("bildschirm", anfrage.screensModel(), "Bildschirm"),
                                       ("fenster", anfrage.windowsModel(), "Fenster")):
@@ -261,8 +264,8 @@ if verfuegbar():
             self.liste.itemDoubleClicked.connect(lambda _i: self.accept())
             lay.addWidget(self.liste)
             knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-            knoepfe.button(QDialogButtonBox.Ok).setText("Teilen")
-            knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            knoepfe.button(QDialogButtonBox.Ok).setText(tr("Teilen"))
+            knoepfe.button(QDialogButtonBox.Cancel).setText(tr("Abbrechen"))
             knoepfe.accepted.connect(self.accept)
             knoepfe.rejected.connect(self.reject)
             lay.addWidget(knoepfe)
@@ -364,7 +367,7 @@ class KursraumFenster(QWidget):
         self.kursname = kursname
         self.fertig = False          # Seite hat den Raum verlassen – jetzt darf das Fenster zu
         self.teilen, self.teilen_hinweis = kursraum.bildschirm_teilen()
-        self.setWindowTitle(f"Kursraum – {kursname}" if kursname else "Kursraum")
+        self.setWindowTitle(tr("Kursraum – {kursname}", kursname=kursname) if kursname else tr("Kursraum"))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.view = QWebEngineView(self)

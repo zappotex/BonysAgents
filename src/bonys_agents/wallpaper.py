@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from importlib import resources
 
 from bonys_agents import desktops, screen
+from bonys_agents.i18n import tr
 
 RESOURCE = "wallpaper.jpg"
 DIR = "/usr/share/backgrounds/bonys-agents"
@@ -251,18 +252,18 @@ def update(machine, force: bool = False, password: str | None = None, ssh_prompt
 
 def _ready(machine) -> None:
     if not machine.is_running() or not machine.progress().ready or machine.config.first_boot_pending:
-        raise RuntimeError(f"„{machine.name}“ muss laufen und fertig eingerichtet sein.")
+        raise RuntimeError(tr("„{name}“ muss laufen und fertig eingerichtet sein.", name=machine.name))
 
 
 def describe(s: Status) -> str:
     """Verständlicher Text zum Ergebnis."""
     if s.done == "aktuell" or (not s.done and s.state == CURRENT):
         if s.custom:
-            return ("Das neue Standard-Hintergrundbild ist schon da. Du hast ein eigenes Bild gewählt – das bleibt ("
-                    + "; ".join(s.custom[:3]) + ").")
-        return "Das neue Standard-Hintergrundbild ist schon aktiv."
+            return (tr("Das neue Standard-Hintergrundbild ist schon da. Du hast ein eigenes Bild gewählt – das "
+                       "bleibt ({wert}).", wert="; ".join(s.custom[:3])))
+        return tr("Das neue Standard-Hintergrundbild ist schon aktiv.")
     if s.done == "umgestellt":
-        return "Hintergrundbild aktualisiert – das neue Standardbild ist aktiv (auch auf dem Anmeldebildschirm)."
+        return tr("Hintergrundbild aktualisiert – das neue Standardbild ist aktiv (auch auf dem Anmeldebildschirm).")
     reasons = []
     if s.custom:
         reasons.append("Du hast ein eigenes Hintergrundbild gewählt (" + "; ".join(s.custom[:3]) + ").")

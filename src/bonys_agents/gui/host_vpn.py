@@ -16,6 +16,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 from bonys_agents import APP_NAME, hostvpn
+from bonys_agents.i18n import tr
 
 from .workers import TaskWorker
 
@@ -28,7 +29,7 @@ def vpn_icon() -> QIcon:
 
 
 def button_text() -> str:
-    return "Bony's VPN öffnen" if hostvpn.gui_command() else "Bony's VPN installieren"
+    return tr("Bony's VPN öffnen") if hostvpn.gui_command() else tr("Bony's VPN installieren")
 
 
 def linux_vpn(parent: QWidget, log=None) -> TaskWorker | None:
@@ -40,14 +41,18 @@ def linux_vpn(parent: QWidget, log=None) -> TaskWorker | None:
             QMessageBox.warning(parent, APP_NAME, str(e))
         return None
     if not hostvpn.can_install():
-        QMessageBox.information(parent, "Bony's VPN", "Bony's VPN gibt es als Paket für Debian, Ubuntu und Linux "
-                                f"Mint. Auf diesem System bitte von {hostvpn.VPN_REPO_URL} installieren.")
+        QMessageBox.information(parent, tr("Bony's "
+                                           "VPN"), tr("Bony's VPN gibt es als Paket für Debian, Ubuntu und Linux "
+                                                      "Mint. Auf diesem System bitte von {VPN_REPO_URL} installieren.",
+                                                      VPN_REPO_URL=hostvpn.VPN_REPO_URL))
         return None
-    text = hostvpn.LINUX_INTRO + ("\n\n" + hostvpn.OLD_INSTALL_HINT if hostvpn.old_leftovers() else "")
-    box = QMessageBox(QMessageBox.Information, "Bony's VPN installieren", text, QMessageBox.Cancel, parent)
+    text = hostvpn.intro(hostvpn.LINUX_INTRO)
+    if hostvpn.old_leftovers():
+        text += "\n\n" + tr(hostvpn.OLD_INSTALL_HINT)
+    box = QMessageBox(QMessageBox.Information, tr("Bony's VPN installieren"), text, QMessageBox.Cancel, parent)
     box.setTextFormat(Qt.PlainText)
-    box.button(QMessageBox.Cancel).setText("Abbrechen")
-    go = box.addButton("Installieren", QMessageBox.AcceptRole)
+    box.button(QMessageBox.Cancel).setText(tr("Abbrechen"))
+    go = box.addButton(tr("Installieren"), QMessageBox.AcceptRole)
     box.exec()
     if box.clickedButton() is not go:
         return None
@@ -56,9 +61,10 @@ def linux_vpn(parent: QWidget, log=None) -> TaskWorker | None:
 
     def done() -> None:
         if w.error is not None:
-            QMessageBox.warning(parent, APP_NAME, f"Bony's VPN wurde nicht installiert:\n\n{w.error}")
+            QMessageBox.warning(parent, APP_NAME, tr("Bony's VPN wurde nicht installiert:\n\n{error}", error=w.error))
             return
-        if QMessageBox.question(parent, APP_NAME, f"Bony's VPN {w.result} ist installiert. Jetzt öffnen?") \
+        if QMessageBox.question(parent, APP_NAME, tr("Bony's VPN {result} ist installiert. Jetzt öffnen?",
+                                                     result=w.result)) \
                 == QMessageBox.Yes:
             try:
                 hostvpn.open_app()
@@ -75,16 +81,17 @@ def windows_wireguard(parent: QWidget) -> TaskWorker | None:
     """„Extras → WireGuard für diesen Rechner installieren“: offizielle App per winget, sonst öffnen."""
     exe = hostvpn.windows_app()
     if exe is not None:
-        if QMessageBox.question(parent, APP_NAME, "Die WireGuard-App ist schon installiert. Jetzt öffnen?\n\n"
-                                + hostvpn.WHOLE_COMPUTER) == QMessageBox.Yes:
+        if QMessageBox.question(parent, APP_NAME, tr("Die WireGuard-App ist schon installiert. Jetzt "
+                                                     "öffnen?\n\n{WHOLE_COMPUTER}",
+                                                     WHOLE_COMPUTER=tr(hostvpn.WHOLE_COMPUTER))) == QMessageBox.Yes:
             try:
                 hostvpn.windows_open(exe)
             except (hostvpn.HostVpnError, OSError) as e:
                 QMessageBox.warning(parent, APP_NAME, str(e))
         return None
-    box = QMessageBox(QMessageBox.Information, "WireGuard für diesen Rechner", hostvpn.WINDOWS_INTRO,
+    box = QMessageBox(QMessageBox.Information, tr("WireGuard für diesen Rechner"), hostvpn.intro(hostvpn.WINDOWS_INTRO),
                       QMessageBox.Cancel, parent)
-    go = box.addButton("Installieren", QMessageBox.AcceptRole)
+    go = box.addButton(tr("Installieren"), QMessageBox.AcceptRole)
     box.exec()
     if box.clickedButton() is not go:
         return None
@@ -94,7 +101,8 @@ def windows_wireguard(parent: QWidget) -> TaskWorker | None:
         if w.error is not None:
             QMessageBox.warning(parent, APP_NAME, str(w.error))
             return
-        if QMessageBox.question(parent, APP_NAME, "WireGuard ist installiert. App jetzt öffnen?") == QMessageBox.Yes:
+        if QMessageBox.question(parent, APP_NAME, tr("WireGuard ist installiert. App jetzt "
+                                                     "öffnen?")) == QMessageBox.Yes:
             try:
                 hostvpn.windows_open()
             except (hostvpn.HostVpnError, OSError) as e:
@@ -108,13 +116,14 @@ def windows_wireguard(parent: QWidget) -> TaskWorker | None:
 def mac_wireguard(parent: QWidget) -> None:
     """„Extras → WireGuard für diesen Rechner …“: App öffnen oder App-Store-Seite zeigen."""
     if hostvpn.mac_app() is not None:
-        if QMessageBox.question(parent, APP_NAME, "Die WireGuard-App ist schon installiert. Jetzt öffnen?\n\n"
-                                + hostvpn.WHOLE_COMPUTER) == QMessageBox.Yes:
+        if QMessageBox.question(parent, APP_NAME, tr("Die WireGuard-App ist schon installiert. Jetzt "
+                                                     "öffnen?\n\n{WHOLE_COMPUTER}",
+                                                     WHOLE_COMPUTER=tr(hostvpn.WHOLE_COMPUTER))) == QMessageBox.Yes:
             hostvpn.mac_open_app()
         return
-    box = QMessageBox(QMessageBox.Information, "WireGuard für diesen Rechner", hostvpn.MAC_INTRO,
+    box = QMessageBox(QMessageBox.Information, tr("WireGuard für diesen Rechner"), hostvpn.intro(hostvpn.MAC_INTRO),
                       QMessageBox.Cancel, parent)
-    go = box.addButton("App Store öffnen", QMessageBox.AcceptRole)
+    go = box.addButton(tr("App Store öffnen"), QMessageBox.AcceptRole)
     box.exec()
     if box.clickedButton() is go:
         hostvpn.mac_open_store()

@@ -1,0 +1,24 @@
+{
+  "fragen": [
+    {
+      "frage": "What is an MCP server?",
+      "antworten": [
+        "A big computer on the internet that runs the language model",
+        "A small program that offers an agent tools",
+        "A virus scanner for the Agent PC"
+      ],
+      "richtig": 1,
+      "erklaerung": "An MCP server offers tools (e.g. “rotate page”). Hermes chooses the right tool and uses it."
+    },
+    {
+      "frage": "Why does an MCP server only get one particular folder?",
+      "antworten": [
+        "So the agent can only read and change files there",
+        "So it's faster",
+        "Because Linux requires it"
+      ],
+      "richtig": 0,
+      "erklaerung": "What the agent can't reach, it can't accidentally change or delete either."
+    }
+  ]
+}

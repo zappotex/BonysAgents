@@ -16,12 +16,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, host, share
+from bonys_agents import APP_NAME, share
 from bonys_agents.gui import style
 from bonys_agents.gui.share_dialogs import code_style
 from bonys_agents.gui.widgets import make_scrollable, open_url
 from bonys_agents.helpmode import HelpError
 from bonys_agents.trainer import helpdesk, present, share_server
+from bonys_agents.i18n import tr
 
 HELP_TIMEOUT_MIN = 240
 
@@ -81,9 +82,9 @@ class CourseHub(QObject):
         if s is None:
             return
         if self.help_in_use():
-            s.clear_screen("Vorführung beendet – der Hilfe-Schalter läuft weiter.")
+            s.clear_screen(tr("Vorführung beendet – der Hilfe-Schalter läuft weiter."))
         else:
-            s.stop("Vorführung beendet.")
+            s.stop(tr("Vorführung beendet."))
         self.changed.emit()
 
     def _poll(self) -> None:
@@ -96,7 +97,8 @@ class CourseHub(QObject):
             self._seen = total
             latest = max(s.helpdesk.session_list(), key=lambda x: x.requested_at or 0, default=None)
             if latest is not None:
-                text = f"Hilfe-Anfrage von {latest.name} ({latest.vm})" + (f": {latest.message}" if latest.message
+                text = tr("Hilfe-Anfrage von {name} ({vm})",
+                          name=latest.name, vm=latest.vm) + (f": {latest.message}" if latest.message
                                                                             else "")
                 self.new_request.emit(text)
 
@@ -111,15 +113,16 @@ class HelpDeskDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.hub = CourseHub.get()
-        self.setWindowTitle("Hilfe-Anfragen")
+        self.setWindowTitle(tr("Hilfe-Anfragen"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel("Hilfe-Anfragen")
+        title = QLabel(tr("Hilfe-Anfragen"))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Teilnehmer fordern in Bony's Agents bei ihrem Agent-PC „Hilfe anfordern“ an. Du siehst ihren "
-                       "Agent-PC erst, wenn sie zustimmen – und steuern kannst du ihn nur nach einer zweiten "
-                       "Zustimmung. Die Teilnehmer verbinden sich von sich aus mit diesem Rechner (auch über VPN).")
+        intro = QLabel(tr("Teilnehmer fordern in Bony's Agents bei ihrem Agent-PC „Hilfe anfordern“ an. Du siehst "
+                          "ihren Agent-PC erst, wenn sie zustimmen – und steuern kannst du ihn nur nach einer "
+                          "zweiten Zustimmung. Die Teilnehmer verbinden sich von sich aus mit diesem Rechner (auch "
+                          "über VPN)."))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
@@ -132,10 +135,10 @@ class HelpDeskDialog(QDialog):
         self.port.setValue(present.DEFAULT_PORT)
         self.minutes = QSpinBox()
         self.minutes.setRange(10, 24 * 60)
-        self.minutes.setSuffix(" min")
+        self.minutes.setSuffix(tr(" min"))
         self.minutes.setValue(HELP_TIMEOUT_MIN)
-        form.addRow("Port", self.port)
-        form.addRow("Endet nach", self.minutes)
+        form.addRow(tr("Port"), self.port)
+        form.addRow(tr("Endet nach"), self.minutes)
         root.addWidget(self.settings_box)
 
         self.code = QLabel()
@@ -149,14 +152,15 @@ class HelpDeskDialog(QDialog):
         link_row = QHBoxLayout()
         self.link = QLineEdit()
         self.link.setReadOnly(True)
-        self.copy_btn = QPushButton("Kopieren")
+        self.copy_btn = QPushButton(tr("Kopieren"))
         self.copy_btn.setObjectName("Small")
         link_row.addWidget(self.link, 1)
         link_row.addWidget(self.copy_btn)
         root.addLayout(link_row)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Teilnehmer", "Agent-PC", "Nachricht", "Zeit", "Status"])
+        self.table.setHorizontalHeaderLabels([tr("Teilnehmer"), tr("Agent-PC"), tr("Nachricht"), tr("Zeit"),
+                                              tr("Status")])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -165,17 +169,18 @@ class HelpDeskDialog(QDialog):
         self.table.setMinimumHeight(style.px(130))
         root.addWidget(self.table, 1)
         actions = QHBoxLayout()
-        self.view_btn = QPushButton("Ansehen")
+        self.view_btn = QPushButton(tr("Ansehen"))
         self.view_btn.setObjectName("Primary")
-        self.view_btn.setToolTip("Fragt den Teilnehmer – nach seiner Zustimmung öffnet sich der Agent-PC im Browser")
-        self.control_btn = QPushButton("Steuerung anfragen")
-        self.end_btn = QPushButton("Beenden")
-        self.forget_btn = QPushButton("Aus Liste entfernen")
+        self.view_btn.setToolTip(tr("Fragt den Teilnehmer – nach seiner Zustimmung öffnet sich der Agent-PC im "
+                                    "Browser"))
+        self.control_btn = QPushButton(tr("Steuerung anfragen"))
+        self.end_btn = QPushButton(tr("Beenden"))
+        self.forget_btn = QPushButton(tr("Aus Liste entfernen"))
         for b in (self.view_btn, self.control_btn, self.end_btn, self.forget_btn):
             actions.addWidget(b)
         actions.addStretch(1)
         root.addLayout(actions)
-        self.firewall = QLabel(share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=present.DEFAULT_PORT))
+        self.firewall = QLabel(share_server.firewall_hinweis(present.DEFAULT_PORT))
         self.firewall.setWordWrap(True)
         self.firewall.setObjectName("Muted")
         root.addWidget(self.firewall)
@@ -185,10 +190,10 @@ class HelpDeskDialog(QDialog):
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.start_btn = QPushButton("Hilfe-Schalter starten")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.start_btn = QPushButton(tr("Hilfe-Schalter starten"))
         self.start_btn.setObjectName("Primary")
-        self.stop_btn = QPushButton("Hilfe-Schalter beenden")
+        self.stop_btn = QPushButton(tr("Hilfe-Schalter beenden"))
         self.stop_btn.setObjectName("Danger")
         for b in (self.close_btn, self.stop_btn, self.start_btn):
             buttons.addWidget(b)
@@ -207,7 +212,7 @@ class HelpDeskDialog(QDialog):
         self.end_btn.clicked.connect(lambda: self._act(lambda s, sid: s.helpdesk.end_view(sid)))
         self.forget_btn.clicked.connect(lambda: self._act(lambda s, sid: s.helpdesk.forget(sid)))
         self.port.valueChanged.connect(lambda v: self.firewall.setText(
-            share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=v)))
+            share_server.firewall_hinweis(v)))
         self.hub.changed.connect(self._refresh)
         self._refresh()
 
@@ -221,7 +226,7 @@ class HelpDeskDialog(QDialog):
         try:
             self.hub.start_help_desk(self.port.value(), self.minutes.value())
         except (OSError, ValueError, present.PresentError) as e:
-            self.status.setText(f"Fehler: {e}")
+            self.status.setText(tr("Fehler: {e}", e=e))
             self.status.setStyleSheet(f"color: {style.DANGER};")
             return
         self.status.setStyleSheet("")
@@ -232,12 +237,13 @@ class HelpDeskDialog(QDialog):
         if s is None:
             return
         busy = [x for x in s.helpdesk.session_list() if x.view_allowed]
-        extra = " Die Vorführung endet dann ebenfalls." if s.has_screen else ""
-        if QMessageBox.question(self, APP_NAME, (f"{len(busy)} Hilfe läuft gerade. " if busy else "")
-                                + "Hilfe-Schalter beenden? Teilnehmer können dann keine Hilfe mehr anfordern."
-                                + extra) != QMessageBox.Yes:
+        extra = tr(" Die Vorführung endet dann ebenfalls.") if s.has_screen else ""
+        frage = tr("Hilfe-Schalter beenden? Teilnehmer können dann keine Hilfe mehr anfordern.")
+        if busy:
+            frage = tr("{n} Hilfe läuft gerade.", n=len(busy)) + " " + frage
+        if QMessageBox.question(self, APP_NAME, frage + extra) != QMessageBox.Yes:
             return
-        s.stop("Kurs beendet.")
+        s.stop(tr("Kurs beendet."))
         self.hub.changed.emit()
         self._refresh()
 
@@ -259,7 +265,7 @@ class HelpDeskDialog(QDialog):
     def _view(self) -> None:
         s, sid = self.hub.running(), self._selected()
         if s is None or sid is None:
-            QMessageBox.information(self, APP_NAME, "Bitte zuerst einen Teilnehmer in der Liste auswählen.")
+            QMessageBox.information(self, APP_NAME, tr("Bitte zuerst einen Teilnehmer in der Liste auswählen."))
             return
         try:
             url = s.helpdesk.view_url(sid)
@@ -267,8 +273,8 @@ class HelpDeskDialog(QDialog):
             QMessageBox.information(self, APP_NAME, str(e))
             return
         open_url(url)
-        self.status.setText("Die Ansicht öffnet sich im Browser – sie zeigt den Agent-PC, sobald der Teilnehmer "
-                            "zustimmt. Der Browser warnt einmal vor dem Zertifikat (gilt nur für diesen Kurs).")
+        self.status.setText(tr("Die Ansicht öffnet sich im Browser – sie zeigt den Agent-PC, sobald der Teilnehmer "
+                               "zustimmt. Der Browser warnt einmal vor dem Zertifikat (gilt nur für diesen Kurs)."))
 
     def _refresh(self) -> None:
         s = self.hub.running()
@@ -280,16 +286,18 @@ class HelpDeskDialog(QDialog):
                   self.end_btn, self.forget_btn):
             w.setVisible(live)
         if not live:
-            self.status.setText("Der Hilfe-Schalter läuft nicht." if not self.status.text().startswith("Fehler")
-                                else self.status.text())
+            self.status.setText(tr("Der "
+                                   "Hilfe-Schalter "
+                                   "läuft "
+                                   "nicht.") if not self.status.text().startswith("Fehler") else self.status.text())
             return
         self.code.setText(s.code)
         addrs = s.addresses()
         rows = [f"Adresse: <b>{a}:{s.port}</b>" + (f" ({share.address_kind(a)})" if share.address_kind(a) else "")
                 for a in addrs]
         rows.append(f"Fingerabdruck: <b>{share.short_fingerprint(s.fingerprint)}</b>")
-        rows.append("Teilnehmer: beim Agent-PC „Hilfe anfordern …“ – im selben Netz wird der Kurs gefunden, sonst den "
-                    "Link unten einfügen bzw. Adresse und Code eingeben.")
+        rows.append(tr("Teilnehmer: beim Agent-PC „Hilfe anfordern …“ – im selben Netz wird der Kurs gefunden, sonst "
+                       "den Link unten einfügen bzw. Adresse und Code eingeben."))
         self.info.setText("<br>".join(rows))
         link = share.share_link(addrs[0] if addrs else "127.0.0.1", s.port, s.code, s.fingerprint)
         if self.link.text() != link:
@@ -308,10 +316,12 @@ class HelpDeskDialog(QDialog):
                 self.table.selectRow(i)
         left = s.remaining()
         waiting = sum(1 for x in sessions if x.state == helpdesk.WAITING)
-        self.setWindowTitle(f"Hilfe-Anfragen ({waiting})" if waiting else "Hilfe-Anfragen")
+        self.setWindowTitle(tr("Hilfe-Anfragen ({waiting})", waiting=waiting) if waiting else tr("Hilfe-Anfragen"))
         if not self.status.text().startswith("Die Ansicht"):
-            self.status.setText(f"Hilfe-Schalter läuft – endet in {int(left // 60)} min · {len(sessions)} verbunden, "
-                                f"{waiting} warten" + (" · Vorführung läuft" if s.has_screen else ""))
+            self.status.setText(tr("Hilfe-Schalter läuft – endet in {wert} min · {wert2} verbunden, {waiting} warten",
+                                   wert=int(left // 60),
+                                   wert2=len(sessions),
+                                   waiting=waiting) + (tr(" · Vorführung läuft") if s.has_screen else ""))
 
     def reject(self) -> None:
         self.timer.stop()

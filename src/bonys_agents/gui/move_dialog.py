@@ -7,6 +7,7 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout
 
 from bonys_agents import storage, vm
+from bonys_agents.i18n import tr
 
 from . import style
 from .location_picker import LocationPicker
@@ -36,22 +37,22 @@ class MoveDialog(QDialog):
         super().__init__(parent)
         self.machine = machine
         self.worker: MoveWorker | None = None
-        self.setWindowTitle("Agent-PC verschieben")
+        self.setWindowTitle(tr("Agent-PC verschieben"))
 
         root = QVBoxLayout(self)
         root.setSpacing(12)
-        title = QLabel(f"„{machine.name}“ verschieben")
+        title = QLabel(tr("„{name}“ verschieben", name=machine.name))
         title.setObjectName("Title")
         root.addWidget(title)
         size_gb = machine.size_on_disk() / storage.GB
-        now = PathLabel(machine.path, prefix="Liegt jetzt in: ")
+        now = PathLabel(machine.path, prefix=tr("Liegt jetzt in: "))
         now.setObjectName("Muted")
-        used = QLabel(f"Belegt: {size_gb:.1f} GB")
+        used = QLabel(tr("Belegt: {size_gb:.1f} GB", size_gb=size_gb))
         used.setObjectName("Muted")
         root.addWidget(now)
         root.addWidget(used)
 
-        root.addWidget(QLabel("Neuer Speicherort:"))
+        root.addWidget(QLabel(tr("Neuer Speicherort:")))
         self.picker = LocationPicker(
             max(1, int(size_gb + 0.999)), exclude=machine.location, min_free_gb=size_gb + 0.25
         )
@@ -67,8 +68,8 @@ class MoveDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.ok_btn = QPushButton("Verschieben")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.ok_btn = QPushButton(tr("Verschieben"))
         self.ok_btn.setObjectName("Primary")
         buttons.addWidget(self.cancel_btn)
         buttons.addWidget(self.ok_btn)
@@ -86,9 +87,9 @@ class MoveDialog(QDialog):
         target = self.picker.path()
         if target is not None and vm.move_makes_independent(self.machine, target):
             self.status.setStyleSheet(f"color: {style.WARN};")
-            self.status.setText("Hinweis: Dieser Agent-PC ist mit einer Vorlage verknüpft, die auf dem alten Laufwerk "
-                                "bleibt. Beim Verschieben wird er automatisch zu einer unabhängigen Kopie (braucht "
-                                "mehr Platz und etwas länger).")
+            self.status.setText(tr("Hinweis: Dieser Agent-PC ist mit einer Vorlage verknüpft, die auf dem alten "
+                                   "Laufwerk bleibt. Beim Verschieben wird er automatisch zu einer unabhängigen "
+                                   "Kopie (braucht mehr Platz und etwas länger)."))
         elif not (self.worker and self.worker.isRunning()):
             self.status.setStyleSheet("")
             self.status.setText("")
@@ -101,7 +102,7 @@ class MoveDialog(QDialog):
             w.setEnabled(False)
         self.progress.setVisible(True)
         self.status.setStyleSheet("")
-        self.status.setText("Starte …")
+        self.status.setText(tr("Starte …"))
         self.worker = MoveWorker(self.machine.name, target)
         self.worker.progress.connect(self._on_progress)
         self.worker.finished_ok.connect(self._on_done)
@@ -120,7 +121,7 @@ class MoveDialog(QDialog):
         for w in (self.cancel_btn, self.picker):
             w.setEnabled(True)
         self._update_ok()
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def reject(self) -> None:

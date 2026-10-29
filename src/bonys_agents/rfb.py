@@ -21,6 +21,8 @@ from __future__ import annotations
 import struct
 from collections.abc import Callable
 
+from bonys_agents.i18n import tr
+
 # Client → Server
 SET_PIXEL_FORMAT, SET_ENCODINGS, FB_UPDATE_REQUEST, KEY_EVENT, POINTER_EVENT, CLIENT_CUT_TEXT = 0, 2, 3, 4, 5, 6
 XVP, QEMU_MSG = 250, 255
@@ -91,7 +93,7 @@ class ClientFilter:
     def feed(self, data: bytes) -> list[tuple[str, bytes]]:
         self.buf += data
         if len(self.buf) > MAX_BUFFER:
-            raise ProtocolError("Zu viele Daten auf einmal")
+            raise ProtocolError(tr("Zu viele Daten auf einmal"))
         out: list[tuple[str, bytes]] = []
         while True:
             item = self._next()
@@ -120,10 +122,10 @@ class ClientFilter:
             if raw is None:
                 return None
             if raw[:4] != b"RFB " or raw[11:] != b"\n" or not raw[4:11].replace(b".", b"").isdigit():
-                raise ProtocolError("Kein VNC-Client")
+                raise ProtocolError(tr("Kein VNC-Client"))
             major, minor = int(raw[4:7]), int(raw[8:11])
             if major != 3:
-                raise ProtocolError("RFB-Version nicht unterstützt")
+                raise ProtocolError(tr("RFB-Version nicht unterstützt"))
             self.minor = 3 if minor < 7 else (7 if minor == 7 else 8)
             self.state = "security" if self.minor >= 7 else "init"
             return ("pass", b"RFB 003.%03d\n" % self.minor)
@@ -132,7 +134,7 @@ class ClientFilter:
             if raw is None:
                 return None
             if raw != b"\x01":  # nur „None“ – der lokale Socket von QEMU hat kein Passwort
-                raise ProtocolError("Sicherheitstyp nicht erlaubt")
+                raise ProtocolError(tr("Sicherheitstyp nicht erlaubt"))
             self.state = "init"
             return ("pass", raw)
         if self.state == "init":
@@ -174,7 +176,7 @@ class ClientFilter:
                 return None
             length = abs(struct.unpack("!i", self.buf[4:8])[0])
             if length > MAX_CUT_TEXT:
-                raise ProtocolError("Zwischenablage zu groß")
+                raise ProtocolError(tr("Zwischenablage zu groß"))
             return self._drop(8 + length, False)
         if t == XVP:
             return self._drop(4, False)
@@ -189,8 +191,8 @@ class ClientFilter:
                     return None
                 op = struct.unpack("!H", self.buf[2:4])[0]
                 return self._drop(10 if op == 2 else 4, False)
-            raise ProtocolError("Unbekannte QEMU-Nachricht")
-        raise ProtocolError(f"Unbekannte Nachricht {t}")
+            raise ProtocolError(tr("Unbekannte QEMU-Nachricht"))
+        raise ProtocolError(tr("Unbekannte Nachricht {t}", t=t))
 
 
 # ---------------------------------------------------------------- Bausteine für Tests und den Proxy

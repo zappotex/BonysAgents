@@ -4,12 +4,16 @@
 
 Aufruf:
     python3 build_agent_apps.py agent-apps.yaml index.html [--home /home/agent] [--installiert n8n]
+                                [--uebersetzung agent-apps.en.yaml]
 
 --home ersetzt "~" in MCP-Einträgen durch den echten Pfad, weil nicht jeder
 MCP-Client "~" selbst auflöst. Ohne --home bleibt "~" stehen (gut für die
 Online-Version).
 --installiert: kommagetrennte IDs aus "vorinstalliert", die im Agent-PC wirklich
 da sind (die anderen fehlen dann auf der Seite). Ohne: alle (Online-Version).
+
+--uebersetzung: englische Fassung – Texte aus der Übersetzungsdatei, Befehle aus der Liste (mit den Ersetzungen
+dort, z. B. Arbeitsordner ~/Agent-Files).
 
 Benötigt nur PyYAML (Debian: python3-yaml). Die erzeugte Seite ist
 vollständig eigenständig und funktioniert offline.
@@ -30,6 +34,34 @@ except ImportError:  # pragma: no cover
     sys.exit("PyYAML fehlt: sudo apt install python3-yaml")
 
 STATUS_TEXT = {"stabil": "Stabil", "beta": "Beta", "alpha": "Alpha"}
+# Feste Texte der Seite je Sprache (Liste: agent-apps.yaml, englische Texte: agent-apps.en.yaml)
+UI = {
+    "de": {"stabil": "Stabil", "getestet": "Getestet", "lizenz": "Lizenz", "braucht": "Braucht", "pruefsumme": "Prüfsumme",
+           "kann": "Dein Agent kann damit:", "installieren": "Installieren &amp; mit Hermes verbinden",
+           "quelle": "Offizielle Quelle prüfen:", "terminal": "Im Terminal ausführen:",
+           "anmelden": "Bei Hermes anmelden (Hermes zeigt die Werkzeuge, mit „Y“ bestätigen):",
+           "hand": "Oder von Hand in <code>~/.hermes/config.yaml</code> eintragen:", "eintrag": "Hermes MCP-Eintrag",
+           "neustart": "Danach Hermes neu starten (oder im laufenden Hermes <code>/reload-mcp</code>).",
+           "website": "Website", "installiert": "Bereits installiert", "oeffnen": "Öffnen", "dabei": "Schon dabei",
+           "kopieren": "Kopieren", "kopiert": "Kopiert ✓", "alle": "Alle", "online": "Neueste Version der Liste online ansehen",
+           "tipp": "Tipp:", "nachinstallieren": "Zum Nachinstallieren", "suchen": "Suchen, z. B. PDF, Bilder, Browser …",
+           "suchen_label": "Suchen", "leer": "Nichts gefunden.",
+           "fuss": "Alle Downloads kommen von den offiziellen Seiten der Hersteller. Bony's Agents installiert diese "
+                   "Programme\nnicht automatisch – du entscheidest selbst. Arbeitsordner für Agenten:"},
+    "en": {"stabil": "Stable", "getestet": "Tested", "lizenz": "License", "braucht": "Needs", "pruefsumme": "Checksum",
+           "kann": "What your agent can do with it:", "installieren": "Install &amp; connect to Hermes",
+           "quelle": "Check the official source:", "terminal": "Run in the terminal:",
+           "anmelden": "Register with Hermes (Hermes shows the tools, confirm with “Y”):",
+           "hand": "Or enter it by hand in <code>~/.hermes/config.yaml</code>:", "eintrag": "Hermes MCP entry",
+           "neustart": "Then restart Hermes (or <code>/reload-mcp</code> in a running Hermes).",
+           "website": "Website", "installiert": "Already installed", "oeffnen": "Open", "dabei": "Already included",
+           "kopieren": "Copy", "kopiert": "Copied ✓", "alle": "All", "online": "See the latest version of the list online",
+           "tipp": "Tip:", "nachinstallieren": "To install", "suchen": "Search, e.g. PDF, images, browser …",
+           "suchen_label": "Search", "leer": "Nothing found.",
+           "fuss": "All downloads come from the vendors' official sites. Bony's Agents doesn't install these programs\n"
+                   "automatically – you decide yourself. Work folder for agents:"},
+}
+UEBERSETZBAR = ("name", "kategorie", "beschreibung", "agent_kann", "lizenz", "pruefsumme", "hinweis")
 PFLICHTFELDER = ("id", "name", "kategorie", "beschreibung", "lizenz", "status",
                  "homepage", "quelle", "installation", "mcp")
 PFLICHT_VORINSTALLIERT = ("id", "name", "beschreibung", "lizenz", "oeffnen", "homepage")
@@ -142,25 +174,54 @@ def check(data) -> None:
         sys.exit("Fehler in der Liste:\n  " + "\n  ".join(fehler))
 
 
-def code_block(text: str, label: str) -> str:
+def _ersetzen(wert, paare: dict):
+    if isinstance(wert, str):
+        for alt, neu in paare.items():
+            wert = wert.replace(alt, neu)
+        return wert
+    if isinstance(wert, list):
+        return [_ersetzen(w, paare) for w in wert]
+    if isinstance(wert, dict):
+        return {k: _ersetzen(w, paare) for k, w in wert.items()}
+    return wert
+
+
+def uebersetzen(data: dict, ueb: dict) -> dict:
+    """Englische (o. a.) Fassung: Ersetzungen in allen Texten und Befehlen, dann die Texte je Eintrag.
+    Fehlt ein Eintrag in der Übersetzung, bricht es ab – sonst stünden deutsche Texte auf der englischen Seite."""
+    data = _ersetzen(data, ueb.get("ersetzen") or {})
+    data["meta"] = {**data.get("meta", {}), **(ueb.get("meta") or {})}
+    texte = ueb.get("texte") or {}
+    fehlen = [it["id"] for it in (data.get("vorinstalliert") or []) + data.get("apps", []) if it["id"] not in texte]
+    if fehlen:
+        sys.exit("Übersetzung fehlt für: " + ", ".join(fehlen))
+    for it in (data.get("vorinstalliert") or []) + data.get("apps", []):
+        for feld, wert in (texte[it["id"]] or {}).items():
+            if feld in UEBERSETZBAR:
+                it[feld] = wert
+    data["sprache"] = ueb.get("sprache", "en")
+    return data
+
+
+def code_block(text: str, label: str, ui: dict) -> str:
     return (f'<div class="code"><div class="code-head"><span>{e(label)}</span>'
-            f'<button class="copy" type="button">Kopieren</button></div>'
+            f'<button class="copy" type="button">{ui["kopieren"]}</button></div>'
             f'<pre><code>{e(text.strip())}</code></pre></div>')
 
 
-def render_app(app: dict, home: str | None) -> str:
+def render_app(app: dict, home: str | None, ui: dict) -> str:
     status = app["status"]
     voraus = app.get("voraussetzungen") or []
     geprueft = app.get("geprueft_am")
-    badges = [f'<span class="badge s-{e(status)}">{e(STATUS_TEXT[status])}</span>',
+    badges = [f'<span class="badge s-{e(status)}">{e(ui["stabil"] if status == "stabil" else STATUS_TEXT[status])}</span>',
               '<span class="badge mcp">MCP</span>']
     if geprueft:
-        badges.append(f'<span class="badge ok">Getestet {e(geprueft)}</span>')
-    meta = [f"<dt>Lizenz</dt><dd>{e(app['lizenz'])}</dd>"]
+        badges.append(f'<span class="badge ok">{ui["getestet"]} {e(geprueft)}</span>')
+    meta = [f"<dt>{ui['lizenz']}</dt><dd>{e(app['lizenz'])}</dd>"]
     if voraus:
-        meta.append(f"<dt>Braucht</dt><dd>{e(', '.join(voraus))}</dd>")
+        meta.append(f"<dt>{ui['braucht']}</dt><dd>{e(', '.join(voraus))}</dd>")
     if app.get("pruefsumme"):
-        meta.append(f"<dt>Prüfsumme</dt><dd>{e(app['pruefsumme'])}</dd>")
+        meta.append(f"<dt>{ui['pruefsumme']}</dt><dd>{e(app['pruefsumme'])}</dd>")
     hinweis = (f'<p class="hint">{e(app["hinweis"])}</p>' if app.get("hinweis") else "")
     such = " ".join(str(app.get(k, "")) for k in ("name", "kategorie", "beschreibung", "agent_kann")).lower()
     return f"""
@@ -170,37 +231,37 @@ def render_app(app: dict, home: str | None) -> str:
     <div class="badges">{''.join(badges)}</div>
   </header>
   <p>{e(app['beschreibung'])}</p>
-  {f'<p class="agent"><strong>Dein Agent kann damit:</strong> {e(app["agent_kann"])}</p>' if app.get('agent_kann') else ''}
+  {f'<p class="agent"><strong>{ui["kann"]}</strong> {e(app["agent_kann"])}</p>' if app.get('agent_kann') else ''}
   <dl>{''.join(meta)}</dl>
   {hinweis}
   <details>
-    <summary>Installieren &amp; mit Hermes verbinden</summary>
+    <summary>{ui['installieren']}</summary>
     <ol class="steps">
-      <li>Offizielle Quelle prüfen: <a href="{e(app['quelle'])}" target="_blank" rel="noopener">{e(app['quelle'])}</a></li>
-      <li>Im Terminal ausführen:{code_block(app['installation'], 'Terminal')}</li>
-      <li>Bei Hermes anmelden (Hermes zeigt die Werkzeuge, mit „Y“ bestätigen):{code_block(hermes_command(app, home), 'Terminal')}</li>
-      <li>Oder von Hand in <code>~/.hermes/config.yaml</code> eintragen:{code_block(hermes_snippet(app, home), 'Hermes MCP-Eintrag')}
-      Danach Hermes neu starten (oder im laufenden Hermes <code>/reload-mcp</code>).</li>
+      <li>{ui['quelle']} <a href="{e(app['quelle'])}" target="_blank" rel="noopener">{e(app['quelle'])}</a></li>
+      <li>{ui['terminal']}{code_block(app['installation'], 'Terminal', ui)}</li>
+      <li>{ui['anmelden']}{code_block(hermes_command(app, home), 'Terminal', ui)}</li>
+      <li>{ui['hand']}{code_block(hermes_snippet(app, home), ui['eintrag'], ui)}
+      {ui['neustart']}</li>
     </ol>
   </details>
-  <footer><a href="{e(app['homepage'])}" target="_blank" rel="noopener">Website</a></footer>
+  <footer><a href="{e(app['homepage'])}" target="_blank" rel="noopener">{ui['website']}</a></footer>
 </article>"""
 
 
-def render_vorinstalliert(items: list[dict]) -> str:
+def render_vorinstalliert(items: list[dict], ui: dict) -> str:
     if not items:
         return ""
     cards = []
     for it in items:
         cards.append(f"""
 <div class="pre">
-  <div><h3>{e(it['name'])} <span class="badge ok">Bereits installiert</span></h3>
+  <div><h3>{e(it['name'])} <span class="badge ok">{ui['installiert']}</span></h3>
   <p>{e(it['beschreibung'])}</p>
-  <p class="small">Lizenz: {e(it.get('lizenz'))}{' · ' + e(it['hinweis']) if it.get('hinweis') else ''}</p></div>
-  <div class="pre-actions"><a class="btn" href="{e(it['oeffnen'])}" target="_blank" rel="noopener">Öffnen</a>
-  <a href="{e(it['homepage'])}" target="_blank" rel="noopener">Website</a></div>
+  <p class="small">{ui['lizenz']}: {e(it.get('lizenz'))}{' · ' + e(it['hinweis']) if it.get('hinweis') else ''}</p></div>
+  <div class="pre-actions"><a class="btn" href="{e(it['oeffnen'])}" target="_blank" rel="noopener">{ui['oeffnen']}</a>
+  <a href="{e(it['homepage'])}" target="_blank" rel="noopener">{ui['website']}</a></div>
 </div>""")
-    return f'<section class="preinst"><h2 class="sec">Schon dabei</h2>{"".join(cards)}</section>'
+    return f'<section class="preinst"><h2 class="sec">{ui["dabei"]}</h2>{"".join(cards)}</section>'
 
 
 CSS = """
@@ -253,7 +314,8 @@ JS = """
     chips.forEach(function(x){x.setAttribute('aria-pressed',x===c?'true':'false')});apply();});});
   document.addEventListener('click',function(ev){var b=ev.target.closest('.copy');if(!b)return;
     var txt=b.closest('.code').querySelector('code').innerText;
-    function done(){b.textContent='Kopiert ✓';setTimeout(function(){b.textContent='Kopieren'},1500);}
+    function done(){b.dataset.text=b.dataset.text||b.textContent;b.textContent=document.body.dataset.kopiert;
+      setTimeout(function(){b.textContent=b.dataset.text},1500);}
     if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(done,fallback);}else{fallback();}
     function fallback(){var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();
       try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}});
@@ -262,29 +324,29 @@ JS = """
 
 
 def render(data: dict, home: str | None, installiert: set[str] | None = None) -> str:
+    sprache = data.get("sprache", "de")
+    ui = UI.get(sprache, UI["de"])
     meta = data.get("meta", {})
     apps = data.get("apps", [])
     vorinstalliert = [it for it in data.get("vorinstalliert") or [] if installiert is None or it["id"] in installiert]
     kats = sorted({a["kategorie"] for a in apps})
-    chips = ['<button class="chip" type="button" data-kat="" aria-pressed="true">Alle</button>']
+    chips = [f'<button class="chip" type="button" data-kat="" aria-pressed="true">{ui["alle"]}</button>']
     chips += [f'<button class="chip" type="button" data-kat="{e(k)}" aria-pressed="false">{e(k)}</button>' for k in kats]
     online = meta.get("online_url")
-    online_link = (f'<a href="{e(online)}" target="_blank" rel="noopener">Neueste Version der Liste online ansehen</a>'
-                   if online else "")
+    online_link = (f'<a href="{e(online)}" target="_blank" rel="noopener">{ui["online"]}</a>' if online else "")
     return f"""<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="{e(sprache)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{e(meta.get('titel', 'Agenten-Apps'))}</title><style>{CSS}</style></head>
-<body><main class="wrap">
+<body data-kopiert="{ui['kopiert']}"><main class="wrap">
 <h1>🤖 {e(meta.get('titel', 'Agenten-Apps'))}</h1>
 <p class="lead">{e(meta.get('untertitel', ''))}</p>
-<div class="tip"><strong>Tipp:</strong> {e(meta.get('hermes_tipp', ''))}</div>
-{render_vorinstalliert(vorinstalliert)}
-<h2 class="sec">Zum Nachinstallieren</h2>
-<div class="toolbar"><input id="q" type="search" placeholder="Suchen, z. B. PDF, Bilder, Browser …" aria-label="Suchen">{''.join(chips)}</div>
-<div class="grid">{''.join(render_app(a, home) for a in apps)}</div>
-<p id="empty" class="empty" hidden>Nichts gefunden.</p>
-<p class="foot">Alle Downloads kommen von den offiziellen Seiten der Hersteller. Bony's Agents installiert diese Programme
-nicht automatisch – du entscheidest selbst. Arbeitsordner für Agenten: <code>{e(expand_home(meta.get('arbeitsordner', '~/Agent-Dateien'), home))}</code>.<br>{online_link}</p>
+<div class="tip"><strong>{ui['tipp']}</strong> {e(meta.get('hermes_tipp', ''))}</div>
+{render_vorinstalliert(vorinstalliert, ui)}
+<h2 class="sec">{ui['nachinstallieren']}</h2>
+<div class="toolbar"><input id="q" type="search" placeholder="{ui['suchen']}" aria-label="{ui['suchen_label']}">{''.join(chips)}</div>
+<div class="grid">{''.join(render_app(a, home, ui) for a in apps)}</div>
+<p id="empty" class="empty" hidden>{ui['leer']}</p>
+<p class="foot">{ui['fuss']} <code>{e(expand_home(meta.get('arbeitsordner', '~/Agent-Dateien'), home))}</code>.<br>{online_link}</p>
 </main><script>{JS}</script></body></html>
 """
 
@@ -295,12 +357,19 @@ def main() -> None:
     p.add_argument("ausgabe", type=Path)
     p.add_argument("--home", help="Home-Verzeichnis des Agent-PC-Nutzers, ersetzt ~ in MCP-Einträgen")
     p.add_argument("--installiert", help="kommagetrennte IDs aus 'vorinstalliert', die wirklich installiert sind")
+    p.add_argument("--uebersetzung", type=Path, help="Übersetzungsdatei, z. B. agent-apps.en.yaml")
     a = p.parse_args()
     try:
         data = yaml.safe_load(a.liste.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         sys.exit(f"Liste nicht lesbar ({a.liste}): {exc}")
     check(data)
+    if a.uebersetzung:
+        try:
+            ueb = yaml.safe_load(a.uebersetzung.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            sys.exit(f"Übersetzung nicht lesbar ({a.uebersetzung}): {exc}")
+        data = uebersetzen(data, ueb)
     installiert = None if a.installiert is None else {i.strip() for i in a.installiert.split(",") if i.strip()}
     a.ausgabe.parent.mkdir(parents=True, exist_ok=True)
     a.ausgabe.write_text(render(data, a.home, installiert), encoding="utf-8")

@@ -1,0 +1,146 @@
+{
+  "format": "bonys-agents-kurspaket",
+  "format_version": 1,
+  "min_version": "0.24.0",
+  "id": "was-ist-ein-mcp-server-en",
+  "name": "What is an MCP server? Hermes gets tools",
+  "beschreibung": "An agent without suitable tools is a clever head without hands. In this course, everyone finds the PDF program PdfCraft in the “Agent Apps” list, installs it from the official source, registers its MCP server with Hermes and has Hermes summarize, rotate and merge real PDFs. First course in the series “Agents, MCP apps and n8n”; as a 90-minute course or on your own in self-study mode.",
+  "stufe": "anfaenger",
+  "sprache": "en",
+  "autor": "Bony",
+  "lizenz": "CC-BY-SA-4.0",
+  "version": "1.0.0",
+  "dauer_minuten": 90,
+  "pause_minuten": 0,
+  "teilnehmer": {
+    "min": 3,
+    "max": 10
+  },
+  "zielgruppe": "People who have already set up Hermes and want to let it do more – no programming knowledge needed",
+  "voraussetzungen": [
+    "Bony's Agents version 0.24.0 or later, a computer with at least 8 GB RAM and 40 GB free disk space",
+    "Internet",
+    "Hermes is set up in the Agent PC (e.g. after the course package “Introduction to Hermes Agent”)",
+    "your own free account with the model provider (Nous or OpenRouter)"
+  ],
+  "kosten": "none – PdfCraft is free (MIT or Apache-2.0), Hermes runs with a free model",
+  "lernziele": [
+    "explain in your own words what an MCP server is and why an agent needs one",
+    "find the “Agent Apps” list on the desktop and read an entry (status, license, source, checksum)",
+    "install a program from the official source and verify the checksum",
+    "register an MCP server with Hermes using “hermes mcp add”",
+    "have Hermes summarize, rotate and merge PDFs and check the result yourself",
+    "explain why the agent may only work in an approved folder"
+  ],
+  "quellen": [
+    {
+      "titel": "Model Context Protocol – introduction",
+      "url": "https://modelcontextprotocol.io/introduction"
+    },
+    {
+      "titel": "Hermes Agent – documentation",
+      "url": "https://hermes-agent.nousresearch.com/docs"
+    },
+    {
+      "titel": "PdfCraft",
+      "url": "https://getartcraft.com/apps/pdfcraft"
+    },
+    {
+      "titel": "PdfCraft – releases",
+      "url": "https://github.com/storytold/pdfcraft/releases/latest"
+    },
+    {
+      "titel": "Agent Apps (online list)",
+      "url": "https://zappotex.github.io/BonysAgents/agenten-apps/"
+    }
+  ],
+  "rezept": {
+    "name": "agent-mcp",
+    "desktop": "cinnamon",
+    "apps": [
+      "brave",
+      "hermes",
+      "agenten-apps"
+    ],
+    "username": "agent",
+    "keyboard": "us",
+    "timezone": "Europe/Berlin"
+  },
+  "lektionen": [
+    {
+      "ordner": "01-ankommen",
+      "titel": "Getting started",
+      "dauer_minuten": 10,
+      "art": "Welcome + check",
+      "ziel": "Know how the course works – and Hermes answers.",
+      "pruefung": {
+        "skript": "pruefung/hermes-eingerichtet.py",
+        "aufgabe": "Hermes is set up: provider and model are chosen.",
+        "geschafft": "Hermes is set up – let's go.",
+        "noch_nicht": "Hermes isn't set up yet. Type “hermes setup” in the terminal and choose a provider and a free model.",
+        "zeitlimit": 20
+      }
+    },
+    {
+      "ordner": "02-kopf-ohne-haende",
+      "titel": "A head without hands",
+      "dauer_minuten": 15,
+      "art": "Explanation + quiz",
+      "ziel": "Understand what an MCP server is and why Hermes needs one.",
+      "start": {
+        "skript": "start/beispiel-pdfs.py",
+        "zeitlimit": 60,
+        "als": "benutzer"
+      }
+    },
+    {
+      "ordner": "03-die-liste",
+      "titel": "The “Agent Apps” list",
+      "dauer_minuten": 10,
+      "art": "Explanation + quiz",
+      "ziel": "Be able to read and assess an entry in the list."
+    },
+    {
+      "ordner": "04-pdfcraft-einrichten",
+      "titel": "Setting up PdfCraft",
+      "dauer_minuten": 25,
+      "art": "Hands-on",
+      "ziel": "PdfCraft is installed and registered with Hermes.",
+      "pruefung": {
+        "skript": "pruefung/pdfcraft-eingerichtet.py",
+        "loesung": "pruefung/loesung.sh",
+        "aufgabe": "PdfCraft is installed and registered with Hermes as the MCP server “pdfcraft”.",
+        "geschafft": "PdfCraft is there and Hermes knows its MCP server.",
+        "noch_nicht": "Not yet: if ~/.local/bin/pdfcraft-cli is missing, run the installation commands from the list (step 2). Otherwise “hermes mcp add pdfcraft …” is missing (step 3).",
+        "zeitlimit": 20
+      }
+    },
+    {
+      "ordner": "05-uebung-pdfs",
+      "titel": "Exercise: Hermes works with PDFs",
+      "dauer_minuten": 20,
+      "art": "Exercise",
+      "ziel": "Hermes edits real PDFs – and you check the result.",
+      "start": {
+        "skript": "start/beispiel-pdfs.py",
+        "zeitlimit": 60,
+        "als": "benutzer"
+      },
+      "pruefung": {
+        "skript": "pruefung/rechnungen-gesamt.py",
+        "loesung": "pruefung/loesung.sh",
+        "aufgabe": "~/Agent-Files/pdf/invoices-total.pdf has two pages: the invoices from March and April.",
+        "geschafft": "invoices-total.pdf is there – with both invoices.",
+        "noch_nicht": "invoices-total.pdf is still missing in ~/Agent-Files/pdf or doesn't contain exactly the two invoices (step 3).",
+        "zeitlimit": 30
+      }
+    },
+    {
+      "ordner": "06-abschluss",
+      "titel": "Wrap-up and outlook",
+      "dauer_minuten": 10,
+      "art": "Discussion + quiz",
+      "ziel": "Consolidate the path “list → install → register” and know how to continue."
+    }
+  ]
+}

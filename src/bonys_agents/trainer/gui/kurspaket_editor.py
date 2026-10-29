@@ -29,12 +29,15 @@ from bonys_agents.gui.kurspaket_bibliothek import FILTER, skripte_erlauben
 from bonys_agents.gui.widgets import fit_to_screen
 from bonys_agents.gui.workers import TaskWorker
 from bonys_agents.trainer import kurspaket_editor as ed
+from bonys_agents.i18n import n_, tr
 
 _FENSTER: dict[str, EditorFenster] = {}
 _RUNNING: set[TaskWorker] = set()
+# Vorschläge für das Feld „Art“ – wird so ins Kurspaket geschrieben (Inhalt, nicht übersetzt)
 ARTEN = ["Erklärung", "Mitmachen", "Übung", "Erklärung + Quiz", "Diskussion", "Pause"]
-PRUEF_TYPEN = [("", "Keine Prüfaufgabe"), (kurspaket.SKRIPT, "Skript im Agent-PC"),
-               ("agent-pc-laeuft", "Eingebaut: Agent-PC läuft"), ("vorlage-vorhanden", "Eingebaut: Vorlage vorhanden")]
+PRUEF_TYPEN = [("", n_("Keine Prüfaufgabe")), (kurspaket.SKRIPT, n_("Skript im Agent-PC")),
+               ("agent-pc-laeuft", n_("Eingebaut: "
+                                      "Agent-PC läuft")), ("vorlage-vorhanden", n_("Eingebaut: Vorlage vorhanden"))]
 SPRACHEN = [(".sh", "Bash"), (".py", "Python 3")]
 
 
@@ -62,12 +65,13 @@ def agent_pc_waehlen(parent: QWidget, zweck: str) -> vm.VM | None:
     """Einen laufenden Agent-PC wählen (bei nur einem: diesen)."""
     laufend = _laufende_agent_pcs()
     if not laufend:
-        QMessageBox.information(parent, "Agent-PC", f"Für {zweck} muss ein Agent-PC laufen – starte ihn im "
-                                "Hauptfenster und versuche es dann noch einmal.")
+        QMessageBox.information(parent, tr("Agent-PC"), tr("Für {zweck} muss ein Agent-PC laufen – starte ihn im "
+                                                           "Hauptfenster und versuche es dann noch einmal.",
+                                                           zweck=zweck))
         return None
     if len(laufend) == 1:
         return laufend[0]
-    name, ok = QInputDialog.getItem(parent, "Agent-PC", f"Welcher Agent-PC – für {zweck}?",
+    name, ok = QInputDialog.getItem(parent, tr("Agent-PC"), tr("Welcher Agent-PC – für {zweck}?", zweck=zweck),
                                     [m.name for m in laufend], 0, False)
     return next((m for m in laufend if m.name == name), None) if ok else None
 
@@ -83,16 +87,16 @@ class MarkdownEditor(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         leiste = QHBoxLayout()
-        self.bild_knopf = QPushButton("Bild einfügen …")
-        self.foto_knopf = QPushButton("Bildschirmfoto des Agent-PCs")
-        self.foto_knopf.setToolTip("Nimmt den Bildschirm eines laufenden Agent-PCs auf und fügt ihn hier ein")
-        self.kasten_knopf = QPushButton("Kasten ▾")
+        self.bild_knopf = QPushButton(tr("Bild einfügen …"))
+        self.foto_knopf = QPushButton(tr("Bildschirmfoto des Agent-PCs"))
+        self.foto_knopf.setToolTip(tr("Nimmt den Bildschirm eines laufenden Agent-PCs auf und fügt ihn hier ein"))
+        self.kasten_knopf = QPushButton(tr("Kasten ▾"))
         menue = QMenu(self.kasten_knopf)
         for art, text in (("tipp", "Tipp"), ("hinweis", "Hinweis"), ("warnung", "Achtung"),
                           ("datenschutz", "Datenschutz")):
             menue.addAction(text, lambda a=art: self._einfuegen(f"\n::: {a}\nText\n:::\n"))
         self.kasten_knopf.setMenu(menue)
-        self.vorschau_box = QCheckBox("Vorschau")
+        self.vorschau_box = QCheckBox(tr("Vorschau"))
         self.vorschau_box.setChecked(True)
         for w in (self.bild_knopf, self.foto_knopf, self.kasten_knopf):
             leiste.addWidget(w)
@@ -138,20 +142,20 @@ class MarkdownEditor(QWidget):
     def _ziel_ordner(self) -> Path | None:
         ordner = self.ordner()
         if ordner is None:
-            QMessageBox.information(self, "Bild", "Bitte das Kurspaket zuerst speichern.")
+            QMessageBox.information(self, tr("Bild"), tr("Bitte das Kurspaket zuerst speichern."))
         return ordner
 
     def _bild(self) -> None:
         ordner = self._ziel_ordner()
         if ordner is None:
             return
-        datei, _ = QFileDialog.getOpenFileName(self, "Bild einfügen", str(Path.home()), ed.BILD_DATEIEN)
+        datei, _ = QFileDialog.getOpenFileName(self, tr("Bild einfügen"), str(Path.home()), ed.BILD_DATEIEN)
         if not datei:
             return
         quelle = Path(datei)
         endung = quelle.suffix.lower()
         if endung not in {".png", ".jpg", ".jpeg", ".gif", ".webp"} or quelle.stat().st_size > 10 * 1024 ** 2:
-            QMessageBox.warning(self, "Bild", "Erlaubt sind PNG, JPG, GIF und WebP bis 10 MB.")
+            QMessageBox.warning(self, tr("Bild"), tr("Erlaubt sind PNG, JPG, GIF und WebP bis 10 MB."))
             return
         ziel = ed.bild_name(ordner, quelle.stem, endung)
         ziel.parent.mkdir(parents=True, exist_ok=True)
@@ -184,7 +188,7 @@ class SteckbriefSeite(QWidget):
         versionen = QHBoxLayout()
         self.version = QLineEdit()
         self.version.setMaximumWidth(110)
-        self.erhoehen = QPushButton("Version erhöhen ▾")
+        self.erhoehen = QPushButton(tr("Version erhöhen ▾"))
         menue = QMenu(self.erhoehen)
         for teil, text in (("patch", "Korrektur (1.0.0 → 1.0.1)"), ("minor", "Neue Inhalte (1.0.0 → 1.1.0)"),
                            ("major", "Grundlegend neu (1.0.0 → 2.0.0)")):
@@ -193,26 +197,26 @@ class SteckbriefSeite(QWidget):
         versionen.addWidget(self.version)
         versionen.addWidget(self.erhoehen)
         versionen.addStretch(1)
-        self.entwurf = QCheckBox("Entwurf (noch nicht ausgearbeitet)")
+        self.entwurf = QCheckBox(tr("Entwurf (noch nicht ausgearbeitet)"))
         self.autor = QLineEdit()
         self.lizenz = QLineEdit()
         self.sprache = QLineEdit()
         self.sprache.setMaximumWidth(80)
         self.dauer = QSpinBox()
         self.dauer.setRange(0, 6000)
-        self.dauer.setSuffix(" min")
-        self.dauer.setSpecialValueText("Summe der Lektionen")
+        self.dauer.setSuffix(tr(" min"))
+        self.dauer.setSpecialValueText(tr("Summe der Lektionen"))
         self.pause = QSpinBox()
         self.pause.setRange(0, 1440)
-        self.pause.setSuffix(" min")
+        self.pause.setSuffix(tr(" min"))
         gruppe = QHBoxLayout()
         self.t_min, self.t_max = QSpinBox(), QSpinBox()
         for s in (self.t_min, self.t_max):
             s.setRange(0, 1000)
             s.setSpecialValueText("–")
-        gruppe.addWidget(QLabel("von"))
+        gruppe.addWidget(QLabel(tr("von")))
         gruppe.addWidget(self.t_min)
-        gruppe.addWidget(QLabel("bis"))
+        gruppe.addWidget(QLabel(tr("bis")))
         gruppe.addWidget(self.t_max)
         gruppe.addStretch(1)
         self.zielgruppe = QLineEdit()
@@ -220,26 +224,26 @@ class SteckbriefSeite(QWidget):
         self.voraussetzungen = QPlainTextEdit()
         self.lernziele = QPlainTextEdit()
         self.quellen = QPlainTextEdit()
-        self.quellen.setPlaceholderText("Titel | https://…")
+        self.quellen.setPlaceholderText(tr("Titel | https://…"))
         for e in (self.voraussetzungen, self.lernziele, self.quellen):
             e.setMaximumHeight(80)
-        form.addRow("Kennung:", self.id)
-        form.addRow("Name:", self.name)
-        form.addRow("Beschreibung:", self.beschreibung)
-        form.addRow("Stufe:", self.stufe)
-        form.addRow("Version:", versionen)
+        form.addRow(tr("Kennung:"), self.id)
+        form.addRow(tr("Name:"), self.name)
+        form.addRow(tr("Beschreibung:"), self.beschreibung)
+        form.addRow(tr("Stufe:"), self.stufe)
+        form.addRow(tr("Version:"), versionen)
         form.addRow("", self.entwurf)
-        form.addRow("Autor:", self.autor)
-        form.addRow("Lizenz:", self.lizenz)
-        form.addRow("Sprache:", self.sprache)
-        form.addRow("Dauer:", self.dauer)
-        form.addRow("Pausen:", self.pause)
-        form.addRow("Teilnehmer:", gruppe)
-        form.addRow("Zielgruppe:", self.zielgruppe)
-        form.addRow("Kosten:", self.kosten)
-        form.addRow("Voraussetzungen\n(je Zeile eine):", self.voraussetzungen)
-        form.addRow("Lernziele\n(je Zeile eines):", self.lernziele)
-        form.addRow("Quellen\n(Titel | Adresse):", self.quellen)
+        form.addRow(tr("Autor:"), self.autor)
+        form.addRow(tr("Lizenz:"), self.lizenz)
+        form.addRow(tr("Sprache:"), self.sprache)
+        form.addRow(tr("Dauer:"), self.dauer)
+        form.addRow(tr("Pausen:"), self.pause)
+        form.addRow(tr("Teilnehmer:"), gruppe)
+        form.addRow(tr("Zielgruppe:"), self.zielgruppe)
+        form.addRow(tr("Kosten:"), self.kosten)
+        form.addRow(tr("Voraussetzungen\n(je Zeile eine):"), self.voraussetzungen)
+        form.addRow(tr("Lernziele\n(je Zeile eines):"), self.lernziele)
+        form.addRow(tr("Quellen\n(Titel | Adresse):"), self.quellen)
 
     def setzen(self, p: kurspaket.Kurspaket) -> None:
         self.id.setText(p.id)
@@ -292,15 +296,15 @@ class RezeptSeite(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         root = QVBoxLayout(self)
-        intro = QLabel("So wird der Agent-PC eingerichtet, wenn jemand das Kurspaket durcharbeitet – ein Kurspaket "
-                       "enthält kein Festplatten-Abbild. Gibt es die genannte Vorlage auf dem Rechner, entsteht der "
-                       "Agent-PC schnell daraus.")
+        intro = QLabel(tr("So wird der Agent-PC eingerichtet, wenn jemand das Kurspaket durcharbeitet – ein Kurspaket "
+                          "enthält kein Festplatten-Abbild. Gibt es die genannte Vorlage auf dem Rechner, entsteht der "
+                          "Agent-PC schnell daraus."))
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         root.addWidget(intro)
         form = QFormLayout()
         self.name = QLineEdit()
-        self.name.setPlaceholderText("agent-kurs")
+        self.name.setPlaceholderText(tr("agent-kurs"))
         self.desktop = QComboBox()
         for d in desktops.DESKTOPS:
             self.desktop.addItem(desktops.name(d), d)
@@ -309,7 +313,7 @@ class RezeptSeite(QWidget):
         for a in apps.APPS.values():
             if a.hidden:
                 continue
-            item = QListWidgetItem(a.name)
+            item = QListWidgetItem(tr(a.name))
             item.setData(Qt.UserRole, a.id)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Unchecked)
@@ -317,12 +321,12 @@ class RezeptSeite(QWidget):
         self.ram, self.cpus, self.disk = QSpinBox(), QSpinBox(), QSpinBox()
         self.ram.setRange(0, 262144)
         self.ram.setSingleStep(1024)
-        self.ram.setSuffix(" MB")
+        self.ram.setSuffix(tr(" MB"))
         self.cpus.setRange(0, 64)
         self.disk.setRange(0, vm.MAX_DISK_GB)
-        self.disk.setSuffix(" GB")
+        self.disk.setSuffix(tr(" GB"))
         for s in (self.ram, self.cpus, self.disk):
-            s.setSpecialValueText("Standard")
+            s.setSpecialValueText(tr("Standard"))
         self.username, self.keyboard, self.timezone = QLineEdit(), QLineEdit(), QLineEdit()
         self.vorlage = QComboBox()
         self.vorlage.setEditable(True)
@@ -332,22 +336,22 @@ class RezeptSeite(QWidget):
         except (OSError, ValueError, RuntimeError):
             pass
         self.sha = QLineEdit()
-        self.sha.setPlaceholderText("optional: SHA-256 der .bonys-Datei")
-        form.addRow("Name des Agent-PCs:", self.name)
-        form.addRow("Desktop:", self.desktop)
-        form.addRow("Programme:", self.apps)
-        form.addRow("Arbeitsspeicher:", self.ram)
-        form.addRow("Prozessorkerne:", self.cpus)
-        form.addRow("Festplatte:", self.disk)
-        form.addRow("Benutzer:", self.username)
-        form.addRow("Tastatur:", self.keyboard)
-        form.addRow("Zeitzone:", self.timezone)
-        form.addRow("Vorlage:", self.vorlage)
-        form.addRow("Prüfsumme:", self.sha)
+        self.sha.setPlaceholderText(tr("optional: SHA-256 der .bonys-Datei"))
+        form.addRow(tr("Name des Agent-PCs:"), self.name)
+        form.addRow(tr("Desktop:"), self.desktop)
+        form.addRow(tr("Programme:"), self.apps)
+        form.addRow(tr("Arbeitsspeicher:"), self.ram)
+        form.addRow(tr("Prozessorkerne:"), self.cpus)
+        form.addRow(tr("Festplatte:"), self.disk)
+        form.addRow(tr("Benutzer:"), self.username)
+        form.addRow(tr("Tastatur:"), self.keyboard)
+        form.addRow(tr("Zeitzone:"), self.timezone)
+        form.addRow(tr("Vorlage:"), self.vorlage)
+        form.addRow(tr("Prüfsumme:"), self.sha)
         root.addLayout(form)
-        self.uebernehmen_knopf = QPushButton("Aus einem Agent-PC übernehmen …")
-        self.uebernehmen_knopf.setToolTip("Desktop, Programme, RAM, CPUs, Festplatte, Benutzer, Tastatur, Zeitzone "
-                                          "und Vorlage eines eingerichteten Agent-PCs übernehmen")
+        self.uebernehmen_knopf = QPushButton(tr("Aus einem Agent-PC übernehmen …"))
+        self.uebernehmen_knopf.setToolTip(tr("Desktop, Programme, RAM, CPUs, Festplatte, Benutzer, Tastatur, Zeitzone "
+                                             "und Vorlage eines eingerichteten Agent-PCs übernehmen"))
         self.uebernehmen_knopf.clicked.connect(self._aus_agent_pc)
         zeile = QHBoxLayout()
         zeile.addWidget(self.uebernehmen_knopf)
@@ -389,9 +393,9 @@ class RezeptSeite(QWidget):
         except (OSError, ValueError):
             maschinen = []
         if not maschinen:
-            QMessageBox.information(self, "Rezept", "Es gibt noch keinen Agent-PC.")
+            QMessageBox.information(self, tr("Rezept"), tr("Es gibt noch keinen Agent-PC."))
             return
-        name, ok = QInputDialog.getItem(self, "Rezept übernehmen", "Von welchem Agent-PC?",
+        name, ok = QInputDialog.getItem(self, tr("Rezept übernehmen"), tr("Von welchem Agent-PC?"),
                                         [m.name for m in maschinen], 0, False)
         if ok:
             m = next(m for m in maschinen if m.name == name)
@@ -409,7 +413,7 @@ class SkriptFeld(QWidget):
         self.sprache = QComboBox()
         for endung, text in SPRACHEN:
             self.sprache.addItem(text, endung)
-        kopf.addWidget(QLabel("Sprache:"))
+        kopf.addWidget(QLabel(tr("Sprache:")))
         kopf.addWidget(self.sprache)
         self.kopf = kopf
         kopf.addStretch(1)
@@ -432,7 +436,7 @@ class SkriptFeld(QWidget):
 
     def setzen_vorlage(self, inhalt: str) -> None:
         if self.text.toPlainText().strip() and QMessageBox.question(
-                self, "Vorlage", "Das vorhandene Skript ersetzen?") != QMessageBox.Yes:
+                self, tr("Vorlage"), tr("Das vorhandene Skript ersetzen?")) != QMessageBox.Yes:
             return
         self.text.setPlainText(inhalt)
         self.sprache.setCurrentIndex(self.sprache.findData(".py" if inhalt.startswith("#!/usr/bin/env python")
@@ -448,8 +452,8 @@ class QuizSeite(QWidget):
         self.liste = QListWidget()
         links.addWidget(self.liste, 1)
         knoepfe = QHBoxLayout()
-        self.neu = QPushButton("+ Frage")
-        self.weg = QPushButton("Löschen")
+        self.neu = QPushButton(tr("+ Frage"))
+        self.weg = QPushButton(tr("Löschen"))
         knoepfe.addWidget(self.neu)
         knoepfe.addWidget(self.weg)
         links.addLayout(knoepfe)
@@ -457,15 +461,15 @@ class QuizSeite(QWidget):
         form = QFormLayout()
         self.frage = QLineEdit()
         self.antworten = QPlainTextEdit()
-        self.antworten.setPlaceholderText("Je Zeile eine Antwort (2 bis 6)")
+        self.antworten.setPlaceholderText(tr("Je Zeile eine Antwort (2 bis 6)"))
         self.richtig = QSpinBox()
         self.richtig.setRange(1, 6)
         self.erklaerung = QPlainTextEdit()
         self.erklaerung.setMaximumHeight(80)
-        form.addRow("Frage:", self.frage)
-        form.addRow("Antworten:", self.antworten)
-        form.addRow("Richtig ist Nr.:", self.richtig)
-        form.addRow("Erklärung:", self.erklaerung)
+        form.addRow(tr("Frage:"), self.frage)
+        form.addRow(tr("Antworten:"), self.antworten)
+        form.addRow(tr("Richtig ist Nr.:"), self.richtig)
+        form.addRow(tr("Erklärung:"), self.erklaerung)
         rechts = QWidget()
         rechts.setLayout(form)
         root.addWidget(rechts, 2)
@@ -551,97 +555,97 @@ class LektionSeite(QWidget):
         self.ordner.setObjectName("Muted")
         self.dauer = QSpinBox()
         self.dauer.setRange(0, 1440)
-        self.dauer.setSuffix(" min")
+        self.dauer.setSuffix(tr(" min"))
         self.art = QComboBox()
         self.art.setEditable(True)
         self.art.addItems([""] + ARTEN)
         self.ziel = QPlainTextEdit()
         self.ziel.setMaximumHeight(90)
-        form.addRow("Titel:", self.titel)
-        form.addRow("Ordner:", self.ordner)
-        form.addRow("Dauer:", self.dauer)
-        form.addRow("Art:", self.art)
-        form.addRow("Ziel:", self.ziel)
-        self.tabs.addTab(allgemein, "Allgemein")
+        form.addRow(tr("Titel:"), self.titel)
+        form.addRow(tr("Ordner:"), self.ordner)
+        form.addRow(tr("Dauer:"), self.dauer)
+        form.addRow(tr("Art:"), self.art)
+        form.addRow(tr("Ziel:"), self.ziel)
+        self.tabs.addTab(allgemein, tr("Allgemein"))
 
         self.anleitung = MarkdownEditor(self._bildordner, self.editor.basis, bildschirmfoto=self.editor.foto)
-        self.tabs.addTab(self.anleitung, "Anleitung")
+        self.tabs.addTab(self.anleitung, tr("Anleitung"))
         self.kursleitung = MarkdownEditor(self._bildordner, self.editor.basis, bildschirmfoto=self.editor.foto)
-        self.tabs.addTab(self.kursleitung, "Kursleitung")
+        self.tabs.addTab(self.kursleitung, tr("Kursleitung"))
 
         pruefung = QWidget()
         pl = QVBoxLayout(pruefung)
         pf = QFormLayout()
         self.typ = QComboBox()
         for k, v in PRUEF_TYPEN:
-            self.typ.addItem(v, k)
+            self.typ.addItem(tr(v), k)
         self.aufgabe = QLineEdit()
-        self.aufgabe.setPlaceholderText("Was geprüft wird – sehen die Teilnehmer, z. B. „~/Kurs/einkaufsliste.txt "
-                                        "mit Käse“")
+        self.aufgabe.setPlaceholderText(tr("Was geprüft wird – sehen die Teilnehmer, z. B. „~/Kurs/einkaufsliste.txt "
+                                           "mit Käse“"))
         self.geschafft = QLineEdit()
         self.noch_nicht = QLineEdit()
         self.p_zeit = QSpinBox()
         self.p_zeit.setRange(1, kurspaket.PRUEF_ZEIT_MAX)
         self.p_zeit.setSuffix(" s")
         self.p_als = QComboBox()
-        self.p_als.addItem("Benutzer des Agent-PCs", "benutzer")
-        self.p_als.addItem("root", "root")
-        pf.addRow("Prüfung:", self.typ)
-        pf.addRow("Aufgabe:", self.aufgabe)
-        pf.addRow("Text „geschafft“:", self.geschafft)
-        pf.addRow("Text „noch nicht“:", self.noch_nicht)
-        pf.addRow("Zeitlimit:", self.p_zeit)
-        pf.addRow("Läuft als:", self.p_als)
+        self.p_als.addItem(tr("Benutzer des Agent-PCs"), "benutzer")
+        self.p_als.addItem(tr("root"), "root")
+        pf.addRow(tr("Prüfung:"), self.typ)
+        pf.addRow(tr("Aufgabe:"), self.aufgabe)
+        pf.addRow(tr("Text „geschafft“:"), self.geschafft)
+        pf.addRow(tr("Text „noch nicht“:"), self.noch_nicht)
+        pf.addRow(tr("Zeitlimit:"), self.p_zeit)
+        pf.addRow(tr("Läuft als:"), self.p_als)
         pl.addLayout(pf)
         self.skript_bereich = QTabWidget()
-        self.pruef_skript = SkriptFeld("Exit-Code 0 = geschafft, sonst noch nicht. Läuft nur im Agent-PC, die Ausgabe "
-                                       "wird verworfen.")
-        self.vorlage_knopf = QPushButton("Vorlage einfügen ▾")
+        self.pruef_skript = SkriptFeld(tr("Exit-Code 0 = geschafft, sonst noch nicht. Läuft nur im Agent-PC, die "
+                                          "Ausgabe wird verworfen."))
+        self.vorlage_knopf = QPushButton(tr("Vorlage einfügen ▾"))
         menue = QMenu(self.vorlage_knopf)
-        menue.addAction("Datei existiert …", self._vorlage_datei)
-        menue.addAction("Dienst läuft …", self._vorlage_dienst)
-        menue.addAction("Hermes eingerichtet",
+        menue.addAction(tr("Datei existiert …"), self._vorlage_datei)
+        menue.addAction(tr("Dienst läuft …"), self._vorlage_dienst)
+        menue.addAction(tr("Hermes eingerichtet"),
                         lambda: self.pruef_skript.setzen_vorlage(ed.vorlage_hermes_eingerichtet()))
         self.vorlage_knopf.setMenu(menue)
         self.pruef_skript.kopf.addWidget(self.vorlage_knopf)
-        self.loesung_skript = SkriptFeld("Optional: löst die Aufgabe – nur für „Kurspaket prüfen“ (Test-Agent-PC), "
-                                         "Teilnehmer bekommen es nie ausgeführt.")
-        self.skript_bereich.addTab(self.pruef_skript, "Prüfskript")
-        self.skript_bereich.addTab(self.loesung_skript, "Lösung (optional)")
+        self.loesung_skript = SkriptFeld(tr("Optional: löst die Aufgabe – nur für „Kurspaket prüfen“ (Test-Agent-PC), "
+                                            "Teilnehmer bekommen es nie ausgeführt."))
+        self.skript_bereich.addTab(self.pruef_skript, tr("Prüfskript"))
+        self.skript_bereich.addTab(self.loesung_skript, tr("Lösung (optional)"))
         pl.addWidget(self.skript_bereich, 1)
-        self.tabs.addTab(pruefung, "Prüfung")
+        self.tabs.addTab(pruefung, tr("Prüfung"))
 
         start = QWidget()
         sl = QVBoxLayout(start)
-        hinweis = QLabel("Startzustand: Beim ersten Betreten der Lektion läuft dieses Skript im Agent-PC, danach "
-                         "sichert Bony's Agents den Zustand – „Lektion zurücksetzen“ kehrt dorthin zurück. Ohne Skript "
-                         "wird nur gesichert.")
+        hinweis = QLabel(tr("Startzustand: Beim ersten Betreten der Lektion läuft dieses Skript im Agent-PC, danach "
+                            "sichert Bony's Agents den Zustand – „Lektion zurücksetzen“ kehrt dorthin zurück. Ohne "
+                            "Skript wird nur gesichert."))
         hinweis.setObjectName("Muted")
         hinweis.setWordWrap(True)
         sl.addWidget(hinweis)
         sf = QFormLayout()
-        self.start_an = QCheckBox("Startskript verwenden")
+        self.start_an = QCheckBox(tr("Startskript verwenden"))
         self.s_zeit = QSpinBox()
         self.s_zeit.setRange(1, kurspaket.START_ZEIT_MAX)
         self.s_zeit.setSuffix(" s")
         self.s_als = QComboBox()
-        self.s_als.addItem("root", "root")
-        self.s_als.addItem("Benutzer des Agent-PCs", "benutzer")
+        self.s_als.addItem(tr("root"), "root")
+        self.s_als.addItem(tr("Benutzer des Agent-PCs"), "benutzer")
         sf.addRow("", self.start_an)
-        sf.addRow("Zeitlimit:", self.s_zeit)
-        sf.addRow("Läuft als:", self.s_als)
+        sf.addRow(tr("Zeitlimit:"), self.s_zeit)
+        sf.addRow(tr("Läuft als:"), self.s_als)
         sl.addLayout(sf)
-        self.start_skript = SkriptFeld("Richtet den Agent-PC für diese Lektion ein, z. B. Übungsdateien anlegen.")
-        self.aus_pc = QPushButton("Aus Ordner im Agent-PC übernehmen …")
-        self.aus_pc.setToolTip("Einen Ordner (z. B. ~/Kurs) aus einem laufenden Agent-PC lesen und ein Skript "
-                               "erzeugen, das ihn bei Teilnehmern genauso anlegt")
+        self.start_skript = SkriptFeld(tr("Richtet den Agent-PC für diese Lektion ein, z. B. Übungsdateien anlegen."))
+        self.aus_pc = QPushButton(tr("Aus Ordner im Agent-PC übernehmen …"))
+        self.aus_pc.setToolTip(tr("Einen Ordner (z. B. ~/Kurs) aus einem laufenden Agent-PC lesen und ein Skript "
+                                  "erzeugen, das ihn bei Teilnehmern genauso anlegt"))
         self.aus_pc.clicked.connect(self._aus_agent_pc)
         self.start_skript.kopf.addWidget(self.aus_pc)
         sl.addWidget(self.start_skript, 1)
-        self.tabs.addTab(start, "Startzustand")
+        self.tabs.addTab(start, tr("Startzustand"))
 
         self.quiz = QuizSeite()
-        self.tabs.addTab(self.quiz, "Quiz")
+        self.tabs.addTab(self.quiz, tr("Quiz"))
 
         self.typ.currentIndexChanged.connect(self._sichtbar)
         self.start_an.toggled.connect(self._sichtbar)
@@ -664,7 +668,7 @@ class LektionSeite(QWidget):
         lek = le.lektion
         self.titel.setText(lek.titel)
         self.ordner.setText(f"{kurspaket.LEKTIONEN}/{le.quelle.name}" if le.quelle is not None
-                            and not le.quelle.name.startswith(".") else "(neu – entsteht beim Speichern)")
+                            and not le.quelle.name.startswith(".") else tr("(neu – entsteht beim Speichern)"))
         self.dauer.setValue(lek.dauer_minuten)
         self.art.setCurrentText(lek.art)
         self.ziel.setPlainText(lek.ziel)
@@ -673,8 +677,8 @@ class LektionSeite(QWidget):
         p = lek.pruefung
         self.typ.setCurrentIndex(max(0, self.typ.findData(p.typ if p else "")))
         self.aufgabe.setText(p.aufgabe if p else "")
-        self.geschafft.setText(p.geschafft if p else "Geschafft!")
-        self.noch_nicht.setText(p.noch_nicht if p else "Noch nicht geschafft.")
+        self.geschafft.setText(p.geschafft if p else tr("Geschafft!"))
+        self.noch_nicht.setText(p.noch_nicht if p else tr("Noch nicht geschafft."))
         self.p_zeit.setValue(p.zeitlimit if p else kurspaket.PRUEF_ZEIT_STANDARD)
         self.p_als.setCurrentIndex(max(0, self.p_als.findData(p.als if p else "benutzer")))
         self.pruef_skript.setzen(le.pruef_skript, p.skript if p else "")
@@ -722,36 +726,40 @@ class LektionSeite(QWidget):
         le.quiz = self.quiz.wert()
 
     def _vorlage_datei(self) -> None:
-        pfad, ok = QInputDialog.getText(self, "Datei existiert", "Datei im Agent-PC:", text="~/Kurs/datei.txt")
+        pfad, ok = QInputDialog.getText(self, tr("Datei "
+                                                 "existiert"), tr("Datei im Agent-PC:"), text=tr("~/Kurs/datei.txt"))
         if not ok:
             return
-        enthaelt, ok = QInputDialog.getText(self, "Datei existiert", "Muss diesen Text enthalten (leer = egal):")
+        enthaelt, ok = QInputDialog.getText(self, tr("Datei "
+                                                     "existiert"), tr("Muss diesen Text enthalten (leer = egal):"))
         if not ok:
             return
         try:
             self.pruef_skript.setzen_vorlage(ed.vorlage_datei_existiert(pfad, enthaelt))
         except ValueError as e:
-            QMessageBox.warning(self, "Vorlage", str(e))
+            QMessageBox.warning(self, tr("Vorlage"), str(e))
 
     def _vorlage_dienst(self) -> None:
-        dienst, ok = QInputDialog.getText(self, "Dienst läuft", "Name des Dienstes (systemd):", text="docker")
+        dienst, ok = QInputDialog.getText(self, tr("Dienst "
+                                                   "läuft"), tr("Name des Dienstes (systemd):"), text=tr("docker"))
         if not ok:
             return
-        benutzer = QMessageBox.question(self, "Dienst läuft", "Ist es ein Benutzerdienst (systemctl --user)?") \
+        benutzer = QMessageBox.question(self, tr("Dienst läuft"), tr("Ist es ein Benutzerdienst (systemctl --user)?")) \
             == QMessageBox.Yes
         try:
             self.pruef_skript.setzen_vorlage(ed.vorlage_dienst_laeuft(dienst, benutzer))
         except ValueError as e:
-            QMessageBox.warning(self, "Vorlage", str(e))
+            QMessageBox.warning(self, tr("Vorlage"), str(e))
             return
         if benutzer:
             self.p_als.setCurrentIndex(self.p_als.findData("benutzer"))
 
     def _aus_agent_pc(self) -> None:
-        machine = agent_pc_waehlen(self, "den Startzustand")
+        machine = agent_pc_waehlen(self, tr("den Startzustand"))
         if machine is None:
             return
-        ordner, ok = QInputDialog.getText(self, "Startzustand übernehmen", "Ordner im Agent-PC:", text="~/Kurs")
+        ordner, ok = QInputDialog.getText(self, tr("Startzustand "
+                                                   "übernehmen"), tr("Ordner im Agent-PC:"), text=tr("~/Kurs"))
         if not ok:
             return
         self.aus_pc.setEnabled(False)
@@ -759,7 +767,7 @@ class LektionSeite(QWidget):
         def fertig(w: TaskWorker) -> None:
             self.aus_pc.setEnabled(True)
             if w.error is not None:
-                QMessageBox.warning(self, "Startzustand übernehmen", str(w.error))
+                QMessageBox.warning(self, tr("Startzustand übernehmen"), str(w.error))
                 return
             self.start_an.setChecked(True)
             self.s_als.setCurrentIndex(self.s_als.findData("benutzer"))
@@ -773,25 +781,25 @@ class PruefenDialog(QDialog):
     def __init__(self, paket: kurspaket.Kurspaket, parent=None):
         super().__init__(parent)
         self.paket = paket
-        self.setWindowTitle(f"Kurspaket prüfen – {paket.name}")
+        self.setWindowTitle(tr("Kurspaket prüfen – {name}", name=paket.name))
         self._abbruch = False
         root = QVBoxLayout(self)
-        intro = QLabel("Prüft Format, Bilder, Links und Geheimnisse. Mit einem Test-Agent-PC spielt es außerdem die "
-                       "Lektionen durch: Startskripte, Syntax der Skripte, Prüfaufgaben vor und nach dem "
-                       "Lösungsskript. Die Skripte laufen nur im Test-Agent-PC – am besten ein frischer nach dem "
-                       "Rezept, der dabei verändert werden darf.")
+        intro = QLabel(tr("Prüft Format, Bilder, Links und Geheimnisse. Mit einem Test-Agent-PC spielt es außerdem die "
+                          "Lektionen durch: Startskripte, Syntax der Skripte, Prüfaufgaben vor und nach dem "
+                          "Lösungsskript. Die Skripte laufen nur im Test-Agent-PC – am besten ein frischer nach dem "
+                          "Rezept, der dabei verändert werden darf."))
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         root.addWidget(intro)
         form = QFormLayout()
         self.agent_pc = QComboBox()
-        self.agent_pc.addItem("– ohne Test-Agent-PC –", "")
+        self.agent_pc.addItem(tr("– ohne Test-Agent-PC –"), "")
         for m in _laufende_agent_pcs():
             self.agent_pc.addItem(m.name, m.name)
-        self.zurueck = QCheckBox("Test-Agent-PC danach zurücksetzen (Neustart)")
+        self.zurueck = QCheckBox(tr("Test-Agent-PC danach zurücksetzen (Neustart)"))
         self.zurueck.setChecked(True)
-        self.links = QCheckBox("Links im Internet prüfen")
-        form.addRow("Test-Agent-PC:", self.agent_pc)
+        self.links = QCheckBox(tr("Links im Internet prüfen"))
+        form.addRow(tr("Test-Agent-PC:"), self.agent_pc)
         form.addRow("", self.zurueck)
         form.addRow("", self.links)
         root.addLayout(form)
@@ -802,9 +810,9 @@ class PruefenDialog(QDialog):
         self.ergebnis.setReadOnly(True)
         root.addWidget(self.ergebnis, 1)
         knoepfe = QDialogButtonBox()
-        self.start = knoepfe.addButton("Prüfen", QDialogButtonBox.AcceptRole)
+        self.start = knoepfe.addButton(tr("Prüfen"), QDialogButtonBox.AcceptRole)
         self.start.setObjectName("Primary")
-        self.zu = knoepfe.addButton("Schließen", QDialogButtonBox.RejectRole)
+        self.zu = knoepfe.addButton(tr("Schließen"), QDialogButtonBox.RejectRole)
         root.addWidget(knoepfe)
         self.start.clicked.connect(self._pruefen)
         self.zu.clicked.connect(self._schliessen)
@@ -814,7 +822,7 @@ class PruefenDialog(QDialog):
     def _schliessen(self) -> None:
         if self.lauf is not None:
             self._abbruch = True
-            self.status.setText("Breche nach der aktuellen Lektion ab …")
+            self.status.setText(tr("Breche nach der aktuellen Lektion ab …"))
             return
         self.reject()
 
@@ -830,7 +838,8 @@ class PruefenDialog(QDialog):
             if not skripte_erlauben(self, self.paket):
                 return
             if QMessageBox.question(self, self.windowTitle(),
-                                    f"Die Skripte des Kurspakets verändern „{name}“. Fortfahren?") != QMessageBox.Yes:
+                                    tr("Die Skripte des Kurspakets verändern „{name}“. Fortfahren?",
+                                       name=name)) != QMessageBox.Yes:
                 return
         self.start.setEnabled(False)
         self.ergebnis.clear()
@@ -846,7 +855,7 @@ class PruefenDialog(QDialog):
                                      abbrechen=lambda: self._abbruch, zuruecksetzen=zurueck)
             return m
 
-        self._status = "Prüfe …"
+        self._status = tr("Prüfe …")
         timer = QTimer(self)
         timer.timeout.connect(lambda: self.status.setText(self._status))
         timer.start(300)
@@ -862,8 +871,10 @@ class PruefenDialog(QDialog):
             meldungen: list[ed.Meldung] = w.result
             fehler = sum(1 for x in meldungen if x.stufe == ed.FEHLER)
             warn = sum(1 for x in meldungen if x.stufe == ed.WARNUNG)
-            self.status.setText("Alles in Ordnung." if not fehler and not warn else
-                                f"{fehler} Fehler, {warn} Warnungen.")
+            self.status.setText(tr("Alles "
+                                   "in "
+                                   "Ordnung.") if not fehler and not warn else tr("{fehler} Fehler, {warn} Warnungen.",
+                                                                                  fehler=fehler, warn=warn))
             self.ergebnis.setPlainText("\n".join(str(x) for x in meldungen))
 
         self.lauf = TaskWorker(arbeit)
@@ -891,12 +902,12 @@ class EditorFenster(QWidget):
         self.gliederung = QListWidget()
         ll.addWidget(self.gliederung, 1)
         reihe = QHBoxLayout()
-        self.plus = QPushButton("+ Lektion")
-        self.minus = QPushButton("Löschen")
+        self.plus = QPushButton(tr("+ Lektion"))
+        self.minus = QPushButton(tr("Löschen"))
         self.hoch = QPushButton("↑")
         self.runter = QPushButton("↓")
-        self.hoch.setToolTip("Lektion nach vorn")
-        self.runter.setToolTip("Lektion nach hinten")
+        self.hoch.setToolTip(tr("Lektion nach vorn"))
+        self.runter.setToolTip(tr("Lektion nach hinten"))
         for b in (self.plus, self.minus, self.hoch, self.runter):
             reihe.addWidget(b)
         ll.addLayout(reihe)
@@ -919,17 +930,17 @@ class EditorFenster(QWidget):
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
         unten.addWidget(self.status, 1)
-        self.pruefen_knopf = QPushButton("Kurspaket prüfen …")
-        self.pdf_knopf = QPushButton("PDF ▾")
+        self.pruefen_knopf = QPushButton(tr("Kurspaket prüfen …"))
+        self.pdf_knopf = QPushButton(tr("PDF ▾"))
         menue = QMenu(self.pdf_knopf)
-        menue.addAction("Ablaufplan als PDF …", lambda: self._pdf("ablaufplan"))
-        menue.addAction("Handout als PDF …", lambda: self._pdf("handout"))
+        menue.addAction(tr("Ablaufplan als PDF …"), lambda: self._pdf("ablaufplan"))
+        menue.addAction(tr("Handout als PDF …"), lambda: self._pdf("handout"))
         self.pdf_knopf.setMenu(menue)
-        self.export_knopf = QPushButton("Exportieren …")
-        self.speichern_knopf = QPushButton("Speichern")
+        self.export_knopf = QPushButton(tr("Exportieren …"))
+        self.speichern_knopf = QPushButton(tr("Speichern"))
         self.speichern_knopf.setObjectName("Primary")
         self.speichern_knopf.setShortcut("Ctrl+S")
-        zu = QPushButton("Schließen")
+        zu = QPushButton(tr("Schließen"))
         for b in (self.pruefen_knopf, self.pdf_knopf, self.export_knopf, self.speichern_knopf, zu):
             unten.addWidget(b)
         root.addLayout(unten)
@@ -959,16 +970,17 @@ class EditorFenster(QWidget):
         self.handout.setzen(self.entwurf.handout)
         self._gliederung(zeile)
         self._stand = self._zustand()
-        self.setWindowTitle(f"Kurspaket bearbeiten – {self.entwurf.paket.name}")
-        self.status.setText(f"Ordner: {self.ordner}")
+        self.setWindowTitle(tr("Kurspaket bearbeiten – {name}", name=self.entwurf.paket.name))
+        self.status.setText(tr("Ordner: {ordner}", ordner=self.ordner))
 
     def _gliederung(self, zeile: int) -> None:
         self.gliederung.blockSignals(True)
         self.gliederung.clear()
-        for text in ("Steckbrief", "Rezept (Agent-PC)", "Ablaufplan (Kursleitung)", "Handout (Teilnehmer)"):
+        for text in (tr("Steckbrief"), tr("Rezept (Agent-PC)"), tr("Ablaufplan (Kursleitung)"),
+                     tr("Handout (Teilnehmer)")):
             self.gliederung.addItem(text)
         for i, le in enumerate(self.entwurf.lektionen, 1):
-            self.gliederung.addItem(f"  {i}. {le.lektion.titel or '(ohne Titel)'}")
+            self.gliederung.addItem(f"  {i}. {le.lektion.titel or tr('(ohne Titel)')}")
         self.gliederung.blockSignals(False)
         self.gliederung.setCurrentRow(min(zeile, self.gliederung.count() - 1))
         self._wechsel(self.gliederung.currentRow())
@@ -1022,7 +1034,7 @@ class EditorFenster(QWidget):
         self._sichern()
         i = self._lektion_index()
         pos = i + 1 if i >= 0 else len(self.entwurf.lektionen)
-        titel = f"Lektion {pos + 1}"
+        titel = tr("Lektion {wert}", wert=pos + 1)
         self.entwurf.lektionen.insert(pos, ed.LektionEntwurf(
             kurspaket.Lektion(ordner="", titel=titel), anleitung=ed.ANLEITUNG_VORLAGE.format(titel=titel)))
         self.aktuell = -1
@@ -1035,8 +1047,10 @@ class EditorFenster(QWidget):
         if i < 0:
             return
         le = self.entwurf.lektionen[i]
-        if QMessageBox.question(self, "Lektion löschen", f"Lektion „{le.lektion.titel}“ mit Anleitung, Quiz und "
-                                "Skripten löschen? (Erst beim Speichern endgültig.)") != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("Lektion "
+                                         "löschen"), tr("Lektion „{titel}“ mit Anleitung, Quiz und Skripten löschen? "
+                                                        "(Erst beim Speichern endgültig.)",
+                                                        titel=le.lektion.titel)) != QMessageBox.Yes:
             return
         self.entwurf.lektionen.pop(i)
         self.aktuell = -1
@@ -1074,15 +1088,17 @@ class EditorFenster(QWidget):
         try:
             paket = ed.speichern(self.entwurf, self.ordner)
         except kurspaket.GeheimnisGefunden as e:
-            QMessageBox.warning(self, "Nicht gespeichert – Geheimnis-Prüfung", str(e))
+            QMessageBox.warning(self, tr("Nicht gespeichert – Geheimnis-Prüfung"), str(e))
             return False
         except (kurspaket.PaketFehler, OSError, ValueError) as e:
-            QMessageBox.warning(self, "Nicht gespeichert", f"Das Kurspaket ist so noch nicht gültig:\n\n{e}")
+            QMessageBox.warning(self, tr("Nicht "
+                                         "gespeichert"), tr("Das Kurspaket ist so noch nicht gültig:\n\n{e}", e=e))
             return False
         for d in (self.ordner / kurspaket.LEKTIONEN).glob(".neu-*"):
             shutil.rmtree(d, ignore_errors=True)
         self._laden(zeile)
-        self.status.setText(f"Gespeichert: {paket.name} {paket.version} – {self.ordner}")
+        self.status.setText(tr("Gespeichert: {name} {version} – {ordner}", name=paket.name, version=paket.version,
+                               ordner=self.ordner))
         if self.gespeichert_cb:
             self.gespeichert_cb(paket)
         return True
@@ -1090,14 +1106,15 @@ class EditorFenster(QWidget):
     def _gespeichert_oder_fragen(self, was: str) -> bool:
         if not self.geaendert():
             return True
-        if QMessageBox.question(self, was, f"Für „{was}“ muss das Kurspaket gespeichert sein. Jetzt speichern?") \
+        if QMessageBox.question(self, was, tr("Für „{was}“ muss das Kurspaket gespeichert sein. Jetzt speichern?",
+                                              was=was)) \
                 != QMessageBox.Yes:
             return False
         return self.speichern()
 
     def closeEvent(self, e) -> None:  # noqa: N802
         if self.geaendert():
-            box = QMessageBox(QMessageBox.Question, "Kurspaket bearbeiten", "Änderungen speichern?",
+            box = QMessageBox(QMessageBox.Question, tr("Kurspaket bearbeiten"), tr("Änderungen speichern?"),
                               QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, self)
             antwort = box.exec()
             if antwort == QMessageBox.Cancel or (antwort == QMessageBox.Save and not self.speichern()):
@@ -1110,17 +1127,17 @@ class EditorFenster(QWidget):
 
     # ---------- Aktionen
     def foto(self, ordner: Path) -> Path | None:
-        machine = agent_pc_waehlen(self, "das Bildschirmfoto")
+        machine = agent_pc_waehlen(self, tr("das Bildschirmfoto"))
         if machine is None:
             return None
         try:
             return ed.bildschirmfoto(machine, ed.bild_name(ordner, "bildschirm"))
         except (RuntimeError, OSError, kurslauf.NichtBereit, qemu.GuestAgentError) as e:
-            QMessageBox.warning(self, "Bildschirmfoto", str(e))
+            QMessageBox.warning(self, tr("Bildschirmfoto"), str(e))
             return None
 
     def _pruefen(self) -> None:
-        if not self._gespeichert_oder_fragen("Kurspaket prüfen"):
+        if not self._gespeichert_oder_fragen(tr("Kurspaket prüfen")):
             return
         PruefenDialog(kurspaket.laden(self.ordner), self).exec()
 
@@ -1129,19 +1146,19 @@ class EditorFenster(QWidget):
             return
         paket = kurspaket.laden(self.ordner)
         name = f"{paket.id}-{'ablaufplan' if welches == 'ablaufplan' else 'handout'}-{paket.version}.pdf"
-        ziel, _ = QFileDialog.getSaveFileName(self, "PDF speichern", str(Path.home() / name), "PDF (*.pdf)")
+        ziel, _ = QFileDialog.getSaveFileName(self, tr("PDF speichern"), str(Path.home() / name), tr("PDF (*.pdf)"))
         if not ziel:
             return
         self.pdf_knopf.setEnabled(False)
-        self.status.setText("Erzeuge das PDF …")
+        self.status.setText(tr("Erzeuge das PDF …"))
 
         def fertig(w: TaskWorker) -> None:
             self.pdf_knopf.setEnabled(True)
             if w.error is not None:
                 self.status.setText("")
-                QMessageBox.warning(self, "PDF", str(w.error))
+                QMessageBox.warning(self, tr("PDF"), str(w.error))
                 return
-            self.status.setText(f"PDF gespeichert: {w.result}")
+            self.status.setText(tr("PDF gespeichert: {result}", result=w.result))
 
         _lauf(lambda: ed.pdf_bauen(paket, welches, Path(ziel)), fertig)
 
@@ -1149,7 +1166,7 @@ class EditorFenster(QWidget):
         if not self._gespeichert_oder_fragen("Exportieren"):
             return
         paket = kurspaket.laden(self.ordner)
-        ziel, _ = QFileDialog.getSaveFileName(self, "Kurspaket exportieren",
+        ziel, _ = QFileDialog.getSaveFileName(self, tr("Kurspaket exportieren"),
                                               str(Path.home() / kurspaket.dateiname(paket)), FILTER)
         if not ziel:
             return
@@ -1158,9 +1175,9 @@ class EditorFenster(QWidget):
         try:
             kurspaket.packen(self.ordner, Path(ziel))
         except (kurspaket.PaketFehler, OSError) as e:
-            QMessageBox.warning(self, "Kurspaket exportieren", str(e))
+            QMessageBox.warning(self, tr("Kurspaket exportieren"), str(e))
             return
-        self.status.setText(f"Exportiert: {ziel}")
+        self.status.setText(tr("Exportiert: {ziel}", ziel=ziel))
 
 
 def oeffnen(ordner: Path, gespeichert: Callable[[kurspaket.Kurspaket], None] | None = None) -> EditorFenster:
@@ -1179,13 +1196,13 @@ def oeffnen(ordner: Path, gespeichert: Callable[[kurspaket.Kurspaket], None] | N
 # ---------------------------------------------------------------- Knöpfe in der Bibliothek
 def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
     """„Neu …“, „Bearbeiten …“, „Duplizieren …“ und „Ordner öffnen …“ für den Reiter „Kurspakete“."""
-    neu = QPushButton("Neu …")
-    neu.setToolTip("Neues Kurspaket anlegen und bearbeiten")
-    bearbeiten = QPushButton("Bearbeiten …")
-    duplizieren_knopf = QPushButton("Duplizieren …")
-    ordner_knopf = QPushButton("Ordner öffnen …")
-    ordner_knopf.setToolTip("Kurspaket-Ordner bearbeiten, der nicht in der Bibliothek liegt (z. B. in einem "
-                            "Git-Repository)")
+    neu = QPushButton(tr("Neu …"))
+    neu.setToolTip(tr("Neues Kurspaket anlegen und bearbeiten"))
+    bearbeiten = QPushButton(tr("Bearbeiten …"))
+    duplizieren_knopf = QPushButton(tr("Duplizieren …"))
+    ordner_knopf = QPushButton(tr("Ordner öffnen …"))
+    ordner_knopf.setToolTip(tr("Kurspaket-Ordner bearbeiten, der nicht in der Bibliothek liegt (z. B. in einem "
+                               "Git-Repository)"))
     for i, b in enumerate((neu, bearbeiten, duplizieren_knopf, ordner_knopf)):
         leiste.insertWidget(i, b)
 
@@ -1205,7 +1222,7 @@ def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
             paket = ed.neu_anlegen(dlg.name.text(), dlg.stufe.currentData(), dlg.kennung.text().strip(),
                                    dlg.autor.text())
         except (kurspaket.PaketFehler, OSError) as e:
-            QMessageBox.warning(seite, "Neues Kurspaket", str(e))
+            QMessageBox.warning(seite, tr("Neues Kurspaket"), str(e))
             return
         seite.laden(paket.id)
         oeffnen(paket.pfad, neu_geladen)
@@ -1214,16 +1231,20 @@ def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
         if gleiche_id:
             neue_id, name = p.id, p.name
         else:
-            name, ok = QInputDialog.getText(seite, "Duplizieren", "Name der Kopie:", text=f"{p.name} (Kopie)")
+            name, ok = QInputDialog.getText(seite, tr("Duplizieren"), tr("Name "
+                                                                         "der "
+                                                                         "Kopie:"), text=tr("{name} (Kopie)",
+                                                                                            name=p.name))
             if not ok or not name.strip():
                 return None
-            neue_id, ok = QInputDialog.getText(seite, "Duplizieren", "Kennung der Kopie:", text=ed.slug(name, 60))
+            neue_id, ok = QInputDialog.getText(seite, tr("Duplizieren"), tr("Kennung der "
+                                                                            "Kopie:"), text=ed.slug(name, 60))
             if not ok:
                 return None
         try:
             kopie = ed.duplizieren(p, neue_id.strip(), name)
         except (kurspaket.PaketFehler, OSError) as e:
-            QMessageBox.warning(seite, "Duplizieren", str(e))
+            QMessageBox.warning(seite, tr("Duplizieren"), str(e))
             return None
         seite.laden(kopie.id)
         return kopie
@@ -1233,15 +1254,15 @@ def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
         if p is None:
             return
         if not ed.bearbeitbar(p):
-            box = QMessageBox(QMessageBox.Question, "Kurspaket bearbeiten",
-                              f"„{p.name}“ gehört zum Programm und lässt sich nicht direkt ändern.",
+            box = QMessageBox(QMessageBox.Question, tr("Kurspaket bearbeiten"),
+                              tr("„{name}“ gehört zum Programm und lässt sich nicht direkt ändern.", name=p.name),
                               QMessageBox.NoButton, seite)
-            box.setInformativeText("„Eigene Fassung“ legt eine Kopie mit derselben Kennung in deiner Bibliothek an – "
-                                   "sie ersetzt das mitgelieferte Kurspaket, der Fortschritt bleibt. „Duplizieren“ "
-                                   "macht daraus ein neues Kurspaket.")
-            eigen = box.addButton("Eigene Fassung", QMessageBox.AcceptRole)
-            kopie = box.addButton("Duplizieren …", QMessageBox.ActionRole)
-            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.setInformativeText(tr("„Eigene Fassung“ legt eine Kopie mit derselben Kennung in deiner Bibliothek "
+                                      "an – sie ersetzt das mitgelieferte Kurspaket, der Fortschritt bleibt. "
+                                      "„Duplizieren“ macht daraus ein neues Kurspaket."))
+            eigen = box.addButton(tr("Eigene Fassung"), QMessageBox.AcceptRole)
+            kopie = box.addButton(tr("Duplizieren …"), QMessageBox.ActionRole)
+            box.addButton(tr("Abbrechen"), QMessageBox.RejectRole)
             box.exec()
             if box.clickedButton() is eigen:
                 p = kopieren(p, gleiche_id=True)
@@ -1259,13 +1280,13 @@ def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
             oeffnen(kopie.pfad, neu_geladen)
 
     def ordner_klick() -> None:
-        d = QFileDialog.getExistingDirectory(seite, "Kurspaket-Ordner öffnen", str(Path.home()))
+        d = QFileDialog.getExistingDirectory(seite, tr("Kurspaket-Ordner öffnen"), str(Path.home()))
         if not d:
             return
         try:
             kurspaket.laden(Path(d))
         except kurspaket.PaketFehler as e:
-            QMessageBox.warning(seite, "Kurspaket-Ordner öffnen", str(e))
+            QMessageBox.warning(seite, tr("Kurspaket-Ordner öffnen"), str(e))
             return
         oeffnen(Path(d), neu_geladen)
 
@@ -1281,32 +1302,32 @@ def bibliothek_knoepfe(seite, leiste: QHBoxLayout) -> None:
 class NeuDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Neues Kurspaket")
+        self.setWindowTitle(tr("Neues Kurspaket"))
         form = QFormLayout(self)
         self.name = QLineEdit()
-        self.name.setPlaceholderText("z. B. Einführung in Hermes Agent")
+        self.name.setPlaceholderText(tr("z. B. Einführung in Hermes Agent"))
         self.kennung = QLineEdit()
-        self.kennung.setPlaceholderText("wird aus dem Namen gebildet")
+        self.kennung.setPlaceholderText(tr("wird aus dem Namen gebildet"))
         self.stufe = QComboBox()
         for k, v in kurspaket.STUFEN.items():
             self.stufe.addItem(v, k)
         self.autor = QLineEdit()
-        form.addRow("Name:", self.name)
-        form.addRow("Kennung:", self.kennung)
-        form.addRow("Stufe:", self.stufe)
-        form.addRow("Autor:", self.autor)
+        form.addRow(tr("Name:"), self.name)
+        form.addRow(tr("Kennung:"), self.kennung)
+        form.addRow(tr("Stufe:"), self.stufe)
+        form.addRow(tr("Autor:"), self.autor)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        knoepfe.button(QDialogButtonBox.Ok).setText("Anlegen")
+        knoepfe.button(QDialogButtonBox.Ok).setText(tr("Anlegen"))
         form.addRow(knoepfe)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         self.name.textEdited.connect(lambda t: self.kennung.setPlaceholderText(ed.slug(t, 60) or
-                                                                               "wird aus dem Namen gebildet"))
+                                                                               tr("wird aus dem Namen gebildet")))
         self.resize(460, 0)
 
     def _ok(self) -> None:
         if len(self.name.text().strip()) < 3:
-            QMessageBox.information(self, self.windowTitle(), "Bitte einen Namen eingeben (mindestens 3 Zeichen).")
+            QMessageBox.information(self, self.windowTitle(), tr("Bitte einen Namen eingeben (mindestens 3 Zeichen)."))
             return
         self.accept()
 

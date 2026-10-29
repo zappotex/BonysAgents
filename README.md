@@ -1,5 +1,7 @@
 # Bony's Agents
 
+🇩🇪 Deutsch · 🇬🇧 [English](README.en.md)
+
 ![Bony's Agents – Mit KI lernen, arbeiten und kreativ sein – aber der Mensch bleibt am Steuer](src/bonys_agents/resources/background.jpg)
 
 ▶ **Videos und Anleitungen:** [youtube.com/@BonysAgents](https://www.youtube.com/@BonysAgents)
@@ -9,7 +11,8 @@ Hermes Agent“ – auf der [Releases-Seite](https://github.com/zappotex/BonysAg
 in [docs/handbuch/](docs/handbuch/) ([Benutzerhandbuch](docs/handbuch/benutzer.md),
 [Kursleiter-Handbuch](docs/handbuch/kursleiter.md)). Der Beispielkurs ist das mitgelieferte Kurspaket
 [kurspakete/einfuehrung-hermes-agent](kurspakete/einfuehrung-hermes-agent/) ([Ablaufplan](kurspakete/einfuehrung-hermes-agent/ablaufplan.md),
-[Handout](kurspakete/einfuehrung-hermes-agent/handout.md)).
+[Handout](kurspakete/einfuehrung-hermes-agent/handout.md)). Auf Englisch: User Guide und Trainer Guide
+([docs/handbuch/en/](docs/handbuch/en/)).
 
 **Virtuelle Agent-PCs per Mausklick – mit Brave, Telegram und Hermes Agent.**
 Läuft auf Linux, macOS und Windows. Freie Software unter GPL-3.0-or-later.
@@ -213,7 +216,8 @@ oft keine fertigen Pakete mehr an – dann baut der Mac QEMU selbst, das kann 30
 `bonys-agents` (oder `bonys-agents gui`) starten → **„+ Neuer Agent-PC“** →
 Name, Passwort, Ressourcen und Programme wählen → **Erstellen und starten**.
 
-Der Agent-PC ist ein Debian 13 mit dem gewählten Desktop (Standard: Cinnamon), deutscher Sprache und Tastatur.
+Der Agent-PC ist ein Debian 13 mit dem gewählten Desktop (Standard: Cinnamon) in der gewählten Sprache (Deutsch oder
+Englisch, Standard: die Sprache der App) und mit passender Tastatur.
 Brave, Telegram und Hermes Agent liegen als Symbole auf dem Schreibtisch.
 
 Beim ersten Mal wird das offizielle Debian-13-Cloud-Image (ca. 450 MB) geladen. Danach richtet sich der
@@ -281,7 +285,8 @@ Wichtige Optionen für `create`:
 | `--user NAME` | Benutzer im Agent-PC | `agent` |
 | `--apps a,b` | Programme und KI-Werkzeuge (`bonys-agents apps`) | brave,telegram,hermes |
 | `--agents a,b` | nur die KI-Werkzeuge: hermes, openclaw, claude-code oder none | hermes |
-| `--keyboard` | Tastaturlayout | `de` |
+| `--sprache de\|en` | Sprache im Agent-PC (Menüs, Ordner, Spracheingabe von Hermes) | Sprache der App |
+| `--keyboard` | Tastaturlayout | passend zur Sprache (`de` bzw. `us`) |
 | `--headless` | ohne Fenster (z. B. auf einem Server) | – |
 
 ### Hermes einrichten
@@ -294,7 +299,8 @@ hermes doctor    # Installation prüfen
 ```
 
 Sprechen statt tippen: Symbol **Hermes Agent (Sprache)** öffnen, **Strg+B** drücken, sprechen, wieder **Strg+B** –
-Hermes antwortet auch mit Stimme (Erkennung lokal mit Whisper, Stimme lokal mit Piper, beides auf Deutsch).
+Hermes antwortet auch mit Stimme (Erkennung lokal mit Whisper, Stimme lokal mit Piper, beides in der Sprache des
+Agent-PCs).
 Im normalen Hermes-Fenster mit `/voice on`. In Mission Control gibt es dafür die Knöpfe „Sprechen“ und Vorlesen.
 
 ### OpenClaw einrichten

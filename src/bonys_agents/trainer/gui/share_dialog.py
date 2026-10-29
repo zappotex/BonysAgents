@@ -14,12 +14,13 @@ from PySide6.QtWidgets import (
     QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
-from bonys_agents import APP_NAME, host, kurse, kurspaket, share, storage, templates
+from bonys_agents import APP_NAME, kurse, kurspaket, share, storage, templates
 from bonys_agents.gui import style
 from bonys_agents.gui.share_dialogs import _eta, code_style, qr_pixmap
 from bonys_agents.gui.template_dialogs import ExportDialog, FnWorker
 from bonys_agents.gui.widgets import PercentBar, make_scrollable
 from bonys_agents.trainer import share_server
+from bonys_agents.i18n import tr
 
 
 class ShareDialog(QDialog):
@@ -31,15 +32,15 @@ class ShareDialog(QDialog):
         self.share: share_server.Share | None = None
         self.paket_lokal: kurspaket.Kurspaket | None = None
         self.worker: FnWorker | None = None
-        self.setWindowTitle("Im Netzwerk freigeben")
+        self.setWindowTitle(tr("Im Netzwerk freigeben"))
         root = QVBoxLayout(self)
         root.setSpacing(10)
-        title = QLabel(f"„{t.name}“ im Netzwerk freigeben")
+        title = QLabel(tr("„{name}“ im Netzwerk freigeben", name=t.name))
         title.setObjectName("Title")
         root.addWidget(title)
-        intro = QLabel("Teilnehmer im selben Netz (oder im VPN, z. B. Bony's VPN) laden die Vorlage direkt von diesem "
-                       "Rechner – mit „Schulung beitreten“. Nur mit Freigabe-Code, verschlüsselt (HTTPS), nur lesend "
-                       "und nur solange die Freigabe läuft.")
+        intro = QLabel(tr("Teilnehmer im selben Netz (oder im VPN, z. B. Bony's VPN) laden die Vorlage direkt von "
+                          "diesem Rechner – mit „Schulung beitreten“. Nur mit Freigabe-Code, verschlüsselt (HTTPS), "
+                          "nur lesend und nur solange die Freigabe läuft."))
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
@@ -50,20 +51,20 @@ class ShareDialog(QDialog):
         self.port.setValue(share.DEFAULT_PORT)
         self.minutes = QSpinBox()
         self.minutes.setRange(5, 24 * 60)
-        self.minutes.setSuffix(" min")
+        self.minutes.setSuffix(tr(" min"))
         self.minutes.setValue(share.DEFAULT_TIMEOUT_MIN)
         self.parallel = QSpinBox()
         self.parallel.setRange(1, 32)
         self.parallel.setValue(share.DEFAULT_MAX_DOWNLOADS)
-        self.parallel.setToolTip("Mehr gleichzeitige Downloads teilen sich die Bandbreite – der Rest wartet in "
-                                 "einer Schlange.")
-        self.settings.addRow("Port", self.port)
-        self.settings.addRow("Endet nach", self.minutes)
-        self.settings.addRow("Gleichzeitige Downloads", self.parallel)
+        self.parallel.setToolTip(tr("Mehr gleichzeitige Downloads teilen sich die Bandbreite – der Rest wartet in "
+                                    "einer Schlange."))
+        self.settings.addRow(tr("Port"), self.port)
+        self.settings.addRow(tr("Endet nach"), self.minutes)
+        self.settings.addRow(tr("Gleichzeitige Downloads"), self.parallel)
         from bonys_agents.trainer.gui.kurse_leiten import paket_auswahl
 
         self.paket = paket_auswahl()
-        self.settings.addRow("Kurspaket", self.paket)
+        self.settings.addRow(tr("Kurspaket"), self.paket)
         root.addLayout(self.settings)
 
         # Während der Freigabe
@@ -81,13 +82,13 @@ class ShareDialog(QDialog):
         left.addStretch(1)
         self.live.addLayout(left, 1)
         self.qr = QLabel()
-        self.qr.setToolTip("Enthält Adresse, Code und Fingerabdruck – Teilnehmer können den Inhalt („bonys://…“) "
-                           "bei „Schulung beitreten“ einfügen.")
+        self.qr.setToolTip(tr("Enthält Adresse, Code und Fingerabdruck – Teilnehmer können den Inhalt („bonys://…“) "
+                              "bei „Schulung beitreten“ einfügen."))
         self.live.addWidget(self.qr, 0, Qt.AlignTop)
         root.addLayout(self.live)
         self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(["Teilnehmer", "Adresse", "Status", "Fortschritt", "Restzeit", "Lektion",
-                                              "Prüfung"])
+        self.table.setHorizontalHeaderLabels([tr("Teilnehmer"), tr("Adresse"), tr("Status"), tr("Fortschritt"),
+                                              tr("Restzeit"), tr("Lektion"), tr("Prüfung")])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -97,7 +98,7 @@ class ShareDialog(QDialog):
         self.events.setReadOnly(True)
         self.events.setMaximumHeight(style.px(90))
         root.addWidget(self.events)
-        self.firewall = QLabel(share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=share.DEFAULT_PORT))
+        self.firewall = QLabel(share_server.firewall_hinweis(share.DEFAULT_PORT))
         self.firewall.setWordWrap(True)
         self.firewall.setObjectName("Muted")
         root.addWidget(self.firewall)
@@ -113,10 +114,10 @@ class ShareDialog(QDialog):
         root.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.close_btn = QPushButton("Schließen")
-        self.start_btn = QPushButton("Freigabe starten")
+        self.close_btn = QPushButton(tr("Schließen"))
+        self.start_btn = QPushButton(tr("Freigabe starten"))
         self.start_btn.setObjectName("Primary")
-        self.stop_btn = QPushButton("Freigabe beenden")
+        self.stop_btn = QPushButton(tr("Freigabe beenden"))
         self.stop_btn.setObjectName("Danger")
         self.stop_btn.setVisible(False)
         for b in (self.close_btn, self.stop_btn, self.start_btn):
@@ -128,7 +129,7 @@ class ShareDialog(QDialog):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._refresh)
         self.port.valueChanged.connect(lambda v: self.firewall.setText(
-            share_server.FIREWALL_HINTS.get(host.detect().os, "").format(port=v)))
+            share_server.firewall_hinweis(v)))
         self.start_btn.clicked.connect(self._start)
         self.stop_btn.clicked.connect(self._stop)
         self.close_btn.clicked.connect(self.reject)
@@ -138,13 +139,13 @@ class ShareDialog(QDialog):
         if cached is None:
             target = share_server.cache_target(self.t, self.t.version or "1")
             dlg = ExportDialog(self.t, self, target=target)
-            dlg.ok_btn.setText("Prüfen und vorbereiten")
+            dlg.ok_btn.setText(tr("Prüfen und vorbereiten"))
             dlg.exec()
             if not dlg.result_file:
                 return
             file = dlg.result_file
             self._run(lambda progress: (file, share_server.remember_cache(
-                self.t, file, lambda f: progress("hash", f, f"Berechne Prüfsumme … {f * 100:.0f} %"))))
+                self.t, file, lambda f: progress("hash", f, tr("Berechne Prüfsumme … {wert:.0f} %", wert=f * 100)))))
             return
         self._serve(cached)
 
@@ -161,7 +162,7 @@ class ShareDialog(QDialog):
         self.worker = None
         self.progress.setVisible(False)
         self.start_btn.setEnabled(True)
-        self.status.setText(f"Fehler: {msg}")
+        self.status.setText(tr("Fehler: {msg}", msg=msg))
         self.status.setStyleSheet(f"color: {style.DANGER};")
 
     def _serve(self, cached: tuple[Path, str]) -> None:
@@ -195,9 +196,10 @@ class ShareDialog(QDialog):
                 for a in addrs]
         rows.append(f"Fingerabdruck: <b>{share.short_fingerprint(s.fingerprint)}</b> – Teilnehmer vergleichen ihn")
         rows.append(f"<span style='font-size:small'>{share.format_fingerprint(s.fingerprint)}</span>")
-        rows.append(f"Datei: {file.name} ({s.size / storage.GB:.2f} GB)")
+        rows.append(tr("Datei: {name} ({wert:.2f} GB)", name=file.name, wert=s.size / storage.GB))
         if paket is not None:
-            rows.append(f"Kurspaket: {paket.name} {paket.version} – die Teilnehmer bekommen es mit")
+            rows.append(tr("Kurspaket: {name} {version} – die Teilnehmer bekommen es mit", name=paket.name,
+                           version=paket.version))
         self.info.setText("<br>".join(rows))
         pix = qr_pixmap(s.link(addrs[0] if addrs else None), style.px(200))
         if pix is not None:
@@ -234,8 +236,18 @@ class ShareDialog(QDialog):
             return
         left = s.remaining()
         done = sum(1 for p in people if p.status == "fertig")
-        self.status.setText(f"Freigabe läuft – endet in {int(left // 60)} min {int(left % 60):02d} s · "
-                            f"{done} von {len(people)} Teilnehmern fertig")
+        self.status.setText(tr("Freigabe "
+                               "läuft – "
+                               "endet in "
+                               "{wert} "
+                               "min "
+                               "{wert2:02d} "
+                               "s · "
+                               "{done} "
+                               "von "
+                               "{wert3} "
+                               "Teilnehmern "
+                               "fertig", wert=int(left // 60), wert2=int(left % 60), done=done, wert3=len(people)))
 
     def _stop(self) -> None:
         s = self.share
@@ -243,8 +255,9 @@ class ShareDialog(QDialog):
             return
         busy = [p for p in s.participants.values() if p.status == "lädt"]
         if busy and QMessageBox.question(
-                self, APP_NAME, f"{len(busy)} Teilnehmer laden gerade. Trotzdem beenden? (Sie können später "
-                "fortsetzen, wenn du wieder freigibst.)") != QMessageBox.Yes:
+                self, APP_NAME, tr("{wert} Teilnehmer laden gerade. Trotzdem "
+                                   "beenden? (Sie können später fortsetzen, "
+                                   "wenn du wieder freigibst.)", wert=len(busy))) != QMessageBox.Yes:
             return
         s.stop("Freigabe beendet.")
         self._refresh()

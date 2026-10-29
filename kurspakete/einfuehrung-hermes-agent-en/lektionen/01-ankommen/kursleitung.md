@@ -1,0 +1,5 @@
+- Greet everyone by name as soon as they come in. Tech check: have everyone say "hello" once.
+- Opening question: "Who has already used ChatGPT or another AI chat?"
+- Message right at the start: **In the Agent PC you're allowed to make mistakes.**
+- If someone can't find the guide: "Courses" → choose the course → "Guide".
+- Anyone missing after 5 minutes gets a message.

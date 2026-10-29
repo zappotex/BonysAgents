@@ -14,6 +14,8 @@ Sicherheitsgrenze (VNC benutzt es so, das Passwort gilt nur für eine Sitzung un
 
 from __future__ import annotations
 
+from bonys_agents.i18n import tr
+
 FESTER_SCHLUESSEL = bytes([23, 82, 107, 6, 35, 78, 88, 7])   # vncpasswd/d3des, Werte wie in TigerVNC
 LAENGE = 8   # VNC benutzt höchstens 8 Zeichen des Passworts
 
@@ -68,7 +70,7 @@ def _perm(bits: list[int], table: tuple[int, ...]) -> list[int]:
 def des_block(key: bytes, block: bytes) -> bytes:
     """Einen 8-Byte-Block mit DES verschlüsseln (Schlüssel 8 Byte, Paritätsbits zählen nicht)."""
     if len(key) != 8 or len(block) != 8:
-        raise ValueError("DES braucht 8 Byte Schlüssel und 8 Byte Daten")
+        raise ValueError(tr("DES braucht 8 Byte Schlüssel und 8 Byte Daten"))
     cd = _perm(_bits(key), _PC1)
     c, d = cd[:28], cd[28:]
     teilschluessel = []
@@ -104,7 +106,7 @@ def _passwort_bytes(passwort: str) -> bytes:
 def antwort(passwort: str, herausforderung: bytes) -> bytes:
     """Antwort des Betrachters auf die 16-Byte-Herausforderung des Servers."""
     if len(herausforderung) != 16:
-        raise ValueError("Die Herausforderung ist 16 Byte lang")
+        raise ValueError(tr("Die Herausforderung ist 16 Byte lang"))
     k = _vnc_schluessel(_passwort_bytes(passwort))
     return des_block(k, herausforderung[:8]) + des_block(k, herausforderung[8:])
 
