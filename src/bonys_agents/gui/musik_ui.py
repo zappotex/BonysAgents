@@ -162,7 +162,7 @@ class Abspieler(QObject):
             self._laeuft = False
             self.geaendert.emit()
         elif self.e.quelle == musik.MUSIK and self._player is not None and self._player.source().isLocalFile() \
-                and self._player.source().toLocalFile() == self.e.dateien[self.e.titel]:
+                and Path(self._player.source().toLocalFile()) == Path(self.e.dateien[self.e.titel]):  # Qt: / statt \
             self._player.play()   # an der angehaltenen Stelle weiter
             self._laeuft = True
             self.geaendert.emit()

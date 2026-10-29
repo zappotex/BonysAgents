@@ -2,6 +2,7 @@
 """Musik & Radio: Adressen, Wiedergabelisten, Musikordner, Einstellungen und die Leiste (ohne echten Ton)."""
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -244,7 +245,7 @@ def test_eigene_musik(leiste, tmp_path, monkeypatch):
     w = leiste()
     a = w.abspieler
     a.musik(2)
-    assert a._player.quelle.toLocalFile() == str(dateien[2]) and not w.weiter_knopf.isHidden()
+    assert Path(a._player.quelle.toLocalFile()) == dateien[2] and not w.weiter_knopf.isHidden()
     a.weiter()
     assert a.e.titel == 0                                # am Ende wieder von vorn
     a.zurueck()
@@ -318,7 +319,7 @@ def test_fenster_sender_und_musik(leiste, tmp_path, monkeypatch):
     assert d.titel_liste.count() == 3 and musik.laden().ordner == str(ordner)
     d.titel_liste.setCurrentRow(2)
     d.musik_abspielen()
-    assert w.abspieler._player.quelle.toLocalFile() == str(einzeln)
+    assert Path(w.abspieler._player.quelle.toLocalFile()) == einzeln
     d.liste_leeren()
     assert not w.abspieler.laeuft and musik.laden().dateien == [] and not w.play_knopf.isEnabled()
 
