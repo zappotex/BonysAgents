@@ -243,3 +243,12 @@ Bonys Auftrag „mach die Tor-Korrektur Variante B“. Befund: Debian 13 liefert
 
 Bony: Beim Start eines Agent-PCs fragt die App nach dem Passwort „für SSH“ – verunsichert Nutzer. Ursache: Gast-Agent antwortet beim Hochfahren noch nicht, `guest_run`, `stream`, `vpnlink`, `netz.nachtraeglich_verbinden` fragten sofort. Neu: `VM.gast_agent_abwarten` (bis 150 s nach dem Start), danach erst `NeedsPassword` mit verständlichem Text `vm.GAST_AGENT_FEHLT`. Tests ergänzt. Nicht committet.
 - Echt geprüft in tor-test (Debian 13, torbrowser-launcher 0.3.7, AppArmor 4.1): vorher `DENIED userns_create profile=torbrowser_firefox`, nach der Korrektur Namensraum erlaubt; zweiter Lauf ändert nichts.
+
+### 2026-10-29 – Bony (echter Kurstest)
+
+Bony hat die Kursfunktionen mit 0.28.1 auf zwei Rechnern getestet: „alles hat funktioniert, der Bildschirm war bei Helfen verfügbar“. Damit ist die Hilfe über das Bony-Netz erstmals echt bestätigt (Zentrale 0.2.1, `-allow`, Rollen über Identität).
+- Getestet: Hilfe anfordern, annehmen, Bildschirm sichtbar, beenden. **Noch offen** für den nächsten Probekurs: Teilnehmer-App hart beenden (Totmannschalter ~30 s), Kurs > 15 min (Kartenerneuerung), Teilnehmer entfernen (sofort raus).
+
+### 2026-10-29 – Claude Code (Release 0.28.2)
+
+Veröffentlicht (Bonys Freigabe ohne weitere Rückfrage): Tag `v0.28.2` auf `aadcbb9` – Tor-Browser-Sandbox (echt in tor-test geprüft), keine Passwortfrage beim Hochfahren. Windows-Testjob im Release-Lauf wegen Zeitlimit abgebrochen, neu gestartet, grün; 26 Dateien, APT 0.28.2. Offen: Probekurs (Totmannschalter, Kurs > 15 min, Entfernen).
